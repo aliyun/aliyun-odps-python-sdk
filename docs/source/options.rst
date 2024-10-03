@@ -30,6 +30,7 @@ PyODPS 提供了一系列的配置选项，可通过 ``odps.options`` 获得，�
    "default_project", "默认 Project", "None"
    "logview_host", "LogView 主机名", "None"
    "logview_hours", "LogView 保持时间（小时）", "24"
+   "quota_name", "提交任务时使用的计算 Quota 名称", "None"
    "local_timezone", "使用的时区，None 表示不处理，True 表示本地时区，False 表示 UTC，也可用 pytz 的时区", "None"
    "lifecycle", "所有表生命周期", "None"
    "verify_ssl", "验证服务端 SSL 证书", "True"
@@ -50,7 +51,8 @@ PyODPS 提供了一系列的配置选项，可通过 ``odps.options`` 获得，�
    "display.notebook_widget", "使用交互式插件", "True"
    "sql.settings", "ODPS SQL运行全局hints", "None"
    "sql.use_odps2_extension", "启用 MaxCompute 2.0 语言扩展", "None"
-   "sql.always_enable_schema", "在任何情形下启用 MaxCompute Schema", "None"
+   "sql.enable_schema", "在任何情形下启用 MaxCompute Schema", "None"
+   "pythonpack.settings", "PythonPack运行全局hints", "None"
 
 数据上传/下载配置
 ==================
@@ -65,6 +67,7 @@ PyODPS 提供了一系列的配置选项，可通过 ``odps.options`` 获得，�
    "tunnel.string_as_binary", "在 string 类型中使用 bytes 而非 unicode", "False"
    "tunnel.quota_name", "配置 Tunnel Quota 的名称", "False"
    "tunnel.block_buffer_size", "配置缓存 Block Writer 的缓存大小", "20 * 1024 ** 2"
+   "tunnel.tags", "配置使用 Tunnel 所需的标签", "None"
 
 DataFrame 配置
 ==================

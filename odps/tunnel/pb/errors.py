@@ -31,4 +31,3 @@ class DecodeError(Error):
 
 class EncodeError(Error):
     pass
-

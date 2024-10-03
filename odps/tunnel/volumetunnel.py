@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,19 +15,19 @@
 # limitations under the License.
 
 import logging
-import sys
 import struct
+import sys
 
 from requests.exceptions import StreamConsumedError
 
+from .. import options, serializers
+from ..compat import Enum, irange, six
+from ..models import errors
+from ..utils import to_binary, to_text
 from . import io
 from .base import BaseTunnel
 from .checksum import Checksum
 from .errors import TunnelError
-from .. import serializers, options
-from ..models import errors
-from ..compat import irange, Enum, six
-from ..utils import to_binary, to_text
 
 logger = logging.getLogger(__name__)
 
@@ -35,42 +35,83 @@ MAX_CHUNK_SIZE = 256 * 1024 * 1024
 MIN_CHUNK_SIZE = 1
 CHECKSUM_SIZE = 4
 
-CHECKSUM_PACKER = '>i' if six.PY2 else '>I'
+CHECKSUM_PACKER = ">i" if six.PY2 else ">I"
 
 
 class VolumeTunnel(BaseTunnel):
-    def create_download_session(self, volume, partition_spec, file_name, download_id=None, compress_option=None,
-                                compress_algo=None, compress_level=None, compress_strategy=None):
+    def create_download_session(
+        self,
+        volume,
+        partition_spec,
+        file_name,
+        download_id=None,
+        compress_option=None,
+        compress_algo=None,
+        compress_level=None,
+        compress_strategy=None,
+    ):
         if not isinstance(volume, six.string_types):
             volume = volume.name
         volume = self._project.volumes[volume]
         if compress_option is None and compress_algo is not None:
             compress_option = io.CompressOption(
-                compress_algo=compress_algo, level=compress_level, strategy=compress_strategy)
+                compress_algo=compress_algo,
+                level=compress_level,
+                strategy=compress_strategy,
+            )
 
         return VolumeDownloadSession(
-            self.tunnel_rest, volume, partition_spec, file_name, download_id=download_id,
-            compress_option=compress_option, quota_name=self._quota_name
+            self.tunnel_rest,
+            volume,
+            partition_spec,
+            file_name,
+            download_id=download_id,
+            compress_option=compress_option,
+            quota_name=self._quota_name,
         )
 
-    def create_upload_session(self, volume, partition_spec, upload_id=None, compress_option=None,
-                              compress_algo=None, compress_level=None, compress_strategy=None):
+    def create_upload_session(
+        self,
+        volume,
+        partition_spec,
+        upload_id=None,
+        compress_option=None,
+        compress_algo=None,
+        compress_level=None,
+        compress_strategy=None,
+    ):
         if not isinstance(volume, six.string_types):
             volume = volume.name
         volume = self._project.volumes[volume]
         if compress_option is None and compress_algo is not None:
             compress_option = io.CompressOption(
-                compress_algo=compress_algo, level=compress_level, strategy=compress_strategy)
+                compress_algo=compress_algo,
+                level=compress_level,
+                strategy=compress_strategy,
+            )
 
         return VolumeUploadSession(
-            self.tunnel_rest, volume, partition_spec, upload_id=upload_id,
-            compress_option=compress_option, quota_name=self._quota_name
+            self.tunnel_rest,
+            volume,
+            partition_spec,
+            upload_id=upload_id,
+            compress_option=compress_option,
+            quota_name=self._quota_name,
         )
 
 
 class VolumeFSTunnel(BaseTunnel):
-    def open_reader(self, volume, path, start=None, length=None, compress_option=None, compress_algo=None,
-                    compress_level=None, compress_strategy=None):
+    def open_reader(
+        self,
+        volume,
+        path,
+        start=None,
+        length=None,
+        compress_option=None,
+        compress_algo=None,
+        compress_level=None,
+        compress_strategy=None,
+    ):
         if not isinstance(volume, six.string_types):
             volume = volume.name
         volume = self._project.volumes[volume]
@@ -81,16 +122,25 @@ class VolumeFSTunnel(BaseTunnel):
             file_obj = volume[path]
             length = file_obj.length
 
-        headers = {
-            'Range': 'bytes={0}-{1}'.format(start, start + length - 1),
-            'x-odps-volume-fs-path': '/' + volume.name + '/' + path.lstrip('/'),
-        }
+        headers = VolumeDownloadSession.get_common_headers()
+        headers.update(
+            {
+                "Range": "bytes={0}-{1}".format(start, start + length - 1),
+                "x-odps-volume-fs-path": "/" + volume.name + "/" + path.lstrip("/"),
+            }
+        )
 
         if compress_option is not None:
-            if compress_option.algorithm == io.CompressOption.CompressAlgorithm.ODPS_ZLIB:
-                headers['Accept-Encoding'] = 'deflate'
-            elif compress_option.algorithm != io.CompressOption.CompressAlgorithm.ODPS_RAW:
-                raise TunnelError('invalid compression option')
+            if (
+                compress_option.algorithm
+                == io.CompressOption.CompressAlgorithm.ODPS_ZLIB
+            ):
+                headers["Accept-Encoding"] = "deflate"
+            elif (
+                compress_option.algorithm
+                != io.CompressOption.CompressAlgorithm.ODPS_RAW
+            ):
+                raise TunnelError("invalid compression option")
 
         url = volume.resource(client=self.tunnel_rest)
         resp = self.tunnel_rest.get(url, headers=headers, stream=True)
@@ -100,9 +150,12 @@ class VolumeFSTunnel(BaseTunnel):
 
         if compress_option is None and compress_algo is not None:
             compress_option = io.CompressOption(
-                compress_algo=compress_algo, level=compress_level, strategy=compress_strategy)
+                compress_algo=compress_algo,
+                level=compress_level,
+                strategy=compress_strategy,
+            )
 
-        content_encoding = resp.headers.get('Content-Encoding')
+        content_encoding = resp.headers.get("Content-Encoding")
         if content_encoding is not None:
             compress = True
         else:
@@ -111,63 +164,114 @@ class VolumeFSTunnel(BaseTunnel):
         option = compress_option if compress else None
         return VolumeReader(self.tunnel_rest, resp, option)
 
-    def open_writer(self, volume, path, replication=None, compress_option=None, compress_algo=None,
-                    compress_level=None, compress_strategy=None):
+    def open_writer(
+        self,
+        volume,
+        path,
+        replication=None,
+        compress_option=None,
+        compress_algo=None,
+        compress_level=None,
+        compress_strategy=None,
+    ):
         if not isinstance(volume, six.string_types):
             volume = volume.name
         volume = self._project.volumes[volume]
 
-        headers = {
-            'Content-Type': 'application/octet-stream',
-            'Transfer-Encoding': 'chunked',
-            'x-odps-volume-fs-path': '/' + volume.name + '/' + path.lstrip('/'),
-        }
+        headers = VolumeUploadSession.get_common_headers()
+        headers.update(
+            {
+                "Content-Type": "application/octet-stream",
+                "Transfer-Encoding": "chunked",
+                "x-odps-volume-fs-path": "/" + volume.name + "/" + path.lstrip("/"),
+            }
+        )
         params = {}
 
         if compress_option is None and compress_algo is not None:
             compress_option = io.CompressOption(
-                compress_algo=compress_algo, level=compress_level, strategy=compress_strategy)
+                compress_algo=compress_algo,
+                level=compress_level,
+                strategy=compress_strategy,
+            )
         if compress_option is not None:
-            if compress_option.algorithm == io.CompressOption.CompressAlgorithm.ODPS_ZLIB:
-                headers['Content-Encoding'] = 'deflate'
-            elif compress_option.algorithm != io.CompressOption.CompressAlgorithm.ODPS_RAW:
-                raise TunnelError('invalid compression option')
+            if (
+                compress_option.algorithm
+                == io.CompressOption.CompressAlgorithm.ODPS_ZLIB
+            ):
+                headers["Content-Encoding"] = "deflate"
+            elif (
+                compress_option.algorithm
+                != io.CompressOption.CompressAlgorithm.ODPS_RAW
+            ):
+                raise TunnelError("invalid compression option")
 
         if replication:
-            params['replication'] = replication
+            params["replication"] = replication
 
         url = volume.resource(client=self.tunnel_rest)
 
-        chunk_upload = lambda data: self.tunnel_rest.post(url, data=data, params=params, headers=headers)
+        chunk_upload = lambda data: self.tunnel_rest.post(
+            url, data=data, params=params, headers=headers
+        )
         if compress_option is None and compress_algo is not None:
             compress_option = io.CompressOption(
-                compress_algo=compress_algo, level=compress_level, strategy=compress_strategy)
-        return VolumeFSWriter(self.tunnel_rest, chunk_upload, volume, path, compress_option)
+                compress_algo=compress_algo,
+                level=compress_level,
+                strategy=compress_strategy,
+            )
+        return VolumeFSWriter(
+            self.tunnel_rest, chunk_upload, volume, path, compress_option
+        )
 
 
-class VolumeDownloadSession(serializers.JSONSerializableModel):
+class BaseVolumeTunnelSession(serializers.JSONSerializableModel):
+    @staticmethod
+    def get_common_headers(content_length=None, tags=None):
+        header = {}
+        if content_length is not None:
+            header["Content-Length"] = content_length
+        tags = tags or options.tunnel.tags
+        if tags:
+            if isinstance(tags, six.string_types):
+                tags = tags.split(",")
+            header["odps-tunnel-tags"] = ",".join(tags)
+        return header
+
+
+class VolumeDownloadSession(BaseVolumeTunnelSession):
     __slots__ = (
-        '_client', 'project_name', '_compress_option', '_quota_name',
+        "_client",
+        "project_name",
+        "_compress_option",
+        "_quota_name",
     )
 
     class Status(Enum):
-        UNKNOWN = 'UNKNOWN'
-        NORMAL = 'NORMAL'
-        CLOSED = 'CLOSED'
-        EXPIRED = 'EXPIRED'
+        UNKNOWN = "UNKNOWN"
+        NORMAL = "NORMAL"
+        CLOSED = "CLOSED"
+        EXPIRED = "EXPIRED"
 
-    id = serializers.JSONNodeField('DownloadID')
+    id = serializers.JSONNodeField("DownloadID")
     status = serializers.JSONNodeField(
-        'Status', parse_callback=lambda v: VolumeDownloadSession.Status(v.upper())
+        "Status", parse_callback=lambda v: VolumeDownloadSession.Status(v.upper())
     )
-    file_name = serializers.JSONNodeField('File', 'FileName')
-    file_length = serializers.JSONNodeField('File', 'FileLength')
-    volume_name = serializers.JSONNodeField('Partition', 'Volume')
-    partition_spec = serializers.JSONNodeField('Partition', 'Partition')
+    file_name = serializers.JSONNodeField("File", "FileName")
+    file_length = serializers.JSONNodeField("File", "FileLength")
+    volume_name = serializers.JSONNodeField("Partition", "Volume")
+    partition_spec = serializers.JSONNodeField("Partition", "Partition")
 
     def __init__(
-        self, client, volume, partition_spec, file_name=None, download_id=None,
-            compress_option=None, quota_name=None
+        self,
+        client,
+        volume,
+        partition_spec,
+        file_name=None,
+        download_id=None,
+        compress_option=None,
+        quota_name=None,
+        tags=None,
     ):
         super(VolumeDownloadSession, self).__init__()
 
@@ -180,10 +284,10 @@ class VolumeDownloadSession(serializers.JSONSerializableModel):
         self.file_name = file_name
 
         if download_id is None:
-            self._init()
+            self._init(tags=tags)
         else:
             self.id = download_id
-            self.reload()
+            self.reload(tags=tags)
 
         logger.info("Tunnel session created: %r", self)
         if options.tunnel_session_create_callback:
@@ -196,16 +300,26 @@ class VolumeDownloadSession(serializers.JSONSerializableModel):
         )
 
     def resource(self, client=None, endpoint=None):
-        endpoint = endpoint if endpoint is not None else (client or self._client).endpoint
-        return endpoint + '/projects/%s/tunnel/downloads' % self.project_name
+        endpoint = (
+            endpoint if endpoint is not None else (client or self._client).endpoint
+        )
+        return endpoint + "/projects/%s/tunnel/downloads" % self.project_name
 
-    def _init(self):
-        headers = {'Content-Length': '0'}
-        params = dict(type='volumefile', target='/'.join(
-            [self.project_name, self.volume_name, self.partition_spec, self.file_name]
-        ))
+    def _init(self, tags=None):
+        headers = self.get_common_headers(content_length=0, tags=tags)
+        params = dict(
+            type="volumefile",
+            target="/".join(
+                [
+                    self.project_name,
+                    self.volume_name,
+                    self.partition_spec,
+                    self.file_name,
+                ]
+            ),
+        )
         if self._quota_name is not None:
-            params['quotaName'] = self._quota_name
+            params["quotaName"] = self._quota_name
 
         url = self.resource()
         resp = self._client.post(url, {}, params=params, headers=headers)
@@ -215,16 +329,16 @@ class VolumeDownloadSession(serializers.JSONSerializableModel):
             e = TunnelError.parse(resp)
             raise e
 
-    def reload(self):
-        headers = {'Content-Length': '0'}
+    def reload(self, tags=None):
+        headers = self.get_common_headers(content_length=0, tags=tags)
         params = {}
 
         if self.partition_spec is not None and len(self.partition_spec) > 0:
-            params['partition'] = self.partition_spec
+            params["partition"] = self.partition_spec
         if self._quota_name is not None:
-            params['quotaName'] = self._quota_name
+            params["quotaName"] = self._quota_name
 
-        url = self.resource() + '/' + str(self.id)
+        url = self.resource() + "/" + str(self.id)
         resp = self._client.get(url, params=params, headers=headers)
         if self._client.is_ok(resp):
             self.parse(resp, obj=self)
@@ -237,30 +351,33 @@ class VolumeDownloadSession(serializers.JSONSerializableModel):
 
         params = {}
 
-        headers = {'Content-Length': 0, 'x-odps-tunnel-version': 4}
+        headers = {"Content-Length": 0, "x-odps-tunnel-version": 4}
         if compress_option.algorithm == io.CompressOption.CompressAlgorithm.ODPS_ZLIB:
-            headers['Accept-Encoding'] = 'deflate'
+            headers["Accept-Encoding"] = "deflate"
         elif compress_option.algorithm != io.CompressOption.CompressAlgorithm.ODPS_RAW:
-            raise TunnelError('invalid compression option')
+            raise TunnelError("invalid compression option")
 
-        params['data'] = ''
-        params['range'] = '(%s,%s)' % (start, length)
+        params["data"] = ""
+        params["range"] = "(%s,%s)" % (start, length)
         if self._quota_name is not None:
-            params['quotaName'] = self._quota_name
+            params["quotaName"] = self._quota_name
 
         url = self.resource()
-        resp = self._client.get(url + '/' + self.id, params=params, headers=headers, stream=True)
+        resp = self._client.get(
+            url + "/" + self.id, params=params, headers=headers, stream=True
+        )
         if not self._client.is_ok(resp):
             e = TunnelError.parse(resp)
             raise e
 
-        content_encoding = resp.headers.get('Content-Encoding')
+        content_encoding = resp.headers.get("Content-Encoding")
         if content_encoding is not None:
-            if content_encoding == 'deflate':
+            if content_encoding == "deflate":
                 self._compress_option = io.CompressOption(
-                    io.CompressOption.CompressAlgorithm.ODPS_ZLIB, -1, 0)
+                    io.CompressOption.CompressAlgorithm.ODPS_ZLIB, -1, 0
+                )
             else:
-                raise TunnelError('Invalid content encoding')
+                raise TunnelError("Invalid content encoding")
             compress = True
         else:
             compress = False
@@ -274,7 +391,7 @@ class VolumeReader(object):
         self._client = client
         self._response = io.RequestsInputStream(response)
         self._compress_option = compress_option
-        self._crc = Checksum(method='crc32')
+        self._crc = Checksum(method="crc32")
         self._buffer_size = 0
         self._initialized = False
         self._last_line_ending = None
@@ -287,17 +404,20 @@ class VolumeReader(object):
         # left part of checksum block when chunked, see _read_buf()
         self._chunk_left = None
 
-    def _raw_read(self, l):
-        return self._response.read(l)
+    def _raw_read(self, size):
+        return self._response.read(size)
 
     def _init_buf(self):
         size_buf = self._raw_read(4)
         if not size_buf:
-            raise IOError('Tunnel reader breaks unexpectedly.')
+            raise IOError("Tunnel reader breaks unexpectedly.")
         self._crc.update(size_buf)
-        chunk_size = struct.unpack('>I', size_buf)[0]
+        chunk_size = struct.unpack(">I", size_buf)[0]
         if chunk_size > MAX_CHUNK_SIZE or chunk_size < MIN_CHUNK_SIZE:
-            raise IOError("ChunkSize should be in [%d, %d], now is %d." % (MIN_CHUNK_SIZE, MAX_CHUNK_SIZE, chunk_size))
+            raise IOError(
+                "ChunkSize should be in [%d, %d], now is %d."
+                % (MIN_CHUNK_SIZE, MAX_CHUNK_SIZE, chunk_size)
+            )
         self._buffer_size = CHECKSUM_SIZE + chunk_size
 
     def _read_buf(self):
@@ -328,17 +448,20 @@ class VolumeReader(object):
             buf = data_buffer.getvalue()
         else:
             buf_all = data_buffer.getvalue()
-            buf, self._chunk_left = buf_all[:self._buffer_size], buf_all[self._buffer_size:]
+            buf, self._chunk_left = (
+                buf_all[: self._buffer_size],
+                buf_all[self._buffer_size :],
+            )
 
         if len(buf) >= CHECKSUM_SIZE:
             self._data_size = len(buf) - CHECKSUM_SIZE
-            self._crc.update(buf[:self._data_size])
+            self._crc.update(buf[: self._data_size])
             checksum = struct.unpack_from(CHECKSUM_PACKER, buf, self._data_size)[0]
             if checksum != self._crc.getvalue():
-                raise IOError('CRC check error in VolumeReader.')
+                raise IOError("CRC check error in VolumeReader.")
         else:
-            raise IOError('Invalid VolumeReader.')
-        return bytearray(buf[:self._data_size])
+            raise IOError("Invalid VolumeReader.")
+        return bytearray(buf[: self._data_size])
 
     def read(self, size=None, break_line=False):
         if size is None:
@@ -358,27 +481,29 @@ class VolumeReader(object):
         if self._left_part:
             if break_line:
                 # deal with Windows line endings
-                if self._left_part[self._left_part_pos] == ord('\n') and self._last_line_ending == ord('\r'):
+                if self._left_part[self._left_part_pos] == ord(
+                    "\n"
+                ) and self._last_line_ending == ord("\r"):
                     self._last_line_ending = None
                     self._left_part_pos += 1
 
                 for idx in irange(self._left_part_pos, len(self._left_part)):
-                    if self._left_part[idx] not in (ord('\r'), ord('\n')):
+                    if self._left_part[idx] not in (ord("\r"), ord("\n")):
                         continue
                     self._last_line_ending = self._left_part[idx]
-                    self._left_part[idx] = ord('\n')
-                    ret = self._left_part[self._left_part_pos:idx + 1]
+                    self._left_part[idx] = ord("\n")
+                    ret = self._left_part[self._left_part_pos : idx + 1]
                     self._left_part_pos = idx + 1
                     if self._left_part_pos == len(self._left_part):
                         self._left_part = None
                         self._left_part_pos = 0
                     return bytes(ret)
             if len(self._left_part) - self._left_part_pos >= size:
-                ret = self._left_part[self._left_part_pos:self._left_part_pos + size]
+                ret = self._left_part[self._left_part_pos : self._left_part_pos + size]
                 self._left_part_pos += size
                 return bytes(ret)
             else:
-                out_buf.write(bytes(self._left_part[self._left_part_pos:]))
+                out_buf.write(bytes(self._left_part[self._left_part_pos :]))
                 self._left_part = None
                 self._left_part_pos = 0
                 has_stuff = True
@@ -391,42 +516,42 @@ class VolumeReader(object):
             has_stuff = True
             start_pos = 0
             if break_line:
-                if buf[0] == ord('\n') and self._last_line_ending == ord('\r'):
+                if buf[0] == ord("\n") and self._last_line_ending == ord("\r"):
                     start_pos = 1
                 for idx in irange(start_pos, len(buf)):
-                    if buf[idx] not in (ord('\r'), ord('\n')):
+                    if buf[idx] not in (ord("\r"), ord("\n")):
                         continue
                     self._last_line_ending = buf[idx]
-                    buf[idx] = ord('\n')
-                    out_buf.write(bytes(buf[start_pos:idx + 1]))
+                    buf[idx] = ord("\n")
+                    out_buf.write(bytes(buf[start_pos : idx + 1]))
                     if idx + 1 < len(buf):
-                        self._left_part = buf[idx + 1:]
+                        self._left_part = buf[idx + 1 :]
                         self._left_part_pos = 0
                     return out_buf.getvalue()
 
             if len(buf) >= length_left:
-                out_buf.write(bytes(buf[start_pos:start_pos + length_left]))
+                out_buf.write(bytes(buf[start_pos : start_pos + length_left]))
                 if len(buf) > length_left:
-                    self._left_part = buf[start_pos + length_left:]
+                    self._left_part = buf[start_pos + length_left :]
                     self._left_part_pos = 0
                 length_left = 0
             else:
-                out_buf.write(bytes(buf[start_pos:start_pos + self._data_size]))
+                out_buf.write(bytes(buf[start_pos : start_pos + self._data_size]))
                 length_left -= self._data_size
         return out_buf.getvalue() if has_stuff else None
 
-    def _it(self, size=sys.maxsize, encoding='utf-8'):
+    def _it(self, size=sys.maxsize, encoding="utf-8"):
         while True:
             line = self.readline(size, encoding=encoding)
             if line is None:
                 break
             yield line
 
-    def readline(self, size=sys.maxsize, encoding='utf-8'):
+    def readline(self, size=sys.maxsize, encoding="utf-8"):
         line = self.read(size, break_line=True)
         return to_text(line, encoding=encoding)
 
-    def readlines(self, size=sys.maxsize, encoding='utf-8'):
+    def readlines(self, size=sys.maxsize, encoding="utf-8"):
         return [line for line in self._it(size, encoding=encoding)]
 
     def __iter__(self):
@@ -439,33 +564,44 @@ class VolumeReader(object):
         pass
 
 
-class VolumeUploadSession(serializers.JSONSerializableModel):
+class VolumeUploadSession(BaseVolumeTunnelSession):
     __slots__ = (
-        '_client', '_compress_option', 'project_name', 'volume_name',
-        'partition_spec', '_quota_name',
+        "_client",
+        "_compress_option",
+        "project_name",
+        "volume_name",
+        "partition_spec",
+        "_quota_name",
     )
 
     class Status(Enum):
-        UNKNOWN = 'UNKNOWN'
-        NORMAL = 'NORMAL'
-        CLOSING = 'CLOSING'
-        CLOSED = 'CLOSED'
-        CANCELED = 'CANCELED'
-        EXPIRED = 'EXPIRED'
-        CRITICAL = 'CRITICAL'
+        UNKNOWN = "UNKNOWN"
+        NORMAL = "NORMAL"
+        CLOSING = "CLOSING"
+        CLOSED = "CLOSED"
+        CANCELED = "CANCELED"
+        EXPIRED = "EXPIRED"
+        CRITICAL = "CRITICAL"
 
     class UploadFile(serializers.JSONSerializableModel):
-        file_name = serializers.JSONNodeField('FileName')
-        file_length = serializers.JSONNodeField('FileLength')
+        file_name = serializers.JSONNodeField("FileName")
+        file_length = serializers.JSONNodeField("FileLength")
 
-    id = serializers.JSONNodeField('UploadID')
-    status = serializers.JSONNodeField('Status',
-                                       parse_callback=lambda v: VolumeUploadSession.Status(v.upper()))
-    file_list = serializers.JSONNodesReferencesField(UploadFile, 'FileList')
+    id = serializers.JSONNodeField("UploadID")
+    status = serializers.JSONNodeField(
+        "Status", parse_callback=lambda v: VolumeUploadSession.Status(v.upper())
+    )
+    file_list = serializers.JSONNodesReferencesField(UploadFile, "FileList")
 
     def __init__(
-        self, client, volume, partition_spec, upload_id=None,
-        compress_option=None, quota_name=None
+        self,
+        client,
+        volume,
+        partition_spec,
+        upload_id=None,
+        compress_option=None,
+        quota_name=None,
+        tags=None,
     ):
         super(VolumeUploadSession, self).__init__()
 
@@ -477,10 +613,10 @@ class VolumeUploadSession(serializers.JSONSerializableModel):
         self.partition_spec = partition_spec
 
         if upload_id is None:
-            self._init()
+            self._init(tags=tags)
         else:
             self.id = upload_id
-            self.reload()
+            self.reload(tags=tags)
         self._compress_option = compress_option
 
         logger.info("Tunnel session created: %r", self)
@@ -494,17 +630,20 @@ class VolumeUploadSession(serializers.JSONSerializableModel):
         )
 
     def resource(self, client=None, endpoint=None):
-        endpoint = endpoint if endpoint is not None else (client or self._client).endpoint
-        return endpoint + '/projects/%s/tunnel/uploads' % self.project_name
+        endpoint = (
+            endpoint if endpoint is not None else (client or self._client).endpoint
+        )
+        return endpoint + "/projects/%s/tunnel/uploads" % self.project_name
 
-    def _init(self):
-        headers = {'Content-Length': '0'}
+    def _init(self, tags=None):
+        headers = self.get_common_headers(content_length=0, tags=tags)
         params = dict(
-            type='volumefile',
-            target='/'.join([self.project_name, self.volume_name, self.partition_spec]) + '/'
+            type="volumefile",
+            target="/".join([self.project_name, self.volume_name, self.partition_spec])
+            + "/",
         )
         if self._quota_name is not None:
-            params['quotaName'] = self._quota_name
+            params["quotaName"] = self._quota_name
 
         url = self.resource()
         resp = self._client.post(url, {}, params=params, headers=headers)
@@ -514,11 +653,11 @@ class VolumeUploadSession(serializers.JSONSerializableModel):
             e = TunnelError.parse(resp)
             raise e
 
-    def reload(self):
-        headers = {'Content-Length': '0'}
+    def reload(self, tags=None):
+        headers = self.get_common_headers(content_length=0, tags=tags)
         params = {}
 
-        url = self.resource() + '/' + str(self.id)
+        url = self.resource() + "/" + str(self.id)
         resp = self._client.get(url, params=params, headers=headers)
         if self._client.is_ok(resp):
             self.parse(resp, obj=self)
@@ -529,11 +668,13 @@ class VolumeUploadSession(serializers.JSONSerializableModel):
     @staticmethod
     def _format_file_name(file_name):
         buf = six.StringIO()
-        if file_name and file_name[0] == '/':
-            raise TunnelError("FileName cannot start with '/', file name is " + file_name)
+        if file_name and file_name[0] == "/":
+            raise TunnelError(
+                "FileName cannot start with '/', file name is " + file_name
+            )
         pre_slash = False
         for ch in file_name:
-            if ch == '/':
+            if ch == "/":
                 if not pre_slash:
                     buf.write(ch)
                 pre_slash = True
@@ -544,52 +685,70 @@ class VolumeUploadSession(serializers.JSONSerializableModel):
 
     def open(self, file_name, compress=False, append=False):
         compress_option = self._compress_option or io.CompressOption()
-        headers = {'Content-Type': 'test/plain', 'Transfer-Encoding': 'chunked', 'x-odps-tunnel-version': 4}
+        headers = self.get_common_headers()
+        headers.update(
+            {
+                "Content-Type": "test/plain",
+                "Transfer-Encoding": "chunked",
+                "x-odps-tunnel-version": 4,
+            }
+        )
         params = {}
 
         if compress:
-            if compress_option.algorithm == io.CompressOption.CompressAlgorithm.ODPS_ZLIB:
-                headers['Content-Encoding'] = 'deflate'
-            elif compress_option.algorithm != io.CompressOption.CompressAlgorithm.ODPS_RAW:
-                raise TunnelError('invalid compression option')
+            if (
+                compress_option.algorithm
+                == io.CompressOption.CompressAlgorithm.ODPS_ZLIB
+            ):
+                headers["Content-Encoding"] = "deflate"
+            elif (
+                compress_option.algorithm
+                != io.CompressOption.CompressAlgorithm.ODPS_RAW
+            ):
+                raise TunnelError("invalid compression option")
 
         file_name = self._format_file_name(file_name)
-        params['blockid'] = file_name
+        params["blockid"] = file_name
         if append:
-            params['resume'] = ''
+            params["resume"] = ""
         if self._quota_name is not None:
-            params['quotaName'] = self._quota_name
+            params["quotaName"] = self._quota_name
 
-        url = self.resource() + '/' + self.id
+        url = self.resource() + "/" + self.id
 
-        chunk_uploader = lambda data: self._client.post(url, data=data, params=params, headers=headers)
+        chunk_uploader = lambda data: self._client.post(
+            url, data=data, params=params, headers=headers
+        )
         option = compress_option if compress else None
         return VolumeWriter(self._client, chunk_uploader, option)
 
     def commit(self, files):
         if not files:
-            raise ValueError('`files` not supplied')
+            raise ValueError("`files` not supplied")
         if isinstance(files, six.string_types):
-            files = [files, ]
+            files = [files]
         formatted = [self._format_file_name(fn) for fn in files]
 
         self.reload()
         files_uploading = set(f.file_name for f in self.file_list)
 
         if len(files_uploading) != len(formatted):
-            raise TunnelError("File number not match, server: %d, client: %d" % (len(files_uploading), len(formatted)))
+            raise TunnelError(
+                "File number not match, server: %d, client: %d"
+                % (len(files_uploading), len(formatted))
+            )
         for fn in (fn for fn in formatted if fn not in files_uploading):
             raise TunnelError("File not exits on server, file name is " + fn)
 
         self._complete_upload()
 
     def _complete_upload(self):
-        headers = {'Content-Length': '0'}
+        headers = self.get_common_headers(content_length=0)
         params = {}
         if self._quota_name is not None:
-            params['quotaName'] = self._quota_name
+            params["quotaName"] = self._quota_name
 
-        url = self.resource() + '/' + self.id
+        url = self.resource() + "/" + self.id
         resp = self._client.put(url, {}, params=params, headers=headers)
         if self._client.is_ok(resp):
             self.parse(resp, obj=self)
@@ -608,29 +767,27 @@ class VolumeWriter(object):
 
         if compress_option is None:
             self._writer = self._req_io
-        elif compress_option.algorithm == \
-                io.CompressOption.CompressAlgorithm.ODPS_RAW:
+        elif compress_option.algorithm == io.CompressOption.CompressAlgorithm.ODPS_RAW:
             self._writer = self._req_io
-        elif compress_option.algorithm == \
-                io.CompressOption.CompressAlgorithm.ODPS_ZLIB:
+        elif compress_option.algorithm == io.CompressOption.CompressAlgorithm.ODPS_ZLIB:
             self._writer = io.DeflateOutputStream(self._req_io)
         else:
-            raise errors.InvalidArgument('Invalid compression algorithm.')
+            raise errors.InvalidArgument("Invalid compression algorithm.")
 
-        self._crc = Checksum(method='crc32')
+        self._crc = Checksum(method="crc32")
         self._initialized = False
         self._chunk_offset = 0
 
     def _init_writer(self):
-        chunk_bytes = struct.pack('>I', self.CHUNK_SIZE)
+        chunk_bytes = struct.pack(">I", self.CHUNK_SIZE)
         self._writer.write(chunk_bytes)
         self._crc.update(chunk_bytes)
         self._chunk_offset = 0
 
-    def write(self, buf, encoding='utf-8'):
+    def write(self, buf, encoding="utf-8"):
         buf = to_binary(buf, encoding=encoding)
         if isinstance(buf, six.integer_types):
-            buf = bytes(bytearray([buf, ]))
+            buf = bytes(bytearray([buf]))
         elif isinstance(buf, six.BytesIO):
             buf = buf.getvalue()
         if not self._initialized:
@@ -639,7 +796,7 @@ class VolumeWriter(object):
             self._req_io.start()
 
         if not buf:
-            raise IOError('Invalid data buffer!')
+            raise IOError("Invalid data buffer!")
         processed = 0
         while processed < len(buf):
             if self._chunk_offset == self.CHUNK_SIZE:
@@ -647,9 +804,12 @@ class VolumeWriter(object):
                 self._writer.write(struct.pack(CHECKSUM_PACKER, checksum))
                 self._chunk_offset = 0
             else:
-                size = self.CHUNK_SIZE - self._chunk_offset if len(buf) - processed > self.CHUNK_SIZE - self._chunk_offset\
+                size = (
+                    self.CHUNK_SIZE - self._chunk_offset
+                    if len(buf) - processed > self.CHUNK_SIZE - self._chunk_offset
                     else len(buf) - processed
-                write_chunk = buf[processed:processed + size]
+                )
+                write_chunk = buf[processed : processed + size]
                 self._writer.write(write_chunk)
                 self._crc.update(write_chunk)
                 processed += size
@@ -666,7 +826,7 @@ class VolumeWriter(object):
         self._writer.flush()
         result = self._req_io.finish()
         if result is None:
-            raise TunnelError('No results returned in VolumeWriter.')
+            raise TunnelError("No results returned in VolumeWriter.")
         if not self._client.is_ok(result):
             e = TunnelError.parse(result)
             raise e
@@ -690,13 +850,23 @@ class VolumeFSWriter(VolumeWriter):
 
     def close(self):
         result = super(VolumeFSWriter, self).close()
-        if 'x-odps-volume-sessionid' not in result.headers:
-            raise TunnelError('No session id returned in response.')
-        headers = {
-            'x-odps-volume-fs-path': '/' + self._volume.name + '/' + self._path.lstrip('/'),
-            'x-odps-volume-sessionid': result.headers.get('x-odps-volume-sessionid'),
-        }
-        commit_result = self._client.put(self._volume.resource(client=self._client), None, headers=headers)
+        if "x-odps-volume-sessionid" not in result.headers:
+            raise TunnelError("No session id returned in response.")
+        headers = VolumeUploadSession.get_common_headers()
+        headers.update(
+            {
+                "x-odps-volume-fs-path": "/"
+                + self._volume.name
+                + "/"
+                + self._path.lstrip("/"),
+                "x-odps-volume-sessionid": result.headers.get(
+                    "x-odps-volume-sessionid"
+                ),
+            }
+        )
+        commit_result = self._client.put(
+            self._volume.resource(client=self._client), None, headers=headers
+        )
         if not self._client.is_ok(commit_result):
             e = TunnelError.parse(commit_result)
             raise e

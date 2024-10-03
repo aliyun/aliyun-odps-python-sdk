@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,15 +22,22 @@ import socket
 import struct
 import sys
 import threading
+from collections import defaultdict
 from types import GeneratorType, MethodType
 
 try:
     import pyarrow as pa
 except (AttributeError, ImportError):
     pa = None
+try:
+    import pandas as pd
+except ImportError:
+    pd = None
 
-from .. import types as odps_types, utils
-from ..compat import six
+from .. import errors
+from .. import types as odps_types
+from .. import utils
+from ..compat import Iterable, six
 from ..config import options
 from ..lib import cloudpickle
 from ..lib.tblib import pickling_support
@@ -52,6 +60,7 @@ if sys.version_info[0] == 2:
 
     class InstanceMethodWrapper(object):
         """Trick for classmethods under Python 2.7 to be pickleable"""
+
         def __init__(self, func):
             assert isinstance(func, MethodType)
             assert isinstance(func.im_self, type)
@@ -65,6 +74,7 @@ if sys.version_info[0] == 2:
 
     _wrap_classmethod = InstanceMethodWrapper
 else:
+
     def _ord_if_possible(x):
         return x
 
@@ -79,10 +89,21 @@ class SpawnedTableReaderMixin(object):
 
     @staticmethod
     def _read_table_split(
-        conn, download_id, start, count, idx,
-        rest_client=None, project=None, table_name=None, partition_spec=None,
-        tunnel_endpoint=None, quota_name=None, columns=None, arrow=False,
-        schema_name=None
+        conn,
+        download_id,
+        start,
+        count,
+        idx,
+        rest_client=None,
+        project=None,
+        table_name=None,
+        partition_spec=None,
+        tunnel_endpoint=None,
+        quota_name=None,
+        columns=None,
+        arrow=False,
+        schema_name=None,
+        append_partitions=None,
     ):
         # read part data
         from ..tunnel import TableTunnel
@@ -101,19 +122,35 @@ class SpawnedTableReaderMixin(object):
                 download_id=download_id,
                 partition_spec=partition_spec,
             )
-            if not arrow:
-                data = utils.call_with_retry(
-                    session.open_record_reader, start, count, columns=columns
-                ).to_pandas()
-            else:
-                data = utils.call_with_retry(
-                    session.open_arrow_reader, start, count, columns=columns
-                ).to_pandas()
+
+            def _data_to_pandas():
+                if not arrow:
+                    with session.open_record_reader(
+                        start,
+                        count,
+                        columns=columns,
+                        append_partitions=append_partitions,
+                    ) as reader:
+                        return reader.to_pandas()
+                else:
+                    with session.open_arrow_reader(
+                        start,
+                        count,
+                        columns=columns,
+                        append_partitions=append_partitions,
+                    ) as reader:
+                        return reader.to_pandas()
+
+            data = utils.call_with_retry(_data_to_pandas)
             conn.send((idx, data, True))
         except:
-            conn.send((idx, sys.exc_info(), False))
+            try:
+                conn.send((idx, sys.exc_info(), False))
+            except:
+                logger.exception("Failed to write in process %d", idx)
+                raise
 
-    def _get_process_split_reader(self, columns=None):
+    def _get_process_split_reader(self, columns=None, append_partitions=None):
         rest_client = self._parent._client
         table_name = self._parent.name
         schema_name = self._parent.get_schema()
@@ -133,21 +170,42 @@ class SpawnedTableReaderMixin(object):
             arrow=isinstance(self, TunnelArrowReader),
             columns=columns or self._column_names,
             schema_name=schema_name,
+            append_partitions=append_partitions,
         )
 
 
 class TableRecordReader(SpawnedTableReaderMixin, TunnelRecordReader):
-    def __init__(self, table, download_session, partition_spec=None, columns=None):
+    def __init__(
+        self,
+        table,
+        download_session,
+        partition_spec=None,
+        columns=None,
+        append_partitions=True,
+    ):
         super(TableRecordReader, self).__init__(
-            table, download_session, columns=columns
+            table,
+            download_session,
+            columns=columns,
+            append_partitions=append_partitions,
         )
         self._partition_spec = partition_spec
 
 
 class TableArrowReader(SpawnedTableReaderMixin, TunnelArrowReader):
-    def __init__(self, table, download_session, partition_spec=None, columns=None):
+    def __init__(
+        self,
+        table,
+        download_session,
+        partition_spec=None,
+        columns=None,
+        append_partitions=False,
+    ):
         super(TableArrowReader, self).__init__(
-            table, download_session, columns=columns
+            table,
+            download_session,
+            columns=columns,
+            append_partitions=append_partitions,
         )
         self._partition_spec = partition_spec
 
@@ -184,22 +242,28 @@ class MPBlockServer(object):
                     self._sock.sendto(data, addr)
                 elif cmd_code == _PUT_WRITTEN_BLOCKS_CMD:
                     blocks_queue = self._writer._used_block_id_queue
-                    count, = struct.unpack("<H", data[pos:pos + 2])
+                    (count,) = struct.unpack("<H", data[pos : pos + 2])
                     pos += 2
                     assert 4 * count < len(data), "Data too short for block count!"
-                    block_ids = struct.unpack("<%dI" % count, data[pos:pos + 4 * count])
+                    block_ids = struct.unpack(
+                        "<%dI" % count, data[pos : pos + 4 * count]
+                    )
                     blocks_queue.put(block_ids)
                     self._sock.sendto(struct.pack("<B", _PUT_WRITTEN_BLOCKS_CMD), addr)
                 elif cmd_code == _STOP_SERVER_CMD:
-                    assert addr[0] == self._sock.getsockname()[0], "Cannot stop server from other hosts!"
+                    assert (
+                        addr[0] == self._sock.getsockname()[0]
+                    ), "Cannot stop server from other hosts!"
                     break
                 else:  # pragma: no cover
                     raise AssertionError("Unrecognized command %x", cmd_code)
             except BaseException:
                 pk_exc_info = cloudpickle.dumps(sys.exc_info())
-                data = struct.pack("<B", _SERVER_ERROR_CMD) + struct.pack(
-                    "<I", len(pk_exc_info)
-                ) + pk_exc_info
+                data = (
+                    struct.pack("<B", _SERVER_ERROR_CMD)
+                    + struct.pack("<I", len(pk_exc_info))
+                    + pk_exc_info
+                )
                 self._sock.sendto(data, addr)
                 logger.exception("Serve thread error.")
 
@@ -246,8 +310,8 @@ class MPBlockClient(object):
     def _reraise_remote_error(recv_data):
         if recv_data[0] != _SERVER_ERROR_CMD:
             return
-        pk_len, = struct.unpack("<I", recv_data[1:5])
-        exc_info = cloudpickle.loads(recv_data[5:5 + pk_len])
+        (pk_len,) = struct.unpack("<I", recv_data[1:5])
+        exc_info = cloudpickle.loads(recv_data[5 : 5 + pk_len])
         six.reraise(*exc_info)
 
     def get_next_block_id(self):
@@ -258,13 +322,13 @@ class MPBlockClient(object):
         self._reraise_remote_error(recv_data)
         assert _ord_if_possible(recv_data[0]) == _GET_NEXT_BLOCK_CMD
         assert self._addr == server_addr
-        count, = struct.unpack("<I", recv_data[1:5])
+        (count,) = struct.unpack("<I", recv_data[1:5])
         return count
 
     def put_written_blocks(self, block_ids):
         sock = self._get_socket()
         for pos in range(0, len(block_ids), self._MAX_BLOCK_COUNT):
-            sub_block_ids = block_ids[pos:pos + self._MAX_BLOCK_COUNT]
+            sub_block_ids = block_ids[pos : pos + self._MAX_BLOCK_COUNT]
             data = (
                 self._authkey
                 + struct.pack("<B", _PUT_WRITTEN_BLOCKS_CMD)
@@ -280,13 +344,7 @@ class MPBlockClient(object):
 
 class AbstractTableWriter(object):
     def __init__(
-        self,
-        table,
-        upload_session,
-        blocks=None,
-        commit=True,
-        on_close=None,
-        **kwargs
+        self, table, upload_session, blocks=None, commit=True, on_close=None, **kwargs
     ):
         self._table = table
         self._upload_session = upload_session
@@ -299,11 +357,11 @@ class AbstractTableWriter(object):
             self._use_buffered_writer = False
 
         # block writer options
-        self._blocks = blocks or upload_session.blocks or [0, ]
+        self._blocks = blocks or upload_session.blocks or [0]
         self._blocks_writes = [False] * len(self._blocks)
         self._blocks_writers = [None] * len(self._blocks)
 
-        for block in (upload_session.blocks or ()):
+        for block in upload_session.blocks or ():
             self._blocks_writes[self._blocks.index(block)] = True
 
         # buffered writer options
@@ -322,15 +380,25 @@ class AbstractTableWriter(object):
             self._block_id_counter = kwargs.get(
                 "block_id_counter"
             ) or self._mp_context.Value("i", 1 + max(upload_session.blocks or [0]))
-            self._used_block_id_queue = kwargs.get(
-                "used_block_id_queue"
-            ) or self._mp_context.Queue()
+            self._used_block_id_queue = (
+                kwargs.get("used_block_id_queue") or self._mp_context.Queue()
+            )
 
     @classmethod
     def _restore_subprocess_writer(
-        cls, mp_server_address, mp_server_auth, upload_id, main_pid=None, blocks=None,
-        rest_client=None, project=None, table_name=None, partition_spec=None,
-        tunnel_endpoint=None, quota_name=None, schema=None
+        cls,
+        mp_server_address,
+        mp_server_auth,
+        upload_id,
+        main_pid=None,
+        blocks=None,
+        rest_client=None,
+        project=None,
+        table_name=None,
+        partition_spec=None,
+        tunnel_endpoint=None,
+        quota_name=None,
+        schema=None,
     ):
         from ..core import ODPS
         from ..tunnel import TableTunnel
@@ -357,8 +425,13 @@ class AbstractTableWriter(object):
         )
         mp_client = MPBlockClient(mp_server_address, mp_server_auth)
         writer = cls(
-            table, session, commit=False, blocks=blocks, main_pid=main_pid,
-            mp_fixed=True, mp_client=mp_client,
+            table,
+            session,
+            commit=False,
+            blocks=blocks,
+            main_pid=main_pid,
+            mp_fixed=True,
+            mp_client=mp_client,
         )
         return writer
 
@@ -433,12 +506,12 @@ class AbstractTableWriter(object):
 
     def write(self, *args, **kwargs):
         if self._closed:
-            raise IOError('Cannot write to a closed writer.')
+            raise IOError("Cannot write to a closed writer.")
         self._fix_mp_attributes()
 
-        compress = kwargs.get('compress', False)
+        compress = kwargs.get("compress", False)
 
-        block_id = kwargs.get('block_id')
+        block_id = kwargs.get("block_id")
         if block_id is None:
             if type(args[0]) in six.integer_types:
                 block_id = args[0]
@@ -456,7 +529,9 @@ class AbstractTableWriter(object):
 
         if use_buffered_writer:
             idx = None
-            writer = self._thread_to_buffered_writers.get(threading.current_thread().ident)
+            writer = self._thread_to_buffered_writers.get(
+                threading.current_thread().ident
+            )
         else:
             idx = self._blocks.index(block_id)
             writer = self._blocks_writers[idx]
@@ -545,7 +620,7 @@ class TableRecordWriter(AbstractTableWriter):
         if odps_types.is_record(sample_rec):
             return arg
         elif isinstance(sample_rec, (list, tuple)):
-            return (self._table.new_record(vals) for vals in arg)
+            return (self._upload_session.new_record(vals) for vals in arg)
         else:
             return None
 
@@ -561,7 +636,7 @@ class TableRecordWriter(AbstractTableWriter):
         elif isinstance(arg, (list, tuple)):
             records = self._to_records(arg, arg[0])
             if records is None:
-                records = [self._table.new_record(arg), ]
+                records = [self._upload_session.new_record(arg)]
         elif isinstance(arg, GeneratorType):
             try:
                 # peek the first element and then put back
@@ -571,7 +646,7 @@ class TableRecordWriter(AbstractTableWriter):
             except StopIteration:
                 records = ()
         else:
-            raise ValueError('Unsupported record type.')
+            raise ValueError("Unsupported record type.")
 
         for record in records:
             writer.write(record)
@@ -588,12 +663,334 @@ class TableArrowWriter(AbstractTableWriter):
             thread_ident = threading.current_thread().ident
             self._thread_to_buffered_writers[thread_ident] = writer
         else:
-            writer = self._upload_session.open_arrow_writer(
-                block_id, compress=compress
-            )
+            writer = self._upload_session.open_arrow_writer(block_id, compress=compress)
             self._blocks_writers[block_id] = writer
         return writer
 
     def _write_contents(self, writer, *args):
         for arg in args:
             writer.write(arg)
+
+
+class TableIOMethods(object):
+    @classmethod
+    def _get_table_obj(cls, odps, name, project=None, schema=None):
+        if isinstance(name, six.string_types) and "." in name:
+            project, schema, name = odps._split_object_dots(name)
+
+        if not isinstance(name, six.string_types):
+            if name.get_schema():
+                schema = name.get_schema().name
+            project, name = name.project.name, name.name
+
+        parent = odps._get_project_or_schema(project, schema)
+        return parent.tables[name]
+
+    @classmethod
+    def read_table(
+        cls,
+        odps,
+        name,
+        limit=None,
+        start=0,
+        step=None,
+        project=None,
+        schema=None,
+        partition=None,
+        **kw
+    ):
+        """
+        Read table's records.
+
+        :param name: table or table name
+        :type name: :class:`odps.models.table.Table` or str
+        :param limit:  the records' size, if None will read all records from the table
+        :param start:  the record where read starts with
+        :param step:  default as 1
+        :param project: project name, if not provided, will be the default project
+        :param str schema: schema name, if not provided, will be the default schema
+        :param partition: the partition of this table to read
+        :param list columns: the columns' names which are the parts of table's columns
+        :param bool compress: if True, the data will be compressed during downloading
+        :param compress_option: the compression algorithm, level and strategy
+        :type compress_option: :class:`odps.tunnel.CompressOption`
+        :param endpoint: tunnel service URL
+        :param reopen: reading the table will reuse the session which opened last time,
+                       if set to True will open a new download session, default as False
+        :return: records
+        :rtype: generator
+
+        :Example:
+
+        >>> for record in odps.read_table('test_table', 100):
+        >>>     # deal with such 100 records
+        >>> for record in odps.read_table('test_table', partition='pt=test', start=100, limit=100):
+        >>>     # read the `pt=test` partition, skip 100 records and read 100 records
+
+        .. seealso:: :class:`odps.models.Record`
+        """
+
+        table = cls._get_table_obj(odps, name, project=project, schema=schema)
+
+        compress = kw.pop("compress", False)
+        columns = kw.pop("columns", None)
+
+        with table.open_reader(partition=partition, **kw) as reader:
+            for record in reader.read(
+                start, limit, step=step, compress=compress, columns=columns
+            ):
+                yield record
+
+    @classmethod
+    def _is_pa_collection(cls, obj):
+        return pa is not None and isinstance(obj, (pa.Table, pa.RecordBatch))
+
+    @classmethod
+    def _is_pd_df(cls, obj):
+        return pd is not None and isinstance(obj, pd.DataFrame)
+
+    @classmethod
+    def _resolve_schema(
+        cls, records_list, unknown_as_string=False, partition=None, partitions=None
+    ):
+        from ..df.backends.odpssql.types import df_schema_to_odps_schema
+        from ..df.backends.pd.types import pd_to_df_schema
+        from ..tunnel.io.types import arrow_schema_to_odps_schema
+        from . import Record
+
+        if isinstance(records_list, list) and records_list:
+            records_list = records_list[0]
+
+        if cls._is_pa_collection(records_list[0]):
+            schema = arrow_schema_to_odps_schema(records_list[0].schema)
+        elif cls._is_pd_df(records_list[0]):
+            schema = df_schema_to_odps_schema(
+                pd_to_df_schema(records_list[0], unknown_as_string=unknown_as_string)
+            )
+        elif isinstance(records_list[0][0], Record):
+            schema = records_list[0][0].schema
+        else:
+            raise TypeError(
+                "Inferring schema from provided data not implemented. "
+                "You need to supply a pandas DataFrame or records."
+            )
+
+        part_col_names = partitions or []
+        if partition is not None:
+            part_spec = odps_types.PartitionSpec(partition)
+            part_col_names.extend(k for k in part_spec.keys())
+        if part_col_names:
+            part_col_set = set(part_col_names)
+            simple_cols = [c for c in schema.columns if c.name not in part_col_set]
+            part_cols = [
+                odps_types.Column(n, odps_types.string) for n in part_col_names
+            ]
+            schema = odps_types.OdpsSchema(simple_cols, part_cols)
+        return schema
+
+    @classmethod
+    def _split_block_data_in_partitions(cls, table_schema, block_data, partitions=None):
+        from . import Record
+
+        if not partitions:
+            is_arrow = cls._is_pa_collection(block_data) or cls._is_pd_df(block_data)
+            return {(is_arrow, None): [block_data]}
+
+        input_cols = list(table_schema.simple_columns) + [
+            odps_types.Column(part, odps_types.string) for part in partitions
+        ]
+        input_schema = odps_types.OdpsSchema(input_cols)
+
+        parted_data = defaultdict(list)
+        if (
+            cls._is_pa_collection(block_data)
+            or cls._is_pd_df(block_data)
+            or isinstance(block_data, Record)
+            or (
+                isinstance(block_data, list)
+                and block_data
+                and not isinstance(block_data[0], list)
+            )
+        ):
+            # pd dataframes, arrow RecordBatch, single record or single record-like array
+            block_data = [block_data]
+        for data in block_data:
+            if cls._is_pa_collection(data):
+                data = data.to_pandas()
+            elif isinstance(data, list):
+                if len(data) != len(input_schema):
+                    raise ValueError(
+                        "Need to specify %d values when writing table with dynamic partition."
+                        % len(input_schema)
+                    )
+                data = Record(schema=input_schema, values=data)
+
+            if cls._is_pd_df(data):
+                part_set = set(partitions)
+                col_names = [c.name for c in input_cols if c.name not in part_set]
+                for name, group in data.groupby(partitions):
+                    name = name if isinstance(name, tuple) else (name,)
+                    pt_name = ",".join(
+                        "=".join([str(n), str(v)]) for n, v in zip(partitions, name)
+                    )
+                    parted_data[(True, pt_name)].append(group[col_names])
+            elif isinstance(data, Record):
+                pt_name = ",".join("=".join([str(n), data[str(n)]]) for n in partitions)
+                values = [data[str(c.name)] for c in table_schema.simple_columns]
+                if not parted_data[(False, pt_name)]:
+                    parted_data[(False, pt_name)].append([])
+                parted_data[(False, pt_name)][0].append(
+                    Record(schema=table_schema, values=values)
+                )
+            else:
+                raise ValueError(
+                    "Cannot accept data with type %s" % type(data).__name__
+                )
+        return parted_data
+
+    @classmethod
+    def write_table(cls, odps, name, *block_data, **kw):
+        """
+        Write records into given table.
+
+        :param name: table or table name
+        :type name: :class:`.models.table.Table` or str
+        :param block_data: records / DataFrame, or block ids and records / DataFrame.
+            If given records or DataFrame only, the block id will be 0 as default.
+        :param str project: project name, if not provided, will be the default project
+        :param str schema: schema name, if not provided, will be the default schema
+        :param partition: the partition of this table to write
+        :param list partitions: fields representing partitions
+        :param bool overwrite: if True, will overwrite existing data
+        :param bool create_table: if true, the table will be created if not exist
+        :param int lifecycle: specify table lifecycle when creating tables
+        :param bool create_partition: if true, the partition will be created if not exist
+        :param bool compress: if True, the data will be compressed during uploading
+        :param compress_option: the compression algorithm, level and strategy
+        :type compress_option: :class:`odps.tunnel.CompressOption`
+        :param str endpoint:  tunnel service URL
+        :param bool reopen: writing the table will reuse the session which opened last time,
+            if set to True will open a new upload session, default as False
+        :return: None
+
+        :Example:
+
+        Write records into a specified table.
+
+        >>> odps.write_table('test_table', data)
+
+        Write records into multiple blocks.
+
+        >>> odps.write_table('test_table', 0, records1, 1, records2)
+
+        Write into a given partition.
+
+        >>> odps.write_table('test_table', data, partition='pt=test')
+
+        Write a pandas DataFrame.
+
+        >>> import pandas as pd
+        >>> df = pd.DataFrame([
+        >>>     [111, 'aaa', True],
+        >>>     [222, 'bbb', False],
+        >>>     [333, 'ccc', True],
+        >>>     [444, '中文', False]
+        >>> ], columns=['num_col', 'str_col', 'bool_col'])
+        >>> o.write_table('test_table', df, partition='pt=test', create_table=True, create_partition=True)
+
+        Write a dynamic partition.
+
+        >>> import pandas as pd
+        >>> df = pd.DataFrame([
+        >>>     [111, 'aaa', True, 'p1'],
+        >>>     [222, 'bbb', False, 'p1'],
+        >>>     [333, 'ccc', True, 'p2'],
+        >>>     [444, '中文', False, 'p2']
+        >>> ], columns=['num_col', 'str_col', 'bool_col', 'pt'])
+        >>> o.write_table('test_part_table', df, partitions=['pt'], create_partition=True)
+
+        .. seealso:: :class:`odps.models.Record`
+        """
+        project = kw.pop("project", None)
+        schema = kw.pop("schema", None)
+
+        single_block_types = (Iterable,)
+        if pa is not None:
+            single_block_types += (pa.RecordBatch, pa.Table)
+
+        if len(block_data) == 1 and isinstance(block_data[0], single_block_types):
+            blocks = [None]
+            data_list = block_data
+        else:
+            blocks = block_data[::2]
+            data_list = block_data[1::2]
+
+            if len(blocks) != len(data_list):
+                raise ValueError(
+                    "Should invoke like odps.write_table(block_id, records, "
+                    "block_id2, records2, ..., **kw)"
+                )
+
+        unknown_as_string = kw.pop("unknown_as_string", False)
+        create_table = kw.pop("create_table", False)
+        create_partition = kw.pop(
+            "create_partition", kw.pop("create_partitions", False)
+        )
+        partition = kw.pop("partition", None)
+        partitions = kw.pop("partitions", None)
+        lifecycle = kw.pop("lifecycle", None)
+        if isinstance(partitions, six.string_types):
+            partitions = [partitions]
+        if not odps.exist_table(name, project=project, schema=schema):
+            if not create_table:
+                raise errors.NoSuchTable("Target table %s not exist" % name)
+            table_schema = cls._resolve_schema(
+                data_list,
+                unknown_as_string=unknown_as_string,
+                partition=partition,
+                partitions=partitions,
+            )
+            table = odps.create_table(
+                name, table_schema, project=project, schema=schema, lifecycle=lifecycle
+            )
+        else:
+            table = cls._get_table_obj(odps, name, project=project, schema=schema)
+
+        data_lists = defaultdict(lambda: defaultdict(list))
+        for block, data in zip(blocks, data_list):
+            for key, parted_data in cls._split_block_data_in_partitions(
+                table.table_schema, data, partitions=partitions
+            ).items():
+                data_lists[key][block].extend(parted_data)
+
+        if partition is None or isinstance(partition, six.string_types):
+            partition_str = partition
+        else:
+            partition_str = str(odps_types.PartitionSpec(partition))
+
+        for (is_arrow, pt_name), block_to_data in data_lists.items():
+            if not block_to_data:
+                continue
+
+            blocks, data_list = [], []
+            for block, data in block_to_data.items():
+                blocks.append(block)
+                data_list.extend(data)
+
+            if len(blocks) == 1 and blocks[0] is None:
+                blocks = None
+
+            final_pt = ",".join(p for p in (pt_name, partition_str) if p is not None)
+            with table.open_writer(
+                partition=final_pt or None,
+                blocks=blocks,
+                arrow=is_arrow,
+                create_partition=create_partition,
+                **kw
+            ) as writer:
+                if blocks is None:
+                    for data in data_list:
+                        writer.write(data)
+                else:
+                    for block, data in zip(blocks, data_list):
+                        writer.write(block, data)

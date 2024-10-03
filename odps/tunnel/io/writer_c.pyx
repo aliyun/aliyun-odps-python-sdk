@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@ import json
 import time
 
 import cython
+
 from cpython.datetime cimport import_datetime
 from libc.stdint cimport *
 from libc.string cimport *
@@ -26,13 +27,15 @@ from ...src.types_c cimport BaseRecord, SchemaSnapshot
 from ..checksum_c cimport Checksum
 from ..pb.encoder_c cimport CEncoder
 
-from ... import types, compat, utils
+from ... import compat, types, utils
 from ...compat import six
+
 from ...src.utils_c cimport CMillisecondsConverter
-from ..pb.wire_format import WIRETYPE_VARINT as PY_WIRETYPE_VARINT, \
-    WIRETYPE_FIXED32 as PY_WIRETYPE_FIXED32,\
-    WIRETYPE_FIXED64 as PY_WIRETYPE_FIXED64,\
-    WIRETYPE_LENGTH_DELIMITED as PY_WIRETYPE_LENGTH_DELIMITED
+
+from ..pb.wire_format import WIRETYPE_FIXED32 as PY_WIRETYPE_FIXED32
+from ..pb.wire_format import WIRETYPE_FIXED64 as PY_WIRETYPE_FIXED64
+from ..pb.wire_format import WIRETYPE_LENGTH_DELIMITED as PY_WIRETYPE_LENGTH_DELIMITED
+from ..pb.wire_format import WIRETYPE_VARINT as PY_WIRETYPE_VARINT
 from ..wireconstants import ProtoWireConstants
 
 cdef:
@@ -98,7 +101,7 @@ cdef class ProtobufRecordWriter:
         self._n_total = 0
 
     def _mode(self):
-        return 'c'
+        return "c"
 
     cpdef flush(self):
         if self._encoder.position() > 0:
@@ -126,34 +129,34 @@ cdef class ProtobufRecordWriter:
     def __len__(self):
         return self.n_bytes
 
-    cdef int _write_tag(self, int field_num, int wire_type) except + nogil:
+    cdef int _write_tag(self, int field_num, int wire_type) except -1 nogil:
         return self._encoder.append_tag(field_num, wire_type)
 
-    cdef int _write_raw_long(self, int64_t val) except + nogil:
+    cdef int _write_raw_long(self, int64_t val) except -1 nogil:
         return self._encoder.append_sint64(val)
 
-    cdef int _write_raw_int(self, int32_t val) except + nogil:
+    cdef int _write_raw_int(self, int32_t val) except -1 nogil:
         return self._encoder.append_sint32(val)
 
-    cdef int _write_raw_uint(self, uint32_t val) except + nogil:
+    cdef int _write_raw_uint(self, uint32_t val) except -1 nogil:
         return self._encoder.append_uint32(val)
 
-    cdef int _write_raw_bool(self, bint val) except + nogil:
+    cdef int _write_raw_bool(self, bint val) except -1 nogil:
         return self._encoder.append_bool(val)
 
-    cdef int _write_raw_float(self, float val) except + nogil:
+    cdef int _write_raw_float(self, float val) except -1 nogil:
         return self._encoder.append_float(val)
 
-    cdef int _write_raw_double(self, double val) except + nogil:
+    cdef int _write_raw_double(self, double val) except -1 nogil:
         return self._encoder.append_double(val)
 
-    cdef int _write_raw_string(self, const char *ptr, uint32_t size) except + nogil:
+    cdef int _write_raw_string(self, const char *ptr, uint32_t size) except -1 nogil:
         return self._encoder.append_string(ptr, size)
 
 
 cdef class BaseRecordWriter(ProtobufRecordWriter):
 
-    def __init__(self, object schema, object out, encoding='utf-8'):
+    def __init__(self, object schema, object out, encoding="utf-8"):
         self._encoding = encoding
         self._is_utf8 = encoding == "utf-8"
         self._schema = schema
@@ -191,7 +194,7 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
         n_record_fields = len(record)
 
         if n_record_fields > self._n_columns:
-            raise IOError('record fields count is more than schema.')
+            raise IOError("record fields count is more than schema.")
 
         for i in range(min(n_record_fields, self._n_columns)):
             if self._schema_snapshot._col_is_partition[i]:
@@ -213,7 +216,7 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
                 if isinstance(data_type, (types.Array, types.Map, types.Struct)):
                     self._write_tag(pb_index, WIRETYPE_LENGTH_DELIMITED)
                 else:
-                    raise IOError('Invalid data type: %s' % data_type)
+                    raise IOError("Invalid data type: %s" % data_type)
 
             self._write_field(val, data_type_id, data_type)
 
@@ -226,21 +229,25 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
         self._crccrc_c.c_update_int(checksum)
         self._curr_cursor_c += 1
 
-    cdef void _write_bool(self, bint data) except + nogil:
+    cdef int _write_bool(self, bint data) except -1 nogil:
         self._crc_c.c_update_bool(data)
         self._write_raw_bool(data)
+        return 0
 
-    cdef void _write_long(self, int64_t data) except + nogil:
+    cdef int _write_long(self, int64_t data) except -1 nogil:
         self._crc_c.c_update_long(data)
         self._write_raw_long(data)
+        return 0
 
-    cdef void _write_float(self, float data) except + nogil:
+    cdef int _write_float(self, float data) except -1 nogil:
         self._crc_c.c_update_float(data)
         self._write_raw_float(data)
+        return 0
 
-    cdef void _write_double(self, double data) except + nogil:
+    cdef int _write_double(self, double data) except -1 nogil:
         self._crc_c.c_update_double(data)
         self._write_raw_double(data)
+        return 0
 
     @cython.nonecheck(False)
     cdef _write_string(self, object data):
@@ -337,7 +344,7 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
             elif isinstance(data_type, types.Struct):
                 self._write_struct(val, data_type)
             else:
-                raise IOError('Invalid data type: %s' % data_type)
+                raise IOError("Invalid data type: %s" % data_type)
 
     cdef _write_array(self, object data, object data_type):
         cdef int data_type_id = data_type._type_id

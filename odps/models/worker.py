@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,21 +14,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ..compat import six
 from .. import serializers
+from ..compat import six
 
 LOG_TYPES_MAPPING = {
-    'hs_err_log': 'hs_err_*.log',
-    'coreinfo': 'coreinfo.tmp',
+    "hs_err_log": "hs_err_*.log",
+    "coreinfo": "coreinfo.tmp",
 }
-LOG_TYPES_MAPPING.update({k: k for k in 'stdout stderr waterfall_summary jstack pstack'.split()})
+LOG_TYPES_MAPPING.update(
+    {k: k for k in "stdout stderr waterfall_summary jstack pstack".split()}
+)
 
 
 class Worker(serializers.JSONSerializableModel):
     """
     Worker information class for worker information and log retrieval.
     """
-    __slots__ = '_client',
+
+    __slots__ = ("_client",)
 
     @classmethod
     def extract_from_json(cls, json_obj, client=None, parent=None):
@@ -43,21 +46,24 @@ class Worker(serializers.JSONSerializableModel):
         :return: log content
         """
         return self.parent.get_worker_log(self.log_id, log_type, size=size)
-    get_log.__doc__ = get_log.__doc__.format(log_types=', '.join(sorted(six.iterkeys(LOG_TYPES_MAPPING))))
+
+    get_log.__doc__ = get_log.__doc__.format(
+        log_types=", ".join(sorted(six.iterkeys(LOG_TYPES_MAPPING)))
+    )
 
 
 class WorkerDetail2(Worker):
-    id = serializers.JSONNodeField('id')
-    log_id = serializers.JSONNodeField('logId')
-    type = serializers.JSONNodeField('type')
-    start_time = serializers.JSONNodeField('startTime', parse_callback=int)
-    end_time = serializers.JSONNodeField('endTime', parse_callback=int)
-    status = serializers.JSONNodeField('status')
-    gbi_counter = serializers.JSONNodeField('gblCounter')
-    input_bytes = serializers.JSONNodeField('input_bytes', parse_callback=int)
-    input_records = serializers.JSONNodeField('input_records', parse_callback=int)
-    output_bytes = serializers.JSONNodeField('output_bytes', parse_callback=int)
-    output_records = serializers.JSONNodeField('output_records', parse_callback=int)
+    id = serializers.JSONNodeField("id")
+    log_id = serializers.JSONNodeField("logId")
+    type = serializers.JSONNodeField("type")
+    start_time = serializers.JSONNodeField("startTime", parse_callback=int)
+    end_time = serializers.JSONNodeField("endTime", parse_callback=int)
+    status = serializers.JSONNodeField("status")
+    gbi_counter = serializers.JSONNodeField("gblCounter")
+    input_bytes = serializers.JSONNodeField("input_bytes", parse_callback=int)
+    input_records = serializers.JSONNodeField("input_records", parse_callback=int)
+    output_bytes = serializers.JSONNodeField("output_bytes", parse_callback=int)
+    output_records = serializers.JSONNodeField("output_records", parse_callback=int)
 
     @classmethod
     def extract_from_json(cls, json_obj, client=None, parent=None):
@@ -68,9 +74,9 @@ class WorkerDetail2(Worker):
                 for v in o:
                     _extract(v)
             elif isinstance(o, dict):
-                worker_type = o.get('name', '')
-                if 'instances' in o:
-                    for v in o['instances']:
+                worker_type = o.get("name", "")
+                if "instances" in o:
+                    for v in o["instances"]:
                         w = cls.parse(v, parent=parent)
                         w.type = worker_type
                         w._client = client

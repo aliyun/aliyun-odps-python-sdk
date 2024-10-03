@@ -1,4 +1,4 @@
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,9 +17,9 @@
 import collections
 import json
 import logging
-from io import IOBase, BytesIO
 from enum import Enum
 from hashlib import md5
+from io import BytesIO, IOBase
 
 try:
     import pyarrow as pa
@@ -62,7 +62,9 @@ class SplitOptions(JSONRemoteModel):
         ROW_OFFSET = "RowOffset"
         BUCKET = "Bucket"
 
-    split_mode = serializers.JSONNodeField('SplitMode', parse_callback=lambda s: SplitOptions.SplitMode(s))
+    split_mode = serializers.JSONNodeField(
+        "SplitMode", parse_callback=lambda s: SplitOptions.SplitMode(s)
+    )
     split_number = serializers.JSONNodeField("SplitNumber")
     cross_partition = serializers.JSONNodeField("CrossPartition")
 
@@ -70,7 +72,7 @@ class SplitOptions(JSONRemoteModel):
         super(SplitOptions, self).__init__(**kwargs)
 
         self.split_mode = self.split_mode or SplitOptions.SplitMode.SIZE
-        self.split_number = self.split_number or 256*1024*1024
+        self.split_number = self.split_number or 256 * 1024 * 1024
         self.cross_partition = self.cross_partition or True
 
     @classmethod
@@ -79,7 +81,7 @@ class SplitOptions(JSONRemoteModel):
         options.cross_partition = True
         if mode == SplitOptions.SplitMode.SIZE:
             options.split_mode = SplitOptions.SplitMode.SIZE
-            options.split_number = 256*1024*1024
+            options.split_number = 256 * 1024 * 1024
         elif mode == SplitOptions.SplitMode.PARALLELISM:
             options.split_mode = SplitOptions.SplitMode.PARALLELISM
             options.split_number = 32
@@ -99,8 +101,12 @@ class ArrowOptions(JSONRemoteModel):
         MICRO = "micro"
         NANO = "nano"
 
-    timestamp_unit = serializers.JSONNodeField('TimestampUnit', parse_callback=lambda s: ArrowOptions.TimestampUnit(s))
-    date_time_unit = serializers.JSONNodeField('DatetimeUnit', parse_callback=lambda s: ArrowOptions.TimestampUnit(s))
+    timestamp_unit = serializers.JSONNodeField(
+        "TimestampUnit", parse_callback=lambda s: ArrowOptions.TimestampUnit(s)
+    )
+    date_time_unit = serializers.JSONNodeField(
+        "DatetimeUnit", parse_callback=lambda s: ArrowOptions.TimestampUnit(s)
+    )
 
     def __init__(self, **kwargs):
         super(ArrowOptions, self).__init__(**kwargs)
@@ -117,8 +123,8 @@ class Column(JSONRemoteModel):
 
 
 class DataSchema(JSONRemoteModel):
-    data_columns = serializers.JSONNodesReferencesField(Column, 'DataColumns')
-    partition_columns = serializers.JSONNodesReferencesField(Column, 'PartitionColumns')
+    data_columns = serializers.JSONNodesReferencesField(Column, "DataColumns")
+    partition_columns = serializers.JSONNodesReferencesField(Column, "PartitionColumns")
 
 
 class DataFormat(JSONRemoteModel):
@@ -188,16 +194,20 @@ class TableBatchScanRequest(serializers.JSONSerializableModel):
 
 
 class TableBatchScanResponse(serializers.JSONSerializableModel):
-    __slots__ = ['status', 'request_id']
+    __slots__ = ["status", "request_id"]
 
     session_id = serializers.JSONNodeField("SessionId")
     session_type = serializers.JSONNodeField("SessionType")
-    session_status = serializers.JSONNodeField('SessionStatus', parse_callback=lambda s: SessionStatus(s.upper()))
+    session_status = serializers.JSONNodeField(
+        "SessionStatus", parse_callback=lambda s: SessionStatus(s.upper())
+    )
     expiration_time = serializers.JSONNodeField("ExpirationTime")
     split_count = serializers.JSONNodeField("SplitsCount")
     record_count = serializers.JSONNodeField("RecordCount")
-    data_schema = serializers.JSONNodeReferenceField(DataSchema, 'DataSchema')
-    supported_data_format = serializers.JSONNodesReferencesField(DataFormat, "SupportedDataFormat")
+    data_schema = serializers.JSONNodeReferenceField(DataSchema, "DataSchema")
+    supported_data_format = serializers.JSONNodesReferencesField(
+        DataFormat, "SupportedDataFormat"
+    )
 
     def __init__(self):
         super(TableBatchScanResponse, self).__init__()
@@ -212,7 +222,9 @@ class SessionRequest(object):
 
 
 class TableBatchWriteRequest(serializers.JSONSerializableModel):
-    dynamic_partition_options = serializers.JSONNodeReferenceField(DynamicPartitionOptions, "DynamicPartitionOptions")
+    dynamic_partition_options = serializers.JSONNodeReferenceField(
+        DynamicPartitionOptions, "DynamicPartitionOptions"
+    )
     arrow_options = serializers.JSONNodeReferenceField(ArrowOptions, "ArrowOptions")
     overwrite = serializers.JSONNodeField("Overwrite")
     partition_spec = serializers.JSONNodeField("PartitionSpec")
@@ -223,22 +235,30 @@ class TableBatchWriteRequest(serializers.JSONSerializableModel):
 
         self.partition_spec = self.partition_spec or ""
         self.arrow_options = self.arrow_options or ArrowOptions()
-        self.dynamic_partition_options = self.dynamic_partition_options or DynamicPartitionOptions()
+        self.dynamic_partition_options = (
+            self.dynamic_partition_options or DynamicPartitionOptions()
+        )
         self.overwrite = self.overwrite or True
         self.support_write_cluster = self.support_write_cluster or False
 
 
 class TableBatchWriteResponse(serializers.JSONSerializableModel):
-    __slots__ = ['status', "request_id"]
+    __slots__ = ["status", "request_id"]
 
-    session_status = serializers.JSONNodeField('SessionStatus', parse_callback=lambda s: SessionStatus(s.upper()))
+    session_status = serializers.JSONNodeField(
+        "SessionStatus", parse_callback=lambda s: SessionStatus(s.upper())
+    )
     expiration_time = serializers.JSONNodeField("ExpirationTime")
     session_id = serializers.JSONNodeField("SessionId")
     data_schema = serializers.JSONNodeReferenceField(DataSchema, "DataSchema")
-    supported_data_format = serializers.JSONNodesReferencesField(DataFormat, "SupportedDataFormat")
+    supported_data_format = serializers.JSONNodesReferencesField(
+        DataFormat, "SupportedDataFormat"
+    )
     max_block_num = serializers.JSONNodeField("MaxBlockNumber")
     required_ordering = serializers.JSONNodesReferencesField(Order, "RequiredOrdering")
-    required_distribution = serializers.JSONNodeReferenceField(RequiredDistribution, "RequiredDistribution")
+    required_distribution = serializers.JSONNodeReferenceField(
+        RequiredDistribution, "RequiredDistribution"
+    )
 
     def __init__(self):
         super(TableBatchWriteResponse, self).__init__()
@@ -248,10 +268,16 @@ class TableBatchWriteResponse(serializers.JSONSerializableModel):
 
 
 class ReadRowsRequest(object):
-    def __init__(self, session_id, split_index=0,
-                 row_index=0, row_count=0, max_batch_rows=4096,
-                 compression=Compression.LZ4_FRAME,
-                 data_format=DataFormat()):
+    def __init__(
+        self,
+        session_id,
+        split_index=0,
+        row_index=0,
+        row_count=0,
+        max_batch_rows=4096,
+        compression=Compression.LZ4_FRAME,
+        data_format=DataFormat(),
+    ):
         self.session_id = session_id
         self.split_index = split_index
         self.row_index = row_index
@@ -268,10 +294,15 @@ class ReadRowsResponse(object):
 
 
 class WriteRowsRequest(object):
-    def __init__(self, session_id,
-                 block_number=0, attempt_number=0, bucket_id=0,
-                 compression=Compression.LZ4_FRAME,
-                 data_format=DataFormat()):
+    def __init__(
+        self,
+        session_id,
+        block_number=0,
+        attempt_number=0,
+        bucket_id=0,
+        compression=Compression.LZ4_FRAME,
+        data_format=DataFormat(),
+    ):
         self.session_id = session_id
         self.block_number = block_number
         self.attempt_number = attempt_number
@@ -333,7 +364,7 @@ class StreamReader(IOBase):
             Stream data. None means all the data has been read or there is error occurred.
         """
         if self._stopped:
-            return b''
+            return b""
 
         total_size = 0
         bufs = []
@@ -352,7 +383,7 @@ class StreamReader(IOBase):
                 bufs.append(buf)
                 total_size += len(buf)
 
-        return b''.join(bufs)
+        return b"".join(bufs)
 
     def get_status(self):
         """Get the status of the stream reader.
@@ -375,7 +406,10 @@ class StreamReader(IOBase):
             logger.error("The reader is not closed yet, please wait")
             return None
 
-        if self._raw_reader is not None and "x-odps-request-id" in self._raw_reader.headers:
+        if (
+            self._raw_reader is not None
+            and "x-odps-request-id" in self._raw_reader.headers
+        ):
             return self._raw_reader.headers["x-odps-request-id"]
         else:
             return None
@@ -424,11 +458,11 @@ class StreamWriter(IOBase):
         self._stopped = True
         self._res = self._req_io.finish()
 
-        if self._res is not None and self._res.status_code == codes['ok']:
+        if self._res is not None and self._res.status_code == codes["ok"]:
             resp_json = self._res.json()
             return resp_json["CommitMessage"], True
         else:
-           return None, False
+            return None, False
 
     def get_status(self):
         """Get the status of this stream writer.
@@ -534,7 +568,9 @@ class ArrowWriter(object):
             self._arrow_writer = pa.ipc.new_stream(
                 self._sink,
                 record_batch.schema,
-                options=pa.ipc.IpcWriteOptions(compression=self._compression.to_string()),
+                options=pa.ipc.IpcWriteOptions(
+                    compression=self._compression.to_string()
+                ),
             )
 
         self._arrow_writer.write_batch(record_batch)
@@ -577,7 +613,13 @@ class ArrowWriter(object):
 class StorageApiClient(object):
     """Client to bundle configuration needed for API requests."""
 
-    def __init__(self, odps: ODPS, table: Table, rest_endpoint: str = None, quota_name: str = None):
+    def __init__(
+        self,
+        odps: ODPS,
+        table: Table,
+        rest_endpoint: str = None,
+        quota_name: str = None,
+    ):
         if isinstance(odps, ODPS) and isinstance(table, Table):
             self._odps = odps
             self._table = table
@@ -598,7 +640,9 @@ class StorageApiClient(object):
 
         from ...tunnel.tabletunnel import TableTunnel
 
-        tunnel = TableTunnel(self._odps, endpoint=self._rest_endpoint, quota_name=self._quota_name)
+        tunnel = TableTunnel(
+            self._odps, endpoint=self._rest_endpoint, quota_name=self._quota_name
+        )
         self._tunnel_rest = tunnel.tunnel_rest
         return self._tunnel_rest
 
@@ -607,7 +651,19 @@ class StorageApiClient(object):
         url = self._table.table_resource(endpoint=endpoint, force_schema=True)
         return "/".join([url] + list(args))
 
-    def create_read_session(self, request: TableBatchScanRequest) -> TableBatchScanResponse:
+    @staticmethod
+    def _fill_common_headers(raw_headers=None, tags=None):
+        headers = raw_headers or {}
+        tags = tags or options.tunnel.tags
+        if tags:
+            if isinstance(tags, str):
+                tags = tags.split(",")
+            headers["odps-tunnel-tags"] = ",".join(tags)
+        return headers
+
+    def create_read_session(
+        self, request: TableBatchScanRequest
+    ) -> TableBatchScanResponse:
         """Create a read session.
 
         Args:
@@ -617,12 +673,14 @@ class StorageApiClient(object):
             Read session response returned from the server.
         """
         if not isinstance(request, TableBatchScanRequest):
-            raise ValueError("Use TableBatchScanRequest class to build request for create read session interface")
+            raise ValueError(
+                "Use TableBatchScanRequest class to build request for create read session interface"
+            )
 
         json_str = request.serialize()
 
         url = self._get_resource("sessions")
-        headers = {"Content-Type": "application/json"}
+        headers = self._fill_common_headers({"Content-Type": "application/json"})
         if json_str != "":
             headers["Content-MD5"] = md5(to_binary(json_str)).hexdigest()
         params = {"session_type": "batch_read"}
@@ -633,7 +691,9 @@ class StorageApiClient(object):
 
         response = TableBatchScanResponse()
         response.parse(res, obj=response)
-        response.status = Status.OK if res.status_code == codes['created'] else Status.WAIT
+        response.status = (
+            Status.OK if res.status_code == codes["created"] else Status.WAIT
+        )
         update_request_id(response, res)
 
         return response
@@ -648,10 +708,12 @@ class StorageApiClient(object):
             Read session response returned from the server.
         """
         if not isinstance(request, SessionRequest):
-            raise ValueError("Use SessionRequest class to build request for get read session interface")
+            raise ValueError(
+                "Use SessionRequest class to build request for get read session interface"
+            )
 
         url = self._get_resource("sessions", request.session_id)
-        headers = {}
+        headers = self._fill_common_headers()
         params = {"session_type": "batch_read"}
         if self._quota_name:
             params["quotaName"] = self._quota_name
@@ -675,19 +737,25 @@ class StorageApiClient(object):
             Stream reader.
         """
         if not isinstance(request, ReadRowsRequest):
-            raise ValueError("Use ReadRowsRequest class to build request for read rows interface")
+            raise ValueError(
+                "Use ReadRowsRequest class to build request for read rows interface"
+            )
 
         url = self._get_resource("data")
-        headers = {
-            "Connection": "Keep-Alive",
-            "Accept-Encoding": request.compression.name if request.compression != Compression.UNCOMPRESSED else ""
-        }
+        headers = self._fill_common_headers(
+            {
+                "Connection": "Keep-Alive",
+                "Accept-Encoding": request.compression.name
+                if request.compression != Compression.UNCOMPRESSED
+                else "",
+            }
+        )
         params = {
             "session_id": request.session_id,
             "max_batch_rows": str(request.max_batch_rows),
             "split_index": str(request.split_index),
             "row_count": str(request.row_count),
-            "row_index": str(request.row_index)
+            "row_index": str(request.row_index),
         }
         if self._quota_name:
             params["quotaName"] = self._quota_name
@@ -697,11 +765,15 @@ class StorageApiClient(object):
             params["data_format_version"] = request.data_format.version
 
         def download():
-            return self.tunnel_rest.get(url, stream=True, params=params, headers=headers)
+            return self.tunnel_rest.get(
+                url, stream=True, params=params, headers=headers
+            )
 
         return StreamReader(download)
 
-    def create_write_session(self, request: TableBatchWriteRequest) -> TableBatchWriteResponse:
+    def create_write_session(
+        self, request: TableBatchWriteRequest
+    ) -> TableBatchWriteResponse:
         """Create a write session.
 
         Args:
@@ -711,12 +783,14 @@ class StorageApiClient(object):
             Write session response returned from the server.
         """
         if not isinstance(request, TableBatchWriteRequest):
-            raise ValueError("Use TableBatchWriteRequest class to build request for create write session interface")
+            raise ValueError(
+                "Use TableBatchWriteRequest class to build request for create write session interface"
+            )
 
         json_str = request.serialize()
 
         url = self._get_resource("sessions")
-        headers = {"Content-Type": "application/json"}
+        headers = self._fill_common_headers({"Content-Type": "application/json"})
         if json_str != "":
             headers["Content-MD5"] = md5(to_binary(json_str)).hexdigest()
         params = {"session_type": "batch_write"}
@@ -742,10 +816,12 @@ class StorageApiClient(object):
             Write session response returned from the server.
         """
         if not isinstance(request, SessionRequest):
-            raise ValueError("Use SessionRequest class to build request for get write session interface")
+            raise ValueError(
+                "Use SessionRequest class to build request for get write session interface"
+            )
 
         url = self._get_resource("sessions", request.session_id)
-        headers = {}
+        headers = self._fill_common_headers()
         params = {"session_type": "batch_write"}
         if self._quota_name:
             params["quotaName"] = self._quota_name
@@ -769,17 +845,18 @@ class StorageApiClient(object):
             Stream writer.
         """
         if not isinstance(request, WriteRowsRequest):
-            raise ValueError("Use WriteRowsRequest class to build request for write rows interface")
+            raise ValueError(
+                "Use WriteRowsRequest class to build request for write rows interface"
+            )
 
         url = self._get_resource("sessions", request.session_id, "data")
-        headers = {
-            "Content-Type": "application/octet-stream",
-            "Transfer-Encoding": "chunked"
-        }
+        headers = self._fill_common_headers(
+            {"Content-Type": "application/octet-stream", "Transfer-Encoding": "chunked"}
+        )
 
         params = {
             "attempt_number": str(request.attempt_number),
-            "block_number": str(request.block_number)
+            "block_number": str(request.block_number),
         }
         if self._quota_name:
             params["quotaName"] = self._quota_name
@@ -793,7 +870,9 @@ class StorageApiClient(object):
 
         return StreamWriter(upload)
 
-    def commit_write_session(self, request: SessionRequest, commit_msg: list) -> TableBatchWriteResponse:
+    def commit_write_session(
+        self, request: SessionRequest, commit_msg: list
+    ) -> TableBatchWriteResponse:
         """Commit the write session after write the last stream data.
 
         Args:
@@ -804,7 +883,9 @@ class StorageApiClient(object):
             Write session response returned from the server.
         """
         if not isinstance(request, SessionRequest):
-            raise ValueError("Use SessionRequest class to build request for commit write session interface")
+            raise ValueError(
+                "Use SessionRequest class to build request for commit write session interface"
+            )
         if not isinstance(commit_msg, list):
             raise ValueError("Use list for commit message")
 
@@ -812,7 +893,7 @@ class StorageApiClient(object):
         json_str = json.dumps(commit_message_dict)
 
         url = self._get_resource("commit")
-        headers = {"Content-Type": "application/json"}
+        headers = self._fill_common_headers({"Content-Type": "application/json"})
         params = {"session_id": request.session_id}
         if self._quota_name:
             params["quotaName"] = self._quota_name
@@ -821,7 +902,9 @@ class StorageApiClient(object):
 
         response = TableBatchWriteResponse()
         response.parse(res, obj=response)
-        response.status = Status.OK if res.status_code == codes['created'] else Status.WAIT
+        response.status = (
+            Status.OK if res.status_code == codes["created"] else Status.WAIT
+        )
         update_request_id(response, res)
 
         return response
@@ -829,6 +912,7 @@ class StorageApiClient(object):
 
 class StorageApiArrowClient(StorageApiClient):
     """Arrow batch client to bundle configuration needed for API requests."""
+
     def read_rows_arrow(self, request: ReadRowsRequest) -> ArrowReader:
         """Read one split of the read session.
 
@@ -839,7 +923,9 @@ class StorageApiArrowClient(StorageApiClient):
             Arrow batch reader.
         """
         if not isinstance(request, ReadRowsRequest):
-            raise ValueError("Use ReadRowsRequest class to build request for read rows interface")
+            raise ValueError(
+                "Use ReadRowsRequest class to build request for read rows interface"
+            )
 
         return ArrowReader(self.read_rows_stream(request))
 
@@ -853,6 +939,8 @@ class StorageApiArrowClient(StorageApiClient):
             Arrow batch writer.
         """
         if not isinstance(request, WriteRowsRequest):
-            raise ValueError("Use WriteRowsRequest class to build request for write rows interface")
+            raise ValueError(
+                "Use WriteRowsRequest class to build request for write rows interface"
+            )
 
         return ArrowWriter(self.write_rows_stream(request), request.compression)

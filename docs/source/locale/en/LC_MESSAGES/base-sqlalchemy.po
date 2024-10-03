@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.11.1\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2023-07-23 13:21+0800\n"
+"POT-Creation-Date: 2024-03-14 14:10+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -36,7 +36,9 @@ msgid "创建连接"
 msgstr "Create connections"
 
 #: ../../source/base-sqlalchemy.rst:13
-msgid "创建连接可以在连接串中指定 ``access_id``、``access_key`` 和 ``project`` 等。"
+msgid ""
+"创建连接可以在连接字符串中指定 ``access_id``、``access_key`` 和 ``project"
+"`` 等。"
 msgstr ""
 "You can create MaxCompute connection by specifying ``access_id``, "
 "``access_key``, ``project`` and other arguments in a connection string."
@@ -49,7 +51,7 @@ msgid ""
 "\n"
 "# 确保 ALIBABA_CLOUD_ACCESS_KEY_ID 环境变量设置为用户 Access Key ID，\n"
 "# ALIBABA_CLOUD_ACCESS_KEY_SECRET 环境变量设置为用户 Access Key Secret，\n"
-"# 不建议直接使用 Access Key ID / Access Key Secret 字符串\n"
+"# 不建议直接使用 Access Key ID / Access Key Secret 字符串，下同\n"
 "conn_string = 'odps://%s:%s@<project>' % (\n"
 "   os.getenv('ALIBABA_CLOUD_ACCESS_KEY_ID'),\n"
 "   os.getenv('ALIBABA_CLOUD_ACCESS_KEY_SECRET'),\n"
@@ -59,12 +61,12 @@ msgstr ""
 "import os\n"
 "from sqlalchemy import create_engine\n"
 "\n"
-"# Make sure environment variable ALIBABA_CLOUD_ACCESS_KEY_ID "
-"already set to Access Key ID of user\n"
-"# while environment variable ALIBABA_CLOUD_ACCESS_KEY_SECRET "
-"set to Access Key Secret of user.\n"
-"# Not recommended to hardcode Access Key ID or Access Key Secret"
-" in your code.\n"
+"# Make sure environment variable ALIBABA_CLOUD_ACCESS_KEY_ID already set "
+"to Access Key ID of user\n"
+"# while environment variable ALIBABA_CLOUD_ACCESS_KEY_SECRET set to "
+"Access Key Secret of user.\n"
+"# Not recommended to hardcode Access Key ID or Access Key Secret in your "
+"code.\n"
 "conn_string = 'odps://%s:%s@<project>' % (\n"
 "   os.getenv('ALIBABA_CLOUD_ACCESS_KEY_ID'),\n"
 "   os.getenv('ALIBABA_CLOUD_ACCESS_KEY_SECRET'),\n"
@@ -72,7 +74,7 @@ msgstr ""
 "engine = create_engine(conn_string)"
 
 #: ../../source/base-sqlalchemy.rst:29
-msgid "要在连接串中指定 ``endpoint``，可以按如下方式："
+msgid "要在连接字符串中指定 ``endpoint``，可以按如下方式："
 msgstr "You can use methods below to specify ``endpoint`` in connection strings:"
 
 #: ../../source/base-sqlalchemy.rst:31
@@ -81,74 +83,56 @@ msgid ""
 "import os\n"
 "from sqlalchemy import create_engine\n"
 "\n"
-"# 确保 ALIBABA_CLOUD_ACCESS_KEY_ID 环境变量设置为用户 Access Key ID，\n"
-"# ALIBABA_CLOUD_ACCESS_KEY_SECRET 环境变量设置为用户 Access Key Secret，\n"
-"# 不建议直接使用 Access Key ID / Access Key Secret 字符串\n"
 "conn_string = 'odps://%s:%s@<project>/?endpoint=<endpoint>' % (\n"
 "   os.getenv('ALIBABA_CLOUD_ACCESS_KEY_ID'),\n"
 "   os.getenv('ALIBABA_CLOUD_ACCESS_KEY_SECRET'),\n"
 ")\n"
 "engine = create_engine(conn_string)"
 msgstr ""
-"import os\n"
-"from sqlalchemy import create_engine\n"
-"\n"
-"# Make sure environment variable ALIBABA_CLOUD_ACCESS_KEY_ID "
-"already set to Access Key ID of user\n"
-"# while environment variable ALIBABA_CLOUD_ACCESS_KEY_SECRET "
-"set to Access Key Secret of user.\n"
-"# Not recommended to hardcode Access Key ID or Access Key Secret"
-" in your code.\n"
-"conn_string = 'odps://%s:%s@<project>/?endpoint=<endpoint>' % (\n"
-"   os.getenv('ALIBABA_CLOUD_ACCESS_KEY_ID'),\n"
-"   os.getenv('ALIBABA_CLOUD_ACCESS_KEY_SECRET'),\n"
-")\n"
-"engine = create_engine(conn_string)"
 
-#: ../../source/base-sqlalchemy.rst:45
+#: ../../source/base-sqlalchemy.rst:42
 msgid "这里把 ``<access_id>`` 等替换成相应的账号。"
 msgstr ""
 "Replace ``<access_id>`` and other placeholders with real account "
 "information."
 
-#: ../../source/base-sqlalchemy.rst:47
-msgid "对于已有的 ODPS 对象 ``o`` ，调用 ``o.to_global()`` 设为全局账号后，在连接串中就不需要指定了。"
+#: ../../source/base-sqlalchemy.rst:44
+msgid ""
+"对于已有的 ODPS 对象 ``o`` ，调用 ``o.to_global()`` 设为全局账号后，在"
+"连接字符串中就不需要指定了。"
 msgstr ""
 "For existing ODPS entries, after calling ``o.to_global()`` to make "
 "accounts global, there is no need to specify connection strings in detail"
 " again."
 
-#: ../../source/base-sqlalchemy.rst:49
+#: ../../source/base-sqlalchemy.rst:46
 msgid ""
 "from sqlalchemy import create_engine\n"
 "o.to_global()  # set ODPS object as global one\n"
 "engine = create_engine('odps://')"
 msgstr ""
 
-#: ../../source/base-sqlalchemy.rst:55
+#: ../../source/base-sqlalchemy.rst:52
 msgid "接着创建连接。"
 msgstr "Then connections can be created."
 
-#: ../../source/base-sqlalchemy.rst:57
+#: ../../source/base-sqlalchemy.rst:54
 msgid "conn = engine.connect()"
 msgstr ""
 
-#: ../../source/base-sqlalchemy.rst:61
+#: ../../source/base-sqlalchemy.rst:58
 msgid "如果需要为 SQL 作业配置执行选项，可以使用 PyODPS 提供的 ``options`` 对象："
 msgstr ""
 "If you want to set execution settings for SQL tasks, you may still use "
 "``options`` object provided by PyODPS:"
 
-#: ../../source/base-sqlalchemy.rst:63
+#: ../../source/base-sqlalchemy.rst:60
 #, python-format
 msgid ""
 "import os\n"
 "from odps import options\n"
 "from sqlalchemy import create_engine\n"
 "\n"
-"# 确保 ALIBABA_CLOUD_ACCESS_KEY_ID 环境变量设置为用户 Access Key ID，\n"
-"# ALIBABA_CLOUD_ACCESS_KEY_SECRET 环境变量设置为用户 Access Key Secret，\n"
-"# 不建议直接使用 Access Key ID / Access Key Secret 字符串\n"
 "conn_string = 'odps://%s:%s@<project>/?endpoint=<endpoint>' % (\n"
 "   os.getenv('ALIBABA_CLOUD_ACCESS_KEY_ID'),\n"
 "   os.getenv('ALIBABA_CLOUD_ACCESS_KEY_SECRET'),\n"
@@ -156,36 +140,17 @@ msgid ""
 "options.sql.settings = {'odps.sql.hive.compatible': 'true'}\n"
 "engine = create_engine(conn_string)"
 msgstr ""
-"import os\n"
-"from odps import options\n"
-"from sqlalchemy import create_engine\n"
-"\n"
-"# Make sure environment variable ALIBABA_CLOUD_ACCESS_KEY_ID "
-"already set to Access Key ID of user\n"
-"# while environment variable ALIBABA_CLOUD_ACCESS_KEY_SECRET "
-"set to Access Key Secret of user.\n"
-"# Not recommended to hardcode Access Key ID or Access Key Secret"
-" in your code.\n"
-"conn_string = 'odps://%s:%s@<project>/?endpoint=<endpoint>' % (\n"
-"   os.getenv('ALIBABA_CLOUD_ACCESS_KEY_ID'),\n"
-"   os.getenv('ALIBABA_CLOUD_ACCESS_KEY_SECRET'),\n"
-")\n"
-"options.sql.settings = {'odps.sql.hive.compatible': 'true'}\n"
-"engine = create_engine(conn_string)"
 
-#: ../../source/base-sqlalchemy.rst:79
+#: ../../source/base-sqlalchemy.rst:73
 msgid "也可以直接配置在连接字符串中："
 msgstr "Settings can also be configured with connection strings:"
 
-#: ../../source/base-sqlalchemy.rst:81
+#: ../../source/base-sqlalchemy.rst:75
 #, python-format
 msgid ""
 "import os\n"
 "from sqlalchemy import create_engine\n"
 "\n"
-"# 确保 ALIBABA_CLOUD_ACCESS_KEY_ID 环境变量设置为用户 Access Key ID，\n"
-"# ALIBABA_CLOUD_ACCESS_KEY_SECRET 环境变量设置为用户 Access Key Secret，\n"
-"# 不建议直接使用 Access Key ID / Access Key Secret 字符串\n"
 "conn_string = "
 "'odps://%s:%s@<project>/?endpoint=<endpoint>&odps.sql.hive.compatible=true'"
 " % (\n"
@@ -194,44 +159,64 @@ msgid ""
 ")\n"
 "engine = create_engine(conn_string)"
 msgstr ""
-"import os\n"
-"from sqlalchemy import create_engine\n"
-"\n"
-"# Make sure environment variable ALIBABA_CLOUD_ACCESS_KEY_ID "
-"already set to Access Key ID of user\n"
-"# while environment variable ALIBABA_CLOUD_ACCESS_KEY_SECRET "
-"set to Access Key Secret of user.\n"
-"# Not recommended to hardcode Access Key ID or Access Key Secret"
-" in your code.\n"
-"conn_string = "
-"'odps://%s:%s@<project>/?endpoint=<endpoint>&odps.sql.hive.compatible=true'"
-" % (\n"
-"   os.getenv('ALIBABA_CLOUD_ACCESS_KEY_ID'),\n"
-"   os.getenv('ALIBABA_CLOUD_ACCESS_KEY_SECRET'),\n"
-")\n"
-"engine = create_engine(conn_string)"
 
-#: ../../source/base-sqlalchemy.rst:95
+#: ../../source/base-sqlalchemy.rst:86
 msgid "使用上述方式时，每个 engine 对象都会拥有不同的选项。"
 msgstr ""
 "Note that when configuring with connection strings, different engines may"
 " have different settings."
 
-#: ../../source/base-sqlalchemy.rst:98
+#: ../../source/base-sqlalchemy.rst:88
+msgid ""
+"部分商业智能引擎（例如 Apache Superset）可能会频繁列举 MaxCompute 表等"
+"对象，这可能会带来较大的延迟。\\ 如果你在数据分析过程中对新增的 "
+"MaxCompute 对象不敏感，在 PyODPS 0.12.0 及以上版本中可以考虑为连接字符串"
+"\\ 增加 ``cache_names=true`` 选项以启用对象名缓存，并可指定缓存超时的时间"
+" ``cache_seconds=<超时秒数>`` （默认为 24 * 3600）。下面的例子开启缓存并"
+"将缓存超时时间设定为 1200 秒。"
+msgstr ""
+"Some business intelligence engines (for instance, Apache Superset) might "
+"enumerate MaxCompute objects like tables quite frequently and this could "
+"lead to big latencies. Since PyODPS 0.12.0, If you do not care about new "
+"MaxCompute objects during data analysis, you may add ``cache_names=true``"
+" to your connection string to enable caching of the names of these "
+"objects and specify timeout seconds of the cache via "
+"``cache_seconds=<timeout seconds>`` whose default value is 24 * 3600. The"
+" code below enables caching object names and specifies cache timeout as "
+"1200 seconds."
+
+#: ../../source/base-sqlalchemy.rst:93
+#, python-format
+msgid ""
+"import os\n"
+"from sqlalchemy import create_engine\n"
+"\n"
+"conn_string = "
+"'odps://%s:%s@<project>/?endpoint=<endpoint>&cache_names=true&cache_seconds=1200'"
+" % (\n"
+"   os.getenv('ALIBABA_CLOUD_ACCESS_KEY_ID'),\n"
+"   os.getenv('ALIBABA_CLOUD_ACCESS_KEY_SECRET'),\n"
+")\n"
+"engine = create_engine(conn_string)"
+msgstr ""
+
+#: ../../source/base-sqlalchemy.rst:105
 msgid "调用 SQLAlchemy 接口"
 msgstr "Using SQLAlchemy interfaces"
 
-#: ../../source/base-sqlalchemy.rst:100
-msgid "创建了连接之后，就可以正常调用 SQLAlchemy 接口。以下对建表、写入数据、查询分别举例说明。"
+#: ../../source/base-sqlalchemy.rst:107
+msgid ""
+"创建了连接之后，就可以正常调用 SQLAlchemy 接口。以下对建表、写入数据、"
+"查询分别举例说明。"
 msgstr ""
 "After establishing connections, you can call SQLAlchemy interfaces as "
 "usual. Here are examples for creating, writing data and querying."
 
-#: ../../source/base-sqlalchemy.rst:103
+#: ../../source/base-sqlalchemy.rst:110
 msgid "建表"
 msgstr "Creating tables"
 
-#: ../../source/base-sqlalchemy.rst:105
+#: ../../source/base-sqlalchemy.rst:112
 msgid ""
 "from sqlalchemy import Table, Column, Integer, String, MetaData\n"
 "metadata = MetaData()\n"
@@ -245,21 +230,21 @@ msgid ""
 "metadata.create_all(engine)"
 msgstr ""
 
-#: ../../source/base-sqlalchemy.rst:120
+#: ../../source/base-sqlalchemy.rst:127
 msgid "写入数据"
 msgstr "Writing data"
 
-#: ../../source/base-sqlalchemy.rst:122
+#: ../../source/base-sqlalchemy.rst:129
 msgid ""
 "ins = users.insert().values(id=1, name='jack', fullname='Jack Jones')\n"
 "conn.execute(ins)"
 msgstr ""
 
-#: ../../source/base-sqlalchemy.rst:129
+#: ../../source/base-sqlalchemy.rst:136
 msgid "查询数据"
 msgstr "Querying"
 
-#: ../../source/base-sqlalchemy.rst:131
+#: ../../source/base-sqlalchemy.rst:138
 msgid ""
 ">>> from sqlalchemy.sql import select\n"
 ">>> s = select([users])\n"

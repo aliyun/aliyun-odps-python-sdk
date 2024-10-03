@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,7 +18,8 @@ include "util_c.pxi"
 from libc.stdint cimport *
 from libc.string cimport *
 
-from .wire_format import TAG_TYPE_BITS as PY_TAG_TYPE_BITS, _TAG_TYPE_MASK as _PY_TAG_TYPE_MASK
+from .wire_format import _TAG_TYPE_MASK as _PY_TAG_TYPE_MASK
+from .wire_format import TAG_TYPE_BITS as PY_TAG_TYPE_BITS
 
 cdef:
     int TAG_TYPE_BITS = PY_TAG_TYPE_BITS
@@ -132,11 +133,11 @@ cdef class CDecoder:
             need = 0
 
         if len(result) == 0:
-            return b''
+            return b""
         elif len(result) == 1:
             return result[0]
         else:
-            return b''.join(result)
+            return b"".join(result)
 
     cdef int _load_next_buffer(self) except -1 with gil:
         if self._is_source_eof and (self._begin >= self._end):

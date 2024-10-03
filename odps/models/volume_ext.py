@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,11 +18,11 @@ import contextlib
 
 import requests
 
-from . import cache_parent
 from .. import serializers
-from ..compat import Enum
+from ..compat import Enum, urlparse
 from ..errors import OSSSignUrlError
-from .volume_fs import FSVolumeObject, FSVolumeObjects, FSVolume
+from . import cache_parent
+from .volume_fs import FSVolume, FSVolumeObject, FSVolumeObjects
 
 
 class SignUrlMethod(Enum):
@@ -46,27 +46,35 @@ class ExternalVolumeObject(FSVolumeObject):
     def get_sign_url(self, method, seconds=None):
         if isinstance(method, SignUrlMethod):
             method = method.value
-        params = {'sign_url': method.lower()}
+        params = {"sign_url": method.lower()}
         if seconds:
             params["expire_seconds"] = seconds
-        headers = {'x-odps-volume-fs-path': self.path}
+        headers = {"x-odps-volume-fs-path": self.path}
 
         schema_name = self.volume._get_schema_name()
         if schema_name is not None:
             params["curr_schema"] = schema_name
         resp = self._client.get(
-            self.parent.resource(), action='meta', params=params, headers=headers
+            self.parent.resource(), action="meta", params=params, headers=headers
         )
         self.parse(self._client, resp, obj=self)
         return self.sign_url
 
     def _request_sign_url(self, path, method, *args, **kw):
         if path:
-            path = self.path.rstrip('/') + '/' + path.lstrip('/')
+            path = self.path.rstrip("/") + "/" + path.lstrip("/")
         else:
             path = self.path
-        vol_rel_path = path[len(self.volume.name) + 1:]
+        vol_rel_path = path[len(self.volume.name) + 1 :]
         sign_url = self.volume.get_sign_url(vol_rel_path, method)
+
+        replace_internal_host = kw.pop("replace_internal_host", False)
+        if replace_internal_host:
+            parsed_url = urlparse(sign_url)
+            if "-internal." in parsed_url.netloc:
+                new_netloc = parsed_url.netloc.replace("-internal.", ".")
+                sign_url = sign_url.replace(parsed_url.netloc, new_netloc)
+
         if method == SignUrlMethod.PUT:
             resp = requests.put(sign_url, *args, **kw)
         else:
@@ -93,8 +101,8 @@ class ExternalVolumeObject(FSVolumeObject):
 
         :param recursive: indicate whether a recursive deletion should be performed.
         """
-        params = {'recursive': str(recursive).lower()}
-        headers = {'x-odps-volume-fs-path': self.path.rstrip("/")}
+        params = {"recursive": str(recursive).lower()}
+        headers = {"x-odps-volume-fs-path": self.path.rstrip("/")}
         self._del_cache(self.path)
         self._client.delete(
             self.parent.resource(),
@@ -104,7 +112,7 @@ class ExternalVolumeObject(FSVolumeObject):
         )
 
     @contextlib.contextmanager
-    def _open_reader(self, path):
+    def _open_reader(self, path, replace_internal_host=False):
         """
         Open a volume file and read contents in it.
 
@@ -115,7 +123,12 @@ class ExternalVolumeObject(FSVolumeObject):
         >>> with fs_dir.open_reader('file') as reader:
         >>>     [print(line) for line in reader]
         """
-        req = self._request_sign_url(path, SignUrlMethod.GET, stream=True)
+        req = self._request_sign_url(
+            path,
+            SignUrlMethod.GET,
+            stream=True,
+            replace_internal_host=replace_internal_host,
+        )
         yield req.raw
 
     @contextlib.contextmanager
@@ -134,9 +147,15 @@ class ExternalVolumeObject(FSVolumeObject):
 
         if kwargs.pop("replication", None) is not None:  # pragma: no cover
             raise TypeError("External volume does not support replication argument")
+        replace_internal_host = kwargs.pop("replace_internal_host", False)
 
         def put_func(data):
-            self._request_sign_url(path, SignUrlMethod.PUT, data=data)
+            self._request_sign_url(
+                path,
+                SignUrlMethod.PUT,
+                data=data,
+                replace_internal_host=replace_internal_host,
+            )
 
         rio = RequestsIO(put_func)
         try:
@@ -158,7 +177,7 @@ class ExternalVolumeFile(ExternalVolumeObject):
         """
         return self._delete(False)
 
-    def open_reader(self):
+    def open_reader(self, replace_internal_host=False):
         """
         Open current file and read contents in it.
         :return: file reader
@@ -167,7 +186,7 @@ class ExternalVolumeFile(ExternalVolumeObject):
         >>> with fs_file.open_reader('file') as reader:
         >>>     [print(line) for line in reader]
         """
-        return self._open_reader(None)
+        return self._open_reader(None, replace_internal_host=replace_internal_host)
 
     def open_writer(self, **kw):
         return self._open_writer(None, **kw)
@@ -183,7 +202,7 @@ class ExternalVolumeDir(ExternalVolumeObject):
     def objects(self):
         return ExternalVolumeObjects(parent=self, client=self._client)
 
-    def create_dir(self, path):
+    def create_dir(self, path, replace_internal_host=False):
         """
         Creates and returns a sub-directory under the current directory.
         :param str path: directory name to be created
@@ -191,8 +210,15 @@ class ExternalVolumeDir(ExternalVolumeObject):
         :rtype: :class:`odps.models.FSVolumeDir`
         """
         path = path.strip("/") + "/"
-        resp = self._request_sign_url(path, SignUrlMethod.PUT, b"")
-        dir_object = type(self)(path=resp.volume_path, parent=self.parent, client=self._client)
+        resp = self._request_sign_url(
+            path,
+            SignUrlMethod.PUT,
+            b"",
+            replace_internal_host=replace_internal_host,
+        )
+        dir_object = type(self)(
+            path=resp.volume_path, parent=self.parent, client=self._client
+        )
         dir_object.reload()
         return dir_object
 
@@ -213,7 +239,7 @@ class ExternalVolumeDir(ExternalVolumeObject):
         """
         self._delete(recursive=recursive)
 
-    def open_reader(self, path):
+    def open_reader(self, path, replace_internal_host=False):
         """
         Open a volume file and read contents in it.
 
@@ -224,7 +250,7 @@ class ExternalVolumeDir(ExternalVolumeObject):
         >>> with fs_dir.open_reader('file') as reader:
         >>>     [print(line) for line in reader]
         """
-        return self._open_reader(path)
+        return self._open_reader(path, replace_internal_host=replace_internal_host)
 
     def open_writer(self, path, **kwargs):
         """
@@ -241,7 +267,7 @@ class ExternalVolumeDir(ExternalVolumeObject):
 
 
 class ExternalVolumeObjects(FSVolumeObjects):
-    objects = serializers.XMLNodesReferencesField(ExternalVolumeObject, 'Item')
+    objects = serializers.XMLNodesReferencesField(ExternalVolumeObject, "Item")
 
     @classmethod
     def _get_single_object_cls(cls):

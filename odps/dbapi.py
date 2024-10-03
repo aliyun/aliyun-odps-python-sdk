@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,15 +20,14 @@ import warnings
 from .compat import enum, six
 from .config import options
 from .core import ODPS
-from .errors import NotSupportedError, InstanceTypeNotSupported, ODPSError
-from .utils import to_str
+from .errors import InstanceTypeNotSupported, NotSupportedError, ODPSError
 from .models.session import PUBLIC_SESSION_NAME
-
+from .utils import to_str
 
 # PEP 249 module globals
-apilevel = '2.0'
+apilevel = "2.0"
 threadsafety = 2  # Threads may share the module and connections.
-paramstyle = 'named'  # Python extended format codes, e.g. ...WHERE name=%(name)s
+paramstyle = "named"  # Python extended format codes, e.g. ...WHERE name=%(name)s
 
 
 class Error(Exception):
@@ -54,39 +53,58 @@ FALLBACK_POLICIES = {
     "upgrading": ["ODPS-182", "ODPS-184"],
     "noresource": ["ODPS-183"],
     "timeout": ["ODPS-186"],
-    "generic": ["ODPS-180"]
+    "generic": ["ODPS-180"],
 }
 
 FALLBACK_POLICY_ALIASES = {
     "default": ["unsupported", "upgrading", "noresource", "timeout"],
-    "all": ["unsupported", "upgrading", "noresource", "timeout", "generic"]
+    "all": ["unsupported", "upgrading", "noresource", "timeout", "generic"],
 }
 
 
 class Connection(object):
-    def __init__(self, access_id=None, secret_access_key=None, project=None,
-                 endpoint=None, session_name=None, odps=None, hints=None, **kw):
+    def __init__(
+        self,
+        access_id=None,
+        secret_access_key=None,
+        project=None,
+        endpoint=None,
+        session_name=None,
+        odps=None,
+        hints=None,
+        **kw
+    ):
         if isinstance(access_id, ODPS):
             access_id, odps = None, access_id
 
+        self._use_sqa = kw.pop("use_sqa", False) != False
+        self._fallback_policy = kw.pop("fallback_policy", "")
+        self._project_as_schema = kw.pop(
+            "project_as_schema", options.sqlalchemy.project_as_schema
+        )
+
         if odps is None:
-            # pop unsupported
-            kw.pop("use_sqa", None)
-            kw.pop("fallback_policy", None)
-            self._odps = ODPS(access_id=access_id, secret_access_key=secret_access_key,
-                              project=project, endpoint=endpoint, **kw)
+            self._odps = ODPS(
+                access_id=access_id,
+                secret_access_key=secret_access_key,
+                project=project,
+                endpoint=endpoint,
+                **kw
+            )
         else:
             if access_id is not None:
-                raise ValueError('Either access_id or odps can be specified')
+                raise ValueError("Either access_id or odps can be specified")
             self._odps = odps
+
+        try:
+            if self._project_as_schema is None:
+                self._project_as_schema = not self._odps.is_schema_namespace_enabled()
+        except:
+            pass
+
         self._session_name = PUBLIC_SESSION_NAME
         if session_name is not None:
             self._session_name = session_name
-        self._use_sqa = (kw.pop('use_sqa', False) != False)
-        self._fallback_policy = kw.pop('fallback_policy', '')
-        self._project_as_schema = kw.pop(
-            'project_as_schema', options.sqlalchemy.project_as_schema
-        )
         self._hints = hints
 
     @property
@@ -102,9 +120,12 @@ class Connection(object):
     def cursor(self, *args, **kwargs):
         """Return a new :py:class:`Cursor` object using the connection."""
         return Cursor(
-            self, *args, use_sqa=self._use_sqa,
+            self,
+            *args,
+            use_sqa=self._use_sqa,
             fallback_policy=self._fallback_policy,
-            hints=self._hints, **kwargs
+            hints=self._hints,
+            **kwargs
         )
 
     def close(self):
@@ -125,8 +146,15 @@ default_arraysize = 1000
 
 
 class Cursor(object):
-    def __init__(self, connection, arraysize=default_arraysize,
-            use_sqa=False, fallback_policy='', hints=None, **kwargs):
+    def __init__(
+        self,
+        connection,
+        arraysize=default_arraysize,
+        use_sqa=False,
+        fallback_policy="",
+        hints=None,
+        **kwargs
+    ):
         self._connection = connection
         self._arraysize = arraysize
         self._reset_state()
@@ -134,7 +162,7 @@ class Cursor(object):
         self._use_sqa = use_sqa
         self._fallback_policy = []
         self._hints = hints
-        fallback_policies = map(lambda x: x.strip(), fallback_policy.split(','))
+        fallback_policies = map(lambda x: x.strip(), fallback_policy.split(","))
         for policy in fallback_policies:
             if policy in FALLBACK_POLICY_ALIASES:
                 self._fallback_policy.extend(FALLBACK_POLICY_ALIASES[policy])
@@ -161,8 +189,10 @@ class Cursor(object):
         try:
             self._arraysize = max(int(value), default_arraysize)
         except TypeError:
-            warnings.warn('arraysize has to be a integer, got {}, '
-                          'will set default value 1000'.format(value))
+            warnings.warn(
+                "arraysize has to be a integer, got {}, "
+                "will set default value 1000".format(value)
+            )
             self._arraysize = default_arraysize
 
     @property
@@ -192,27 +222,24 @@ class Cursor(object):
             self._description = []
             if self._download_session is not None:
                 for col in self._download_session.schema.columns:
-                    self._description.append((
-                        col.name, col.type.name,
-                        None, None, None, None, True
-                    ))
+                    self._description.append(
+                        (col.name, col.type.name, None, None, None, None, True)
+                    )
             else:
-                self._description.append((
-                    '_c0', 'string', None, None,
-                    None, None, True
-                ))
+                self._description.append(
+                    ("_c0", "string", None, None, None, None, True)
+                )
         return self._description
 
     @staticmethod
     def escape_string(item):
         item = to_str(item)
         return "'{}'".format(
-            item
-                .replace('\\', '\\\\')
-                .replace("'", "\\'")
-                .replace('\r', '\\r')
-                .replace('\n', '\\n')
-                .replace('\t', '\\t')
+            item.replace("\\", "\\\\")
+            .replace("'", "\\'")
+            .replace("\r", "\\r")
+            .replace("\n", "\\n")
+            .replace("\t", "\\t")
         )
 
     def execute(self, operation, parameters=None, **kwargs):
@@ -224,7 +251,7 @@ class Cursor(object):
 
         Return values are not defined.
         """
-        for k in ['async', 'async_']:
+        for k in ["async", "async_"]:
             if k in kwargs:
                 async_ = kwargs[k]
                 break
@@ -261,7 +288,7 @@ class Cursor(object):
             self.execute(operation, parameter)
 
     def _sqa_error_should_fallback(self, err_str):
-        if 'ODPS-18' not in err_str:
+        if "ODPS-18" not in err_str:
             return False
         for fallback_case in self._fallback_policy:
             fallback_error = FALLBACK_POLICIES.get(fallback_case, None)
@@ -279,12 +306,12 @@ class Cursor(object):
         while True:
             try:
                 if inst is None:
-                    inst = odps.run_sql_interactive(sql, service_name = session_name)
+                    inst = odps.run_sql_interactive(sql, service_name=session_name)
                 else:
                     inst.wait_for_success(interval=0.5)
                 rd = inst.open_reader(tunnel=True, limit=False)
                 if not rd:
-                    raise ODPSError('failed to create direct download')
+                    raise ODPSError("failed to create direct download")
                 rd.schema  # will check if task is ok
                 self._download_session = rd
                 return inst
@@ -308,7 +335,8 @@ class Cursor(object):
         if not self._download_session and self._instance:
             try:
                 self._download_session = self._instance.open_reader(
-                    tunnel=True, limit=False)
+                    tunnel=True, limit=False
+                )
             except InstanceTypeNotSupported:
                 # not select, cannot create session
                 self._download_session = None

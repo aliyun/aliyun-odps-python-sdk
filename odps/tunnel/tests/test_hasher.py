@@ -14,15 +14,15 @@ import datetime
 import itertools
 
 import pytest
+
 try:
     import pandas as pd
 except ImportError:
     pd = None
 
 from ...models import Record
-from ...types import OdpsSchema, Column
+from ...types import Column, OdpsSchema
 from .. import hasher as py_hasher
-
 
 hasher_mods = [py_hasher]
 
@@ -57,14 +57,20 @@ def _build_schema_and_record(pd):
         datetime.datetime(2023, 6, 11, 22, 33, 11),
     ]
     if pd is not None:
-        columns.extend([
-            Column("col8", "timestamp"),
-            Column("col9", "interval_day_time"),
-        ])
-        values.extend([
-            pd.Timestamp(2022, 6, 11, 22, 33, 1, 134561, 241),
-            pd.Timedelta(days=128, hours=10, minutes=5, seconds=17, microseconds=11),
-        ])
+        columns.extend(
+            [
+                Column("col8", "timestamp"),
+                Column("col9", "interval_day_time"),
+            ]
+        )
+        values.extend(
+            [
+                pd.Timestamp(2022, 6, 11, 22, 33, 1, 134561, 241),
+                pd.Timedelta(
+                    days=128, hours=10, minutes=5, seconds=17, microseconds=11
+                ),
+            ]
+        )
     schema = OdpsSchema(columns)
     record = Record(schema=schema, values=values)
     return schema, record
@@ -77,21 +83,31 @@ def test_default_hasher(hasher_mod, pd):
     assert hasher_mod.hash_value("default", "double", 15672.56271) == 1254569207
     assert hasher_mod.hash_value("default", "boolean", True) == 388737479
     assert hasher_mod.hash_value("default", "string", "hello".encode()) == -1259046373
-    assert hasher_mod.hash_value(
-        "default", "date", datetime.date(2022, 12, 5)
-    ) == 903574500
-    assert hasher_mod.hash_value(
-        "default", "datetime", datetime.datetime(2022, 6, 11, 22, 33, 11)
-    ) == -2026178719
+    assert (
+        hasher_mod.hash_value("default", "date", datetime.date(2022, 12, 5))
+        == 903574500
+    )
+    assert (
+        hasher_mod.hash_value(
+            "default", "datetime", datetime.datetime(2022, 6, 11, 22, 33, 11)
+        )
+        == -2026178719
+    )
     if pd is not None:
-        assert hasher_mod.hash_value(
-            "default", "timestamp", pd.Timestamp("2023-07-05 11:24:15.145673214")
-        ) == -31960127
-        assert hasher_mod.hash_value(
-            "default", "interval_day_time", pd.Timedelta(
-                seconds=100002, microseconds=2000, nanoseconds=1
+        assert (
+            hasher_mod.hash_value(
+                "default", "timestamp", pd.Timestamp("2023-07-05 11:24:15.145673214")
             )
-        ) == -1088782317
+            == -31960127
+        )
+        assert (
+            hasher_mod.hash_value(
+                "default",
+                "interval_day_time",
+                pd.Timedelta(seconds=100002, microseconds=2000, nanoseconds=1),
+            )
+            == -1088782317
+        )
 
     schema, rec = _build_schema_and_record(pd)
     col_names = [c.name for c in schema.columns]
@@ -109,21 +125,31 @@ def test_legacy_hasher(hasher_mod, pd):
     assert hasher_mod.hash_value("legacy", "double", 15672.56271) == 1177487321
     assert hasher_mod.hash_value("legacy", "boolean", False) == -978963218
     assert hasher_mod.hash_value("legacy", "string", "hello".encode()) == 99162322
-    assert hasher_mod.hash_value(
-        "legacy", "date", datetime.date(2022, 12, 5)
-    ) == 1670198400
-    assert hasher_mod.hash_value(
-        "legacy", "datetime", datetime.datetime(2022, 6, 11, 22, 33, 11)
-    ) == 1395582425
+    assert (
+        hasher_mod.hash_value("legacy", "date", datetime.date(2022, 12, 5))
+        == 1670198400
+    )
+    assert (
+        hasher_mod.hash_value(
+            "legacy", "datetime", datetime.datetime(2022, 6, 11, 22, 33, 11)
+        )
+        == 1395582425
+    )
     if pd is not None:
-        assert hasher_mod.hash_value(
-            "legacy", "timestamp", pd.Timestamp("2023-07-05 11:24:15.145673214")
-        ) == -779619479
-        assert hasher_mod.hash_value(
-            "legacy", "interval_day_time", pd.Timedelta(
-                seconds=100002, microseconds=2000, nanoseconds=1
+        assert (
+            hasher_mod.hash_value(
+                "legacy", "timestamp", pd.Timestamp("2023-07-05 11:24:15.145673214")
             )
-        ) == -2145458903
+            == -779619479
+        )
+        assert (
+            hasher_mod.hash_value(
+                "legacy",
+                "interval_day_time",
+                pd.Timedelta(seconds=100002, microseconds=2000, nanoseconds=1),
+            )
+            == -2145458903
+        )
 
     schema, rec = _build_schema_and_record(pd)
     col_names = [c.name for c in schema.columns]

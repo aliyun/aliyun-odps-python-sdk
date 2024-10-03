@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@ import warnings
 from datetime import datetime
 
 from .. import serializers, types, utils
-from .core import LazyLoad, XMLRemoteModel, JSONRemoteModel
+from .core import JSONRemoteModel, LazyLoad, XMLRemoteModel
 from .storage_tier import StorageTierInfo
 
 
@@ -32,45 +32,67 @@ class Partition(LazyLoad):
     to provide the ability to read records from a partition. The behavior of these
     methods are the same as those in Table class except that there are no 'partition' params.
     """
-    __slots__ = 'spec', 'creation_time', 'last_meta_modified_time', \
-        'last_data_modified_time', 'size', '_is_extend_info_loaded', \
-        'is_archived', 'is_exstore', 'lifecycle', 'physical_size', \
-        'file_num', 'reserved'
+
+    __slots__ = (
+        "spec",
+        "creation_time",
+        "last_meta_modified_time",
+        "last_data_modified_time",
+        "size",
+        "_is_extend_info_loaded",
+        "is_archived",
+        "is_exstore",
+        "lifecycle",
+        "physical_size",
+        "file_num",
+        "reserved",
+    )
 
     class Column(XMLRemoteModel):
-
-        name = serializers.XMLNodeAttributeField(attr='Name')
-        value = serializers.XMLNodeAttributeField(attr='Value')
+        name = serializers.XMLNodeAttributeField(attr="Name")
+        value = serializers.XMLNodeAttributeField(attr="Value")
 
     class PartitionMeta(JSONRemoteModel):
-
         creation_time = serializers.JSONNodeField(
-            'createTime', parse_callback=datetime.fromtimestamp, set_to_parent=True)
+            "createTime", parse_callback=datetime.fromtimestamp, set_to_parent=True
+        )
         last_meta_modified_time = serializers.JSONNodeField(
-            'lastDDLTime', parse_callback=datetime.fromtimestamp, set_to_parent=True)
+            "lastDDLTime", parse_callback=datetime.fromtimestamp, set_to_parent=True
+        )
         last_data_modified_time = serializers.JSONNodeField(
-            'lastModifiedTime', parse_callback=datetime.fromtimestamp, set_to_parent=True)
+            "lastModifiedTime",
+            parse_callback=datetime.fromtimestamp,
+            set_to_parent=True,
+        )
         size = serializers.JSONNodeField(
-            'partitionSize', parse_callback=int, set_to_parent=True)
+            "partitionSize", parse_callback=int, set_to_parent=True
+        )
 
     class PartitionExtendedMeta(PartitionMeta):
-
         is_archived = serializers.JSONNodeField(
-            'IsArchived', parse_callback=bool, set_to_parent=True)
+            "IsArchived", parse_callback=bool, set_to_parent=True
+        )
         is_exstore = serializers.JSONNodeField(
-            'IsExstore', parse_callback=bool, set_to_parent=True)
+            "IsExstore", parse_callback=bool, set_to_parent=True
+        )
         lifecycle = serializers.JSONNodeField(
-            'LifeCycle', parse_callback=int, set_to_parent=True)
+            "LifeCycle", parse_callback=int, set_to_parent=True
+        )
         physical_size = serializers.JSONNodeField(
-            'PhysicalSize', parse_callback=int, set_to_parent=True)
+            "PhysicalSize", parse_callback=int, set_to_parent=True
+        )
         file_num = serializers.JSONNodeField(
-            'FileNum', parse_callback=int, set_to_parent=True)
+            "FileNum", parse_callback=int, set_to_parent=True
+        )
         reserved = serializers.JSONNodeField(
-            'Reserved', type='json', set_to_parent=True)
+            "Reserved", type="json", set_to_parent=True
+        )
 
-    columns = serializers.XMLNodesReferencesField(Column, 'Column')
-    _schema = serializers.XMLNodeReferenceField(PartitionMeta, 'Schema')
-    _extended_schema = serializers.XMLNodeReferenceField(PartitionExtendedMeta, 'Schema')
+    columns = serializers.XMLNodesReferencesField(Column, "Column")
+    _schema = serializers.XMLNodeReferenceField(PartitionMeta, "Schema")
+    _extended_schema = serializers.XMLNodeReferenceField(
+        PartitionExtendedMeta, "Schema"
+    )
 
     def __init__(self, **kwargs):
         self._is_extend_info_loaded = False
@@ -81,12 +103,21 @@ class Partition(LazyLoad):
         return str(self.partition_spec)
 
     def __repr__(self):
-        return '<Partition %s.`%s`(%s)>' % (
-            str(self.table.project.name), str(self.table.name), str(self.partition_spec))
+        return "<Partition %s.`%s`(%s)>" % (
+            str(self.table.project.name),
+            str(self.table.name),
+            str(self.partition_spec),
+        )
 
     def __getattribute__(self, attr):
-        if attr in ('is_archived', 'is_exstore', 'lifecycle',
-                    'physical_size', 'file_num', 'reserved'):
+        if attr in (
+            "is_archived",
+            "is_exstore",
+            "lifecycle",
+            "physical_size",
+            "file_num",
+            "reserved",
+        ):
             if not self._is_extend_info_loaded:
                 self.reload_extend_info()
 
@@ -94,7 +125,7 @@ class Partition(LazyLoad):
 
         val = object.__getattribute__(self, attr)
         if val is None and not self._loaded:
-            if attr in getattr(Partition.PartitionMeta, '__fields'):
+            if attr in getattr(Partition.PartitionMeta, "__fields"):
                 self.reload()
                 return object.__getattribute__(self, attr)
 
@@ -125,14 +156,14 @@ class Partition(LazyLoad):
             DeprecationWarning,
             stacklevel=3,
         )
-        utils.add_survey_call(".".join(
-            [type(self).__module__, type(self).__name__, "last_modified_time"]
-        ))
+        utils.add_survey_call(
+            ".".join([type(self).__module__, type(self).__name__, "last_modified_time"])
+        )
         return self.last_data_modified_time
 
     @property
     def partition_spec(self):
-        return self.get_partition_spec(self._getattr('columns'), self._getattr('spec'))
+        return self.get_partition_spec(self._getattr("columns"), self._getattr("spec"))
 
     @property
     def name(self):
@@ -152,7 +183,7 @@ class Partition(LazyLoad):
 
     def reload(self):
         url = self.resource()
-        params = {'partition': str(self.partition_spec)}
+        params = {"partition": str(self.partition_spec)}
         resp = self._client.get(url, params=params, curr_schema=self._get_schema_name())
 
         self.parse(self._client, resp, obj=self)
@@ -161,9 +192,9 @@ class Partition(LazyLoad):
 
     def reload_extend_info(self):
         url = self.resource()
-        params = {'partition': str(self.partition_spec)}
+        params = {"partition": str(self.partition_spec)}
         resp = self._client.get(
-            url, action='extended', params=params, curr_schema=self._get_schema_name()
+            url, action="extended", params=params, curr_schema=self._get_schema_name()
         )
 
         self.parse(self._client, resp, obj=self)
@@ -229,6 +260,77 @@ class Partition(LazyLoad):
 
     def open_writer(self, blocks=None, **kw):
         return self.table.open_writer(self.partition_spec, blocks=blocks, **kw)
+
+    def to_pandas(
+        self,
+        columns=None,
+        start=None,
+        count=None,
+        n_process=1,
+        quota_name=None,
+        append_partitions=None,
+        tags=None,
+        **kwargs
+    ):
+        """
+        Read partition data into pandas DataFrame
+
+        :param list columns: columns to read
+        :param int start: start row index from 0
+        :param int count: data count to read
+        :param int n_process: number of processes to accelerate reading
+        :param str quota_name: name of tunnel quota to use
+        :param bool append_partitions: if True, partition values will be
+            appended to the output
+        """
+        return self.table.to_pandas(
+            partition=self.partition_spec,
+            columns=columns,
+            arrow=True,
+            quota_name=quota_name,
+            tags=tags,
+            n_process=n_process,
+            start=start,
+            count=count,
+            append_partitions=append_partitions,
+            **kwargs
+        )
+
+    def iter_pandas(
+        self,
+        columns=None,
+        batch_size=None,
+        start=None,
+        count=None,
+        quota_name=None,
+        append_partitions=None,
+        tags=None,
+        **kwargs
+    ):
+        """
+        Read partition data into pandas DataFrame
+
+        :param list columns: columns to read
+        :param int batch_size: size of DataFrame batch to read
+        :param int start: start row index from 0
+        :param int count: data count to read
+        :param str quota_name: name of tunnel quota to use
+        :param bool append_partitions: if True, partition values will be
+            appended to the output
+        """
+        for batch in self.table.iter_pandas(
+            partition=self.partition_spec,
+            columns=columns,
+            batch_size=batch_size,
+            arrow=True,
+            quota_name=quota_name,
+            tags=tags,
+            append_partitions=append_partitions,
+            start=start,
+            count=count,
+            **kwargs
+        ):
+            yield batch
 
     @utils.with_wait_argument
     def truncate(self, async_=False):

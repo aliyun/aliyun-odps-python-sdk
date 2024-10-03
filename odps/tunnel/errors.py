@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,29 +18,29 @@ import json
 
 import requests
 
-from ..compat import ElementTree as ET, TimeoutError
+from ..compat import ElementTree as ET
+from ..compat import TimeoutError
 from ..errors import ODPSError
 
 
 class TunnelError(ODPSError):
-
     @classmethod
     def parse(cls, resp):
         try:
             root = ET.fromstring(resp.content)
-            code = root.find('./Code').text
-            msg = root.find('./Message').text
-            request_id = root.find('./RequestId')
+            code = root.find("./Code").text
+            msg = root.find("./Message").text
+            request_id = root.find("./RequestId")
             if request_id:
                 request_id = request_id.text
             else:
-                request_id = resp.headers.get('x-odps-request-id')
+                request_id = resp.headers.get("x-odps-request-id")
             exc_type = globals().get(code, TunnelError)
         except:
-            request_id = resp.headers['x-odps-request-id']
+            request_id = resp.headers["x-odps-request-id"]
             obj = json.loads(resp.content)
-            msg = obj['Message']
-            code = obj['InvalidArgument']
+            msg = obj["Message"]
+            code = obj["InvalidArgument"]
             exc_type = globals().get(code, TunnelError)
 
         return exc_type(msg, code=code, request_id=request_id)

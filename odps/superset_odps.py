@@ -1,4 +1,6 @@
+import contextlib
 import logging
+import sys
 
 try:
     from sqlalchemy import Column
@@ -7,9 +9,8 @@ except ImportError:
 
 try:
     from superset import sql_parse
-    from superset.db_engine_specs.base import BaseEngineSpec
+    from superset.db_engine_specs.base import BaseEngineSpec, TimestampExpression
     from superset.exceptions import SupersetException
-    from superset.extensions import cache_manager
 except ImportError:
     # import fallback for tests only
     sql_parse = None
@@ -20,9 +21,7 @@ except ImportError:
 
         @classmethod
         def get_engine(cls, database, schema=None, source=None):
-            return database.get_sqla_engine_with_context(
-                schema=schema, source=source
-            )
+            return database.get_sqla_engine_with_context(schema=schema, source=source)
 
         @classmethod
         def get_table_names(  # pylint: disable=unused-argument
@@ -37,17 +36,9 @@ except ImportError:
         def get_dbapi_mapped_exception(cls, ex):
             return ex
 
-    class CacheManagerCls(object):
-        def __init__(self):
-            self.cache = self
-
-        def memoize(self):
-            return lambda x: x
-
-    cache_manager = CacheManagerCls()
-
     class SupersetException(Exception):
         pass
+
 
 try:
     from superset.constants import TimeGrain
@@ -73,7 +64,8 @@ from .utils import TEMP_TABLE_PREFIX
 
 logger = logging.getLogger(__name__)
 
-_builtin_funcs = set("""
+_builtin_funcs = set(
+    """
 ABS ACOS ADD_MONTHS ALL_MATCH ANY_MATCH ANY_VALUE ATAN2 APPROX_DISTINCT
 ARG_MAX ARG_MIN ARRAY ARRAY_CONTAINS ARRAY_DISTINCT ARRAY_EXCEPT
 ARRAY_INTERSECT ARRAY_JOIN ARRAY_MAX ARRAY_MIN ARRAY_NORMALIZE
@@ -113,7 +105,8 @@ TRANSFORM TRANSFORM_KEYS TRANSFORM_VALUES TRANSLATE TRIM TRUNC
 UNBASE64 UNHEX UNIQUE_ID UNIX_TIMESTAMP URL_DECODE URL_ENCODE
 UUID VAR_SAMP VARIANCE/VAR_POP WEEKDAY WEEKOFYEAR WIDTH_BUCKET
 WM_CONCAT YEAR ZIP_WITH
-""".strip().split())
+""".strip().split()
+)
 
 
 class ODPSEngineSpec(BaseEngineSpec):
@@ -123,31 +116,55 @@ class ODPSEngineSpec(BaseEngineSpec):
     # pylint: disable=line-too-long
     _time_grain_expressions = {
         None: "{col}",
-        TimeGrain.SECOND: "from_unixtime(unix_timestamp({col}), 'yyyy-MM-dd HH:mm:ss')",
-        TimeGrain.MINUTE: "from_unixtime(unix_timestamp({col}), 'yyyy-MM-dd HH:mm:00')",
-        TimeGrain.HOUR: "from_unixtime(unix_timestamp({col}), 'yyyy-MM-dd HH:00:00')",
-        TimeGrain.DAY: "from_unixtime(unix_timestamp({col}), 'yyyy-MM-dd 00:00:00')",
-        TimeGrain.WEEK: "date_format(date_sub({col}, CAST(7-from_unixtime(unix_timestamp({col}),'u') as int)), 'yyyy-MM-dd 00:00:00')",
-        TimeGrain.MONTH: "from_unixtime(unix_timestamp({col}), 'yyyy-MM-01 00:00:00')",
-        TimeGrain.QUARTER: "date_format(add_months(datetrunc({col}, 'MM'), -(month({col})-1)%3), 'yyyy-MM-dd 00:00:00')",
-        TimeGrain.YEAR: "from_unixtime(unix_timestamp({col}), 'yyyy-01-01 00:00:00')",
-        TimeGrain.WEEK_ENDING_SATURDAY: "date_format(date_add({col}, INT(6-from_unixtime(unix_timestamp({col}), 'u'))), 'yyyy-MM-dd 00:00:00')",
-        TimeGrain.WEEK_STARTING_SUNDAY: "date_format(date_add({col}, -INT(from_unixtime(unix_timestamp({col}), 'u'))), 'yyyy-MM-dd 00:00:00')",
+        TimeGrain.SECOND: "datetrunc({col}, 'ss')",
+        TimeGrain.MINUTE: "datetrunc({col}, 'mi')",
+        TimeGrain.HOUR: "datetrunc({col}, 'hh')",
+        TimeGrain.DAY: "datetrunc({col}, 'dd')",
+        TimeGrain.WEEK: "datetrunc(dateadd({col}, 1 - dayofweek({col}), 'dd'), 'dd')",
+        TimeGrain.MONTH: "datetrunc({col}, 'month')",
+        TimeGrain.QUARTER: "datetrunc(dateadd({col}, -3, 'mm'), 'dd')",
+        TimeGrain.YEAR: "datetrunc({col}, 'yyyy')",
+        TimeGrain.WEEK_ENDING_SATURDAY: "datetrunc(dateadd({col}, 6 - dayofweek({col}), 'dd'), 'dd')",
+        TimeGrain.WEEK_STARTING_SUNDAY: "datetrunc(dateadd({col}, 7 - dayofweek({col}), 'dd'), 'dd')",
     }
+    _py_format_to_odps_sql_format = [
+        ("%Y", "YYYY"),
+        ("%m", "MM"),
+        ("%d", "DD"),
+        ("%H", "HH"),
+        ("%M", "MI"),
+        ("%S", "SS"),
+        ("%%", "%"),
+    ]
+
+    @classmethod
+    def get_timestamp_expr(cls, col, pdf, time_grain):
+        time_expr = (
+            super(ODPSEngineSpec, cls).get_timestamp_expr(col, pdf, time_grain).key
+        )
+        for pat, sub in cls._py_format_to_odps_sql_format:
+            pdf = pdf.replace(pat, sub)
+        return TimestampExpression(time_expr, col, type_=col.type)
+
+    @classmethod
+    @contextlib.contextmanager
+    def _get_database_engine(cls, database):
+        en = cls.get_engine(database)
+        try:
+            if hasattr(en, "__enter__"):
+                engine = en.__enter__()
+            else:
+                engine = en
+
+            yield engine
+        finally:
+            if hasattr(en, "__exit__"):
+                en.__exit__(*sys.exc_info())
 
     @classmethod
     def _get_odps_entry(cls, database):
-        en = cls.get_engine(database)
-        if hasattr(en, "__enter__"):
-            engine = en.__enter__()
-        else:
-            engine = en
-
-        odps_entry = engine.dialect.get_odps_from_url(engine.url)
-
-        if hasattr(en, "__exit__"):
-            en.__exit__(None, None, None)
-        return odps_entry
+        with cls._get_database_engine(database) as engine:
+            return engine.dialect.get_odps_from_url(engine.url)
 
     @classmethod
     def get_catalog_names(  # pylint: disable=unused-argument
@@ -196,23 +213,29 @@ class ODPSEngineSpec(BaseEngineSpec):
     @classmethod
     def get_table_names(cls, database, inspector, schema):
         logger.info("Start listing tables for schema %s", schema)
-        tables = super(ODPSEngineSpec, cls).get_table_names(
-            database, inspector, schema
-        )
-        return set([
-            n for n in tables if not n.startswith(TEMP_TABLE_PREFIX)
-        ])
+        tables = super(ODPSEngineSpec, cls).get_table_names(database, inspector, schema)
+        return set([n for n in tables if not n.startswith(TEMP_TABLE_PREFIX)])
 
     @classmethod
-    @cache_manager.cache.memoize()
     def get_function_names(cls, database):
+        with cls._get_database_engine(database) as engine:
+            cached = engine.dialect.get_list_cache(engine.url, ("functions",))
+            if cached is not None:
+                return cached
+
         odps_entry = cls._get_odps_entry(database)
-        funcs = set([
-            func.name for func in odps_entry.list_functions()
-            if not func.name.startswith("pyodps_")
-        ])
-        funcs = funcs | _builtin_funcs
-        return sorted(funcs)
+        funcs = set(
+            [
+                func.name
+                for func in odps_entry.list_functions()
+                if not func.name.startswith("pyodps_")
+            ]
+        )
+        funcs = sorted(funcs | _builtin_funcs)
+
+        with cls._get_database_engine(database) as engine:
+            engine.dialect.put_list_cache(engine.url, ("functions",), funcs)
+        return funcs
 
     @classmethod
     def execute(cls, cursor, query, **kwargs):
@@ -226,12 +249,20 @@ class ODPSEngineSpec(BaseEngineSpec):
             hints = {
                 "odps.sql.jobconf.odps2": "true",
             }
-            if not getattr(cursor.connection, "_project_as_schema", True):
+            conn_project_as_schema = getattr(
+                cursor.connection, "_project_as_schema", None
+            )
+            conn_project_as_schema = (
+                True if conn_project_as_schema is None else conn_project_as_schema
+            )
+            if not conn_project_as_schema:
                 # sqlalchemy cursor need odps schema support
-                hints.update({
-                    "odps.sql.allow.namespace.schema": "true",
-                    "odps.namespace.schema": "true",
-                })
+                hints.update(
+                    {
+                        "odps.sql.allow.namespace.schema": "true",
+                        "odps.namespace.schema": "true",
+                    }
+                )
             cursor.execute(query, hints=hints)
         except Exception as ex:
             six.raise_from(cls.get_dbapi_mapped_exception(ex), ex)

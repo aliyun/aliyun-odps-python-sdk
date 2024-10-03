@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,11 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import sys
-import logging.config
 import itertools
+import logging.config
+import os
 import platform
+import sys
 import warnings
+
 try:
     if sys.version_info[:2] < (3, 3):
         import xml.etree.cElementTree as ElementTree
@@ -26,13 +28,14 @@ try:
 except ImportError:
     import xml.etree.ElementTree as ElementTree
 try:
-    ElementTreeParseError = getattr(ElementTree, 'ParseError')
+    ElementTreeParseError = getattr(ElementTree, "ParseError")
 except AttributeError:
-    ElementTreeParseError = getattr(ElementTree, 'XMLParserError')
+    ElementTreeParseError = getattr(ElementTree, "XMLParserError")
 try:
     from collections.abc import Iterable
 except ImportError:
     from collections import Iterable
+
 from unicodedata import east_asian_width
 
 from .lib import six
@@ -42,7 +45,7 @@ LESS_PY32 = sys.version_info[:2] < (3, 2)
 LESS_PY33 = sys.version_info[:2] < (3, 3)
 LESS_PY34 = sys.version_info[:2] < (3, 4)
 LESS_PY35 = sys.version_info[:2] < (3, 5)
-PYPY = platform.python_implementation().lower() == 'pypy'
+PYPY = platform.python_implementation().lower() == "pypy"
 
 SEEK_SET = 0
 SEEK_CUR = 1
@@ -51,17 +54,20 @@ SEEK_END = 2
 # Definition of East Asian Width
 # http://unicode.org/reports/tr11/
 # Ambiguous width can be changed by option
-_EAW_MAP = {'Na': 1, 'N': 1, 'W': 2, 'F': 2, 'H': 1}
+_EAW_MAP = {"Na": 1, "N": 1, "W": 2, "F": 2, "H": 1}
 
 import decimal
-DECIMAL_TYPES = [decimal.Decimal, ]
+
+DECIMAL_TYPES = [
+    decimal.Decimal,
+]
 
 import json  # don't remove
 
 try:
     TimeoutError = TimeoutError
 except NameError:
-    TimeoutError = type('TimeoutError', (RuntimeError,), {})
+    TimeoutError = type("TimeoutError", (RuntimeError,), {})
 
 
 if six.PY3:
@@ -77,6 +83,7 @@ if six.PY3:
     long_type = int
 
     import io
+
     StringIO = io.StringIO
     BytesIO = io.BytesIO
 
@@ -107,7 +114,9 @@ if six.PY3:
         Calculate display width considering unicode East Asian Width
         """
         if isinstance(data, six.text_type):
-            return sum([_EAW_MAP.get(east_asian_width(c), ambiguous_width) for c in data])
+            return sum(
+                [_EAW_MAP.get(east_asian_width(c), ambiguous_width) for c in data]
+            )
         else:
             return len(data)
 
@@ -142,6 +151,7 @@ else:
 
     try:
         import cdecimal as decimal
+
         DECIMAL_TYPES.append(decimal.Decimal)
     except ImportError:
         import decimal
@@ -171,23 +181,26 @@ else:
                 data = data.decode(encoding)
             except UnicodeError:
                 pass
-            return sum([_EAW_MAP.get(east_asian_width(c), ambiguous_width) for c in data])
+            return sum(
+                [_EAW_MAP.get(east_asian_width(c), ambiguous_width) for c in data]
+            )
         else:
             return len(data)
 
     dictconfig = lambda config: logging.config.dictConfig(config)
 
-    import __builtin__ as builtins  # don't remove
-    from .lib import futures  # don't remove
     import cgi
+
+    import __builtin__ as builtins  # don't remove
+
+    from .lib import futures  # don't remove
 
     UnsupportedOperation = type("UnsupportedOperation", (OSError, ValueError), {})
 
     from distutils.version import LooseVersion as Version
-
     from threading import _Semaphore as _PySemaphore
-    from .lib.monotonic import monotonic
 
+    from .lib.monotonic import monotonic
 
     class Semaphore(_PySemaphore):
         def acquire(self, blocking=True, timeout=None):
@@ -212,9 +225,11 @@ else:
                     rc = True
             return rc
 
+
 if LESS_PY32:
     try:
         from .tests.dictconfig import dictConfig
+
         dictconfig = lambda config: dictConfig(config)
     except ImportError:
         pass
@@ -231,20 +246,23 @@ else:
         except exceptions:
             pass
 
+
 Enum = enum.Enum
 DECIMAL_TYPES = tuple(DECIMAL_TYPES)
 Decimal = decimal.Decimal
 
 try:
     import pandas as pd
-    if not hasattr(pd.DataFrame, 'sort_values'):
+
+    if not hasattr(pd.DataFrame, "sort_values"):
         pd.DataFrame.sort_values = pd.DataFrame.sort
 
     from pandas.core.internals import blocks as pd_blocks
+
     if not hasattr(pd_blocks, "new_block"):
         pd_blocks.new_block = pd_blocks.make_block
 
-    if not hasattr(pd.RangeIndex, 'start'):
+    if not hasattr(pd.RangeIndex, "start"):
         pd.RangeIndex.start = property(fget=lambda x: x._start)
         pd.RangeIndex.stop = property(fget=lambda x: x._stop)
         pd.RangeIndex.step = property(fget=lambda x: x._step)
@@ -262,20 +280,35 @@ try:
 except ImportError:
     pass
 
-from .lib.lib_utils import isvalidattr, dir2, getargspec, getfullargspec
+if sys.version_info[0] > 2:
+    # workaround for polluted sys.path due to some packages
+    try:
+        import http.client
+    except ImportError:
+        sys.modules.pop("http", None)
+        old_path = list(sys.path)
+        sys.path = [os.path.dirname(os.__file__)] + sys.path
+        import http.client
 
-from .lib.six.moves import reduce
-from .lib.six.moves import reload_module
-from .lib.six.moves.queue import Queue, Empty
-from .lib.six.moves.urllib.request import urlretrieve
-from .lib.six.moves import cPickle as pickle
-from .lib.six.moves.urllib.parse import urlencode, urlparse, unquote, quote, quote_plus, parse_qsl
-from .lib.six.moves import configparser as ConfigParser
-
-from .lib.ext_types import Monthdelta
-
+        sys.path = old_path
 
 import datetime
+
+from .lib.ext_types import Monthdelta
+from .lib.lib_utils import dir2, getargspec, getfullargspec, isvalidattr
+from .lib.six.moves import configparser as ConfigParser
+from .lib.six.moves import cPickle as pickle
+from .lib.six.moves import reduce, reload_module
+from .lib.six.moves.queue import Empty, Queue
+from .lib.six.moves.urllib.parse import (
+    parse_qsl,
+    quote,
+    quote_plus,
+    unquote,
+    urlencode,
+    urlparse,
+)
+from .lib.six.moves.urllib.request import urlretrieve
 
 
 class _FixedOffset(datetime.tzinfo):
@@ -284,6 +317,7 @@ class _FixedOffset(datetime.tzinfo):
     Note that FixedOffset(0, "UTC") is a different way to build a
     UTC tzinfo object.
     """
+
     def __init__(self, offset, name=None):
         self.__offset = datetime.timedelta(minutes=offset)
         self.__name = name
@@ -300,17 +334,19 @@ class _FixedOffset(datetime.tzinfo):
 
 try:
     import zoneinfo
+
     utc = zoneinfo.ZoneInfo("UTC")
     FixedOffset = _FixedOffset
 except ImportError:
     try:
         import pytz
+
         utc = pytz.utc
         FixedOffset = pytz._FixedOffset
     except ImportError:
         _ZERO_TIMEDELTA = datetime.timedelta(0)
         FixedOffset = _FixedOffset
-        utc = FixedOffset(0, 'UTC')
+        utc = FixedOffset(0, "UTC")
 
 
 try:
@@ -328,8 +364,38 @@ except ImportError:
         return datetime.datetime(*dtuple[:6], tzinfo=FixedOffset(tz / 60.0))
 
 
-__all__ = ['sys', 'builtins', 'logging.config', 'dictconfig', 'suppress',
-           'reduce', 'reload_module', 'Queue', 'Empty', 'ElementTree', 'ElementTreeParseError',
-           'urlretrieve', 'pickle', 'urlencode', 'urlparse', 'unquote', 'quote', 'quote_plus', 'parse_qsl',
-           'Enum', 'ConfigParser', 'decimal', 'Decimal', 'DECIMAL_TYPES', 'FixedOffset', 'utc', 'Monthdelta',
-           'Iterable', 'TimeoutError', 'cgi', 'parsedate_to_datetime', 'Version', 'Semaphore']
+__all__ = [
+    "sys",
+    "builtins",
+    "logging.config",
+    "dictconfig",
+    "suppress",
+    "reduce",
+    "reload_module",
+    "Queue",
+    "Empty",
+    "ElementTree",
+    "ElementTreeParseError",
+    "urlretrieve",
+    "pickle",
+    "urlencode",
+    "urlparse",
+    "unquote",
+    "quote",
+    "quote_plus",
+    "parse_qsl",
+    "Enum",
+    "ConfigParser",
+    "decimal",
+    "Decimal",
+    "DECIMAL_TYPES",
+    "FixedOffset",
+    "utc",
+    "Monthdelta",
+    "Iterable",
+    "TimeoutError",
+    "cgi",
+    "parsedate_to_datetime",
+    "Version",
+    "Semaphore",
+]

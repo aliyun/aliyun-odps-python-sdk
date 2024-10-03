@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ import random
 import threading
 import time
 import traceback
+
 try:
     from string import letters
 except ImportError:
@@ -29,7 +30,6 @@ import mock
 import pytest
 
 from ..io import stream as io_stream
-
 
 TEXT = u"""
     上善若水。水善利万物而不争，处众人之所恶，故几於道。居善地，心善渊，与善仁，言善信，正善
@@ -59,13 +59,16 @@ def fix_config():
         io_stream._FORCE_THREAD = False
 
 
-@pytest.mark.parametrize("compress_algo, package", [
-    (io_stream.CompressOption.CompressAlgorithm.ODPS_RAW, None),
-    (io_stream.CompressOption.CompressAlgorithm.ODPS_ZLIB, None),
-    (io_stream.CompressOption.CompressAlgorithm.ODPS_SNAPPY, "snappy"),
-    (io_stream.CompressOption.CompressAlgorithm.ODPS_ZSTD, "zstandard"),
-    (io_stream.CompressOption.CompressAlgorithm.ODPS_LZ4, "lz4.frame"),
-])
+@pytest.mark.parametrize(
+    "compress_algo, package",
+    [
+        (io_stream.CompressOption.CompressAlgorithm.ODPS_RAW, None),
+        (io_stream.CompressOption.CompressAlgorithm.ODPS_ZLIB, None),
+        (io_stream.CompressOption.CompressAlgorithm.ODPS_SNAPPY, "snappy"),
+        (io_stream.CompressOption.CompressAlgorithm.ODPS_ZSTD, "zstandard"),
+        (io_stream.CompressOption.CompressAlgorithm.ODPS_LZ4, "lz4.frame"),
+    ],
+)
 def test_compress_and_decompress(compress_algo, package):
     if package is not None:
         pytest.importorskip(package)
@@ -73,7 +76,7 @@ def test_compress_and_decompress(compress_algo, package):
     tube = io.BytesIO()
     option = io_stream.CompressOption(compress_algo)
 
-    data_bytes = TEXT.encode('utf-8')
+    data_bytes = TEXT.encode("utf-8")
 
     outstream = io_stream.get_compress_stream(tube, option)
     for pos in range(0, len(data_bytes), 128):
@@ -90,21 +93,21 @@ def test_compress_and_decompress(compress_algo, package):
             break
         b += part
 
-    assert TEXT.encode('utf8') == b
+    assert TEXT.encode("utf8") == b
 
     tube.seek(0)
     instream = io_stream.get_decompress_stream(tube, option, requests=False)
 
-    b = bytearray(len(TEXT.encode('utf8')))
+    b = bytearray(len(TEXT.encode("utf8")))
     mv = memoryview(b)
     pos = 0
     while True:
-        incr = instream.readinto(mv[pos:pos + 1])
+        incr = instream.readinto(mv[pos : pos + 1])
         if not incr:
             break
         pos += incr
 
-    assert TEXT.encode('utf8') == b
+    assert TEXT.encode("utf8") == b
 
 
 def test_class():
@@ -115,17 +118,25 @@ def test_class():
         assert isinstance(req_io, io_stream.ThreadRequestsIO)
     else:
         assert isinstance(req_io, io_stream.GreenletRequestsIO)
-    assert isinstance(io_stream.ThreadRequestsIO(lambda c: None), io_stream.ThreadRequestsIO)
+    assert isinstance(
+        io_stream.ThreadRequestsIO(lambda c: None), io_stream.ThreadRequestsIO
+    )
     if io_stream.GreenletRequestsIO is not None:
-        assert isinstance(io_stream.GreenletRequestsIO(lambda c: None), io_stream.GreenletRequestsIO)
+        assert isinstance(
+            io_stream.GreenletRequestsIO(lambda c: None), io_stream.GreenletRequestsIO
+        )
 
     io_stream._FORCE_THREAD = True
 
     req_io = io_stream.RequestsIO(lambda c: None)
     assert isinstance(req_io, io_stream.ThreadRequestsIO)
-    assert isinstance(io_stream.ThreadRequestsIO(lambda c: None), io_stream.ThreadRequestsIO)
+    assert isinstance(
+        io_stream.ThreadRequestsIO(lambda c: None), io_stream.ThreadRequestsIO
+    )
     if io_stream.GreenletRequestsIO is not None:
-        assert isinstance(io_stream.GreenletRequestsIO(lambda c: None), io_stream.GreenletRequestsIO)
+        assert isinstance(
+            io_stream.GreenletRequestsIO(lambda c: None), io_stream.GreenletRequestsIO
+        )
 
 
 @pytest.fixture
@@ -140,6 +151,7 @@ def semaphore_random_delay(request):
     if not request.param:
         yield
     else:
+
         def new_acquire(self, *args, **kw):
             time.sleep(random.random() / 4.0)
             ret = original_acquire(self, *args, **kw)
@@ -166,19 +178,19 @@ def test_raises(force_thread, semaphore_random_delay):
             raise AttributeError
         except:
             tb = traceback.format_exc().splitlines()
-            exc_trace[0] = '\n'.join(tb[-3:])
+            exc_trace[0] = "\n".join(tb[-3:])
             raise
 
     req_io = io_stream.RequestsIO(raise_poster, chunk_size=5)
     req_io.start()
     try:
-        req_io.write(b'TEST_DATA')
-        req_io.write(b'ANOTHER_PIECE')
-        req_io.write(b'THIS_SHALL_RAISE')
+        req_io.write(b"TEST_DATA")
+        req_io.write(b"ANOTHER_PIECE")
+        req_io.write(b"THIS_SHALL_RAISE")
         assert False, "Statement above not raised"
     except AttributeError:
         tb = traceback.format_exc().splitlines()
-        assert '\n'.join(tb[-3:]) == exc_trace[0]
+        assert "\n".join(tb[-3:]) == exc_trace[0]
 
 
 @pytest.mark.parametrize(
@@ -201,7 +213,7 @@ def test_large_writes(force_thread, semaphore_random_delay):
     req_io = io_stream.RequestsIO(check_poster, chunk_size=chunk_size)
     req_io.start()
     for _ in range(repeats):
-        req_io.write(TEXT.encode('utf-8'))
+        req_io.write(TEXT.encode("utf-8"))
     req_io.finish()
 
-    assert b"".join(recv_chunks) == TEXT.encode('utf-8') * repeats
+    assert b"".join(recv_chunks) == TEXT.encode("utf-8") * repeats

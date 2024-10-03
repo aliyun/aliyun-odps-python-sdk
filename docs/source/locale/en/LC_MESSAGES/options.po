@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.8.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2024-02-16 09:45+0800\n"
+"POT-Creation-Date: 2024-07-27 19:27+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -22,7 +22,9 @@ msgid "配置选项"
 msgstr "Configuration"
 
 #: ../../source/options.rst:8
-msgid "PyODPS 提供了一系列的配置选项，可通过 ``odps.options`` 获得，如下面的例子："
+msgid ""
+"PyODPS 提供了一系列的配置选项，可通过 ``odps.options`` 获得，如下面的例子"
+"："
 msgstr ""
 "PyODPS provides a series of configuration options, which can be obtained "
 "through ``odps.options``. Here is a simple example:"
@@ -32,10 +34,11 @@ msgid ""
 "from odps import options\n"
 "# 设置所有输出表的生命周期（lifecycle 选项）\n"
 "options.lifecycle = 30\n"
-"# 使用 Tunnel 下载 string 类型时使用 bytes（tunnel.string_as_binary 选项）\n"
+"# 使用 Tunnel 下载 string 类型时使用 bytes（tunnel.string_as_binary 选项"
+"）\n"
 "options.tunnel.string_as_binary = True\n"
-"# PyODPS DataFrame 用 ODPS 执行时，参照下面 dataframe 相关配置，sort 时设置 limit 到一个比较大的值"
-"\n"
+"# PyODPS DataFrame 用 ODPS 执行时，参照下面 dataframe 相关配置，sort 时"
+"设置 limit 到一个比较大的值\n"
 "options.df.odps.sort.limit = 100000000"
 msgstr ""
 "from odps import options\n"
@@ -108,11 +111,21 @@ msgid "24"
 msgstr ""
 
 #: ../../source/options.rst:1
+msgid "quota_name"
+msgstr ""
+
+#: ../../source/options.rst:1
+msgid "提交任务时使用的计算 Quota 名称"
+msgstr "Name of computational quota used when submitting tasks"
+
+#: ../../source/options.rst:1
 msgid "local_timezone"
 msgstr ""
 
 #: ../../source/options.rst:1
-msgid "使用的时区，None 表示不处理，True 表示本地时区，False 表示 UTC，也可用 pytz 的时区"
+msgid ""
+"使用的时区，None 表示不处理，True 表示本地时区，False 表示 UTC，也可用 "
+"pytz 的时区"
 msgstr ""
 "Used time zone. None indicates that PyODPS takes no actions, True "
 "indicates local time, and False indicates UTC. The time zone of pytz "
@@ -303,14 +316,23 @@ msgid "启用 MaxCompute 2.0 语言扩展"
 msgstr "Enable MaxCompute 2.0 language extension"
 
 #: ../../source/options.rst:1
-msgid "sql.always_enable_schema"
+msgid "sql.enable_schema"
 msgstr ""
 
 #: ../../source/options.rst:1
 msgid "在任何情形下启用 MaxCompute Schema"
 msgstr "Enable Schema level under any scenario"
 
-#: ../../source/options.rst:56
+#: ../../source/options.rst:1
+msgid "pythonpack.settings"
+msgstr ""
+
+#: ../../source/options.rst:1
+#, fuzzy
+msgid "PythonPack运行全局hints"
+msgstr "Global hints for PythonPack"
+
+#: ../../source/options.rst:58
 msgid "数据上传/下载配置"
 msgstr "Data upload/download configurations"
 
@@ -366,7 +388,15 @@ msgstr "Buffer size for block tunnel writers"
 msgid "20 * 1024 ** 2"
 msgstr ""
 
-#: ../../source/options.rst:70
+#: ../../source/options.rst:1
+msgid "tunnel.tags"
+msgstr ""
+
+#: ../../source/options.rst:1
+msgid "配置使用 Tunnel 所需的标签"
+msgstr "Tags when calling tunnel service"
+
+#: ../../source/options.rst:73
 msgid "DataFrame 配置"
 msgstr "DataFrame configurations"
 

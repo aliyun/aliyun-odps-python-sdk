@@ -116,4 +116,4 @@ PyODPS DataFrame 不支持遍历每行数据。这样设计的原因是由于 Py
 ``df.memory_usage(deep=True).sum()`` 获得的大小更接近实际内存使用，具体可参考
 `这篇 Pandas 文档 <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.memory_usage.html>`_ 。
 
-为减小读取数据时的内存开销，可以考虑使用 Arrow 格式，具体可以参考 :ref:`这里 <table_arrow_io>`。
+为减小读取数据时的内存开销，可以考虑使用 Arrow 格式，具体可以参考 :ref:`这里 <table_read>`。

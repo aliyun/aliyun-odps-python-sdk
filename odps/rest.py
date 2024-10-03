@@ -15,14 +15,17 @@
 """Restful client enhanced by URL building and request signing facilities.
 """
 from __future__ import absolute_import
+
 import json
 import logging
+import os
 import platform
 import re
 import threading
 from string import Template
 
 import requests
+
 try:
     from requests import ConnectTimeout
 except ImportError:
@@ -32,22 +35,23 @@ try:
 except ImportError:
     requests_unixsocket = None
 
-from . import __version__
-from . import errors, utils
-from .config import options
-from .utils import get_package_version, get_survey_calls, clear_survey_calls
+from . import __version__, errors, utils
 from .compat import six, urlparse
+from .config import options
+from .utils import clear_survey_calls, get_package_version, get_survey_calls
 
 try:
     import requests.packages.urllib3.util.ssl_
-    requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS = 'ALL'
+
+    requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS = "ALL"
     requests.packages.urllib3.disable_warnings()
 except ImportError:
     pass
 
 try:
     import urllib3.util.ssl_
-    urllib3.util.ssl_.DEFAULT_CIPHERS = 'ALL'
+
+    urllib3.util.ssl_.DEFAULT_CIPHERS = "ALL"
     urllib3.disable_warnings()
 except ImportError:
     pass
@@ -74,34 +78,35 @@ def default_user_agent():
         py_system = platform.system()
         py_release = platform.release()
     except IOError:
-        py_system = 'Unknown'
-        py_release = 'Unknown'
+        py_system = "Unknown"
+        py_release = "Unknown"
 
     ua_template = Template(
         options.user_agent_pattern
-        or '$pyodps_version $mars_version $maxframe_version $python_version $os_version'
+        or os.getenv("PYODPS_USER_AGENT_PATTERN")
+        or "$pyodps_version $mars_version $maxframe_version $python_version $os_version"
     )
     substitutes = dict(
-        pyodps_version='%s/%s' % ('pyodps', __version__),
-        python_version='%s/%s' % (py_implementation, py_version),
-        os_version='%s/%s' % (py_system, py_release),
-        mars_version='',
-        maxframe_version='',
+        pyodps_version="%s/%s" % ("pyodps", __version__),
+        python_version="%s/%s" % (py_implementation, py_version),
+        os_version="%s/%s" % (py_system, py_release),
+        mars_version="",
+        maxframe_version="",
     )
 
     try:
         from mars import __version__ as mars_version
-    except ImportError:
+    except:
         mars_version = None
     if mars_version:
-        substitutes["mars_version"] = '%s/%s' % ('mars', mars_version)
+        substitutes["mars_version"] = "%s/%s" % ("mars", mars_version)
 
     try:
         maxframe_version = get_package_version("maxframe")
     except:
         maxframe_version = None
     if maxframe_version:
-        substitutes["maxframe_version"] = '%s/%s' % ('maxframe', maxframe_version)
+        substitutes["maxframe_version"] = "%s/%s" % ("maxframe", maxframe_version)
 
     _default_user_agent = ua_template.safe_substitute(**substitutes)
     _default_user_agent = re.sub(" +", " ", _default_user_agent).strip()
@@ -120,9 +125,16 @@ class RestClient(object):
     _endpoints_without_v4_sign = set()
 
     def __init__(
-        self, account, endpoint, project=None, schema=None, user_agent=None, region_name=None, **kwargs
+        self,
+        account,
+        endpoint,
+        project=None,
+        schema=None,
+        user_agent=None,
+        region_name=None,
+        **kwargs
     ):
-        if endpoint.endswith('/'):
+        if endpoint.endswith("/"):
             endpoint = endpoint[:-1]
         self._account = account
         self._endpoint = endpoint
@@ -130,9 +142,9 @@ class RestClient(object):
         self._user_agent = user_agent or default_user_agent()
         self.project = project
         self.schema = schema
-        self._proxy = kwargs.get('proxy')
-        self._app_account = kwargs.get('app_account')
-        self._tag = kwargs.get('tag')
+        self._proxy = kwargs.get("proxy")
+        self._app_account = kwargs.get("app_account")
+        self._tag = kwargs.get("tag")
         if isinstance(self._proxy, six.string_types):
             self._proxy = dict(http=self._proxy, https=self._proxy)
 
@@ -172,24 +184,23 @@ class RestClient(object):
         if parsed_url.scheme == "http+unix":
             session = requests_unixsocket.Session()
             session.mount(
-                'http+unix://',
-                requests_unixsocket.adapters.UnixAdapter(**adapter_options)
+                "http+unix://",
+                requests_unixsocket.adapters.UnixAdapter(**adapter_options),
             )
         else:
             session = requests.Session()
             # mount adapters with retry times
-            session.mount(
-                'http://', requests.adapters.HTTPAdapter(**adapter_options)
-            )
-            session.mount(
-                'https://', requests.adapters.HTTPAdapter(**adapter_options)
-            )
+            session.mount("http://", requests.adapters.HTTPAdapter(**adapter_options))
+            session.mount("https://", requests.adapters.HTTPAdapter(**adapter_options))
         session_cache[self._endpoint] = session
         return session
 
     def request(self, url, method, stream=False, **kwargs):
         sign_region_name = kwargs.get("region_name") or self._region_name
-        if self._endpoint in self._endpoints_without_v4_sign or not options.enable_v4_sign:
+        if (
+            self._endpoint in self._endpoints_without_v4_sign
+            or not options.enable_v4_sign
+        ):
             sign_region_name = None
 
         auth_expire_retried = False
@@ -228,18 +239,18 @@ class RestClient(object):
 
         region_name = kwargs.pop("region_name", None)
 
-        logger.debug('Start request.')
-        logger.debug('%s: %s', method.upper(), url)
+        logger.debug("Start request.")
+        logger.debug("%s: %s", method.upper(), url)
         if logger.getEffectiveLevel() <= logging.DEBUG:
             for k, v in kwargs.items():
-                logger.debug('%s: %s', k, v)
+                logger.debug("%s: %s", k, v)
 
         # Construct user agent without handling the letter case.
-        headers = kwargs.get('headers', {})
+        headers = kwargs.get("headers", {})
         headers = {k: str(v) for k, v in six.iteritems(headers)}
-        headers['User-Agent'] = self._user_agent
-        kwargs['headers'] = headers
-        params = kwargs.setdefault('params', {})
+        headers["User-Agent"] = self._user_agent
+        kwargs["headers"] = headers
+        params = kwargs.setdefault("params", {})
 
         actions = kwargs.pop("actions", None) or kwargs.pop("action", None) or []
         if isinstance(actions, six.string_types):
@@ -249,22 +260,24 @@ class RestClient(object):
             url += separator + "&".join(actions)
 
         curr_project = kwargs.pop("curr_project", None) or self.project
-        if 'curr_project' not in params and curr_project is not None:
-            params['curr_project'] = curr_project
+        if "curr_project" not in params and curr_project is not None:
+            params["curr_project"] = curr_project
 
         curr_schema = kwargs.pop("curr_schema", None) or self.schema
-        if 'curr_schema' not in params and curr_schema is not None:
-            params['curr_schema'] = curr_schema
+        if "curr_schema" not in params and curr_schema is not None:
+            params["curr_schema"] = curr_schema
 
-        timeout = kwargs.pop('timeout', None)
+        timeout = kwargs.pop("timeout", None)
         req = requests.Request(method, url, **kwargs)
         prepared_req = req.prepare()
         logger.debug("request url + params %s", prepared_req.path_url)
 
-        prepared_req.headers.pop('Authorization', None)
-        prepared_req.headers.pop('application-authentication', None)
-        self._account.sign_request(prepared_req, self._endpoint, region_name=region_name)
-        if getattr(self, '_app_account', None) is not None:
+        prepared_req.headers.pop("Authorization", None)
+        prepared_req.headers.pop("application-authentication", None)
+        self._account.sign_request(
+            prepared_req, self._endpoint, region_name=region_name
+        )
+        if getattr(self, "_app_account", None) is not None:
             self._app_account.sign_request(
                 prepared_req, self._endpoint, region_name=region_name
             )
@@ -278,33 +291,39 @@ class RestClient(object):
                 proxies=self._proxy,
             )
         except ConnectTimeout:
-            raise errors.ConnectTimeout('Connecting to endpoint %s timeout.' % self._endpoint)
+            raise errors.ConnectTimeout(
+                "Connecting to endpoint %s timeout." % self._endpoint
+            )
 
-        logger.debug('response.status_code %d', res.status_code)
-        logger.debug('response.headers: \n%s', res.headers)
+        logger.debug("response.status_code %d", res.status_code)
+        logger.debug("response.headers: \n%s", res.headers)
         if not stream:
-            logger.debug('response.content: %s\n', res.content)
+            logger.debug("response.content: %s\n", res.content)
         # Automatically detect error
         if not self.is_ok(res):
             errors.throw_if_parsable(res, self._endpoint, self._tag)
         return res
 
     def get(self, url, stream=False, **kwargs):
-        return self.request(url, 'get', stream=stream, **kwargs)
+        return self.request(url, "get", stream=stream, **kwargs)
 
     def post(self, url, data=None, **kwargs):
-        data = utils.to_binary(data, encoding='utf-8') if isinstance(data, six.string_types) else data
-        return self.request(url, 'post', data=data, **kwargs)
+        data = (
+            utils.to_binary(data, encoding="utf-8")
+            if isinstance(data, six.string_types)
+            else data
+        )
+        return self.request(url, "post", data=data, **kwargs)
 
     def put(self, url, data=None, **kwargs):
         data = utils.to_binary(data) if isinstance(data, six.string_types) else data
-        return self.request(url, 'put', data=data, **kwargs)
+        return self.request(url, "put", data=data, **kwargs)
 
     def head(self, url, **kwargs):
-        return self.request(url, 'head', **kwargs)
+        return self.request(url, "head", **kwargs)
 
     def delete(self, url, **kwargs):
-        return self.request(url, 'delete', **kwargs)
+        return self.request(url, "delete", **kwargs)
 
     def upload_survey_log(self):
         try:
@@ -316,7 +335,9 @@ class RestClient(object):
                 return
             if self.project is None:
                 return
-            url = '/'.join([self.endpoint, 'projects', RestModel._encode(self.project), 'logs'])
+            url = "/".join(
+                [self.endpoint, "projects", RestModel._encode(self.project), "logs"]
+            )
             self.put(url, json.dumps(survey))
         except:
             pass

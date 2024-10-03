@@ -1,6 +1,5 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,7 +22,9 @@ from collections import OrderedDict
 import mock
 import pytest
 
-from .. import options
+from .. import ODPS, errors, options
+from ..accounts import BearerTokenAccount
+from ..dbapi import connect as dbapi_connect
 from ..df import DataFrame
 from ..utils import to_str
 
@@ -37,7 +38,7 @@ try:
     from sqlalchemy.schema import Column, MetaData, Table
     from sqlalchemy.sql import expression, text
 
-    from ..sqlalchemy_odps import update_test_setting
+    from ..sqlalchemy_odps import ODPSPingError, update_test_setting
 
     _ONE_ROW_COMPLEX_CONTENTS = [
         True,
@@ -47,13 +48,13 @@ try:
         9223372036854775807,
         0.5,
         0.25,
-        'a string',
+        "a string",
         pd.Timestamp(1970, 1, 1, 8),
-        b'123',
+        b"123",
         [1, 2],
         OrderedDict({1: 2, 3: 4}),
         OrderedDict({"a": 1, "b": 2}),
-        decimal.Decimal('0.1'),
+        decimal.Decimal("0.1"),
     ]
 except ImportError:
     dependency_installed = False
@@ -62,7 +63,7 @@ else:
 
 
 def create_one_row(o):
-    table = 'one_row'
+    table = "one_row"
     if not o.exist_table(table):
         o.execute_sql("CREATE TABLE one_row (number_of_rows INT);")
         o.execute_sql("INSERT INTO TABLE one_row VALUES (1);")
@@ -70,7 +71,7 @@ def create_one_row(o):
 
 def create_one_row_complex(o):
     need_writes = [False] * 2
-    for i, table in enumerate(['one_row_complex', 'one_row_complex_null']):
+    for i, table in enumerate(["one_row_complex", "one_row_complex_null"]):
         if o.exist_table(table):
             continue
 
@@ -91,12 +92,15 @@ def create_one_row_complex(o):
             `struct` STRUCT<a: int, b: int>,
             `decimal` DECIMAL(10, 1)
         );
-        """.format(table)
+        """.format(
+            table
+        )
         o.execute_sql(ddl)
         need_writes[i] = True
 
     if need_writes[0]:
-        o.execute_sql("""
+        o.execute_sql(
+            """
         INSERT OVERWRITE TABLE one_row_complex SELECT
             true,
             CAST(127 AS TINYINT),
@@ -113,10 +117,12 @@ def create_one_row_complex(o):
             named_struct('a', 1, 'b', 2),
             0.1
         FROM one_row;
-        """)
+        """
+        )
 
     if need_writes[1]:
-        o.execute_sql("""
+        o.execute_sql(
+            """
         INSERT OVERWRITE TABLE one_row_complex_null SELECT
             null,
             null,
@@ -133,39 +139,42 @@ def create_one_row_complex(o):
             CAST(null AS STRUCT<a: int, b: int>),
             null
         FROM one_row;
-        """)
+        """
+        )
 
 
 def create_many_rows(o):
-    table = 'many_rows'
+    table = "many_rows"
     if not o.exist_table(table):
-        df = pd.DataFrame({'a': np.arange(10000, dtype=np.int32)})
-        o.execute_sql("""
+        df = pd.DataFrame({"a": np.arange(10000, dtype=np.int32)})
+        o.execute_sql(
+            """
         CREATE TABLE many_rows (
             a INT
         ) PARTITIONED BY (
             b STRING
         )
-        """)
+        """
+        )
         DataFrame(df).persist("many_rows", partition="b='blah'", odps=o)
 
 
 def create_test(o):
-    table = 'dummy_table'
+    table = "dummy_table"
     if not o.exist_table(table):
-        o.create_table(table, 'a int')
+        o.create_table(table, "a int")
 
 
 @pytest.fixture
 def engine(odps, request):
-    engine_url = 'odps://{}:{}@{}/?endpoint={}&SKYNET_PYODPS_HINT=hint'.format(
+    engine_url = "odps://{}:{}@{}/?endpoint={}&SKYNET_PYODPS_HINT=hint".format(
         odps.account.access_id,
         odps.account.secret_access_key,
         odps.project,
         odps.endpoint,
     )
-    if getattr(request, "param", False):
-        engine_url += "&reuse_odps=true"
+    if getattr(request, "param", None):
+        engine_url += "&" + request.param
         # create an engine to enable cache
         create_engine(engine_url)
 
@@ -175,6 +184,7 @@ def engine(odps, request):
         from .. import sqlalchemy_odps
 
         sqlalchemy_odps._sqlalchemy_global_reusable_odps.clear()
+        sqlalchemy_odps._sqlalchemy_obj_list_cache.clear()
 
 
 @pytest.fixture
@@ -189,12 +199,10 @@ def connection(engine):
 @pytest.fixture(autouse=True)
 def setup(odps):
     if not dependency_installed:
-        pytest.skip('dependency for sqlalchemy_odps not installed')
+        pytest.skip("dependency for sqlalchemy_odps not installed")
 
     options.sql.use_odps2_extension = True
-    options.sql.settings = {
-        'odps.sql.decimal.odps2': True
-    }
+    options.sql.settings = {"odps.sql.decimal.odps2": True}
 
     # create test tables
     create_many_rows(odps)
@@ -213,6 +221,27 @@ def setup(odps):
         options.sql.settings = None
 
 
+@pytest.fixture
+def bearer_token_odps(odps):
+    policy = {
+        "Statement": [{"Action": ["*"], "Effect": "Allow", "Resource": "acs:odps:*:*"}],
+        "Version": "1",
+    }
+    token = odps.get_project().generate_auth_token(policy, "bearer", 2)
+    bearer_token_account = BearerTokenAccount(token=token)
+    try:
+        yield ODPS(
+            None,
+            None,
+            odps.project,
+            odps.endpoint,
+            account=bearer_token_account,
+            overwrite_global=False,
+        )
+    finally:
+        options.account = options.default_project = options.endpoint = None
+
+
 def _get_sa_table(table_name, engine, *args, **kw):
     try:
         # sqlalchemy 1.x
@@ -224,9 +253,34 @@ def _get_sa_table(table_name, engine, *args, **kw):
     return Table(table_name, metadata, *args, **kw)
 
 
-@pytest.mark.parametrize("engine", [False, True], indirect=True)
+def test_dbapi_bearer_token(bearer_token_odps, setup):
+    conn = dbapi_connect(bearer_token_odps)
+    cursor = conn.cursor()
+    cursor.execute("select * from one_row")
+    rows = list(cursor)
+    assert len(rows) == 1
+    assert len(rows[0]) == 1
+
+
+def test_query_with_bearer_token(bearer_token_odps, setup):
+    bearer_token_odps.to_global()
+    engine = create_engine("odps://")
+    connection = engine.connect()
+    result = connection.execute(text("SELECT * FROM one_row"))
+    rows = result.fetchall()
+    assert len(rows) == 1
+    assert rows[0].number_of_rows == 1  # number_of_rows is the column name
+    assert len(rows[0]) == 1
+
+
+@pytest.mark.parametrize("engine", ["project_as_schema=false"], indirect=True)
+def test_query_param(engine, connection):
+    assert connection.connection.dbapi_connection._project_as_schema is False
+
+
+@pytest.mark.parametrize("engine", [None, "reuse_odps=true"], indirect=True)
 def test_basic_query(engine, connection):
-    result = connection.execute(text('SELECT * FROM one_row'))
+    result = connection.execute(text("SELECT * FROM one_row"))
     instance = result.cursor._instance
 
     rows = result.fetchall()
@@ -239,7 +293,7 @@ def test_basic_query(engine, connection):
 
 
 def test_one_row_complex_null(engine, connection):
-    one_row_complex_null = _get_sa_table('one_row_complex_null', engine, autoload=True)
+    one_row_complex_null = _get_sa_table("one_row_complex_null", engine, autoload=True)
     rows = connection.execute(one_row_complex_null.select()).fetchall()
     assert len(rows) == 1
     assert list(rows[0]) == [None] * len(rows[0])
@@ -247,52 +301,50 @@ def test_one_row_complex_null(engine, connection):
 
 def test_reflect_no_such_table(engine, connection):
     """reflecttable should throw an exception on an invalid table"""
-    pytest.raises(NoSuchTableError,
-        lambda: _get_sa_table('this_does_not_exist', engine, autoload=True)
+    pytest.raises(
+        NoSuchTableError,
+        lambda: _get_sa_table("this_does_not_exist", engine, autoload=True),
     )
-    pytest.raises(NoSuchTableError,
+    pytest.raises(
+        NoSuchTableError,
         lambda: _get_sa_table(
-            'this_does_not_exist', engine, schema='also_does_not_exist', autoload=True
-        )
+            "this_does_not_exist", engine, schema="also_does_not_exist", autoload=True
+        ),
     )
 
 
 def test_reflect_include_columns(engine, connection):
     """When passed include_columns, reflecttable should filter out other columns"""
-    one_row_complex = _get_sa_table('one_row_complex', engine)
+    one_row_complex = _get_sa_table("one_row_complex", engine)
     insp = reflection.Inspector.from_engine(engine)
-    insp.reflect_table(one_row_complex, include_columns=['int'], exclude_columns=[])
+    insp.reflect_table(one_row_complex, include_columns=["int"], exclude_columns=[])
     assert len(one_row_complex.c) == 1
     assert one_row_complex.c.int is not None
     pytest.raises(AttributeError, lambda: one_row_complex.c.tinyint)
 
 
 def test_reflect_with_schema(odps, engine, connection):
-    dummy = _get_sa_table(
-        'dummy_table', engine, schema=odps.project, autoload=True
-    )
+    dummy = _get_sa_table("dummy_table", engine, schema=odps.project, autoload=True)
     assert len(dummy.c) == 1
     assert dummy.c.a is not None
 
 
 @pytest.mark.filterwarnings(
-    "default:Omitting:sqlalchemy.exc.SAWarning"
-    if dependency_installed
-    else "default"
+    "default:Omitting:sqlalchemy.exc.SAWarning" if dependency_installed else "default"
 )
 def test_reflect_partitions(engine, connection):
     """reflecttable should get the partition column as an index"""
-    many_rows = _get_sa_table('many_rows', engine, autoload=True)
+    many_rows = _get_sa_table("many_rows", engine, autoload=True)
     assert len(many_rows.c) == 2
 
     insp = reflection.Inspector.from_engine(engine)
 
-    many_rows = _get_sa_table('many_rows', engine)
-    insp.reflect_table(many_rows, include_columns=['a'], exclude_columns=[])
+    many_rows = _get_sa_table("many_rows", engine)
+    insp.reflect_table(many_rows, include_columns=["a"], exclude_columns=[])
     assert len(many_rows.c) == 1
 
-    many_rows = _get_sa_table('many_rows', engine)
-    insp.reflect_table(many_rows, include_columns=['b'], exclude_columns=[])
+    many_rows = _get_sa_table("many_rows", engine)
+    insp.reflect_table(many_rows, include_columns=["b"], exclude_columns=[])
     assert len(many_rows.c) == 1
 
 
@@ -300,65 +352,67 @@ def test_reflect_partitions(engine, connection):
 def test_unicode(engine, connection):
     """Verify that unicode strings make it through SQLAlchemy and the backend"""
     unicode_str = "中文"
-    one_row = _get_sa_table('one_row', engine)
-    returned_str = connection.execute(sqlalchemy.select(
-        expression.bindparam("好", unicode_str)
-    ).select_from(one_row)).scalar()
+    one_row = _get_sa_table("one_row", engine)
+    returned_str = connection.execute(
+        sqlalchemy.select(expression.bindparam("好", unicode_str)).select_from(one_row)
+    ).scalar()
     assert to_str(returned_str) == unicode_str
 
 
+@pytest.mark.parametrize("engine", ["project_as_schema=true"], indirect=True)
 def test_reflect_schemas_with_project(odps, engine, connection):
-    try:
-        options.sqlalchemy.project_as_schema = True
-        insp = sqlalchemy.inspect(engine)
-        schemas = insp.get_schema_names()
-        assert odps.project in schemas
-    finally:
-        options.sqlalchemy.project_as_schema = False
+    insp = sqlalchemy.inspect(engine)
+    schemas = insp.get_schema_names()
+    assert odps.project in schemas
 
 
 def test_reflect_schemas(odps, engine, connection):
     insp = sqlalchemy.inspect(engine)
     schemas = insp.get_schema_names()
-    assert 'default' in schemas
+    assert "default" in schemas
 
 
+@pytest.mark.parametrize("engine", [None, "cache_names=true"], indirect=True)
 def test_get_table_names(odps, engine, connection):
     def _new_list_tables(*_, **__):
-        yield odps.get_table('one_row')
-        yield odps.get_table('one_row_complex')
-        yield odps.get_table('dummy_table')
+        yield odps.get_table("one_row")
+        yield odps.get_table("one_row_complex")
+        yield odps.get_table("dummy_table")
 
-    with mock.patch("odps.core.ODPS.list_tables", new=_new_list_tables), \
-        update_test_setting(
-            get_tables_filter=lambda x: x.startswith('one_row') or
-                                        x.startswith('dummy_table')):
+    with mock.patch(
+        "odps.core.ODPS.list_tables", new=_new_list_tables
+    ), update_test_setting(
+        get_tables_filter=lambda x: x.startswith("one_row")
+        or x.startswith("dummy_table")
+    ):
         meta = MetaData()
         meta.reflect(bind=engine)
-        assert 'one_row' in meta.tables
-        assert 'one_row_complex' in meta.tables
+        assert "one_row" in meta.tables
+        assert "one_row_complex" in meta.tables
 
         insp = sqlalchemy.inspect(engine)
-        assert 'dummy_table' in insp.get_table_names(schema=odps.project)
+        assert "dummy_table" in insp.get_table_names(schema=odps.project)
+        # make sure cache works well
+        assert "dummy_table" in insp.get_table_names(schema=odps.project)
 
 
 def test_has_table(engine, connection):
     insp = reflection.Inspector.from_engine(engine)
-    assert insp.has_table('one_row') is True
-    assert insp.has_table('this_table_does_not_exist') is False
+    assert insp.has_table("one_row") is True
+    assert insp.has_table("this_table_does_not_exist") is False
 
 
 def test_char_length(engine, connection):
-    one_row_complex = _get_sa_table('one_row_complex', engine, autoload=True)
+    one_row_complex = _get_sa_table("one_row_complex", engine, autoload=True)
     result = connection.execute(
         sqlalchemy.select(sqlalchemy.func.char_length(one_row_complex.c.string))
     ).scalar()
-    assert result == len('a string')
+    assert result == len("a string")
 
 
 def test_reflect_select(engine, connection):
     """reflecttable should be able to fill in a table from the name"""
-    one_row_complex = _get_sa_table('one_row_complex', engine, autoload=True)
+    one_row_complex = _get_sa_table("one_row_complex", engine, autoload=True)
     assert len(one_row_complex.c) == 14
     assert isinstance(one_row_complex.c.string, Column)
     row = connection.execute(one_row_complex.select()).fetchone()
@@ -383,17 +437,21 @@ def test_reflect_select(engine, connection):
 
 def test_type_map(engine, connection):
     """sqlalchemy should use the dbapi_type_map to infer types from raw queries"""
-    row = connection.execute(text('SELECT * FROM one_row_complex')).fetchone()
+    row = connection.execute(text("SELECT * FROM one_row_complex")).fetchone()
     assert list(row) == _ONE_ROW_COMPLEX_CONTENTS
 
 
 def test_reserved_words(engine, connection):
     """odps uses backticks"""
     # Use keywords for the table/column name
-    fake_table = _get_sa_table('select', engine, Column('sort', sqlalchemy.types.String))
-    query = str(fake_table.select().where(fake_table.c.sort == 'a').compile(bind=engine))
-    assert '`select`' in query
-    assert '`sort`' in query
+    fake_table = _get_sa_table(
+        "select", engine, Column("sort", sqlalchemy.types.String)
+    )
+    query = str(
+        fake_table.select().where(fake_table.c.sort == "a").compile(bind=engine)
+    )
+    assert "`select`" in query
+    assert "`sort`" in query
     assert '"select"' not in query
     assert '"sort"' not in query
 
@@ -401,28 +459,51 @@ def test_reserved_words(engine, connection):
 def test_lots_of_types(engine, connection):
     # take type list from sqlalchemy.types
     types = [
-        'INT', 'CHAR', 'VARCHAR', 'NCHAR', 'TEXT', 'Text', 'FLOAT',
-        'NUMERIC', 'DECIMAL', 'TIMESTAMP', 'DATETIME', 'CLOB', 'BLOB',
-        'BOOLEAN', 'SMALLINT', 'DATE', 'TIME',
-        'String', 'Integer', 'SmallInteger',
-        'Numeric', 'Float', 'DateTime', 'Date', 'Time', 'LargeBinary',
-        'Boolean', 'Unicode', 'UnicodeText',
+        "INT",
+        "CHAR",
+        "VARCHAR",
+        "NCHAR",
+        "TEXT",
+        "Text",
+        "FLOAT",
+        "NUMERIC",
+        "DECIMAL",
+        "TIMESTAMP",
+        "DATETIME",
+        "CLOB",
+        "BLOB",
+        "BOOLEAN",
+        "SMALLINT",
+        "DATE",
+        "TIME",
+        "String",
+        "Integer",
+        "SmallInteger",
+        "Numeric",
+        "Float",
+        "DateTime",
+        "Date",
+        "Time",
+        "LargeBinary",
+        "Boolean",
+        "Unicode",
+        "UnicodeText",
     ]
     cols = []
     for i, t in enumerate(types):
         cols.append(Column(str(i), getattr(sqlalchemy.types, t)))
-    table = _get_sa_table('test_table', engine, *cols)
+    table = _get_sa_table("test_table", engine, *cols)
     table.drop(bind=engine, checkfirst=True)
     table.create(bind=engine)
     table.drop(bind=engine)
 
 
 def test_insert_select(engine, connection):
-    one_row = _get_sa_table('one_row', engine, autoload=True)
-    table = _get_sa_table('insert_test', engine, Column('a', sqlalchemy.types.Integer))
+    one_row = _get_sa_table("one_row", engine, autoload=True)
+    table = _get_sa_table("insert_test", engine, Column("a", sqlalchemy.types.Integer))
     table.drop(bind=engine, checkfirst=True)
     table.create(bind=engine)
-    connection.execute(table.insert().from_select(['a'], one_row.select()))
+    connection.execute(table.insert().from_select(["a"], one_row.select()))
 
     result = connection.execute(table.select()).fetchall()
     expected = [(1,)]
@@ -430,12 +511,10 @@ def test_insert_select(engine, connection):
 
 
 def test_insert_values(engine, connection):
-    table = _get_sa_table(
-        'insert_test', engine, Column('a', sqlalchemy.types.Integer)
-    )
+    table = _get_sa_table("insert_test", engine, Column("a", sqlalchemy.types.Integer))
     table.drop(bind=engine, checkfirst=True)
     table.create(bind=engine)
-    connection.execute(table.insert().values([{'a': 1}, {'a': 2}]))
+    connection.execute(table.insert().values([{"a": 1}, {"a": 2}]))
 
     result = connection.execute(table.select()).fetchall()
     expected = [(1,), (2,)]
@@ -447,7 +526,7 @@ def test_supports_san_rowcount(engine, connection):
 
 
 def test_desc_sql(engine, connection):
-    sql = 'desc one_row'
+    sql = "desc one_row"
     result = connection.execute(text(sql)).fetchall()
     assert len(result) == 1
     assert len(result[0]) == 1
@@ -455,4 +534,30 @@ def test_desc_sql(engine, connection):
 
 def test_table_comment(engine, connection):
     insp = sqlalchemy.inspect(engine)
-    assert insp.get_table_comment('one_row')['text'] == ''
+    assert insp.get_table_comment("one_row")["text"] == ""
+
+
+def test_do_ping(engine, connection):
+    engine.dialect.do_ping(engine.raw_connection())
+    err_data = None
+
+    def _patched_do_ping(*_, **__):
+        raise err_data
+
+    with mock.patch(
+        "sqlalchemy.engine.default.DefaultDialect.do_ping", new=_patched_do_ping
+    ):
+        err_data = errors.InternalServerError("InternalServerError")
+        with pytest.raises(errors.InternalServerError):
+            engine.dialect.do_ping(engine.raw_connection())
+
+        err_data = errors.NoSuchObject("no_such_obj")
+        with pytest.raises(errors.NoSuchObject):
+            engine.dialect.do_ping(engine.raw_connection())
+
+        with pytest.raises(ODPSPingError) as ex_data, mock.patch(
+            "odps.sqlalchemy_odps.ODPSDialect._is_stack_superset",
+            new=lambda *_: True,
+        ):
+            engine.dialect.do_ping(engine.raw_connection())
+        assert not isinstance(ex_data.value, RuntimeError)

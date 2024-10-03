@@ -1,4 +1,4 @@
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,14 +25,20 @@ RESOURCE_SIZE_MAX = 512 * 1024 * 1024  # a single resource's size must be at mos
 
 class ResourceFile(object):
     __slots__ = (
-        'resource', 'mode', '_opened', 'size', '_open_binary', '_encoding', '_overwrite'
+        "resource",
+        "mode",
+        "_opened",
+        "size",
+        "_open_binary",
+        "_encoding",
+        "_overwrite",
     )
 
-    def __init__(self, resource, mode='r', encoding='utf-8', overwrite=None):
+    def __init__(self, resource, mode="r", encoding="utf-8", overwrite=None):
         self.resource = resource
 
-        self._open_binary = 'b' in mode
-        mode = mode.replace('b', '')
+        self._open_binary = "b" in mode
+        mode = mode.replace("b", "")
         self.mode = FileResource.Mode(mode)
         self._encoding = encoding
 
@@ -120,7 +126,7 @@ class ResourceFile(object):
 class LocalResourceFile(ResourceFile):
     __slots__ = "_fp", "_need_commit"
 
-    def __init__(self, resource, mode='r', encoding='utf-8', overwrite=None):
+    def __init__(self, resource, mode="r", encoding="utf-8", overwrite=None):
         super(LocalResourceFile, self).__init__(
             resource, mode=mode, encoding=encoding, overwrite=overwrite
         )
@@ -151,7 +157,7 @@ class LocalResourceFile(ResourceFile):
     def _check_size(self):
         if self.size > RESOURCE_SIZE_MAX:
             raise IOError(
-                "Single resource's max size is %sM" % (RESOURCE_SIZE_MAX / (1024 ** 2))
+                "Single resource's max size is %sM" % (RESOURCE_SIZE_MAX / (1024**2))
             )
 
     def write(self, content):
@@ -238,12 +244,17 @@ class LocalResourceFile(ResourceFile):
 
 class StreamResourceFile(ResourceFile):
     __slots__ = (
-        "_md5_digest", "_buffer", "_buffered_size", "_resource_parts",
-        "_resource_counter", "_chunk_size", "_is_source_exhausted",
+        "_md5_digest",
+        "_buffer",
+        "_buffered_size",
+        "_resource_parts",
+        "_resource_counter",
+        "_chunk_size",
+        "_is_source_exhausted",
         "_source_offset",
     )
 
-    def __init__(self, resource, mode='r', encoding='utf-8', overwrite=None):
+    def __init__(self, resource, mode="r", encoding="utf-8", overwrite=None):
         mode = mode.replace("+", "")
 
         super(StreamResourceFile, self).__init__(
@@ -308,7 +319,7 @@ class StreamResourceFile(ResourceFile):
         return buf.getvalue()
 
     def _is_line_terminated(self, line):
-        terminator = b'\n' if self._open_binary else os.linesep
+        terminator = b"\n" if self._open_binary else os.linesep
         return line.endswith(terminator)
 
     def readline(self, size=-1):
@@ -423,7 +434,11 @@ class StreamResourceFile(ResourceFile):
 
         if value.tell() > 0:
             res = self.resource.parent.create(
-                name=self._build_part_resource_name(), type="file", temp=True, part=True, fileobj=value
+                name=self._build_part_resource_name(),
+                type="file",
+                temp=True,
+                part=True,
+                fileobj=value,
             )
             self._resource_parts.append(res)
             if self._open_binary:

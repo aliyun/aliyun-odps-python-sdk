@@ -1,8 +1,10 @@
 #!/usr/bin/env python
 from __future__ import print_function
+
 import argparse
 import contextlib
 import errno
+import functools
 import glob
 import json
 import logging
@@ -15,7 +17,6 @@ import subprocess
 import sys
 import threading
 import time
-import warnings
 from collections import defaultdict
 
 _DEFAULT_PYABI = "cp37-cp37m"
@@ -37,6 +38,10 @@ _DEFAULT_MINIKUBE_USER_ROOT = "/pypack_user_home"
 
 _SEGFAULT_ERR_CODE = 139
 
+_COLOR_WARNING = "\033[93m"
+_COLOR_FAIL = "\033[91m"
+_COLOR_ENDC = "\033[0m"
+
 python_abi_env = os.getenv("PYABI")
 cmd_before_build = os.getenv("BEFORE_BUILD") or ""
 cmd_after_build = os.getenv("AFTER_BUILD") or ""
@@ -49,15 +54,20 @@ docker_path = os.getenv("DOCKER_PATH")
 if docker_path and os.path.isfile(docker_path):
     docker_path = os.path.dirname(docker_path)
 
+_is_py2 = sys.version_info[0] == 2
 _is_linux = sys.platform.lower().startswith("linux")
 _is_macos = sys.platform.lower().startswith("darwin")
 _is_windows = sys.platform.lower().startswith("win")
 _is_sudo = "SUDO_USER" in os.environ
-_vcs_prefixes = [prefix + "+" for prefix in "git hg svn bzr".split()]
+_vcs_names = "git hg svn bzr"
+_vcs_dirs = ["." + prefix for prefix in _vcs_names.split()]
+_vcs_prefixes = [prefix + "+" for prefix in _vcs_names.split()]
+
+_color_supported = None
 
 logger = logging.getLogger(__name__)
 
-if sys.version_info[0] == 3:
+if not _is_py2:
     unicode = str
 
 dynlibs_pyproject_toml = """
@@ -131,8 +141,8 @@ fi
 if [[ "{no_deps}" == "true" ]]; then
   PYPI_NO_DEPS_ARG="--no-deps"
 fi
-if [[ "{without_merge}" == "true" ]]; then
-  WITHOUT_MERGE="true"
+if [[ "{no_merge}" == "true" ]]; then
+  NO_MERGE="true"
 fi
 if [[ "{pypi_pre}" == "true" ]]; then
   PYPI_EXTRA_ARG="$PYPI_EXTRA_ARG --pre"
@@ -231,7 +241,8 @@ function build_package_at_staging () {{
 }}
 
 echo "Building user-defined packages..."
-for path in `ls 2>/dev/null`; do
+IFS=":" read -ra PACKAGE_PATHS <<< "$SRC_PACKAGE_PATHS"
+for path in "${{PACKAGE_PATHS[@]}}"; do
   if [[ -d "$path" ]]; then
     path="$path/"
   fi
@@ -344,7 +355,7 @@ if ls "$WHEELS_PATH"/protobuf*.whl 1> /dev/null 2>&1; then
   HAS_PROTOBUF="1"
 fi
 
-if [[ -n "$WITHOUT_MERGE" ]]; then
+if [[ -n "$NO_MERGE" ]]; then
   # move all wheels into wheelhouse
   if [[ -n "$NON_DOCKER_MODE" ]]; then
     mv "$WHEELS_PATH"/*.whl "$WHEELHOUSE_PATH"
@@ -394,7 +405,7 @@ else
   # make sure the package is handled as a binary
   touch "$INSTALL_PATH/{package_site}/.pyodps-force-bin.so"
 
-  if [[ "{skip_scan_pkg_resources}" != "true" ]]; then
+  if [[ "{skip_scan_pkg_resources}" != "true" ]] && [[ -z "$PYPI_NO_DEPS_ARG" ]]; then
     echo ""
     echo "Scanning and installing dependency for pkg_resources if needed..."
     if [[ $(egrep --include=\*.py -Rnw "$INSTALL_PATH/{package_site}" -m 1 -e '^\s*(from|import) +pkg_resources' | grep -n 1) ]]; then
@@ -450,6 +461,7 @@ def _indent(text, prefix, predicate=None):
     """
     """Copied from textwrap.indent method of Python 3"""
     if predicate is None:
+
         def predicate(line):
             return line.strip()
 
@@ -457,7 +469,38 @@ def _indent(text, prefix, predicate=None):
         for line in text.splitlines(True):
             yield (prefix + line if predicate(line) else line)
 
-    return ''.join(prefixed_lines())
+    return "".join(prefixed_lines())
+
+
+def _print_color(s, *args, **kw):
+    global _color_supported
+
+    color = kw.pop("color", None)
+    if _color_supported is None:
+        plat = sys.platform
+        if plat == "win32":
+            try:
+                from pip._vendor.rich._windows import get_windows_console_features
+
+                supported_platform = get_windows_console_features().truecolor
+            except:
+                supported_platform = False
+        else:
+            supported_platform = plat != "Pocket PC"
+        # isatty is not always implemented, #6223.
+        is_a_tty = hasattr(sys.stdout, "isatty") and sys.stdout.isatty()
+
+        _color_supported = supported_platform and is_a_tty
+
+    kw["file"] = sys.stderr
+    if color and _color_supported:
+        print(color + s + _COLOR_ENDC, *args, **kw)
+    else:
+        print(s, *args, **kw)
+
+
+_print_warning = functools.partial(_print_color, color=_COLOR_WARNING)
+_print_fail = functools.partial(_print_color, color=_COLOR_FAIL)
 
 
 def _makedirs(name, mode=0o777, exist_ok=False):
@@ -480,8 +523,8 @@ def _makedirs(name, mode=0o777, exist_ok=False):
             # Defeats race condition when another thread created the path
             pass
         cdir = os.curdir
-        if isinstance(tail, bytes):
-            cdir = bytes(os.curdir, 'ASCII')
+        if not _is_py2 and isinstance(tail, bytes):
+            cdir = bytes(os.curdir, "ASCII")
         if tail == cdir:  # xxx/newdir/. exists if xxx/newdir exists
             return
     try:
@@ -514,21 +557,62 @@ def _copy_to_workdir(src_path, work_dir):
     shutil.copytree(src_path, dest_dir)
 
 
-def _copy_package_paths(package_paths=None, work_dir=None, skip_user_path=True):
+def _find_source_vcs_root(package_path):
+    def is_root(p):
+        return p == os.path.sep or p == os.path.dirname(p)
+
+    package_path = package_path.rstrip(os.path.sep)
+    parent_path = package_path
+    while not is_root(parent_path) and not any(
+        os.path.isdir(os.path.join(parent_path, d)) for d in _vcs_dirs
+    ):
+        parent_path = os.path.dirname(parent_path)
+    if is_root(parent_path) or parent_path == package_path:
+        # if no vcs or vcs on package root, use package path directly
+        parent_path = package_path
+        rel_install_path = os.path.basename(parent_path)
+    else:
+        # work out relative path for real Python package
+        rel_install_path = os.path.join(
+            os.path.basename(parent_path), os.path.relpath(package_path, parent_path)
+        ).replace(os.path.sep, "/")
+    return parent_path, rel_install_path
+
+
+def _copy_package_paths(
+    package_paths=None, work_dir=None, skip_user_path=True, find_vcs_root=False
+):
     remained = []
-    for package_path in (package_paths or ()):
-        base_name = os.path.basename(package_path.rstrip("/").rstrip("\\"))
-        abs_path = os.path.abspath(package_path)
+    rel_dirs = []
+    for package_path in package_paths or ():
+        if find_vcs_root:
+            real_root, rel_install_path = _find_source_vcs_root(package_path)
+        else:
+            real_root = package_path
+            rel_install_path = os.path.basename(package_path.rstrip("/"))
+        rel_dirs.append(rel_install_path)
+
+        base_name = os.path.basename(real_root.rstrip("/").rstrip("\\"))
+        abs_path = os.path.abspath(real_root)
         if not skip_user_path or not abs_path.startswith(os.path.expanduser("~")):
             # not on user path, copy it into build path
             _copy_to_workdir(base_name, work_dir)
         else:
             remained.append(abs_path)
-    return remained
+    return remained, rel_dirs
 
 
-def _build_docker_run_command(container_name, docker_image, work_dir, package_paths, docker_args):
-    docker_executable = "docker" if not docker_path else os.path.join(docker_path, "docker")
+def _build_docker_run_command(
+    container_name,
+    docker_image,
+    work_dir,
+    package_paths,
+    docker_args,
+    find_vcs_root=False,
+):
+    docker_executable = (
+        "docker" if not docker_path else os.path.join(docker_path, "docker")
+    )
     script_path_mapping = work_dir + "/scripts:/scripts"
     wheelhouse_path_mapping = work_dir + "/wheelhouse:/wheelhouse"
     build_path_mapping = work_dir + "/build:/build"
@@ -548,18 +632,23 @@ def _build_docker_run_command(container_name, docker_image, work_dir, package_pa
         _makedirs(os.path.join(work_dir, "build"), exist_ok=True)
         cmdline.extend(["-v", build_path_mapping])
 
-    remained = _copy_package_paths(package_paths, work_dir)
+    remained, rel_paths = _copy_package_paths(
+        package_paths, work_dir, find_vcs_root=find_vcs_root
+    )
     for abs_path in remained:
         base_name = os.path.basename(abs_path.rstrip("/").rstrip("\\"))
         cmdline.extend(["-v", "%s:/build/%s" % (abs_path, base_name)])
-    cmdline.extend(
-        [docker_image, "/bin/bash", "/scripts/%s" % _PACK_SCRIPT_FILE_NAME]
-    )
+
+    if rel_paths:
+        cmdline.extend(["-e", "SRC_PACKAGE_PATHS=%s" % ":".join(rel_paths)])
+    cmdline.extend([docker_image, "/bin/bash", "/scripts/%s" % _PACK_SCRIPT_FILE_NAME])
     return cmdline
 
 
 def _build_docker_rm_command(container_name):
-    docker_executable = "docker" if not docker_path else os.path.join(docker_path, "docker")
+    docker_executable = (
+        "docker" if not docker_path else os.path.join(docker_path, "docker")
+    )
     return [docker_executable, "rm", "-f", container_name]
 
 
@@ -578,7 +667,7 @@ def _create_temp_work_dir(
     **script_kwargs
 ):
     if _is_macos and _is_sudo:
-        logger.warning(
+        _print_warning(
             "You are calling pyodps-pack with sudo under MacOS, which is not needed and may cause "
             "unexpected permission errors. Try calling pyodps-pack without sudo if you encounter "
             "such problems."
@@ -593,7 +682,7 @@ def _create_temp_work_dir(
     except ImportError:
         cache_root = os.path.expanduser("~/.cache/pyodps-pack")
 
-    tmp_path = "%s/pack-root-%d" % (cache_root, int(time.time()))
+    tmp_path = "%s%spack-root-%d" % (cache_root, os.path.sep, int(time.time()))
     try:
         _makedirs(tmp_path, exist_ok=True)
         script_path = os.path.join(tmp_path, "scripts")
@@ -603,7 +692,9 @@ def _create_temp_work_dir(
         if requirement_list:
             req_text = "\n".join(requirement_list) + "\n"
             _log_indent("Content of requirements.txt:", req_text)
-            with open(os.path.join(script_path, _REQUIREMENT_FILE_NAME), "wb") as res_file:
+            with open(
+                os.path.join(script_path, _REQUIREMENT_FILE_NAME), "wb"
+            ) as res_file:
                 res_file.write(_to_unix(req_text))
 
         if vcs_list:
@@ -615,17 +706,23 @@ def _create_temp_work_dir(
         if install_requires:
             install_req_text = "\n".join(install_requires) + "\n"
             _log_indent("Content of install-requires.txt:", install_req_text)
-            with open(os.path.join(script_path, _INSTALL_REQ_FILE_NAME), "wb") as install_req_file:
+            with open(
+                os.path.join(script_path, _INSTALL_REQ_FILE_NAME), "wb"
+            ) as install_req_file:
                 install_req_file.write(_to_unix(install_req_text))
 
         if exclude_list:
             exclude_text = "\n".join(exclude_list) + "\n"
             _log_indent("Content of excludes.txt:", exclude_text)
-            with open(os.path.join(script_path, _EXCLUDE_FILE_NAME), "wb") as exclude_file:
+            with open(
+                os.path.join(script_path, _EXCLUDE_FILE_NAME), "wb"
+            ) as exclude_file:
                 exclude_file.write(_to_unix(exclude_text))
 
         if before_script or cmd_before_build:
-            with open(os.path.join(script_path, _BEFORE_SCRIPT_FILE_NAME), "wb") as before_script_file:
+            with open(
+                os.path.join(script_path, _BEFORE_SCRIPT_FILE_NAME), "wb"
+            ) as before_script_file:
                 if before_script:
                     with open(before_script, "rb") as src_before_file:
                         before_script_file.write(_to_unix(src_before_file.read()))
@@ -633,10 +730,16 @@ def _create_temp_work_dir(
                 if cmd_before_build:
                     before_script_file.write(_to_unix(cmd_before_build.encode()))
             if logger.getEffectiveLevel() <= logging.DEBUG:
-                with open(os.path.join(script_path, _BEFORE_SCRIPT_FILE_NAME), "r") as before_script_file:
-                    _log_indent("Content of before-script.sh:", before_script_file.read())
+                with open(
+                    os.path.join(script_path, _BEFORE_SCRIPT_FILE_NAME), "r"
+                ) as before_script_file:
+                    _log_indent(
+                        "Content of before-script.sh:", before_script_file.read()
+                    )
 
-        with open(os.path.join(script_path, _DYNLIB_PYPROJECT_TOML_FILE_NAME), "wb") as toml_file:
+        with open(
+            os.path.join(script_path, _DYNLIB_PYPROJECT_TOML_FILE_NAME), "wb"
+        ) as toml_file:
             toml_file.write(_to_unix(dynlibs_pyproject_toml.encode()))
 
         with open(os.path.join(script_path, _PACK_SCRIPT_FILE_NAME), "wb") as pack_file:
@@ -647,7 +750,16 @@ def _create_temp_work_dir(
         yield tmp_path
     finally:
         if tmp_path and os.path.exists(tmp_path):
-            shutil.rmtree(tmp_path)
+            if _is_windows:
+                # permission error may occur when using shutil.rmtree in Windows.
+                os.system("rd /s /q \"" + tmp_path + "\"")
+            else:
+                shutil.rmtree(tmp_path)
+            if os.path.exists(tmp_path):
+                _print_warning(
+                    "The temp path %s created by pyodps-pack still exists, you may "
+                    "delete it manually later." % tmp_path
+                )
         try:
             os.rmdir(cache_root)
         except OSError:
@@ -663,10 +775,10 @@ def _get_default_pypi_config():
     )
     proc.wait()
     if proc.returncode != 0:
-        warnings.warn(
-            'Failed to call `pip config list`, return code is %s. '
+        _print_warning(
+            "Failed to call `pip config list`, return code is %s. "
             'Will use default index instead. Specify "-i <index-url>" '
-            'if you want to use another package index.' % proc.returncode
+            "if you want to use another package index." % proc.returncode
         )
         return {}
 
@@ -748,7 +860,7 @@ def _collect_env_packages(exclude_editable=False, exclude=None, index_url=None):
         else:
             specifiers.append("%s==%s" % (desc["name"], desc["version"]))
     if missing_packs:
-        warnings.warn(
+        _print_warning(
             "Cannot find packages %s in package index. These packages cannot be included."
             % ",".join(missing_packs)
         )
@@ -796,7 +908,9 @@ def _get_python_abi_version(python_version=None, mcpy27=None, dwpy27=None):
             python_abi_version += "m"
     if dwpy27:
         if mcpy27:
-            raise PackException("You should not specify '--dwpy27' and '--mcpy27' at the same time.")
+            raise PackException(
+                "You should not specify '--dwpy27' and '--mcpy27' at the same time."
+            )
         python_abi_version = _DWPY27_PYABI
     elif mcpy27:
         python_abi_version = _MCPY27_PYABI
@@ -808,7 +922,10 @@ def _get_bash_path():
     if not _is_windows:
         return "/bin/bash"
 
-    import winreg
+    try:
+        import winreg
+    except ImportError:
+        import _winreg as winreg
 
     key = None
     try:
@@ -891,7 +1008,9 @@ def _rewrite_minikube_command(docker_cmd, done_timeout=10):
 def _main(parsed_args):
     if parsed_args.debug:
         logging.basicConfig(level=logging.DEBUG)
-        logger.info("System environment variables: %s", json.dumps(dict(os.environ), indent=2))
+        logger.info(
+            "System environment variables: %s", json.dumps(dict(os.environ), indent=2)
+        )
 
     if parsed_args.pack_env:
         if parsed_args.specifiers:
@@ -905,7 +1024,11 @@ def _main(parsed_args):
     _filter_local_package_paths(parsed_args)
     _collect_install_requires(parsed_args)
 
-    if not parsed_args.specifiers and not parsed_args.package_path and not parsed_args.vcs_urls:
+    if (
+        not parsed_args.specifiers
+        and not parsed_args.package_path
+        and not parsed_args.vcs_urls
+    ):
         raise PackException("ERROR: You must give at least one requirement to install.")
 
     file_cfg = _get_default_pypi_config()
@@ -923,9 +1046,11 @@ def _main(parsed_args):
     prefer_binary_str = "true" if parsed_args.prefer_binary else ""
     no_deps_str = "true" if parsed_args.no_deps else ""
     debug_str = "true" if parsed_args.debug else ""
-    without_merge_str = "true" if parsed_args.without_merge else ""
+    no_merge_str = "true" if parsed_args.no_merge else ""
     use_pep517_str = str(parsed_args.use_pep517).lower()
-    check_build_dependencies_str = "true" if parsed_args.check_build_dependencies else ""
+    check_build_dependencies_str = (
+        "true" if parsed_args.check_build_dependencies else ""
+    )
     skip_scan_pkg_resources_str = "true" if parsed_args.skip_scan_pkg_resources else ""
     pre_str = "true" if parsed_args.pre else ""
     timeout_str = parsed_args.timeout or _first_or_none(file_cfg.get("timeout")) or ""
@@ -964,7 +1089,7 @@ def _main(parsed_args):
         check_build_dependencies=check_build_dependencies_str,
         skip_scan_pkg_resources=skip_scan_pkg_resources_str,
         no_deps=no_deps_str,
-        without_merge=without_merge_str,
+        no_merge=no_merge_str,
         python_abi_version=python_abi_version,
         pypi_trusted_hosts=trusted_hosts_str,
         dynlibs=dynlibs_str,
@@ -972,25 +1097,37 @@ def _main(parsed_args):
     ) as work_dir:
         container_name = "pack-cnt-%d" % int(time.time())
 
-        use_legacy_image = parsed_args.legacy_image or parsed_args.mcpy27 or parsed_args.dwpy27
+        use_legacy_image = (
+            parsed_args.legacy_image or parsed_args.mcpy27 or parsed_args.dwpy27
+        )
         default_image = _get_default_image(use_legacy_image, parsed_args.arch)
         docker_image = docker_image_env or default_image
 
         minikube_mount_proc = None
-        if pack_in_cluster or parsed_args.without_docker:
-            _copy_package_paths(parsed_args.package_path, work_dir, skip_user_path=False)
+        if pack_in_cluster or parsed_args.no_docker:
+            _, rel_dirs = _copy_package_paths(
+                parsed_args.package_path,
+                work_dir,
+                skip_user_path=False,
+                find_vcs_root=parsed_args.find_vcs_root,
+            )
 
             pyversion, pyabi = python_abi_version.split("-", 1)
             pyversion = pyversion[2:]
-            build_cmd = [_get_bash_path(), os.path.join(work_dir, "scripts", _PACK_SCRIPT_FILE_NAME)]
+            build_cmd = [
+                _get_bash_path(),
+                os.path.join(work_dir, "scripts", _PACK_SCRIPT_FILE_NAME),
+            ]
             build_env = {
-                "PACK_ROOT": work_dir,
+                "PACK_ROOT": str(work_dir),
                 "PYPLATFORM": default_image.replace("quay.io/pypa/", ""),
                 "PYVERSION": pyversion,
                 "PYABI": pyabi,
                 "TARGET_ARCH": _get_arch(parsed_args.arch),
             }
-            if parsed_args.without_docker:
+            if rel_dirs:
+                build_env["SRC_PACKAGE_PATHS"] = ":".join(rel_dirs)
+            if parsed_args.no_docker:
                 build_env["NON_DOCKER_MODE"] = "true"
                 build_env["PYEXECUTABLE"] = _get_local_pack_executable(work_dir)
             else:
@@ -998,8 +1135,9 @@ def _main(parsed_args):
                 build_env = os.environ.copy()
                 build_env.update(temp_env)
                 build_env["PACK_IN_CLUSTER"] = "true"
+            build_cwd = os.getcwd()
             logger.debug("Command: %r", build_cmd)
-            logger.debug("Environment variables: %r", build_cmd)
+            logger.debug("Environment variables: %r", build_env)
         else:
             build_cmd = _build_docker_run_command(
                 container_name,
@@ -1007,19 +1145,23 @@ def _main(parsed_args):
                 work_dir,
                 parsed_args.package_path,
                 parsed_args.docker_args,
+                find_vcs_root=parsed_args.find_vcs_root,
             )
             build_cmd, minikube_mount_proc = _rewrite_minikube_command(build_cmd)
             build_env = None
+            build_cwd = None
             logger.debug("Docker command: %r", build_cmd)
 
         try:
-            proc = subprocess.Popen(build_cmd, env=build_env)
+            proc = subprocess.Popen(build_cmd, env=build_env, cwd=build_cwd)
         except OSError as ex:
             if ex.errno != errno.ENOENT:
                 raise
 
-            logger.error("Failed to execute command %r, the error message is %s.", build_cmd, ex)
-            if pack_in_cluster or parsed_args.without_docker:
+            logger.error(
+                "Failed to execute command %r, the error message is %s.", build_cmd, ex
+            )
+            if pack_in_cluster or parsed_args.no_docker:
                 if _is_windows:
                     raise PackException(
                         "Cannot locate git bash. Please install Git for Windows or "
@@ -1031,7 +1173,7 @@ def _main(parsed_args):
             else:
                 raise PackException(
                     "Cannot locate docker. Please install it, reopen your terminal and "
-                    "retry. Or you may try `--without-docker` instead. If you've already "
+                    "retry. Or you may try `--no-docker` instead. If you've already "
                     "installed Docker, you may specify the path of its executable via "
                     "DOCKER_PATH environment."
                 )
@@ -1040,7 +1182,7 @@ def _main(parsed_args):
             proc.wait()
         except KeyboardInterrupt:
             cancelled = True
-            if not parsed_args.without_docker and not pack_in_cluster:
+            if not parsed_args.no_docker and not pack_in_cluster:
                 docker_rm_cmd = _build_docker_rm_command(container_name)
                 logger.debug("Docker rm command: %r", docker_rm_cmd)
                 subprocess.Popen(docker_rm_cmd, stdout=subprocess.PIPE)
@@ -1050,20 +1192,22 @@ def _main(parsed_args):
                 minikube_mount_proc.terminate()
 
         if proc.returncode != 0:
-            cancelled = cancelled or os.path.exists(os.path.join(work_dir, "scripts", ".cancelled"))
+            cancelled = cancelled or os.path.exists(
+                os.path.join(work_dir, "scripts", ".cancelled")
+            )
             if cancelled:
-                print("Cancelled by user.")
+                _print_warning("Cancelled by user.")
             else:
-                if parsed_args.without_docker:
-                    print(
+                if parsed_args.no_docker:
+                    _print_fail(
                         "Errors occurred when creating your package. This is often caused "
                         "by mismatching Python version, platform or architecture when "
                         "encountering binary packages. Please check outputs for details. "
                         "You may try building your packages inside Docker by removing "
-                        "--without-docker option, which often resolves the issue."
+                        "--no-docker option, which often resolves the issue."
                     )
                 else:
-                    print(
+                    _print_fail(
                         "Errors occurred when creating your package. Please check outputs "
                         "for details. You may add a `--debug` option to obtain more "
                         "information. Please provide all outputs with `--debug` specified "
@@ -1071,18 +1215,18 @@ def _main(parsed_args):
                     )
 
                 if proc.returncode == _SEGFAULT_ERR_CODE and use_legacy_image:
-                    print(
+                    _print_fail(
                         "Image manylinux1 might crash silently under some Docker environments. "
                         "You may try under a native Linux environment. Details can be seen at "
                         "https://mail.python.org/pipermail/wheel-builders/2016-December/000239.html."
                     )
                 elif _is_linux and "SUDO_USER" not in os.environ:
-                    print(
+                    _print_fail(
                         "You need to run pyodps-pack with sudo to make sure docker is "
                         "executed properly."
                     )
         else:
-            if parsed_args.without_merge:
+            if parsed_args.no_merge:
                 src_path = os.path.join(work_dir, "wheelhouse", "*.whl")
                 for wheel_name in glob.glob(src_path):
                     shutil.move(wheel_name, os.path.basename(wheel_name))
@@ -1092,11 +1236,11 @@ def _main(parsed_args):
 
             if _is_linux and "SUDO_UID" in os.environ and "SUDO_GID" in os.environ:
                 own_desc = "%s:%s" % (os.environ["SUDO_UID"], os.environ["SUDO_GID"])
-                target_path = "*.whl" if parsed_args.without_merge else parsed_args.output
+                target_path = "*.whl" if parsed_args.no_merge else parsed_args.output
                 chown_proc = subprocess.Popen(["chown", own_desc, target_path])
                 chown_proc.wait()
 
-            if parsed_args.without_merge:
+            if parsed_args.no_merge:
                 print("Result wheels stored at current dir")
             else:
                 print("Result package stored as %s" % parsed_args.output)
@@ -1106,145 +1250,227 @@ def _main(parsed_args):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "specifiers", metavar="REQ", nargs="*",
+        "specifiers",
+        metavar="REQ",
+        nargs="*",
         help="a requirement item compatible with pip command",
     )
     parser.add_argument(
-        "--requirement", "-r", action="append", default=[],
-        metavar="PATH", help="Path of requirements.txt including file name",
+        "--requirement",
+        "-r",
+        action="append",
+        default=[],
+        metavar="PATH",
+        help="Path of requirements.txt including file name",
     )
     parser.add_argument(
-        "--install-requires", action="append", default=[], help="Requirement for install time"
+        "--install-requires",
+        action="append",
+        default=[],
+        help="Requirement for install time",
     )
     parser.add_argument(
-        "--install-requires-file", action="append", default=[],
+        "--install-requires-file",
+        action="append",
+        default=[],
         help="Requirement file for install time",
     )
+    parser.add_argument("--run-before", help="Prepare script before package build.")
     parser.add_argument(
-        "--run-before", help="Prepare script before package build."
-    )
-    parser.add_argument(
-        "--no-deps", action="store_true", default=False,
+        "--no-deps",
+        action="store_true",
+        default=False,
         help="Don't put package dependencies into archives",
     )
     parser.add_argument(
-        "--pre", action="store_true", default=False,
+        "--pre",
+        action="store_true",
+        default=False,
         help="Include pre-release and development versions. "
-             "By default, pyodps-pack only finds stable versions.",
+        "By default, pyodps-pack only finds stable versions.",
     )
     parser.add_argument(
-        "--proxy", metavar="proxy",
+        "--proxy",
+        metavar="proxy",
         help="Specify a proxy in the form scheme://[user:passwd@]proxy.server:port.",
     )
     parser.add_argument(
-        "--retries", metavar="retries",
+        "--retries",
+        metavar="retries",
         help="Maximum number of retries each connection should attempt (default 5 times).",
     )
     parser.add_argument(
-        "--timeout", metavar="sec", help="Set the socket timeout (default 15 seconds).",
+        "--timeout",
+        metavar="sec",
+        help="Set the socket timeout (default 15 seconds).",
     )
     parser.add_argument(
-        "--exclude", "-X", action="append", default=[],
-        metavar="DEPEND", help="Requirements to exclude from the package",
+        "--exclude",
+        "-X",
+        action="append",
+        default=[],
+        metavar="DEPEND",
+        help="Requirements to exclude from the package",
     )
     parser.add_argument(
-        "--index-url", "-i", default="",
+        "--index-url",
+        "-i",
+        default="",
         help="Base URL of PyPI package. If absent, will use "
-             "`global.index-url` in `pip config list` command by default.",
+        "`global.index-url` in `pip config list` command by default.",
     )
     parser.add_argument(
-        "--extra-index-url", metavar="url", action="append", default=[],
+        "--extra-index-url",
+        metavar="url",
+        action="append",
+        default=[],
         help="Extra URLs of package indexes to use in addition to --index-url. "
-             "Should follow the same rules as --index-url.",
+        "Should follow the same rules as --index-url.",
     )
     parser.add_argument(
-        "--trusted-host", metavar="host", action="append", default=[],
+        "--trusted-host",
+        metavar="host",
+        action="append",
+        default=[],
         help="Mark this host or host:port pair as trusted, "
-             "even though it does not have valid or any HTTPS.",
+        "even though it does not have valid or any HTTPS.",
     )
     parser.add_argument(
-        "--legacy-image", "-l", action="store_true", default=False,
+        "--legacy-image",
+        "-l",
+        action="store_true",
+        default=False,
         help="Use legacy image to make packages",
     )
     parser.add_argument(
-        "--mcpy27", action="store_true", default=False,
+        "--mcpy27",
+        action="store_true",
+        default=False,
         help="Build package for Python 2.7 on MaxCompute. "
-             "If enabled, will assume `legacy-image` to be true.",
+        "If enabled, will assume `legacy-image` to be true.",
     )
     parser.add_argument(
-        "--dwpy27", action="store_true", default=False,
+        "--dwpy27",
+        action="store_true",
+        default=False,
         help="Build package for Python 2.7 on DataWorks. "
-             "If enabled, will assume `legacy-image` to be true.",
+        "If enabled, will assume `legacy-image` to be true.",
     )
     parser.add_argument(
-        "--prefer-binary", action="store_true", default=False,
+        "--prefer-binary",
+        action="store_true",
+        default=False,
         help="Prefer older binary packages over newer source packages",
     )
     parser.add_argument(
-        "--output", "-o", default="packages.tar.gz", help="Target archive file name to store"
+        "--output",
+        "-o",
+        default="packages.tar.gz",
+        help="Target archive file name to store",
     )
     parser.add_argument(
-        "--dynlib", action="append", default=[],
+        "--dynlib",
+        action="append",
+        default=[],
         help="Dynamic library to include. Can be an absolute path to a .so library "
-             "or library name with or without 'lib' prefix."
+        "or library name with or without 'lib' prefix.",
     )
     parser.add_argument(
         "--pack-env", action="store_true", default=False, help="Pack full environment"
     )
     parser.add_argument(
-        "--exclude-editable", action="store_true", default=False,
+        "--exclude-editable",
+        action="store_true",
+        default=False,
         help="Exclude editable packages when packing",
     )
     parser.add_argument(
-        "--use-pep517", action="store_true", default=None,
+        "--use-pep517",
+        action="store_true",
+        default=None,
         help="Use PEP 517 for building source distributions (use --no-use-pep517 to force legacy behaviour).",
     )
     parser.add_argument(
-        "--no-use-pep517", action="store_false", dest="use_pep517", default=None, help=argparse.SUPPRESS,
+        "--no-use-pep517",
+        action="store_false",
+        dest="use_pep517",
+        default=None,
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
-        "--check-build-dependencies", action="store_true", default=None,
+        "--check-build-dependencies",
+        action="store_true",
+        default=None,
         help="Check the build dependencies when PEP517 is used.",
     )
     parser.add_argument(
-        "--arch", default="x86_64",
+        "--arch",
+        default="x86_64",
         help="Architecture of target package, x86_64 by default. Currently only x86_64 "
-             "and aarch64 supported. Do not use this argument if you are not running "
-             "your code in a proprietary cloud."
+        "and aarch64 supported. Do not use this argument if you are not running "
+        "your code in a proprietary cloud.",
     )
     parser.add_argument(
         "--python-version",
         help="Version of Python your environment is on, for instance 3.6. "
-             "You may also use 36 instead. Do not use this argument if you "
-             "are not running your code in a proprietary cloud."
+        "You may also use 36 instead. Do not use this argument if you "
+        "are not running your code in a proprietary cloud.",
     )
+    parser.add_argument("--docker-args", help="Extra arguments for Docker.")
     parser.add_argument(
-        "--docker-args", help="Extra arguments for Docker."
-    )
-    parser.add_argument(
-        "--without-docker", action="store_true", default=False,
+        "--no-docker",
+        action="store_true",
+        default=False,
         help="Create packages without Docker. May cause errors if incompatible "
-             "binaries involved.",
+        "binaries involved.",
     )
     parser.add_argument(
-        "--without-merge", action="store_true", default=False,
+        "--without-docker", action="store_true", default=False, help=argparse.SUPPRESS
+    )
+    parser.add_argument(
+        "--no-merge",
+        action="store_true",
+        default=False,
         help="Create or download wheels without merging them.",
     )
     parser.add_argument(
-        "--skip-scan-pkg-resources", action="store_true", default=False,
+        "--without-merge", action="store_true", default=False, help=argparse.SUPPRESS
+    )
+    parser.add_argument(
+        "--skip-scan-pkg-resources",
+        action="store_true",
+        default=False,
         help="Skip scanning for usage of pkg-resources package.",
     )
     parser.add_argument(
-        "--debug", action="store_true", default=False,
+        "--find-vcs-root",
+        action="store_true",
+        default=False,
+        help="Find VCS root when building local source code.",
+    )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        default=False,
         help="Dump debug messages for diagnose purpose",
     )
 
     args = parser.parse_args()
+    if args.without_docker:
+        _print_warning(
+            "DEPRECATION: --without-docker is deprecated, use --no-docker instead."
+        )
+        args.no_docker = True
+    if args.without_merge:
+        _print_warning(
+            "DEPRECATION: --without-merge is deprecated, use --no-merge instead."
+        )
+        args.no_merge = True
 
     try:
         sys.exit(_main(args) or 0)
     except PackException as ex:
-        print(ex.args[0], file=sys.stderr)
+        _print_fail(ex.args[0])
         sys.exit(1)
 
 

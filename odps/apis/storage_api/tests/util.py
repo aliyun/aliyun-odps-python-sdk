@@ -1,4 +1,4 @@
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -37,7 +37,9 @@ class TestDataItem:
         self.data_columns = None
         self.test_data_format = False
         self.data_format = DataFormat()
-        self.split_options = SplitOptions.get_default_options(SplitOptions.SplitMode.SIZE)
+        self.split_options = SplitOptions.get_default_options(
+            SplitOptions.SplitMode.SIZE
+        )
 
         self.has_partition = False
 
@@ -45,7 +47,9 @@ class TestDataItem:
         self.commit_messages.append(commit_message)
 
     def load_conf(self, tag):
-        with open(os.path.dirname(os.path.abspath(__file__)) + '/data_item.conf', 'r') as conf_file:
+        with open(
+            os.path.dirname(os.path.abspath(__file__)) + "/data_item.conf", "r"
+        ) as conf_file:
             conf = json.load(conf_file)
             tag_conf = conf[tag]
             self.val = tag_conf["val"]
@@ -97,7 +101,10 @@ def get_write_session(item, storage_api_client):
             logger.info("get write session failed")
             return False
 
-        if resp.session_status != SessionStatus.NORMAL and resp.session_status != SessionStatus.COMMITTED:
+        if (
+            resp.session_status != SessionStatus.NORMAL
+            and resp.session_status != SessionStatus.COMMITTED
+        ):
             logger.info("Wait...")
             time.sleep(1)
             continue
@@ -222,7 +229,9 @@ def get_read_session(item, storage_api_client):
 
 
 def read_rows(item, storage_api_client, compression=Compression.UNCOMPRESSED):
-    req = ReadRowsRequest(session_id=item.read_session_id, max_batch_rows=4096, compression=compression)
+    req = ReadRowsRequest(
+        session_id=item.read_session_id, max_batch_rows=4096, compression=compression
+    )
 
     if item.test_data_format:
         req.data_format = item.data_format
@@ -263,7 +272,12 @@ def read_rows(item, storage_api_client, compression=Compression.UNCOMPRESSED):
         logger.info("Read rows cost (index " + str(i) + "): " + str(end - start) + "s")
 
     if total_line != item.total_count:
-        logger.info("read rows number incorrect:" + str(total_line) + " != " + str(item.total_count))
+        logger.info(
+            "read rows number incorrect:"
+            + str(total_line)
+            + " != "
+            + str(item.total_count)
+        )
         return False
 
     return True

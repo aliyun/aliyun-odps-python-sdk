@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ from ...src.utils_c cimport CMillisecondsConverter
 from ..checksum_c cimport Checksum
 from ..pb.encoder_c cimport CEncoder
 
+
 cdef class ProtobufRecordWriter:
 
     cdef int DEFAULT_BUFFER_SIZE
@@ -36,14 +37,14 @@ cdef class ProtobufRecordWriter:
     cpdef close(self)
     cpdef flush_all(self)
     cpdef int _refresh_buffer(self) except -1
-    cdef int _write_tag(self, int field_num, int wire_type) except + nogil
-    cdef int _write_raw_long(self, int64_t val) except + nogil
-    cdef int _write_raw_int(self, int32_t val) except + nogil
-    cdef int _write_raw_uint(self, uint32_t val) except + nogil
-    cdef int _write_raw_bool(self, bint val) except + nogil
-    cdef int _write_raw_float(self, float val) except + nogil
-    cdef int _write_raw_double(self, double val) except + nogil
-    cdef int _write_raw_string(self, const char *ptr, uint32_t size) except + nogil
+    cdef int _write_tag(self, int field_num, int wire_type) except -1 nogil
+    cdef int _write_raw_long(self, int64_t val) except -1 nogil
+    cdef int _write_raw_int(self, int32_t val) except -1 nogil
+    cdef int _write_raw_uint(self, uint32_t val) except -1 nogil
+    cdef int _write_raw_bool(self, bint val) except -1 nogil
+    cdef int _write_raw_float(self, float val) except -1 nogil
+    cdef int _write_raw_double(self, double val) except -1 nogil
+    cdef int _write_raw_string(self, const char *ptr, uint32_t size) except -1 nogil
 
 
 cdef class BaseRecordWriter(ProtobufRecordWriter):
@@ -61,10 +62,10 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
     cdef SchemaSnapshot _schema_snapshot
 
     cpdef write(self, BaseRecord record)
-    cdef void _write_bool(self, bint data) except + nogil
-    cdef void _write_long(self, int64_t data) except + nogil
-    cdef void _write_float(self, float data) except + nogil
-    cdef void _write_double(self, double data) except + nogil
+    cdef int _write_bool(self, bint data) except -1 nogil
+    cdef int _write_long(self, int64_t data) except -1 nogil
+    cdef int _write_float(self, float data) except -1 nogil
+    cdef int _write_double(self, double data) except -1 nogil
     cdef _write_string(self, object data)
     cdef _write_timestamp_base(self, object data, bint ntz)
     cdef _write_timestamp(self, object data)

@@ -474,25 +474,3 @@ class ChannelSlaveClient(object):
 
     create_table_reader = create_record_reader
     create_table_writer = create_record_writer
-
-    def create_pandas_reader(self, label, schema, columns=None):
-        try:
-            from ..io.table import CupidPandasReader
-        except ImportError:
-            return None
-
-        params = json.dumps(dict(type='ReadByLabel', label=label))
-        stream = self.create_file_reader('createTableInputStream', params.encode())
-        reader = CupidPandasReader(schema, stream, columns=columns)
-        return reader
-
-    def create_pandas_writer(self, label, schema):
-        try:
-            from ..io.table import CupidPandasWriter
-        except ImportError:
-            return None
-
-        params = json.dumps(dict(type='WriteByLabel', label=label))
-        stream = self.create_file_writer('createTableOutputStream', params.encode())
-        writer = CupidPandasWriter(schema, stream)
-        return writer

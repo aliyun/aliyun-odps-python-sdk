@@ -1,4 +1,4 @@
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,13 +16,13 @@ from odps import distcache
 
 
 def test_get_cache_archive():
-    assert distcache.get_cache_archive('x') is None
-    assert distcache.get_cache_archive('x', 'y') is None
+    assert distcache.get_cache_archive("x") is None
+    assert distcache.get_cache_archive("x", "y") is None
 
 
 def test_get_cache_tabledesc():
-    assert distcache.get_cache_tabledesc('x') is None
+    assert distcache.get_cache_tabledesc("x") is None
 
 
 def test_get_cache_tableinfo():
-    assert distcache.get_cache_tableinfo('x') is None
+    assert distcache.get_cache_tableinfo("x") is None

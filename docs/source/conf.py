@@ -12,14 +12,15 @@
 # All configuration values have a default; values that are commented out
 # serve to show the default.
 
-import sys
-import os
-import shutil
 import atexit
+import codecs
+import os
+import re
+import shutil
+import sys
 import tempfile
 import textwrap
-import codecs
-import re
+
 try:
     from sphinx.directives import Include
 except ImportError:
@@ -82,6 +83,7 @@ author = u'Qin Xuye'
 #
 # The short X.Y version.
 from odps import __version__
+
 version = __version__
 # The full version, including alpha/beta/rc tags.
 release = __version__

@@ -1,4 +1,4 @@
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,17 +15,16 @@
 import os
 import sys
 import time
-
 from contextlib import contextmanager
-from subprocess import Popen, PIPE
+from subprocess import PIPE, Popen
 
 from ...compat import Empty
 from ...tests.core import ignore_case
 
 try:
-    from jupyter_core import paths
-    from jupyter_client import BlockingKernelClient
     from ipython_genutils import py3compat
+    from jupyter_client import BlockingKernelClient
+    from jupyter_core import paths
 
     _has_jupyter = True
 except ImportError:
@@ -46,21 +45,24 @@ def ui_case(func):
     if _has_jupyter:
         return func
     else:
-        return ignore_case(func, "UI case skipped, since no Jupyter installation found.")
+        return ignore_case(
+            func, "UI case skipped, since no Jupyter installation found."
+        )
 
 
 def grab_iopub_messages(client, msg_id):
     try:
         iopub_msg = {}
 
-        while (not iopub_msg or
-               iopub_msg['parent_header']['msg_id'] != msg_id or
-               iopub_msg['msg_type'] != 'status' or
-               'execution_state' not in iopub_msg['content'] or
-               iopub_msg['content']['execution_state'] != "idle"):
-
+        while (
+            not iopub_msg
+            or iopub_msg["parent_header"]["msg_id"] != msg_id
+            or iopub_msg["msg_type"] != "status"
+            or "execution_state" not in iopub_msg["content"]
+            or iopub_msg["content"]["execution_state"] != "idle"
+        ):
             iopub_msg = client.get_iopub_msg(timeout=TIMEOUT)
-            if iopub_msg['parent_header']['msg_id'] != msg_id:
+            if iopub_msg["parent_header"]["msg_id"] != msg_id:
                 continue
             yield iopub_msg
     except Empty:
@@ -70,21 +72,21 @@ def grab_iopub_messages(client, msg_id):
 def grab_iopub_comm(client, msg_id):
     iopub_data = {}
     for iopub_msg in grab_iopub_messages(client, msg_id):
-        content = iopub_msg['content']
-        if 'comm_id' not in content:
+        content = iopub_msg["content"]
+        if "comm_id" not in content:
             continue
-        comm_id = content['comm_id']
-        if iopub_msg['msg_type'] == 'comm_open':
+        comm_id = content["comm_id"]
+        if iopub_msg["msg_type"] == "comm_open":
             iopub_data[comm_id] = []
-        elif iopub_msg['msg_type'] == 'comm_msg' and comm_id in iopub_data:
-            iopub_data[comm_id].append(content['data'])
+        elif iopub_msg["msg_type"] == "comm_msg" and comm_id in iopub_data:
+            iopub_data[comm_id].append(content["data"])
     return iopub_data
 
 
 def grab_execute_result(client, msg_id):
     for iopub_msg in grab_iopub_messages(client, msg_id):
-        content = iopub_msg['content']
-        if iopub_msg['msg_type'] == 'execute_result':
+        content = iopub_msg["content"]
+        if iopub_msg["msg_type"] == "execute_result":
             return content
 
 
@@ -96,16 +98,18 @@ def setup_kernel(cmd=DEFAULT_CMD):
     -------
     kernel_manager: connected KernelManager instance
     """
-    kernel = Popen([sys.executable, '-c', cmd], stdout=PIPE, stderr=PIPE)
+    kernel = Popen([sys.executable, "-c", cmd], stdout=PIPE, stderr=PIPE)
     connection_file = os.path.join(
         paths.jupyter_runtime_dir(),
-        'kernel-%i.json' % kernel.pid,
+        "kernel-%i.json" % kernel.pid,
     )
     # wait for connection file to exist, timeout after 5s
     tic = time.time()
-    while not os.path.exists(connection_file) \
-        and kernel.poll() is None \
-        and time.time() < tic + SETUP_TIMEOUT:
+    while (
+        not os.path.exists(connection_file)
+        and kernel.poll() is None
+        and time.time() < tic + SETUP_TIMEOUT
+    ):
         time.sleep(0.1)
 
     if kernel.poll() is not None:

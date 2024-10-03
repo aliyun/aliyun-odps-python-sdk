@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,9 +16,9 @@
 
 import itertools
 import json
-import time
 import random
 import textwrap
+import time
 from datetime import datetime, timedelta
 
 import mock
@@ -29,14 +29,27 @@ try:
     import pandas as pd
 except ImportError:
     pd = None
+try:
+    import pyarrow as pa
+except ImportError:
+    pa = None
 
-from ... import errors, compat, types as odps_types, utils, options
+from ... import compat, errors, options
+from ... import types as odps_types
+from ... import utils
 from ...compat import six
-from ...models import Instance, SQLTask, TableSchema
 from ...errors import ODPSError
-from ...tests.core import tn, pandas_case, odps2_typed_case, wait_filled, flaky
+from ...tests.core import (
+    flaky,
+    odps2_typed_case,
+    pandas_case,
+    pyarrow_case,
+    tn,
+    wait_filled,
+)
+from .. import Instance, SQLTask, TableSchema
 
-expected_xml_template = '''<?xml version="1.0" encoding="utf-8"?>
+expected_xml_template = """<?xml version="1.0" encoding="utf-8"?>
 <Instance>
   <Job>
     <Priority>%(priority)s</Priority>
@@ -65,7 +78,7 @@ expected_xml_template = '''<?xml version="1.0" encoding="utf-8"?>
     </DAG>
   </Job>
 </Instance>
-'''
+"""
 
 
 class TunnelLimitedInstance(Instance):
@@ -75,7 +88,7 @@ class TunnelLimitedInstance(Instance):
         self.wait_for_success()
         cls = type(self)
         if cls._exc is not None:
-            if not isinstance(cls._exc, errors.NoPermission) or not kw.get('limit'):
+            if not isinstance(cls._exc, errors.NoPermission) or not kw.get("limit"):
                 raise cls._exc
         return super(TunnelLimitedInstance, self)._open_tunnel_reader(**kw)
 
@@ -95,26 +108,33 @@ def test_instances(odps):
     size = len(list(itertools.islice(odps.list_instances(), 0, 5)))
     assert size >= 0
 
-    instances = list(itertools.islice(
-        odps.list_instances(status='running', only_owner=True), 0, 5))
+    instances = list(
+        itertools.islice(odps.list_instances(status="running", only_owner=True), 0, 5)
+    )
     assert len(instances) >= 0
     if len(instances) > 0:
         # fix: use _status instead of status to prevent from fetching the instance which is just terminated
-        assert all(instance._status == Instance.Status.RUNNING for instance in instances) is True
+        assert (
+            all(instance._status == Instance.Status.RUNNING for instance in instances)
+            is True
+        )
         assert len(set(instance.owner for instance in instances)) == 1
 
     start_time = time.time() - 10 * 24 * 3600
     end_time = time.time() - 24 * 3600
     instances = list(
-        itertools.islice(odps.list_instances(start_time=start_time, end_time=end_time), 0, 5)
+        itertools.islice(
+            odps.list_instances(start_time=start_time, end_time=end_time), 0, 5
+        )
     )
     assert len(instances) >= 0
 
 
 def test_list_instances_in_page(odps):
-    test_table = tn('pyodps_t_tmp_list_instances_in_page')
+    test_table = tn("pyodps_t_tmp_list_instances_in_page")
 
-    delay_udf = textwrap.dedent("""
+    delay_udf = textwrap.dedent(
+        """
     from odps.udf import annotate
     import sys
     import time
@@ -128,49 +148,54 @@ def test_list_instances_in_page(odps):
            print('End Logging')
            sys.stdout.flush()
            return arg0
-    """)
-    resource_name = tn('test_delayer_function_resource')
-    function_name = tn('test_delayer_function')
+    """
+    )
+    resource_name = tn("test_delayer_function_resource")
+    function_name = tn("test_delayer_function")
 
-    if odps.exist_resource(resource_name + '.py'):
-        odps.delete_resource(resource_name + '.py')
-    res = odps.create_resource(resource_name + '.py', 'py', file_obj=delay_udf)
+    if odps.exist_resource(resource_name + ".py"):
+        odps.delete_resource(resource_name + ".py")
+    res = odps.create_resource(resource_name + ".py", "py", file_obj=delay_udf)
 
     if odps.exist_function(function_name):
         odps.delete_function(function_name)
     fun = odps.create_function(
-        function_name, class_type=resource_name + '.Delayer', resources=[res]
+        function_name, class_type=resource_name + ".Delayer", resources=[res]
     )
 
     data = [[random.randint(0, 1000)] for _ in compat.irange(100)]
     odps.delete_table(test_table, if_exists=True)
-    t = odps.create_table(test_table, TableSchema.from_lists(['num'], ['bigint']))
+    t = odps.create_table(test_table, TableSchema.from_lists(["num"], ["bigint"]))
     odps.write_table(t, data)
 
     instance = odps.run_sql(
-        "select sum({0}(num)), 1 + '1' as warn_col from {1} group by num"
-        .format(function_name, test_table)
+        "select sum({0}(num)), 1 + '1' as warn_col from {1} group by num".format(
+            function_name, test_table
+        )
     )
 
     try:
         assert instance.status == Instance.Status.RUNNING
         assert instance.id in [
-            it.id for it in odps.get_project().instances.iterate(
+            it.id
+            for it in odps.get_project().instances.iterate(
                 status=Instance.Status.RUNNING,
                 start_time=datetime.now() - timedelta(days=2),
                 end_time=datetime.now() + timedelta(days=1),
-                max_items=20
+                max_items=20,
             )
         ]
 
         wait_filled(lambda: instance.tasks)
         task = instance.tasks[0]
-        task.put_info('testInfo', 'TestInfo')
+        task.put_info("testInfo", "TestInfo")
+        with pytest.raises(errors.EmptyTaskInfoError):
+            task.put_info("testInfo", "TestInfo", raise_empty=True)
         assert task.warnings is not None
 
         wait_filled(lambda: task.workers, 30)
         wait_filled(lambda: [w.log_id for w in task.workers if w.log_id], 30)
-        assert task.workers[0].get_log('stdout') is not None
+        assert task.workers[0].get_log("stdout") is not None
     finally:
         try:
             instance.stop()
@@ -182,7 +207,7 @@ def test_list_instances_in_page(odps):
 
 
 def test_instance_exists(odps):
-    non_exists_instance = 'a_non_exists_instance'
+    non_exists_instance = "a_non_exists_instance"
     assert odps.exist_instance(non_exists_instance) is False
 
 
@@ -192,11 +217,11 @@ def test_instance(odps):
 
     assert instance is odps.get_instance(instance.name)
 
-    assert instance._getattr('name') is not None
-    assert instance._getattr('owner') is not None
-    assert instance._getattr('start_time') is not None
-    assert instance._getattr('end_time') is not None
-    assert instance._getattr('_status') is not None
+    assert instance._getattr("name") is not None
+    assert instance._getattr("owner") is not None
+    assert instance._getattr("start_time") is not None
+    assert instance._getattr("end_time") is not None
+    assert instance._getattr("_status") is not None
     assert instance._status == Instance.Status.TERMINATED
 
     instance.reload()
@@ -211,7 +236,7 @@ def test_instance(odps):
         assert task_status.status in (
             Instance.Task.TaskStatus.CANCELLED,
             Instance.Task.TaskStatus.FAILED,
-            Instance.Task.TaskStatus.SUCCESS
+            Instance.Task.TaskStatus.SUCCESS,
         )
     for task_status in instance._tasks:
         assert task_status.name in task_names
@@ -230,22 +255,21 @@ def test_instance(odps):
 def test_create_instance_xml(odps):
     instances = odps._project.instances
 
-    uuid = '359696d4-ac73-4e6c-86d1-6649b01f1a22'
-    query = 'select * from dual if fake < 1;'
+    uuid = "359696d4-ac73-4e6c-86d1-6649b01f1a22"
+    query = "select * from dual if fake < 1;"
     priority = 5
 
     try:
-        options.biz_id = '012345'
+        options.biz_id = "012345"
 
         task = SQLTask(query=query)
-        job = instances._create_job(
-            task=task, priority=priority, uuid_=uuid)
+        job = instances._create_job(task=task, priority=priority, uuid_=uuid)
         xml = instances._get_submit_instance_content(job)
         expected_xml = expected_xml_template % {
-            'query': query,
-            'uuid': uuid,
-            'priority': priority,
-            'biz_id': options.biz_id,
+            "query": query,
+            "uuid": uuid,
+            "priority": priority,
+            "biz_id": options.biz_id,
         }
         assert utils.to_str(xml) == utils.to_str(expected_xml)
     finally:
@@ -253,26 +277,27 @@ def test_create_instance_xml(odps):
 
 
 def test_create_instance(odps):
-    test_table = tn('pyodps_t_tmp_create_instance')
+    test_table = tn("pyodps_t_tmp_create_instance")
 
-    task = SQLTask(query='drop table if exists %s' % test_table)
+    task = SQLTask(query="drop table if exists %s" % test_table)
     instance = odps._project.instances.create(task=task)
+    assert instance.get_sql_query().rstrip(";") == task.query.rstrip(";")
     instance.wait_for_completion()
     assert instance.is_successful() is True
     assert odps.exist_table(test_table) is False
     assert instance.start_time < datetime.now()
     assert instance.start_time > datetime.now() - timedelta(hours=1)
 
-    task = SQLTask(query='create table %s(id string);' % test_table)
+    task = SQLTask(query="create table %s(id string);" % test_table)
     instance = odps._project.instances.create(task=task)
     instance.wait_for_completion()
     assert instance.is_successful() is True
     assert odps.exist_table(test_table) is True
 
-    instance = odps.execute_sql('select id `中文标题` from %s' % test_table)
+    instance = odps.execute_sql("select id `中文标题` from %s" % test_table)
     assert instance.is_successful() is True
 
-    instance = odps.execute_sql('drop table %s' % test_table)
+    instance = odps.execute_sql("drop table %s" % test_table)
     assert instance.is_successful() is True
     assert odps.exist_table(test_table) is False
 
@@ -288,26 +313,29 @@ def test_create_instance(odps):
 
 
 def test_read_sql_instance(odps):
-    test_table = tn('pyodps_t_tmp_read_sql_instance')
+    test_table = tn("pyodps_t_tmp_read_sql_instance")
     odps.delete_table(test_table, if_exists=True)
     table = odps.create_table(
-        test_table, TableSchema.from_lists(['size'], ['bigint']), if_not_exists=True)
-    odps.write_table(
-        table, 0, [table.new_record([1]), table.new_record([2])])
-    odps.write_table(table, [table.new_record([3]), ])
+        test_table, TableSchema.from_lists(["size"], ["bigint"]), if_not_exists=True
+    )
+    odps.write_table(table, 0, [table.new_record([1]), table.new_record([2])])
+    odps.write_table(table, [table.new_record([3])])
 
-    instance = odps.execute_sql('select * from %s' % test_table)
+    instance = odps.execute_sql("select * from %s" % test_table)
     with instance.open_reader(table.table_schema) as reader:
         assert len(list(reader[::2])) == 2
     with instance.open_reader(table.table_schema) as reader:
         assert len(list(reader[1::2])) == 1
 
-    hints = {'odps.sql.mapper.split.size': '16'}
-    instance = odps.run_sql('select sum(size) as count from %s' % test_table, hints=hints)
+    hints = {"odps.sql.mapper.split.size": "16"}
+    instance = odps.run_sql(
+        "select sum(size) as count from %s" % test_table, hints=hints
+    )
 
     while (
-        len(instance.get_task_names()) == 0 or
-        compat.lvalues(instance.get_task_statuses())[0].status == Instance.Task.TaskStatus.WAITING
+        len(instance.get_task_names()) == 0
+        or compat.lvalues(instance.get_task_statuses())[0].status
+        == Instance.Task.TaskStatus.WAITING
     ):
         continue
 
@@ -325,27 +353,30 @@ def test_read_sql_instance(odps):
             instance.wait_for_completion(timeout=3, max_interval=3)
 
     instance.wait_for_success()
-    assert json.loads(
-        instance.tasks[0].properties['settings']
-    )['odps.sql.mapper.split.size'] == hints['odps.sql.mapper.split.size']
+    assert (
+        json.loads(instance.tasks[0].properties["settings"])[
+            "odps.sql.mapper.split.size"
+        ]
+        == hints["odps.sql.mapper.split.size"]
+    )
     assert instance.tasks[0].summary is not None
 
     with instance.open_reader(
-        TableSchema.from_lists(['count'], ['bigint']), tunnel=False
+        TableSchema.from_lists(["count"], ["bigint"]), tunnel=False
     ) as reader:
         records = list(reader)
         assert len(records) == 1
-        assert records[0]['count'] == 6
+        assert records[0]["count"] == 6
 
     with instance.open_reader(tunnel=True) as reader:
         records = list(reader)
         assert len(records) == 1
-        assert records[0]['count'] == 6
+        assert records[0]["count"] == 6
 
     with instance.open_reader(tunnel=False) as reader:
         records = list(reader)
         assert len(records) == 1
-        assert records[0]['count'] == '6'
+        assert records[0]["count"] == "6"
 
     if pd is not None:
         with instance.open_reader(tunnel=True) as reader:
@@ -360,58 +391,119 @@ def test_read_sql_instance(odps):
             pd_data = reader.to_pandas()
             assert len(pd_data) == 1
 
+    if pa is not None:
+        with instance.open_reader(tunnel=True, arrow=True) as reader:
+            pd_data = reader.to_pandas()
+            assert len(pd_data) == 1
+
     table.drop()
 
 
+@pandas_case
+@pyarrow_case
+def test_instance_to_pandas(odps):
+    test_table = tn("pyodps_t_tmp_inst_to_pandas")
+    odps.delete_table(test_table, if_exists=True)
+    data = pd.DataFrame(
+        [[0, 134, "a", "a"], [1, 24, "a", "b"], [2, 131, "a", "a"], [3, 141, "a", "b"]],
+        columns=["a", "b", "c", "d"],
+    )
+    odps.write_table(test_table, data, create_table=True, lifecycle=1)
+
+    instance = odps.execute_sql("select * from %s" % test_table)
+
+    result = instance.to_pandas(columns=["a", "b"])
+    pd.testing.assert_frame_equal(result, data[["a", "b"]])
+
+    # test fallback when arrow format not supported
+    raised_list = [False]
+
+    def _new_to_pandas(self, *_, **__):
+        raised_list[0] = True
+        raise errors.ChecksumError("Checksum invalid")
+
+    with mock.patch(
+        "odps.models.readers.TunnelArrowReader.to_pandas", new=_new_to_pandas
+    ):
+        result = instance.to_pandas(columns=["a", "b"])
+        assert raised_list[0]
+        pd.testing.assert_frame_equal(result, data[["a", "b"]])
+
+    # test fallback when instance tunnel not supported
+    raised_list = [False]
+
+    def _new_open_tunnel_reader(self, *_, **__):
+        raised_list[0] = True
+        raise errors.InvalidProjectTable("InvalidProjectTable")
+
+    with mock.patch(
+        "odps.models.instance.Instance._open_tunnel_reader", new=_new_open_tunnel_reader
+    ):
+        result = instance.to_pandas(columns=["a", "b"])
+        assert raised_list[0]
+        pd.testing.assert_frame_equal(result, data[["a", "b"]])
+
+    batches = []
+    for batch in instance.iter_pandas(columns=["a", "b"], batch_size=2):
+        assert len(batch) == 2
+        batches.append(batch)
+    assert len(batches) == 2
+
+    odps.delete_table(test_table, if_exists=True)
+
+
 def test_limited_instance_tunnel(odps):
-    test_table = tn('pyodps_t_tmp_limit_instance_tunnel')
+    test_table = tn("pyodps_t_tmp_limit_instance_tunnel")
     odps.delete_table(test_table, if_exists=True)
     table = odps.create_table(
-        test_table, TableSchema.from_lists(['size'], ['bigint']), if_not_exists=True)
-    odps.write_table(
-        table, 0, [table.new_record([1]), table.new_record([2])])
-    odps.write_table(table, [table.new_record([3]), ])
+        test_table, TableSchema.from_lists(["size"], ["bigint"]), if_not_exists=True
+    )
+    odps.write_table(table, 0, [table.new_record([1]), table.new_record([2])])
+    odps.write_table(table, [table.new_record([3])])
 
-    instance = odps.execute_sql('select * from %s' % test_table)
-    instance = TunnelLimitedInstance(client=instance._client, parent=instance.parent,
-                                     name=instance.id)
+    instance = odps.execute_sql("select * from %s" % test_table)
+    instance = TunnelLimitedInstance(
+        client=instance._client, parent=instance.parent, name=instance.id
+    )
 
-    TunnelLimitedInstance._exc = errors.InvalidArgument('Mock fallback error')
+    TunnelLimitedInstance._exc = errors.InvalidArgument("Mock fallback error")
     pytest.raises(errors.InvalidArgument, instance.open_reader, tunnel=True)
     with instance.open_reader() as reader:
-        assert hasattr(reader, 'raw') is True
+        assert hasattr(reader, "raw") is True
 
-    TunnelLimitedInstance._exc = requests.Timeout('Mock timeout')
+    TunnelLimitedInstance._exc = requests.Timeout("Mock timeout")
     pytest.raises(requests.Timeout, instance.open_reader, tunnel=True)
     with instance.open_reader() as reader:
-        assert hasattr(reader, 'raw') is True
+        assert hasattr(reader, "raw") is True
 
-    TunnelLimitedInstance._exc = errors.InstanceTypeNotSupported('Mock instance not supported')
+    TunnelLimitedInstance._exc = errors.InstanceTypeNotSupported(
+        "Mock instance not supported"
+    )
     pytest.raises(errors.InstanceTypeNotSupported, instance.open_reader, tunnel=True)
     with instance.open_reader() as reader:
-        assert hasattr(reader, 'raw') is True
+        assert hasattr(reader, "raw") is True
 
-    TunnelLimitedInstance._exc = errors.NoPermission('Mock permission error')
+    TunnelLimitedInstance._exc = errors.NoPermission("Mock permission error")
     pytest.raises(errors.NoPermission, instance.open_reader, limit=False)
     with instance.open_reader() as reader:
-        assert hasattr(reader, 'raw') is False
+        assert hasattr(reader, "raw") is False
 
 
 def test_read_sql_write(odps):
-    test_table = tn('pyodps_t_tmp_read_sql_instance_write')
+    test_table = tn("pyodps_t_tmp_read_sql_instance_write")
     odps.delete_table(test_table, if_exists=True)
     table = odps.create_table(
-        test_table, TableSchema.from_lists(['size'], ['bigint']), if_not_exists=True)
-    odps.write_table(
-        table, 0, [table.new_record([1]), table.new_record([2])])
-    odps.write_table(table, [table.new_record([3]), ])
+        test_table, TableSchema.from_lists(["size"], ["bigint"]), if_not_exists=True
+    )
+    odps.write_table(table, 0, [table.new_record([1]), table.new_record([2])])
+    odps.write_table(table, [table.new_record([3])])
 
-    test_table2 = tn('pyodps_t_tmp_read_sql_instance_write2')
+    test_table2 = tn("pyodps_t_tmp_read_sql_instance_write2")
     odps.delete_table(test_table2, if_exists=True)
     table2 = odps.create_table(test_table2, table.table_schema)
 
     try:
-        with odps.execute_sql('select * from %s' % test_table).open_reader() as reader:
+        with odps.execute_sql("select * from %s" % test_table).open_reader() as reader:
             with table2.open_writer() as writer:
                 for record in reader:
                     writer.write(table2.new_record(record.values))
@@ -423,18 +515,35 @@ def test_read_sql_write(odps):
 def test_read_binary_sql_instance(odps):
     try:
         options.tunnel.string_as_binary = True
-        test_table = tn('pyodps_t_tmp_read_binary_sql_instance')
+        test_table = tn("pyodps_t_tmp_read_binary_sql_instance")
         odps.delete_table(test_table, if_exists=True)
         table = odps.create_table(
             test_table,
-            TableSchema.from_lists(['size', 'name'], ['bigint', 'string']), if_not_exists=True)
+            TableSchema.from_lists(["size", "name"], ["bigint", "string"]),
+            if_not_exists=True,
+        )
 
-        data = [[1, u'中'.encode('utf-8') + b'\\\\n\\\n' + u'文'.encode('utf-8') + b' ,\r\xe9'],
-                [2, u'测试'.encode('utf-8') + b'\x00\x01\x02' + u'数据'.encode('utf-8') + b'\xe9']]
-        odps.write_table(
-            table, 0, [table.new_record(it) for it in data])
+        data = [
+            [
+                1,
+                u"中".encode("utf-8")
+                + b"\\\\n\\\n"
+                + u"文".encode("utf-8")
+                + b" ,\r\xe9",
+            ],
+            [
+                2,
+                u"测试".encode("utf-8")
+                + b"\x00\x01\x02"
+                + u"数据".encode("utf-8")
+                + b"\xe9",
+            ],
+        ]
+        odps.write_table(table, 0, [table.new_record(it) for it in data])
 
-        with odps.execute_sql('select name from %s' % test_table).open_reader(tunnel=False) as reader:
+        with odps.execute_sql("select name from %s" % test_table).open_reader(
+            tunnel=False
+        ) as reader:
             read_data = sorted([r[0] for r in reader])
             expected_data = sorted([r[1] for r in data])
 
@@ -446,19 +555,20 @@ def test_read_binary_sql_instance(odps):
 
 
 def test_read_non_ascii_sql_instance(odps):
-    test_table = tn('pyodps_t_tmp_read_non_ascii_sql_instance')
+    test_table = tn("pyodps_t_tmp_read_non_ascii_sql_instance")
     odps.delete_table(test_table, if_exists=True)
     table = odps.create_table(
         test_table,
-        TableSchema.from_lists(['size', 'name'], ['bigint', 'string']),
+        TableSchema.from_lists(["size", "name"], ["bigint", "string"]),
         if_not_exists=True,
     )
 
-    data = [[1, '中\\\\n\\\n文 ,\r '], [2, '测试\x00\x01\x02数据']]
-    odps.write_table(
-        table, 0, [table.new_record(it) for it in data])
+    data = [[1, "中\\\\n\\\n文 ,\r "], [2, "测试\x00\x01\x02数据"]]
+    odps.write_table(table, 0, [table.new_record(it) for it in data])
 
-    with odps.execute_sql('select name from %s' % test_table).open_reader(tunnel=False) as reader:
+    with odps.execute_sql("select name from %s" % test_table).open_reader(
+        tunnel=False
+    ) as reader:
         read_data = sorted([utils.to_str(r[0]) for r in reader])
         expected_data = sorted([utils.to_str(r[1]) for r in data])
 
@@ -468,23 +578,27 @@ def test_read_non_ascii_sql_instance(odps):
 
 
 def test_read_map_array_sql_instance(odps):
-    test_table = tn('pyodps_t_tmp_read_map_array_sql_instance')
+    test_table = tn("pyodps_t_tmp_read_map_array_sql_instance")
     odps.delete_table(test_table, if_exists=True)
     table = odps.create_table(
         test_table,
         TableSchema.from_lists(
-            ['idx', 'map_col', 'array_col'],
-            ['bigint', odps_types.Map(odps_types.string, odps_types.string), odps_types.Array(odps_types.string)],
-        )
+            ["idx", "map_col", "array_col"],
+            [
+                "bigint",
+                odps_types.Map(odps_types.string, odps_types.string),
+                odps_types.Array(odps_types.string),
+            ],
+        ),
     )
 
     data = [
-        [0, {'key1': 'value1', 'key2': 'value2'}, ['item1', 'item2', 'item3']],
-        [1, {'key3': 'value3', 'key4': 'value4'}, ['item4', 'item5']],
+        [0, {"key1": "value1", "key2": "value2"}, ["item1", "item2", "item3"]],
+        [1, {"key3": "value3", "key4": "value4"}, ["item4", "item5"]],
     ]
     odps.write_table(test_table, data)
 
-    inst = odps.execute_sql('select * from %s' % test_table)
+    inst = odps.execute_sql("select * from %s" % test_table)
 
     with inst.open_reader(table.table_schema, tunnel=False) as reader:
         read_data = [list(r.values) for r in reader]
@@ -504,19 +618,17 @@ def test_read_map_array_sql_instance(odps):
 
 
 def test_sql_alias_instance(odps):
-    test_table = tn('pyodps_t_tmp_sql_aliases_instance')
+    test_table = tn("pyodps_t_tmp_sql_aliases_instance")
     odps.delete_table(test_table, if_exists=True)
     table = odps.create_table(
-        test_table,
-        TableSchema.from_lists(['size'], ['bigint']),
-        if_not_exists=True
+        test_table, TableSchema.from_lists(["size"], ["bigint"]), if_not_exists=True
     )
 
-    data = [[1, ], ]
+    data = [[1]]
     odps.write_table(table, 0, data)
 
-    res_name1 = tn('pyodps_t_tmp_resource_1')
-    res_name2 = tn('pyodps_t_tmp_resource_2')
+    res_name1 = tn("pyodps_t_tmp_resource_1")
+    res_name2 = tn("pyodps_t_tmp_resource_2")
     try:
         odps.delete_resource(res_name1)
     except ODPSError:
@@ -525,10 +637,11 @@ def test_sql_alias_instance(odps):
         odps.delete_resource(res_name2)
     except ODPSError:
         pass
-    res1 = odps.create_resource(res_name1, 'file', file_obj='1')
-    res2 = odps.create_resource(res_name2, 'file', file_obj='2')
+    res1 = odps.create_resource(res_name1, "file", file_obj="1")
+    res2 = odps.create_resource(res_name2, "file", file_obj="2")
 
-    test_func_content = """
+    test_func_content = (
+        """
     from odps.udf import annotate
     from odps.distcache import get_cache_file
 
@@ -539,35 +652,37 @@ def test_sql_alias_instance(odps):
 
         def evaluate(self, arg):
             return arg + self.n
-    """ % res_name1
+    """
+        % res_name1
+    )
     test_func_content = textwrap.dedent(test_func_content)
 
-    py_res_name = tn('pyodps_t_tmp_func_res')
+    py_res_name = tn("pyodps_t_tmp_func_res")
     try:
-        odps.delete_resource(py_res_name+'.py')
+        odps.delete_resource(py_res_name + ".py")
     except ODPSError:
         pass
 
-    py_res = odps.create_resource(py_res_name+'.py', 'py', file_obj=test_func_content)
+    py_res = odps.create_resource(py_res_name + ".py", "py", file_obj=test_func_content)
 
-    test_func_name = tn('pyodps_t_tmp_func_1')
+    test_func_name = tn("pyodps_t_tmp_func_1")
     try:
         odps.delete_function(test_func_name)
     except ODPSError:
         pass
-    func = odps.create_function(test_func_name,
-                                class_type='{0}.Example'.format(py_res_name),
-                                resources=[py_res_name+'.py', res_name1])
+    func = odps.create_function(
+        test_func_name,
+        class_type="{0}.Example".format(py_res_name),
+        resources=[py_res_name + ".py", res_name1],
+    )
 
     for i in range(1, 3):
         aliases = None
         if i == 2:
-            aliases = {
-                res_name1: res_name2
-            }
+            aliases = {res_name1: res_name2}
         with odps.execute_sql(
-                'select %s(size) from %s' % (test_func_name, test_table),
-                aliases=aliases).open_reader() as reader:
+            "select %s(size) from %s" % (test_func_name, test_table), aliases=aliases
+        ).open_reader() as reader:
             data = reader[0]
             assert int(data[0]) == i + 1
 
@@ -576,52 +691,55 @@ def test_sql_alias_instance(odps):
 
 
 def test_read_non_select_sql_instance(odps):
-    test_table = tn('pyodps_t_tmp_read_non_select_sql_instance')
+    test_table = tn("pyodps_t_tmp_read_non_select_sql_instance")
     odps.delete_table(test_table, if_exists=True)
     table = odps.create_table(
         test_table,
-        TableSchema.from_lists(['size'], ['bigint'], ['pt'], ['string']),
+        TableSchema.from_lists(["size"], ["bigint"], ["pt"], ["string"]),
         if_not_exists=True,
     )
-    pt_spec = 'pt=20170410'
+    pt_spec = "pt=20170410"
     table.create_partition(pt_spec)
 
-    inst = odps.execute_sql('desc %s' % test_table)
+    inst = odps.execute_sql("desc %s" % test_table)
 
-    pytest.raises((Instance.DownloadSessionCreationError, errors.InstanceTypeNotSupported),
-                      lambda: inst.open_reader(tunnel=True))
-    reader = inst.open_reader()
-    assert hasattr(reader, 'raw') is True
+    with pytest.raises(
+        (Instance.DownloadSessionCreationError, errors.InstanceTypeNotSupported)
+    ):
+        inst.open_reader(tunnel=True)
 
-    inst = odps.execute_sql('show partitions %s' % test_table)
     reader = inst.open_reader()
-    assert hasattr(reader, 'raw') is True
+    assert hasattr(reader, "raw") is True
+
+    inst = odps.execute_sql("show partitions %s" % test_table)
+    reader = inst.open_reader()
+    assert hasattr(reader, "raw") is True
     assert utils.to_text(pt_spec) in utils.to_text(reader.raw)
 
 
 @pandas_case
 def test_instance_result_to_result_frame(odps):
-    test_table = tn('pyodps_t_tmp_instance_result_to_pd')
+    test_table = tn("pyodps_t_tmp_instance_result_to_pd")
     odps.delete_table(test_table, if_exists=True)
     table = odps.create_table(
-        test_table, TableSchema.from_lists(['size'], ['bigint']), if_not_exists=True
+        test_table, TableSchema.from_lists(["size"], ["bigint"]), if_not_exists=True
     )
     odps.write_table(table, [[1], [2], [3]])
 
-    inst = odps.execute_sql('select * from %s' % test_table)
+    inst = odps.execute_sql("select * from %s" % test_table)
     tunnel_pd = inst.open_reader(tunnel=True).to_pandas()
     result_pd = inst.open_reader(tunnel=False).to_pandas()
     assert tunnel_pd.values.tolist() == result_pd.values.tolist()
 
 
 def test_instance_logview(odps):
-    instance = odps.run_sql('drop table if exists non_exist_table_name')
+    instance = odps.run_sql("drop table if exists non_exist_table_name")
     assert isinstance(odps.get_logview_address(instance.id, 12), six.string_types)
 
 
 @flaky(max_runs=3)
 def test_instance_queueing_info(odps):
-    instance = odps.run_sql('select * from dual')
+    instance = odps.run_sql("select * from dual")
     queue_info, resp = instance._get_queueing_info()
     if json.loads(resp.content if six.PY2 else resp.text):
         assert queue_info.instance is instance
@@ -641,10 +759,15 @@ def test_instance_queueing_info(odps):
 
 @flaky(max_runs=3)
 def test_instance_queueing_infos(odps):
-    odps.run_sql('select * from dual')
+    odps.run_sql("select * from dual")
 
-    infos = [info for i, info in compat.izip(itertools.count(0), odps.list_instance_queueing_infos())
-             if i < 5]
+    infos = [
+        info
+        for i, info in compat.izip(
+            itertools.count(0), odps.list_instance_queueing_infos()
+        )
+        if i < 5
+    ]
     if len(infos) > 0:
         assert isinstance(infos[0], Instance.InstanceQueueingInfo)
         assert infos[0].instance_id is not None
@@ -654,27 +777,27 @@ def test_instance_queueing_infos(odps):
 
 @odps2_typed_case
 def test_sql_cost_instance(odps):
-    test_table = tn('pyodps_t_tmp_sql_cost_instance')
+    test_table = tn("pyodps_t_tmp_sql_cost_instance")
     odps.delete_table(test_table, if_exists=True)
     table = odps.create_table(
-        test_table, TableSchema.from_lists(['size'], ['bigint']), if_not_exists=True
+        test_table, TableSchema.from_lists(["size"], ["bigint"]), if_not_exists=True
     )
     odps.write_table(table, [[1], [2], [3]])
 
-    sql_cost = odps.execute_sql_cost('select * from %s' % test_table)
+    sql_cost = odps.execute_sql_cost("select * from %s" % test_table)
     assert isinstance(sql_cost, Instance.SQLCost)
     assert sql_cost.udf_num == 0
     assert sql_cost.complexity == 1.0
     assert sql_cost.input_size >= 100
 
-    test_table = tn('pyodps_t_tmp_sql_cost_odps2_instance')
+    test_table = tn("pyodps_t_tmp_sql_cost_odps2_instance")
     odps.delete_table(test_table, if_exists=True)
     table = odps.create_table(
-        test_table, TableSchema.from_lists(['size'], ['tinyint']), if_not_exists=True
+        test_table, TableSchema.from_lists(["size"], ["tinyint"]), if_not_exists=True
     )
     odps.write_table(table, [[1], [2], [3]])
 
-    sql_cost = odps.execute_sql_cost('select * from %s' % test_table)
+    sql_cost = odps.execute_sql_cost("select * from %s" % test_table)
     assert isinstance(sql_cost, Instance.SQLCost)
     assert sql_cost.udf_num == 0
     assert sql_cost.complexity == 1.0
@@ -682,10 +805,10 @@ def test_sql_cost_instance(odps):
 
 
 def test_instance_progress_log(odps):
-    test_table = tn('pyodps_t_tmp_sql_cost_instance')
+    test_table = tn("pyodps_t_tmp_sql_cost_instance")
     odps.delete_table(test_table, if_exists=True)
     table = odps.create_table(
-        test_table, TableSchema.from_lists(['size'], ['bigint']), if_not_exists=True
+        test_table, TableSchema.from_lists(["size"], ["bigint"]), if_not_exists=True
     )
     odps.write_table(table, [[1], [2], [3]])
 
@@ -696,8 +819,8 @@ def test_instance_progress_log(odps):
         options.verbose_log = logs.append
         options.progress_time_interval = 0.1
 
-        inst = odps.run_sql('select * from %s where size > 0' % test_table)
-        inst.wait_for_success(interval=0.1)
+        inst = odps.run_sql("select * from %s where size > 0" % test_table)
+        inst.wait_for_success(interval=0.1, blocking=False)
         assert any("instance" in log.lower() for log in logs)
         assert any("_job_" in log.lower() for log in logs)
     finally:
@@ -707,7 +830,7 @@ def test_instance_progress_log(odps):
 
 
 def test_sql_statement_error(odps):
-    statement = 'WRONG_SQL'
+    statement = "WRONG_SQL"
     try:
         odps.run_sql(statement)
     except errors.ParseError as ex:

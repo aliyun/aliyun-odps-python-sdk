@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,8 +16,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import weakref
 import inspect
+import weakref
 
 from ..compat import six
 
@@ -28,7 +28,7 @@ class ObjectCache(object):
 
     @staticmethod
     def _get_cache_class(cls):
-        if hasattr(cls, '_cache_class'):
+        if hasattr(cls, "_cache_class"):
             cls._cache_class = ObjectCache._get_cache_class(cls._cache_class)
             return cls._cache_class
         return cls
@@ -38,11 +38,11 @@ class ObjectCache(object):
         if parent is None:
             return self._caches.get(cache_key)
 
-        ancestor = getattr(parent, '_parent')
+        ancestor = getattr(parent, "_parent")
         parent_cls = self._get_cache_class(type(parent))
         if parent_cls is None:
             return None
-        name = getattr(parent, 'name', parent_cls.__name__.lower())
+        name = getattr(parent, "name", parent_cls.__name__.lower())
 
         parent_cache_key = client, ancestor, parent_cls, name
 
@@ -51,9 +51,9 @@ class ObjectCache(object):
 
     def _get_cache(self, cls, **kw):
         kwargs = dict(kw)
-        parent = kwargs.pop('parent', None) or kwargs.pop('_parent', None)
-        name = kwargs.pop(getattr(cls, '_cache_name_arg', 'name'), None)
-        client = kwargs.pop('client', None) or kwargs.pop('_client', None)
+        parent = kwargs.pop("parent", None) or kwargs.pop("_parent", None)
+        name = kwargs.pop(getattr(cls, "_cache_name_arg", "name"), None)
+        client = kwargs.pop("client", None) or kwargs.pop("_client", None)
         cache_cls = self._get_cache_class(cls)
 
         cache_key = client, parent, cache_cls, name
@@ -79,15 +79,15 @@ class ObjectCache(object):
 
         obj = func(cls, **kwargs)
 
-        if not hasattr(cls, '_filter_cache'):
+        if not hasattr(cls, "_filter_cache"):
             self._caches[cache_key] = obj
         elif cls._filter_cache(func, **obj.extract(**kwargs)):
             self._caches[cache_key] = obj
         return obj
 
     def cache_container(self, func, cls, **kwargs):
-        parent = kwargs.get('parent') or kwargs.get('_parent')
-        client = kwargs.get('client') or kwargs.get('_client')
+        parent = kwargs.get("parent") or kwargs.get("_parent")
+        client = kwargs.get("client") or kwargs.get("_client")
         name = cls.__name__.lower()
 
         cache_key = client, parent, cls, name
@@ -105,8 +105,8 @@ class ObjectCache(object):
 
         item = obj[item]
 
-        client = getattr(item, '_client')
-        parent = getattr(item, '_parent')
+        client = getattr(item, "_client")
+        parent = getattr(item, "_parent")
         name = item._name()
 
         if name is not None:
@@ -127,9 +127,9 @@ _object_cache = ObjectCache()
 def cache(func):
     def inner(cls, **kwargs):
         bases = [base.__name__ for base in inspect.getmro(cls)]
-        if 'LazyLoad' in bases:
+        if "LazyLoad" in bases:
             return _object_cache.cache_lazyload(func, cls, **kwargs)
-        elif 'Container' in bases:
+        elif "Container" in bases:
             return _object_cache.cache_container(func, cls, **kwargs)
 
         return func(cls, **kwargs)
@@ -141,7 +141,7 @@ def cache(func):
 
 def del_cache(func):
     def inner(obj, item):
-        if func.__name__ == '__delitem__':
+        if func.__name__ == "__delitem__":
             _object_cache.del_item_cache(obj, item)
         return func(obj, item)
 

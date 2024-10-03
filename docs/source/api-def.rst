@@ -5,6 +5,7 @@ Definitions
 
 .. autoclass:: odps.ODPS
     :members:
+    :exclude-members: attach_session, create_session, default_session
 
 .. autoclass:: odps.models.Project
     :members:

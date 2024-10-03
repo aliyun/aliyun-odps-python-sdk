@@ -33,8 +33,8 @@ from ...compat import six
 from ...config import options
 from ...tests.core import tn
 from ...utils import to_text
-from .. import Table, TableSchema, Column, Partition
-from ..cluster_info import ClusterType, ClusterSortOrder
+from .. import Column, Partition, Table, TableSchema
+from ..cluster_info import ClusterSortOrder, ClusterType
 from ..storage_tier import StorageTier
 
 
@@ -58,12 +58,12 @@ def test_tables(odps):
 
 
 def test_schema_pickle():
-    schema = TableSchema.from_lists(['name'], ['string'])
+    schema = TableSchema.from_lists(["name"], ["string"])
     assert schema == pickle.loads(pickle.dumps(schema))
 
 
 def test_table_exists(odps):
-    non_exists_table = 'a_non_exists_table'
+    non_exists_table = "a_non_exists_table"
     assert odps.exist_table(non_exists_table) is False
 
 
@@ -78,48 +78,50 @@ def test_table(odps):
 
     assert table is odps.get_table(table.name)
 
-    assert table._getattr('format') is None
-    assert table._getattr('table_schema') is None
-    assert table._getattr('comment') is None
-    assert table._getattr('owner') is not None
-    assert table._getattr('table_label') is None
-    assert table._getattr('creation_time') is None
-    assert table._getattr('last_data_modified_time') is None
-    assert table._getattr('last_meta_modified_time') is None
-    assert table._getattr('is_virtual_view') is None
-    assert table._getattr('lifecycle') is None
-    assert table._getattr('view_text') is None
-    assert table._getattr('size') is None
-    assert table._getattr('is_archived') is None
-    assert table._getattr('physical_size') is None
-    assert table._getattr('file_num') is None
+    assert table._getattr("format") is None
+    assert table._getattr("table_schema") is None
+    assert table._getattr("comment") is None
+    assert table._getattr("owner") is not None
+    assert table._getattr("table_label") is None
+    assert table._getattr("creation_time") is None
+    assert table._getattr("last_data_modified_time") is None
+    assert table._getattr("last_meta_modified_time") is None
+    assert table._getattr("is_virtual_view") is None
+    assert table._getattr("lifecycle") is None
+    assert table._getattr("view_text") is None
+    assert table._getattr("size") is None
+    assert table._getattr("is_archived") is None
+    assert table._getattr("physical_size") is None
+    assert table._getattr("file_num") is None
 
     assert table.is_loaded is False
     assert table._is_extend_info_loaded is False
 
-    test_table_name = tn('pyodps_t_tmp_test_table_attrs')
-    schema = TableSchema.from_lists(['id', 'name'], ['bigint', 'string'], ['ds', ], ['string',])
+    test_table_name = tn("pyodps_t_tmp_test_table_attrs")
+    schema = TableSchema.from_lists(
+        ["id", "name"], ["bigint", "string"], ["ds"], ["string"]
+    )
     odps.delete_table(test_table_name, if_exists=True)
     table = odps.create_table(test_table_name, schema, lifecycle=1)
 
     try:
         assert table is odps.get_table(table.name)
 
-        assert table._getattr('format') is None
-        assert table._getattr('table_schema') is None
-        assert table._getattr('comment') is None
-        assert table._getattr('owner') is None
-        assert table._getattr('table_label') is None
-        assert table._getattr('creation_time') is None
-        assert table._getattr('last_data_modified_time') is None
-        assert table._getattr('last_meta_modified_time') is None
-        assert table._getattr('is_virtual_view') is None
-        assert table._getattr('lifecycle') is None
-        assert table._getattr('view_text') is None
-        assert table._getattr('size') is None
-        assert table._getattr('is_archived') is None
-        assert table._getattr('physical_size') is None
-        assert table._getattr('file_num') is None
+        assert table._getattr("format") is None
+        assert table._getattr("table_schema") is None
+        assert table._getattr("comment") is None
+        assert table._getattr("owner") is None
+        assert table._getattr("table_label") is None
+        assert table._getattr("creation_time") is None
+        assert table._getattr("last_data_modified_time") is None
+        assert table._getattr("last_meta_modified_time") is None
+        assert table._getattr("is_virtual_view") is None
+        assert table._getattr("lifecycle") is None
+        assert table._getattr("view_text") is None
+        assert table._getattr("size") is None
+        assert table._getattr("is_archived") is None
+        assert table._getattr("physical_size") is None
+        assert table._getattr("file_num") is None
 
         assert table.is_loaded is False
         assert table._is_extend_info_loaded is False
@@ -147,29 +149,34 @@ def test_table(odps):
 
 
 def test_create_table_ddl(odps):
-    test_table_name = tn('pyodps_t_tmp_table_ddl')
+    test_table_name = tn("pyodps_t_tmp_table_ddl")
     schema = TableSchema.from_lists(
-        ['id', 'name'], ['bigint', 'string'], ['ds', ], ['string',]
+        ["id", "name"], ["bigint", "string"], ["ds"], ["string"]
     )
     odps.delete_table(test_table_name, if_exists=True)
     table = odps.create_table(test_table_name, schema, lifecycle=10)
 
     ddl = table.get_ddl()
-    assert 'EXTERNAL' not in ddl
-    assert 'NOT EXISTS' not in ddl
+    assert "EXTERNAL" not in ddl
+    assert "NOT EXISTS" not in ddl
     for col in table.table_schema.names:
         assert col in ddl
 
     ddl = table.get_ddl(if_not_exists=True)
-    assert 'NOT EXISTS' in ddl
+    assert "NOT EXISTS" in ddl
 
     ddl = Table.gen_create_table_sql(
-        'test_external_table', schema, comment='TEST_COMMENT',
-        storage_handler='com.aliyun.odps.CsvStorageHandler',
-        serde_properties=OrderedDict([('name1', 'value1'), ('name2', 'value2')]),
-        location='oss://mock_endpoint/mock_bucket/mock_path/',
+        "test_external_table",
+        schema,
+        comment="TEST_COMMENT",
+        storage_handler="com.aliyun.odps.CsvStorageHandler",
+        serde_properties=OrderedDict([("name1", "value1"), ("name2", "value2")]),
+        location="oss://mock_endpoint/mock_bucket/mock_path/",
     )
-    assert ddl == textwrap.dedent("""
+    assert (
+        ddl
+        == textwrap.dedent(
+            """
     CREATE EXTERNAL TABLE `test_external_table` (
       `id` BIGINT,
       `name` STRING
@@ -184,13 +191,15 @@ def test_create_table_ddl(odps):
       'name2' = 'value2'
     )
     LOCATION 'oss://mock_endpoint/mock_bucket/mock_path/'
-    """).strip()
+    """
+        ).strip()
+    )
 
 
 def test_create_delete_table(odps):
-    test_table_name = tn('pyodps_t_tmp_create_table')
+    test_table_name = tn("pyodps_t_tmp_create_table")
     schema = TableSchema.from_lists(
-        ['id', 'name'], ['bigint', 'string'], ['ds', ], ['string',]
+        ["id", "name"], ["bigint", "string"], ["ds"], ["string"]
     )
 
     tables = odps._project.tables
@@ -200,7 +209,7 @@ def test_create_delete_table(odps):
 
     table = tables.create(test_table_name, schema, lifecycle=10)
 
-    assert table._getattr('owner') is None
+    assert table._getattr("owner") is None
     assert table.owner is not None
 
     assert table.name == test_table_name
@@ -211,7 +220,7 @@ def test_create_delete_table(odps):
     tables.delete(test_table_name, if_exists=True)
     assert odps.exist_table(test_table_name) is False
 
-    str_schema = ('id bigint, name string', 'ds string')
+    str_schema = ("id bigint, name string", "ds string")
     table = tables.create(test_table_name, str_schema, lifecycle=10)
 
     assert table.name == test_table_name
@@ -232,20 +241,21 @@ def test_create_delete_table(odps):
 
 
 def test_create_table_with_chinese_column(odps):
-    test_table_name = tn('pyodps_t_tmp_create_table_with_chinese_columns')
+    test_table_name = tn("pyodps_t_tmp_create_table_with_chinese_columns")
     columns = [
-        Column(name='序列', type='bigint', comment='注释'),
-        Column(name=u'值', type=u'string', comment=u'注释2'),
+        Column(name="序列", type="bigint", comment="注释"),
+        Column(name=u"值", type=u"string", comment=u"注释2"),
     ]
     partitions = [
-        Partition(name='ds', type='string', comment='分区注释'),
-        Partition(name=u'ds2', type=u'string', comment=u'分区注释2'),
+        Partition(name="ds", type="string", comment="分区注释"),
+        Partition(name=u"ds2", type=u"string", comment=u"分区注释2"),
     ]
     schema = TableSchema(columns=columns, partitions=partitions)
 
     columns_repr = "[<column 序列, type bigint>, <column 值, type string>]"
     partitions_repr = "[<partition ds, type string>, <partition ds2, type string>]"
-    schema_repr = textwrap.dedent("""
+    schema_repr = textwrap.dedent(
+        """
     odps.Schema {
       序列    bigint      # 注释
       值      string      # 注释2
@@ -254,9 +264,11 @@ def test_create_table_with_chinese_column(odps):
       ds      string      # 分区注释
       ds2     string      # 分区注释2
     }
-    """).strip()
+    """
+    ).strip()
 
-    ddl_string_comment = textwrap.dedent(u"""
+    ddl_string_comment = textwrap.dedent(
+        u"""
     CREATE TABLE `table_name` (
       `序列` BIGINT COMMENT '注释',
       `值` STRING COMMENT '注释2'
@@ -264,8 +276,10 @@ def test_create_table_with_chinese_column(odps):
     PARTITIONED BY (
       `ds` STRING COMMENT '分区注释',
       `ds2` STRING COMMENT '分区注释2'
-    )""").strip()
-    ddl_string = textwrap.dedent(u"""
+    )"""
+    ).strip()
+    ddl_string = textwrap.dedent(
+        u"""
     CREATE TABLE `table_name` (
       `序列` BIGINT,
       `值` STRING
@@ -273,7 +287,8 @@ def test_create_table_with_chinese_column(odps):
     PARTITIONED BY (
       `ds` STRING,
       `ds2` STRING
-    )""").strip()
+    )"""
+    ).strip()
 
     assert repr(columns) == columns_repr
     assert repr(partitions) == partitions_repr
@@ -294,7 +309,8 @@ def test_create_table_with_chinese_column(odps):
     # test repr with not null columns
     schema[u"序列"].nullable = False
     columns_repr = "[<column 序列, type bigint, not null>, <column 值, type string>]"
-    schema_repr = textwrap.dedent("""
+    schema_repr = textwrap.dedent(
+        """
     odps.Schema {
       序列    bigint      not null    # 注释
       值      string                  # 注释2
@@ -303,24 +319,24 @@ def test_create_table_with_chinese_column(odps):
       ds      string      # 分区注释
       ds2     string      # 分区注释2
     }
-    """).strip()
+    """
+    ).strip()
     assert repr(columns) == columns_repr
     assert repr(schema).strip() == schema_repr
 
 
-def test_create_transactional_table(odps_daily):
-    test_table_name = tn('pyodps_t_tmp_transactional')
-    schema = TableSchema.from_lists(['key', 'value'], ['string', 'string'])
+def test_create_transactional_table(odps):
+    test_table_name = tn("pyodps_t_tmp_transactional")
+    schema = TableSchema.from_lists(["key", "value"], ["string", "string"])
     schema["key"].nullable = False
     schema["key"].comment = "comment_text"
     schema["value"].comment = "comment_text2"
 
-    odps = odps_daily
     odps.delete_table(test_table_name, if_exists=True)
     assert odps.exist_table(test_table_name) is False
 
     table = odps.create_table(
-        test_table_name, schema, transactional=True, primary_key="key"
+        test_table_name, schema, transactional=True, primary_key="key", lifecycle=1
     )
     table.reload()
     assert not table.table_schema["key"].nullable
@@ -343,7 +359,7 @@ def test_create_transactional_table(odps_daily):
 def test_create_tier_table(odps_with_storage_tier):
     odps = odps_with_storage_tier
 
-    test_table_name = tn('pyodps_t_tmp_tiered')
+    test_table_name = tn("pyodps_t_tmp_tiered")
     odps.delete_table(test_table_name, if_exists=True)
     assert odps.exist_table(test_table_name) is False
 
@@ -358,7 +374,7 @@ def test_create_tier_table(odps_with_storage_tier):
 
 
 def test_create_clustered_table(odps):
-    test_table_name = tn('pyodps_t_tmp_clustered')
+    test_table_name = tn("pyodps_t_tmp_clustered")
     odps.delete_table(test_table_name, if_exists=True)
     assert odps.exist_table(test_table_name) is False
 
@@ -376,7 +392,7 @@ def test_create_clustered_table(odps):
     assert "CLUSTERED BY" in table.get_ddl()
     table.drop()
 
-    test_table_name = tn('pyodps_t_tmp_range_clustered')
+    test_table_name = tn("pyodps_t_tmp_range_clustered")
     odps.delete_table(test_table_name, if_exists=True)
     assert odps.exist_table(test_table_name) is False
 
@@ -394,14 +410,13 @@ def test_create_clustered_table(odps):
 
 
 def test_create_view(odps):
-    test_table_name = tn('pyodps_t_tmp_view_source')
+    test_table_name = tn("pyodps_t_tmp_view_source")
     odps.delete_table(test_table_name, if_exists=True)
     assert odps.exist_table(test_table_name) is False
-    table = odps.create_table(
-        test_table_name, ("col string, col2 string", "pt string")
-    )
+    table = odps.create_table(test_table_name, ("col string, col2 string", "pt string"))
 
-    test_view_name = tn('pyodps_v_tmp_view')
+    test_view_name = tn("pyodps_v_tmp_view")
+    odps.delete_view(test_view_name, if_exists=True)
     odps.execute_sql(
         "create view %s comment 'comment_text' "
         "as select * from %s" % (test_view_name, test_table_name)
@@ -412,7 +427,8 @@ def test_create_view(odps):
     assert "CREATE VIEW" in view.get_ddl()
     view.drop()
 
-    test_view_name = tn('pyodps_v_tmp_mt_view')
+    test_view_name = tn("pyodps_v_tmp_mt_view")
+    odps.delete_materialized_view(test_view_name, if_exists=True)
     odps.execute_sql(
         "create materialized view %s "
         "disable rewrite "
@@ -428,7 +444,7 @@ def test_create_view(odps):
 
 
 def test_run_sql_clear_cache(odps):
-    test_table_name = tn('pyodps_t_tmp_statement_cache_clear')
+    test_table_name = tn("pyodps_t_tmp_statement_cache_clear")
     odps.delete_table(test_table_name, if_exists=True)
 
     odps.create_table(test_table_name, "col string")
@@ -446,7 +462,7 @@ def test_run_sql_clear_cache(odps):
 
 
 def test_max_partition(odps):
-    test_table_name = tn('pyodps_t_tmp_max_partition')
+    test_table_name = tn("pyodps_t_tmp_max_partition")
     odps.delete_table(test_table_name, if_exists=True)
 
     table = odps.create_table(test_table_name, ("col string", "pt1 string, pt2 string"))
@@ -459,12 +475,11 @@ def test_max_partition(odps):
     table.create_partition("pt1=c,pt2=e")
 
     assert tuple(table.get_max_partition().partition_spec.values()) == ("b", "c")
-    assert tuple(
-        table.get_max_partition(skip_empty=False).partition_spec.values()
-    ) == ("c", "e")
-    assert tuple(
-        table.get_max_partition("pt1=a").partition_spec.values()
-    ) == ("a", "b")
+    assert tuple(table.get_max_partition(skip_empty=False).partition_spec.values()) == (
+        "c",
+        "e",
+    )
+    assert tuple(table.get_max_partition("pt1=a").partition_spec.values()) == ("a", "b")
     assert table.get_max_partition("pt1=c") is None
     assert table.get_max_partition("pt1=d") is None
 
@@ -483,11 +498,13 @@ def test_schema_arg_backward_compat(odps):
         with pytest.deprecated_call():
             from .. import Schema
 
-    columns = [Column(name='num', type='bigint', comment='the column'),
-               Column(name='num2', type='double', comment='the column2')]
+    columns = [
+        Column(name="num", type="bigint", comment="the column"),
+        Column(name="num2", type="double", comment="the column2"),
+    ]
     schema = Schema(columns=columns)
 
-    table_name = tn('test_backward_compat')
+    table_name = tn("test_backward_compat")
 
     with pytest.deprecated_call():
         table = odps.create_table(table_name, schema=schema, lifecycle=1)

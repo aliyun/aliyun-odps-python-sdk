@@ -10,8 +10,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import ctypes
 import calendar
+import ctypes
 import struct
 
 from .. import types
@@ -46,11 +46,11 @@ class AbstractHasher(object):
 class DefaultHasher(AbstractHasher):
     def hash_bigint(self, val):
         val = (~val) + ctypes.c_int64(val << 18).value
-        val ^= (val >> 31)
+        val ^= val >> 31
         val = ctypes.c_int64(val * 21).value
-        val ^= (val >> 11)
+        val ^= val >> 11
         val += ctypes.c_int64(val << 6).value
-        val ^= (val >> 22)
+        val ^= val >> 22
         return ctypes.c_int32(val).value
 
     def hash_float(self, val):
@@ -62,9 +62,9 @@ class DefaultHasher(AbstractHasher):
     def hash_bool(self, val):
         # it is a magic number
         if val:
-            return 0x172ba9c7
+            return 0x172BA9C7
         else:
-            return -0x3a59cb12
+            return -0x3A59CB12
 
     def hash_string(self, val):
         val = to_binary(val)
@@ -92,9 +92,9 @@ class LegacyHasher(AbstractHasher):
     def hash_bool(self, val):
         # it is a magic number
         if val:
-            return 0x172ba9c7
+            return 0x172BA9C7
         else:
-            return -0x3a59cb12
+            return -0x3A59CB12
 
     def hash_string(self, val):
         val = to_binary(val)
@@ -160,13 +160,9 @@ class RecordHasher(object):
         for col_name in hash_keys:
             col = self._schema.get_column(col_name)
             if col.type in _type_to_hash_fun:
-                self._column_hash_appenders.append(
-                    _type_to_hash_fun[col.type]
-                )
+                self._column_hash_appenders.append(_type_to_hash_fun[col.type])
             elif isinstance(col.type, (types.Char, types.Varchar)):
-                self._column_hash_appenders.append(
-                    _type_to_hash_fun[types.string]
-                )
+                self._column_hash_appenders.append(_type_to_hash_fun[types.string])
             else:
                 raise TypeError("Hash for type %s not supported" % col.type)
 

@@ -1,4 +1,4 @@
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -32,7 +32,7 @@ _test_table_id = 0
 def storage_api_client(odps):
     global _test_table_id
 
-    options.always_enable_schema = True
+    options.enable_schema = True
 
     test_table_name = tn("test_halo_common_table_" + str(_test_table_id))
     _test_table_id += 1
@@ -46,4 +46,4 @@ def storage_api_client(odps):
         yield StorageApiArrowClient(odps, table)
     finally:
         table.drop(async_=True)
-        options.always_enable_schema = False
+        options.enable_schema = False

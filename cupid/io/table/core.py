@@ -146,14 +146,6 @@ class TableSplit(object):
         logger.debug('Obtained schema: %s', schema)
         return context.channel_client.create_record_reader(read_iter, schema)
 
-    def open_pandas_reader(self):
-        from ...runtime import context
-        context = context()
-
-        read_iter, schema = self._register_reader()
-        logger.debug('Obtained schema: %s', schema)
-        return context.channel_client.create_pandas_reader(read_iter, schema)
-
     def open_arrow_file_reader(self):
         from ...runtime import context
         import pyarrow as pa
@@ -196,9 +188,6 @@ class CupidTableDownloadSession(object):
 
     def open_record_reader(self, split_id=0):
         return self._splits[split_id].open_record_reader()
-
-    def open_pandas_reader(self, split_id=0):
-        return self._splits[split_id].open_pandas_reader()
 
 
 class BlockWriter(object):
@@ -274,9 +263,6 @@ class BlockWriter(object):
 
     def open_record_writer(self, partition=None):
         return self._open_writer(partition=partition or self._partition_spec, create_method='create_record_writer')
-
-    def open_pandas_writer(self, partition=None):
-        return self._open_writer(partition=partition or self._partition_spec, create_method='create_pandas_writer')
 
     def commit(self):
         channel = SandboxRpcChannel()

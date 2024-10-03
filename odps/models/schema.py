@@ -1,4 +1,4 @@
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -39,32 +39,36 @@ class SchemaType(Enum):
 
 
 class SchemaDescription(JSONRemoteModel):
-    name = serializers.JSONNodeField('name', set_to_parent=True)
-    owner = serializers.JSONNodeField('owner', set_to_parent=True)
-    description = serializers.JSONNodeField('description', set_to_parent=True)
+    name = serializers.JSONNodeField("name", set_to_parent=True)
+    owner = serializers.JSONNodeField("owner", set_to_parent=True)
+    description = serializers.JSONNodeField("description", set_to_parent=True)
     creation_time = serializers.JSONNodeField(
-        'createTime', parse_callback=_parse_schema_time, set_to_parent=True
+        "createTime", parse_callback=_parse_schema_time, set_to_parent=True
     )
     last_modified_time = serializers.JSONNodeField(
-        'modifyTime', parse_callback=_parse_schema_time, set_to_parent=True
+        "modifyTime", parse_callback=_parse_schema_time, set_to_parent=True
     )
     type = serializers.JSONNodeField(
-        'type', parse_callback=lambda x: getattr(SchemaType, x.upper())
+        "type", parse_callback=lambda x: getattr(SchemaType, x.upper())
     )
 
 
 class Schema(LazyLoad):
     default_schema_name = "DEFAULT"
 
-    _root = 'Schema'
+    _root = "Schema"
 
-    name = serializers.XMLNodeField('Name')
-    owner = serializers.XMLNodeField('Owner')
-    description = serializers.XMLNodeField('Description')
-    creation_time = serializers.XMLNodeField('CreateTime', parse_callback=_parse_schema_time)
-    last_modified_time = serializers.XMLNodeField('ModifyTime', parse_callback=_parse_schema_time)
+    name = serializers.XMLNodeField("Name")
+    owner = serializers.XMLNodeField("Owner")
+    description = serializers.XMLNodeField("Description")
+    creation_time = serializers.XMLNodeField(
+        "CreateTime", parse_callback=_parse_schema_time
+    )
+    last_modified_time = serializers.XMLNodeField(
+        "ModifyTime", parse_callback=_parse_schema_time
+    )
     type = serializers.XMLNodeField(
-        'Type', parse_callback=lambda x: getattr(SchemaType, x.upper())
+        "Type", parse_callback=lambda x: getattr(SchemaType, x.upper())
     )
 
     def reload(self):
@@ -73,9 +77,9 @@ class Schema(LazyLoad):
             resp = self._client.get(self.resource() + "/schemas/" + self.name)
             self.parse(self._client, resp, obj=self)
 
-            self.owner = resp.headers.get('x-odps-owner')
+            self.owner = resp.headers.get("x-odps-owner")
             self.creation_time = parse_rfc822(
-                resp.headers.get('x-odps-creation-time'), use_legacy_parsedate=False
+                resp.headers.get("x-odps-creation-time"), use_legacy_parsedate=False
             )
             self.last_modified_time = parse_rfc822(
                 resp.headers.get("Last-Modified"), use_legacy_parsedate=False
@@ -91,8 +95,8 @@ class Schema(LazyLoad):
     @property
     def create_time(self):
         warnings.warn(
-            'Schema.create_time is deprecated and will be replaced '
-            'by Schema.creation_time.',
+            "Schema.create_time is deprecated and will be replaced "
+            "by Schema.creation_time.",
             DeprecationWarning,
             stacklevel=3,
         )
@@ -101,8 +105,8 @@ class Schema(LazyLoad):
     @property
     def modify_time(self):
         warnings.warn(
-            'Schema.modify_time is deprecated and will be replaced '
-            'by Schema.last_modified_time.',
+            "Schema.modify_time is deprecated and will be replaced "
+            "by Schema.last_modified_time.",
             DeprecationWarning,
             stacklevel=3,
         )

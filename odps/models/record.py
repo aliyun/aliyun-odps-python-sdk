@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,12 +16,16 @@
 
 from .. import types as _types
 from ..config import options
+
 try:
     if not options.force_py:
         from ..src.types_c import BaseRecord
 
-        Record = _types.RecordMeta('Record', (_types.RecordReprMixin, BaseRecord),
-                                   {'__doc__': _types.Record.__doc__})
+        Record = _types.RecordMeta(
+            "Record",
+            (_types.RecordReprMixin, BaseRecord),
+            {"__doc__": _types.Record.__doc__},
+        )
     else:
         Record = _types.Record
 except (ImportError, AttributeError):

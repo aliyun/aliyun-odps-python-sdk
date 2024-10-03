@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,54 +17,58 @@
 import warnings
 
 from .. import options, serializers, utils
-from ..compat import six, quote_plus
+from ..compat import quote_plus, six
 from .cache import cache, del_cache
 
 
 class XMLRemoteModel(serializers.XMLSerializableModel):
-    __slots__ = '_parent', '_client', '_schema_name'
+    __slots__ = "_parent", "_client", "_schema_name"
 
     def __init__(self, **kwargs):
-        if 'parent' in kwargs:
-            kwargs['_parent'] = kwargs.pop('parent')
-        if 'client' in kwargs:
-            kwargs['_client'] = kwargs.pop('client')
+        if "parent" in kwargs:
+            kwargs["_parent"] = kwargs.pop("parent")
+        if "client" in kwargs:
+            kwargs["_client"] = kwargs.pop("client")
 
         self._schema_name = utils.notset
 
         if not frozenset(kwargs).issubset(self.__slots__):
             unexpected = sorted(set(kwargs) - set(self.__slots__))
-            raise TypeError("%s() meet illegal arguments (%s)" % (
-                type(self).__name__, ', '.join(unexpected)))
+            raise TypeError(
+                "%s() meet illegal arguments (%s)"
+                % (type(self).__name__, ", ".join(unexpected))
+            )
         super(XMLRemoteModel, self).__init__(**kwargs)
 
     @classmethod
     def parse(cls, client, response, obj=None, **kw):
-        kw['_client'] = client
+        kw["_client"] = client
         return super(XMLRemoteModel, cls).parse(response, obj=obj, **kw)
 
 
 class AbstractXMLRemoteModel(XMLRemoteModel):
-    __slots__ = '_type_indicator',
+    __slots__ = ("_type_indicator",)
 
 
 class JSONRemoteModel(serializers.JSONSerializableModel):
-    __slots__ = '_parent', '_client'
+    __slots__ = "_parent", "_client"
 
     def __init__(self, **kwargs):
-        if 'parent' in kwargs:
-            kwargs['_parent'] = kwargs.pop('parent')
-        if 'client' in kwargs:
-            kwargs['_client'] = kwargs.pop('client')
+        if "parent" in kwargs:
+            kwargs["_parent"] = kwargs.pop("parent")
+        if "client" in kwargs:
+            kwargs["_client"] = kwargs.pop("client")
         if not frozenset(kwargs).issubset(self.__slots__):
             unexpected = sorted(set(kwargs) - set(self.__slots__))
-            raise TypeError("%s() meet illegal arguments (%s)" % (
-                type(self).__name__, ', '.join(unexpected)))
+            raise TypeError(
+                "%s() meet illegal arguments (%s)"
+                % (type(self).__name__, ", ".join(unexpected))
+            )
         super(JSONRemoteModel, self).__init__(**kwargs)
 
     @classmethod
     def parse(cls, client, response, obj=None, **kw):
-        kw['_client'] = client
+        kw["_client"] = client
         return super(JSONRemoteModel, cls).parse(response, obj=obj, **kw)
 
 
@@ -77,7 +81,7 @@ class RestModel(XMLRemoteModel):
 
     @classmethod
     def _encode(cls, name):
-        name = quote_plus(name).replace('+', '%20')
+        name = quote_plus(name).replace("+", "%20")
         return name
 
     def resource(self, client=None, endpoint=None):
@@ -91,7 +95,7 @@ class RestModel(XMLRemoteModel):
         name = self._name()
         if name is None:
             return parent_res
-        return '/'.join([parent_res, self._encode(name)])
+        return "/".join([parent_res, self._encode(name)])
 
     def __eq__(self, other):
         if other is None:
@@ -100,8 +104,7 @@ class RestModel(XMLRemoteModel):
         if not isinstance(other, type(self)):
             return False
 
-        return self._name() == other._name() and \
-            self.parent == other.parent
+        return self._name() == other._name() and self.parent == other.parent
 
     def __hash__(self):
         return hash(type(self)) * hash(self._parent) * hash(self._name())
@@ -112,7 +115,7 @@ class RestModel(XMLRemoteModel):
 
         if isinstance(self._parent, LazyLoad):
             schema = self._parent.get_schema()
-        elif isinstance(self._parent, Container):
+        elif isinstance(self._parent, Container) and self._parent._parent is not None:
             schema = self._parent._parent.get_schema()
         else:
             schema = None
@@ -121,7 +124,7 @@ class RestModel(XMLRemoteModel):
 
 
 class LazyLoad(RestModel):
-    __slots__ = '_loaded',
+    __slots__ = ("_loaded",)
 
     @cache
     def __new__(cls, *args, **kwargs):
@@ -129,11 +132,11 @@ class LazyLoad(RestModel):
 
     def __init__(self, **kwargs):
         self._loaded = False
-        kwargs.pop('no_cache', None)
+        kwargs.pop("no_cache", None)
         super(LazyLoad, self).__init__(**kwargs)
 
     def _name(self):
-        return self._getattr('name')
+        return self._getattr("name")
 
     def __getattribute__(self, attr):
         if (
@@ -149,11 +152,13 @@ class LazyLoad(RestModel):
                 category=DeprecationWarning,
             )
             typ = type(self)
-            utils.add_survey_call(".".join([typ.__module__, typ.__name__, attr]) + ":legacy_parsedate")
+            utils.add_survey_call(
+                ".".join([typ.__module__, typ.__name__, attr]) + ":legacy_parsedate"
+            )
 
         val = object.__getattribute__(self, attr)
         if val is None and not self._loaded:
-            fields = getattr(type(self), '__fields')
+            fields = getattr(type(self), "__fields")
             if attr in fields:
                 self.reload()
         return object.__getattribute__(self, attr)
@@ -181,7 +186,7 @@ class LazyLoad(RestModel):
     def _repr(self):
         name = self._name()
         if name:
-            return '<%s %s>' % (type(self).__name__, name)
+            return "<%s %s>" % (type(self).__name__, name)
         else:
             raise ValueError
 
@@ -246,7 +251,7 @@ class Container(RestModel):
             if not item:
                 raise ValueError("Empty string not supported")
             return self._get(item)
-        raise ValueError('Unsupported getitem value: %s' % item)
+        raise ValueError("Unsupported getitem value: %s" % item)
 
     @del_cache
     def __delitem__(self, key):
@@ -264,7 +269,7 @@ class Container(RestModel):
 
 
 class Iterable(Container):
-    __slots__ = '_iter',
+    __slots__ = ("_iter",)
 
     def __init__(self, **kwargs):
         super(Iterable, self).__init__(**kwargs)

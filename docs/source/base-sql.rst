@@ -120,19 +120,23 @@ MCQA Instance，你需要自行等待 Instance 完成。需要注意的是，该
 
 .. code-block:: python
 
-   >>> o.execute_sql('select * from pyodps_iris', hints={'odps.sql.mapper.split.size': 16})
+   >>> hints = {'odps.stage.mapper.split.size': 16, 'odps.sql.reducer.instances': 1024}
+   >>> o.execute_sql('select * from pyodps_iris', hints=hints)
 
 我们可以对于全局配置设置sql.settings后，每次运行时则都会添加相关的运行时参数。
 
 .. code-block:: python
 
    >>> from odps import options
-   >>> options.sql.settings = {'odps.sql.mapper.split.size': 16}
+   >>> options.sql.settings = {
+   >>>     'odps.stage.mapper.split.size': 16,
+   >>>     'odps.sql.reducer.instances': 1024,
+   >>> }
    >>> o.execute_sql('select * from pyodps_iris')  # 会根据全局配置添加hints
 
 .. _read_sql_exec_result:
 
-读取SQL执行结果
+读取 SQL 执行结果
 ---------------
 
 运行 SQL 的 instance 能够直接执行 ``open_reader`` 的操作，一种情况是SQL返回了结构化的数据。
@@ -168,13 +172,13 @@ MCQA Instance，你需要自行等待 Instance 完成。需要注意的是，该
 
 PyODPS 默认不限制能够从 Instance 读取的数据规模，但 Project Owner 可能在 MaxCompute Project 上增加保护设置以限制对
 Instance 结果的读取，此时只能使用受限读取模式读取数据，在此模式下可读取的行数受到 Project 配置限制，通常为 10000 行。如果
-PyODPS 检测到读取 Instance 数据被限制，且 `options.tunnel.limit_instance_tunnel` 未设置，会自动启用受限读取模式。
-如果你的 Project 被保护，想要手动启用受限读取模式，可以为 `open_reader` 方法增加 `limit=True` 选项，或者设置
-`options.tunnel.limit_instance_tunnel = True` 。
+PyODPS 检测到读取 Instance 数据被限制，且 ``options.tunnel.limit_instance_tunnel`` 未设置，会自动启用受限读取模式。
+如果你的 Project 被保护，想要手动启用受限读取模式，可以为 ``open_reader`` 方法增加 ``limit=True`` 选项，或者设置
+``options.tunnel.limit_instance_tunnel = True`` 。
 
-在部分环境中，例如 DataWorks，`options.tunnel.limit_instance_tunnel` 可能默认被置为 True。此时，如果需要读取所有数据，需要为
-`open_reader` 增加参数 `tunnel=True, limit=False` 。需要注意的是，如果 Project 本身被保护，这两个参数 **不能**
-解除保护，此时应联系 Project Owner 开放相应的读权限。
+在部分环境中，例如 DataWorks，``options.tunnel.limit_instance_tunnel`` 可能默认被置为 True。此时，如果需要读取\
+所有数据，需要为 ``open_reader`` 增加参数 `tunnel=True, limit=False` 。需要注意的是，如果 Project 本身被保护，\
+这两个参数\ **不能**\ 解除保护，此时应联系 Project Owner 开放相应的读权限。
 
 如果你所使用的 MaxCompute 只能支持旧 Result 接口，同时你需要读取所有数据，可将 SQL 结果写入另一张表后用读表接口读取
 （可能受到 Project 安全设置的限制）。
@@ -190,7 +194,7 @@ PyODPS 检测到读取 Instance 数据被限制，且 `options.tunnel.limit_inst
 
 .. _sql_to_pandas_mp:
 
-如果需要使用多核加速读取速度，可以通过 `n_process` 指定使用进程数:
+如果需要使用多核加速读取速度，可以通过 ``n_process`` 指定使用进程数:
 
 .. code-block:: python
 
@@ -202,9 +206,29 @@ PyODPS 检测到读取 Instance 数据被限制，且 `options.tunnel.limit_inst
 
 .. note::
 
-    目前 Instance 结果暂不支持使用 Arrow 格式读取。
+    从 2024 年年末开始，MaxCompute 服务将支持离线 SQL 任务 ``open_reader`` 使用与表类似的 Arrow
+    接口，MCQA 作业暂不支持。在此之前，使用 ``Instance.open_reader(arrow=True)`` 读取数据将报错。
 
-设置alias
+从 PyODPS 0.12.0 开始，你也可以直接调用 Instance 上的 ``to_pandas`` 方法直接将数据转换为 pandas。\
+你可以指定转换为 pandas 的起始行号和行数，若不指定则读取所有数据。该方法也支持 ``limit`` 参数，具体定义\
+与 ``open_reader`` 方法相同。该方法默认会使用 Arrow 格式读取，并转换为 pandas。如果 Arrow 格式不被\
+支持，将会回退到 Record 接口。
+
+.. code-block:: python
+
+  >>> inst = o.execute_sql('select * from dual')
+  >>> pd_df = inst.to_pandas(start=10, count=20)
+
+与表类似，从 PyODPS 0.12.0 开始，你也可以使用 Instance 上的 ``iter_pandas`` 方法按多个批次读取
+pandas DataFrame，参数与 ``Table.iter_pandas`` 类似。
+
+.. code-block:: python
+
+  >>> inst = o.execute_sql('select * from dual')
+  >>> for batch in inst.iter_pandas(start=0, count=1000, batch_size=100):
+  >>>     print(batch)
+
+设置 alias
 ------------
 
 有时在运行时，比如某个UDF引用的资源是动态变化的，我们可以alias旧的资源名到新的资源，这样免去了重新删除并重新创建UDF的麻烦。

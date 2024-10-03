@@ -167,7 +167,6 @@ def df_schema_to_odps_schema(df_schema, ignorecase=False, project=None):
     )
 
 
-
 _use_odps2_types_local = threading.local()
 
 

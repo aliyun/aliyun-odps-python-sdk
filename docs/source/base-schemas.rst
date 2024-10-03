@@ -74,6 +74,13 @@ Schema 基本操作
     for table in o.list_tables(schema='test_schema'):
         print(table)
 
+下列方法给出了如何从 ``test_schema`` 获取表 ``dual`` 并输出表结构：
+
+.. code-block:: python
+
+    table = o.get_table('dual', schema='test_schema')
+    print(table.table_schema)
+
 在执行 SQL 时，可以指定默认 Schema：
 
 .. code-block:: python
@@ -81,13 +88,18 @@ Schema 基本操作
     o.execute_sql("SELECT * FROM dual", default_schema="test_schema")
 
 对于表而言，如果项目空间没有启用 Schema，``get_table`` 方法对于 ``x.y`` 形式的表名，默认按照
-``project.table`` 处理。如果当前租户开启了 ``odps.namespace.schema`` 配置，``get_table``
-会将 ``x.y`` 作为 ``schema.table`` 处理，否则依然按照 ``project.table`` 处理。如果租户上
-没有配置该选项，可以配置 ``options.always_enable_schema = True``，此后所有 ``x.y``
+``project.table`` 处理。如果当前租户开启了\ `租户级语法开关 <https://help.aliyun.com/zh/maxcompute/user-guide/tenant-information>`_\ ，\
+``get_table`` 会将 ``x.y`` 作为 ``schema.table`` 处理，否则依然按照 ``project.table``
+处理。如果租户上没有配置该选项，可以配置 ``options.enable_schema = True``，此后所有 ``x.y``
 都将被作为 ``schema.table`` 处理：
 
 .. code-block:: python
 
     from odps import options
-    options.always_enable_schema = True
+    options.enable_schema = True
     print(o.get_table("myschema.mytable"))
+
+.. note::
+
+   ``options.enable_schema`` 自 PyODPS 0.12.0 开始支持，低版本 PyODPS 需要使用
+   ``options.always_enable_schema``。

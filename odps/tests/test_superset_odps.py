@@ -16,14 +16,14 @@ def ss_db_inspector(odps, request):
 
     import sqlalchemy as sa
 
-    engine_url = 'odps://{}:{}@{}/?endpoint={}&SKYNET_PYODPS_HINT=hint'.format(
+    engine_url = "odps://{}:{}@{}/?endpoint={}&SKYNET_PYODPS_HINT=hint".format(
         odps.account.access_id,
         odps.account.secret_access_key,
         odps.project,
         odps.endpoint,
     )
-    if getattr(request, "param", False):
-        engine_url += "&reuse_odps=true"
+    if getattr(request, "param", None):
+        engine_url += "&" + request.param
         # create an engine to enable cache
         sa.create_engine(engine_url)
     sa_engine = sa.create_engine(engine_url)
@@ -38,6 +38,7 @@ def ss_db_inspector(odps, request):
         from .. import sqlalchemy_odps
 
         sqlalchemy_odps._sqlalchemy_global_reusable_odps.clear()
+        sqlalchemy_odps._sqlalchemy_obj_list_cache.clear()
 
 
 def test_get_table_names(ss_db_inspector):
@@ -56,11 +57,16 @@ def test_get_table_names(ss_db_inspector):
     assert tables[0] is not None
 
 
-@pytest.mark.parametrize("ss_db_inspector", [False, True], indirect=True)
+@pytest.mark.parametrize(
+    "ss_db_inspector", [None, "reuse_odps=true&cache_names=true"], indirect=True
+)
 def test_get_function_names(ss_db_inspector):
     db, inspector = ss_db_inspector
 
     spec = ODPSEngineSpec()
+    functions = list(spec.get_function_names(db))
+    assert len(functions) > 0
+    # make sure cache works
     functions = list(spec.get_function_names(db))
     assert len(functions) > 0
 
@@ -82,8 +88,10 @@ def test_execute_sql(odps):
     odps.delete_table(table_name, if_exists=True)
 
     conn = dbapi.connect(
-        odps.account.access_id, odps.account.secret_access_key,
-        odps.project, odps.endpoint
+        odps.account.access_id,
+        odps.account.secret_access_key,
+        odps.project,
+        odps.endpoint,
     )
     cursor = conn.cursor()
 
@@ -129,7 +137,7 @@ def test_latest_partition(odps, ss_db_inspector):
 
 
 def test_df_to_sql(odps, ss_db_inspector):
-    db, inspector = ss_db_inspector
+    db, _inspector = ss_db_inspector
     SSTable = namedtuple("SSTable", "table schema")
     spec = ODPSEngineSpec()
 

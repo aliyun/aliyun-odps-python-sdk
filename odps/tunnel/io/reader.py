@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,8 +21,9 @@ import struct
 import warnings
 from collections import OrderedDict
 from decimal import Decimal
-from io import IOBase, BytesIO, StringIO
+from io import BytesIO, IOBase, StringIO
 
+from ...errors import ChecksumError
 from ...types import PartitionSpec
 
 try:
@@ -37,16 +38,19 @@ try:
     import pyarrow as pa
 except (AttributeError, ImportError):
     pa = None
+try:
+    import pyarrow.compute as pac
+except (AttributeError, ImportError):
+    pac = None
 
-
-from ... import utils, types, compat
+from ... import compat, types, utils
+from ...config import options
 from ...errors import DatetimeOverflowError
 from ...models import Record
 from ...readers import AbstractRecordReader
-from ...config import options
+from ..checksum import Checksum
 from ..pb.decoder import Decoder
 from ..pb.errors import DecodeError
-from ..checksum import Checksum
 from ..wireconstants import ProtoWireConstants
 from .types import odps_schema_to_arrow_schema
 
@@ -61,28 +65,45 @@ except ImportError as e:
     TunnelRecordReader = convert_legacy_decimal_bytes = None
 
 if TunnelRecordReader is None:
-    class TunnelRecordReader(AbstractRecordReader):
 
-        def __init__(self, schema, input_stream, columns=None, partition_spec=None):
+    class TunnelRecordReader(AbstractRecordReader):
+        def __init__(
+            self,
+            schema,
+            stream_creator,
+            columns=None,
+            partition_spec=None,
+            append_partitions=False,
+        ):
             self._schema = schema
             if columns is None:
-                self._columns = self._schema.columns
+                self._columns = (
+                    self._schema.columns
+                    if append_partitions
+                    else self._schema.simple_columns
+                )
             else:
                 self._columns = [self._schema[c] for c in columns]
-            self._reader = Decoder(input_stream)
-            self._crc = Checksum()
-            self._crccrc = Checksum()
+
             self._curr_cursor = 0
+            self._stream_creator = stream_creator
+            self._reopen_reader()
+
             self._read_limit = options.table_read_limit
             self._to_datetime = utils.MillisecondsConverter().from_milliseconds
             self._to_datetime_utc = utils.MillisecondsConverter(
                 local_tz=False
             ).from_milliseconds
             self._to_date = utils.to_date
-            self._partition_spec = PartitionSpec(partition_spec) if partition_spec else None
+            self._partition_spec = (
+                PartitionSpec(partition_spec) if partition_spec else None
+            )
+            self._append_partitions = append_partitions
+
+            self._injected_error = None
 
         def _mode(self):
-            return 'py'
+            return "py"
 
         @property
         def count(self):
@@ -91,6 +112,16 @@ if TunnelRecordReader is None:
         @property
         def schema(self):
             return self._schema
+
+        def _inject_error(self, cursor, exc):
+            self._injected_error = (cursor, exc)
+
+        def _reopen_reader(self):
+            self._last_n_bytes = len(self._reader) if self._curr_cursor != 0 else 0
+            self._reader = Decoder(self._stream_creator(self._curr_cursor))
+            self._crc = Checksum()
+            self._crccrc = Checksum()
+            self._attempt_row_count = 0
 
         def _read_field(self, data_type):
             if data_type == types.float_:
@@ -125,15 +156,23 @@ if TunnelRecordReader is None:
                 self._crc.update_long(val)
                 val = self._to_date(val)
             elif data_type == types.timestamp or data_type == types.timestamp_ntz:
-                to_datetime = self._to_datetime_utc if data_type == types.timestamp_ntz else self._to_datetime
+                to_datetime = (
+                    self._to_datetime_utc
+                    if data_type == types.timestamp_ntz
+                    else self._to_datetime
+                )
                 l_val = self._reader.read_sint64()
                 self._crc.update_long(l_val)
                 nano_secs = self._reader.read_sint32()
                 self._crc.update_int(nano_secs)
                 if pd is None:
-                    raise ImportError('To use TIMESTAMP in pyodps, you need to install pandas.')
+                    raise ImportError(
+                        "To use TIMESTAMP in pyodps, you need to install pandas."
+                    )
                 try:
-                    val = pd.Timestamp(to_datetime(l_val * 1000)) + pd.Timedelta(nanoseconds=nano_secs)
+                    val = pd.Timestamp(to_datetime(l_val * 1000)) + pd.Timedelta(
+                        nanoseconds=nano_secs
+                    )
                 except DatetimeOverflowError:
                     if not options.tunnel.overflow_date_as_none:
                         raise
@@ -144,7 +183,9 @@ if TunnelRecordReader is None:
                 nano_secs = self._reader.read_sint32()
                 self._crc.update_int(nano_secs)
                 if pd is None:
-                    raise ImportError('To use INTERVAL_DAY_TIME in pyodps, you need to install pandas.')
+                    raise ImportError(
+                        "To use INTERVAL_DAY_TIME in pyodps, you need to install pandas."
+                    )
                 val = pd.Timedelta(seconds=l_val, nanoseconds=nano_secs)
             elif data_type == types.interval_year_month:
                 l_val = self._reader.read_sint64()
@@ -169,7 +210,7 @@ if TunnelRecordReader is None:
             elif isinstance(data_type, types.Struct):
                 val = self._read_struct(data_type)
             else:
-                raise IOError('Unsupported type %s' % data_type)
+                raise IOError("Unsupported type %s" % data_type)
             return val
 
         def _read_array(self, value_type):
@@ -194,10 +235,17 @@ if TunnelRecordReader is None:
             else:
                 return value_type.namedtuple_type(*res_list)
 
-        def read(self):
+        def _read_single_record(self):
+            if (
+                self._injected_error is not None
+                and self._injected_error[0] == self._curr_cursor
+            ):
+                self._injected_error = None
+                raise self._injected_error[1]
+
             if self._read_limit is not None and self.count >= self._read_limit:
                 warnings.warn(
-                    'Number of lines read via tunnel already reaches the limitation.',
+                    "Number of lines read via tunnel already reaches the limitation.",
                     RuntimeWarning,
                 )
                 return None
@@ -212,32 +260,34 @@ if TunnelRecordReader is None:
                 if index == ProtoWireConstants.TUNNEL_END_RECORD:
                     checksum = utils.long_to_int(self._crc.getvalue())
                     if int(self._reader.read_uint32()) != utils.int_to_uint(checksum):
-                        raise IOError('Checksum invalid')
+                        raise ChecksumError("Checksum invalid")
                     self._crc.reset()
                     self._crccrc.update_int(checksum)
                     break
 
                 if index == ProtoWireConstants.TUNNEL_META_COUNT:
-                    if self.count != self._reader.read_sint64():
-                        raise IOError('count does not match')
+                    if self._attempt_row_count != self._reader.read_sint64():
+                        raise IOError("count does not match")
                     idx_of_checksum, _ = self._reader.read_field_number_and_wire_type()
                     if ProtoWireConstants.TUNNEL_META_CHECKSUM != idx_of_checksum:
-                        raise IOError('Invalid stream data.')
+                        raise IOError("Invalid stream data.")
                     if int(self._crccrc.getvalue()) != self._reader.read_uint32():
-                        raise IOError('Checksum invalid.')
+                        raise ChecksumError("Checksum invalid.")
 
                     return
 
                 if index > len(self._columns):
-                    raise IOError('Invalid protobuf tag. Perhaps the datastream '
-                                  'from server is crushed.')
+                    raise IOError(
+                        "Invalid protobuf tag. Perhaps the datastream "
+                        "from server is crushed."
+                    )
 
                 self._crc.update_int(index)
 
                 i = index - 1
                 record[i] = self._read_field(self._columns[i].type)
 
-            if self._partition_spec is not None:
+            if self._append_partitions and self._partition_spec is not None:
                 for k, v in self._partition_spec.items():
                     try:
                         record[k] = v
@@ -246,7 +296,13 @@ if TunnelRecordReader is None:
                         pass
 
             self._curr_cursor += 1
+            self._attempt_row_count += 1
             return record
+
+        def read(self):
+            return utils.call_with_retry(
+                self._read_single_record, reset_func=self._reopen_reader
+            )
 
         def __next__(self):
             record = self.read()
@@ -261,13 +317,13 @@ if TunnelRecordReader is None:
 
         @property
         def n_bytes(self):
-            return len(self._reader)
+            return self._last_n_bytes + len(self._reader)
 
         def get_total_bytes(self):
             return self.n_bytes
 
         def close(self):
-            if hasattr(self._schema, 'close'):
+            if hasattr(self._schema, "close"):
                 self._schema.close()
 
         def __enter__(self):
@@ -287,16 +343,17 @@ class ArrowStreamReader(IOBase):
         self._chunk_size = None
 
         self._buffers = collections.deque()
-        self._buffers.append(
-            BytesIO(arrow_schema.serialize().to_pybytes())
-        )
+        self._buffers.append(BytesIO(arrow_schema.serialize().to_pybytes()))
+
+    def __len__(self):
+        return len(self._reader)
 
     def readable(self):
         return True
 
     @staticmethod
     def _read_unint32(b):
-        return struct.unpack('!I', b)
+        return struct.unpack("!I", b)
 
     def _read_chunk_size(self):
         try:
@@ -310,7 +367,7 @@ class ArrowStreamReader(IOBase):
         read_size = self._chunk_size + 4
         b = self._reader.read(read_size)
         if 0 < len(b) < 4:
-            raise IOError('Checksum invalid')
+            raise ChecksumError("Checksum invalid")
         self._pos += len(b)
         self._crc.update(b[:-4])
         self._crccrc.update(b[:-4])
@@ -331,7 +388,7 @@ class ArrowStreamReader(IOBase):
             read_checksum = self._read_unint32(crc_data)[0]
             checksum = int(self._crccrc.getvalue())
             if checksum != read_checksum:
-                raise IOError('Checksum invalid')
+                raise ChecksumError("Checksum invalid")
             self._pos += len(data) + 4
             self._buffers.append(BytesIO(data))
             self._crccrc.reset()
@@ -339,7 +396,7 @@ class ArrowStreamReader(IOBase):
             checksum = int(self._crc.getvalue())
             read_checksum = self._read_unint32(crc_data)[0]
             if checksum != read_checksum:
-                raise IOError('Checksum invalid')
+                raise ChecksumError("Checksum invalid")
             self._crc.reset()
             self._buffers.append(BytesIO(data))
 
@@ -361,36 +418,48 @@ class ArrowStreamReader(IOBase):
                 tot_size += len(buf)
         if len(bufs) == 1:
             return bufs[0]
-        return b''.join(bufs)
+        return b"".join(bufs)
 
     def close(self):
-        if hasattr(self._reader, 'close'):
+        if hasattr(self._reader, "close"):
             self._reader.close()
 
 
 class TunnelArrowReader(object):
     def __init__(
-        self, schema, input_stream, columns=None, use_ipc_stream=False
+        self,
+        schema,
+        stream_creator,
+        columns=None,
+        partition_spec=None,
+        append_partitions=False,
+        use_ipc_stream=False,
     ):
         if pa is None:
             raise ValueError("To use arrow reader you need to install pyarrow")
 
-        self._schema = schema
+        self._raw_schema = schema
+
+        raw_arrow_schema = odps_schema_to_arrow_schema(schema)
+        if columns is None:
+            self._schema = schema
+            self._arrow_schema = self._raw_arrow_schema = raw_arrow_schema
+        else:
+            self._schema = types.OdpsSchema([schema[c] for c in columns])
+            self._raw_arrow_schema = pa.schema(
+                [s for s in raw_arrow_schema if s.name in columns]
+            )
+            self._arrow_schema = odps_schema_to_arrow_schema(self._schema)
         self._columns = columns
 
-        arrow_schema = odps_schema_to_arrow_schema(schema)
-        if columns is None:
-            self._arrow_schema = arrow_schema
-        else:
-            self._arrow_schema = pa.schema([s for s in arrow_schema if s.name in columns])
-
-        if use_ipc_stream:
-            self._reader = input_stream
-        else:
-            self._reader = ArrowStreamReader(input_stream, self._arrow_schema)
+        self._append_partitions = append_partitions
+        self._partition_spec = partition_spec
 
         self._pos = 0
-        self._arrow_stream = None
+        self._stream_creator = stream_creator
+        self._use_ipc_stream = use_ipc_stream
+        self._reopen_reader()
+
         self._to_datetime = utils.MillisecondsConverter().from_milliseconds
         self._read_limit = options.table_read_limit
 
@@ -403,20 +472,35 @@ class TunnelArrowReader(object):
                     col.type, convert_ts=False
                 )
 
+        self._injected_error = None
+
+    def _reopen_reader(self):
+        self._last_n_bytes = len(self._reader) if self._pos != 0 else 0
+        input_stream = self._stream_creator(self._pos)
+        self._arrow_stream = None
+        if self._use_ipc_stream:
+            self._reader = input_stream
+        else:
+            self._reader = ArrowStreamReader(input_stream, self._raw_arrow_schema)
+
+    def _inject_error(self, cursor, exc):
+        self._injected_error = (cursor, exc)
+
     @property
     def schema(self):
         return self._schema
 
-    def read_next_batch(self):
-        if self._reader is None:
-            return None
+    def _read_next_raw_batch(self):
+        if self._injected_error is not None and self._injected_error[0] <= self._pos:
+            self._injected_error = None
+            raise self._injected_error[1]
 
         if self._arrow_stream is None:
             self._arrow_stream = pa.ipc.open_stream(self._reader)
 
         if self._read_limit is not None and self._pos >= self._read_limit:
             warnings.warn(
-                'Number of lines read via tunnel already reaches the limitation.',
+                "Number of lines read via tunnel already reaches the limitation.",
                 RuntimeWarning,
             )
             return None
@@ -424,30 +508,96 @@ class TunnelArrowReader(object):
         try:
             batch = self._arrow_stream.read_next_batch()
             self._pos += batch.num_rows
+        except pa.ArrowTypeError as ex:
+            if str(ex) != "Did not pass numpy.dtype object":
+                raise
+            else:
+                raise pa.ArrowTypeError(
+                    "Error caused by version mismatch. Try install numpy<1.20 or "
+                    "upgrade your pyarrow version. Original message: " + str(ex)
+                )
         except StopIteration:
             return None
+        return batch
 
-        col_names = self._columns or batch.schema.names
-        col_to_array = dict()
-        col_name_set = set(col_names)
+    def _convert_timezone(self, batch):
+        from ...lib import tzlocal
 
-        for name, arr in zip(batch.schema.names, batch.columns):
-            if name not in col_name_set:
+        if not any(isinstance(tp, pa.TimestampType) for tp in batch.schema.types):
+            return batch
+
+        timezone = raw_timezone = options.local_timezone
+        if timezone is True or timezone is None:
+            timezone = str(tzlocal.get_localzone())
+
+        cols = []
+        for idx in range(batch.num_columns):
+            col = batch.column(idx)
+            name = batch.schema.names[idx]
+            if not isinstance(col.type, pa.TimestampType):
+                cols.append(col)
                 continue
-            if arr.type == pa.timestamp('ms'):
-                col_to_array[name] = np.vectorize(self._to_datetime)(
-                    arr.cast('int64').to_numpy()
-                )
-            elif arr.type == pa.timestamp('ns'):
-                col_to_array[name] = arr.to_pandas().map(
-                    lambda x: pd.Timestamp(
-                        self._to_datetime(x.timestamp() * 1000)
-                    ).replace(microsecond=x.microsecond, nanosecond=x.nanosecond)
-                )
+
+            if timezone is False or self._schema[name].type == types.timestamp_ntz:
+                col = col.cast(pa.timestamp(col.type.unit))
             else:
+                col = col.cast(pa.timestamp(col.type.unit, timezone))
+                if raw_timezone is None or raw_timezone is True:
+                    if hasattr(pac, "local_timestamp"):
+                        col = pac.local_timestamp(col)
+                    else:
+                        col = pa.Array.from_pandas(
+                            col.to_pandas().dt.tz_localize(None)
+                        ).cast(pa.timestamp(col.type.unit))
+            cols.append(col)
+
+        return pa.RecordBatch.from_arrays(cols, names=batch.schema.names)
+
+    def _append_partition_cols(self, batch):
+        col_set = set(self._columns or [c.name for c in self._schema.columns])
+        pt_obj = (
+            types.PartitionSpec(self._partition_spec) if self._partition_spec else None
+        )
+
+        sel_col_set = set(self._columns or [])
+        if pt_obj and any(c in sel_col_set for c in pt_obj.keys()):
+            # append partitions selected in columns argument
+            self._append_partitions = True
+        if not pt_obj or not self._append_partitions:
+            return batch
+
+        batch_cols = list(batch.columns)
+        batch_col_names = list(batch.schema.names)
+        for key, val in pt_obj.items():
+            if key not in col_set:
+                continue
+            val = types.validate_value(val, self._schema[key].type)
+            batch_cols.append(pa.array(np.repeat([val], batch.num_rows)))
+            batch_col_names.append(key)
+        return pa.RecordBatch.from_arrays(batch_cols, names=batch_col_names)
+
+    def read_next_batch(self):
+        if self._reader is None:
+            return None
+
+        batch = utils.call_with_retry(
+            self._read_next_raw_batch, reset_func=self._reopen_reader
+        )
+        if batch is None:
+            return None
+
+        batch = self._append_partition_cols(batch)
+        if self._columns and self._columns != batch.schema.names:
+            col_to_array = dict()
+            col_name_set = set(self._columns)
+            for name, arr in zip(batch.schema.names, batch.columns):
+                if name not in col_name_set:
+                    continue
                 col_to_array[name] = arr
-        arrays = [col_to_array[name] for name in col_names]
-        return pa.RecordBatch.from_arrays(arrays, names=col_names)
+            arrays = [col_to_array[name] for name in self._columns]
+            batch = pa.RecordBatch.from_arrays(arrays, names=self._columns)
+        batch = self._convert_timezone(batch)
+        return batch
 
     def read(self):
         batches = []
@@ -471,14 +621,18 @@ class TunnelArrowReader(object):
         return batch
 
     @property
-    def n_bytes(self):
+    def count(self):
         return self._pos
+
+    @property
+    def n_bytes(self):
+        return self._last_n_bytes + len(self._reader)
 
     def get_total_bytes(self):
         return self.n_bytes
 
     def close(self):
-        if hasattr(self._reader, 'close'):
+        if hasattr(self._reader, "close"):
             self._reader.close()
 
     def _convert_batch_to_pandas(self, batch):
@@ -521,6 +675,7 @@ _reflective = lambda x: x
 
 
 if convert_legacy_decimal_bytes is None:
+
     def convert_legacy_decimal_bytes(value):
         """
         Legacy decimal memory layout:
@@ -543,12 +698,12 @@ if convert_legacy_decimal_bytes is None:
         sio = BytesIO() if compat.PY27 else StringIO()
         if sign > 0:
             sio.write("-")
-        intg_nums = struct.unpack("<%dI" % intg, value[12: 12 + intg * 4])
+        intg_nums = struct.unpack("<%dI" % intg, value[12 : 12 + intg * 4])
         intg_val = "".join("%09d" % d for d in reversed(intg_nums)).lstrip("0")
         sio.write(intg_val or "0")
         if frac > 0:
             sio.write(".")
-            frac_nums = struct.unpack("<%dI" % frac, value[12 - frac * 4: 12])
+            frac_nums = struct.unpack("<%dI" % frac, value[12 - frac * 4 : 12])
             sio.write("".join("%09d" % d for d in reversed(frac_nums)))
         return Decimal(sio.getvalue())
 
@@ -619,9 +774,7 @@ class ArrowRecordFieldConverter(object):
         if value is None:
             return None
 
-        results = {
-            k: field_converters[k](v) for k, v in value.items()
-        }
+        results = {k: field_converters[k](v) for k, v in value.items()}
         if tuple_type is not None:
             return tuple_type(**results)
         else:
@@ -656,14 +809,15 @@ class ArrowRecordFieldConverter(object):
             and not isinstance(arrow_type, arrow_decimal_types)
         ):
             return convert_legacy_decimal_bytes
-        elif (
-            isinstance(odps_type, types.IntervalDayTime)
-            and isinstance(arrow_type, pa.StructType)
+        elif isinstance(odps_type, types.IntervalDayTime) and isinstance(
+            arrow_type, pa.StructType
         ):
             return self._convert_struct_timedelta
         elif isinstance(odps_type, types.Array):
             arrow_value_type = getattr(arrow_type, "value_type", None)
-            sub_converter = self._build_converter(odps_type.value_type, arrow_value_type)
+            sub_converter = self._build_converter(
+                odps_type.value_type, arrow_value_type
+            )
             if sub_converter is _reflective:
                 return _reflective
             return lambda value: [sub_converter(x) for x in value]
@@ -672,7 +826,9 @@ class ArrowRecordFieldConverter(object):
             arrow_value_type = getattr(arrow_type, "item_type", None)
 
             key_converter = self._build_converter(odps_type.key_type, arrow_key_type)
-            value_converter = self._build_converter(odps_type.value_type, arrow_value_type)
+            value_converter = self._build_converter(
+                odps_type.value_type, arrow_value_type
+            )
             if key_converter is _reflective and value_converter is _reflective:
                 return OrderedDict
 
@@ -694,7 +850,9 @@ class ArrowRecordFieldConverter(object):
             else:
                 tuple_type = odps_type.namedtuple_type
             return functools.partial(
-                self._convert_struct, field_converters=field_converters, tuple_type=tuple_type
+                self._convert_struct,
+                field_converters=field_converters,
+                tuple_type=tuple_type,
             )
         else:
             return _reflective
@@ -752,7 +910,7 @@ class ArrowRecordReader(AbstractRecordReader):
 
     def to_pandas(self, start=None, count=None, **kw):
         step = kw.get("step") or 1
-        return self._arrow_reader.to_pandas().iloc[start: start + count: step]
+        return self._arrow_reader.to_pandas().iloc[start : start + count : step]
 
     def close(self):
         self._arrow_reader.close()

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -110,7 +110,7 @@ cdef int64_t get_signed_varint64(char** input, char* end, size_t* pos) nogil:
             return <int64_t>((value >> 1) ^ (-(value & 1))) # zigzag decoding
 
 
-cdef int set_varint32(int32_t varint, stringstream &buf) except + nogil:
+cdef int set_varint32(int32_t varint, stringstream &buf) except -1 nogil:
     """
     Serialize an integer into a protobuf varint; return the number of bytes
     serialized.
@@ -131,7 +131,7 @@ cdef int set_varint32(int32_t varint, stringstream &buf) except + nogil:
     return idx + 1
 
 
-cdef int set_varint64(int64_t varint, stringstream &buf) except + nogil:
+cdef int set_varint64(int64_t varint, stringstream &buf) except -1 nogil:
     """
     Serialize an integer into a protobuf varint; return the number of bytes
     serialized.
@@ -152,7 +152,7 @@ cdef int set_varint64(int64_t varint, stringstream &buf) except + nogil:
     return idx + 1
 
 
-cdef int set_signed_varint32(int32_t varint, stringstream &buf) except + nogil:
+cdef int set_signed_varint32(int32_t varint, stringstream &buf) except -1 nogil:
     """
     Serialize an integer into a signed protobuf varint; return the number of
     bytes serialized.
@@ -173,7 +173,7 @@ cdef int set_signed_varint32(int32_t varint, stringstream &buf) except + nogil:
     return idx + 1
 
 
-cdef int set_signed_varint64(int64_t varint, stringstream &buf) except + nogil:
+cdef int set_signed_varint64(int64_t varint, stringstream &buf) except -1 nogil:
     """
     Serialize an integer into a signed protobuf varint; return the number of
     bytes serialized.

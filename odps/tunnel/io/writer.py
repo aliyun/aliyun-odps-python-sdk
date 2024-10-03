@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,7 +16,6 @@
 
 import json
 import struct
-import time
 
 try:
     import pyarrow as pa
@@ -35,31 +34,36 @@ try:
 except (ImportError, ValueError):
     pd = None
 
-from ..pb.encoder import Encoder
-from ..pb.wire_format import (
-    WIRETYPE_VARINT,
-    WIRETYPE_FIXED32,
-    WIRETYPE_FIXED64,
-    WIRETYPE_LENGTH_DELIMITED,
-)
 from ... import compat, options, types, utils
 from ...compat import Enum, futures, six
 from ..checksum import Checksum
 from ..errors import TunnelError
+from ..pb.encoder import Encoder
+from ..pb.wire_format import (
+    WIRETYPE_FIXED32,
+    WIRETYPE_FIXED64,
+    WIRETYPE_LENGTH_DELIMITED,
+    WIRETYPE_VARINT,
+)
 from ..wireconstants import ProtoWireConstants
 from .stream import RequestsIO, get_compress_stream
 from .types import odps_schema_to_arrow_schema
+
 try:
     if not options.force_py:
         from ..hasher_c import RecordHasher
         from .writer_c import BaseRecordWriter
     else:
         from ..hasher import RecordHasher
+
         BaseRecordWriter = None
 except ImportError as e:
     if options.force_c:
         raise e
-    BaseRecordWriter = RecordHasher = None
+
+    from ..hasher import RecordHasher
+
+    BaseRecordWriter = None
 
 
 varint_tag_types = types.integer_types + (
@@ -100,7 +104,7 @@ if BaseRecordWriter is None:
             self._n_total = 0
 
         def _mode(self):
-            return 'py'
+            return "py"
 
         def flush(self):
             if len(self._encoder) > 0:
@@ -360,7 +364,9 @@ class RecordWriter(BaseRecordWriter):
     This writer uploads the output of serializer asynchronously within a long-lived http connection.
     """
 
-    def __init__(self, schema, request_callback, compress_option=None, encoding="utf-8"):
+    def __init__(
+        self, schema, request_callback, compress_option=None, encoding="utf-8"
+    ):
         self._req_io = RequestsIO(request_callback, chunk_size=options.chunk_size)
 
         out = get_compress_stream(self._req_io, compress_option)
@@ -386,6 +392,7 @@ class BufferedRecordWriter(BaseRecordWriter):
     This writer buffers the output of serializer. When the buffer exceeds a fixed-size of limit
      (default 20 MiB), it uploads the buffered output within one http connection.
     """
+
     def __init__(
         self,
         schema,
@@ -501,8 +508,8 @@ class StreamRecordWriter(BufferedRecordWriter):
 
     def _reset_writer(self, write_response):
         self._record_count = 0
-        slot_server = write_response.headers['odps-tunnel-routed-server']
-        slot_num = int(write_response.headers['odps-tunnel-slot-num'])
+        slot_server = write_response.headers["odps-tunnel-routed-server"]
+        slot_num = int(write_response.headers["odps-tunnel-slot-num"])
         self.session.reload_slots(self.slot, slot_server, slot_num)
         super(StreamRecordWriter, self)._reset_writer(write_response)
 
@@ -571,15 +578,16 @@ class BaseArrowWriter(object):
             else:
                 tz = str(options.local_timezone)
 
-        try:
-            if col.type.tz is not None:
-                return col
-            col = pac.assume_timezone(col, tz)
+        if col.type.tz is not None:
             return col
-        except:
-            col = col.to_pandas()
-        col = pa.Array.from_pandas(col.dt.tz_localize(tz))
-        return col
+        if hasattr(pac, "assume_timezone") and isinstance(tz, str):
+            # pyarrow.compute.assume_timezone only accepts
+            # string-represented zones
+            col = pac.assume_timezone(col, timezone=tz)
+            return col
+        else:
+            pd_col = col.to_pandas().dt.tz_localize(tz)
+            return pa.Array.from_pandas(pd_col)
 
     def write(self, data):
         if isinstance(data, pd.DataFrame):
@@ -591,19 +599,24 @@ class BaseArrowWriter(object):
 
         assert isinstance(arrow_data, (pa.RecordBatch, pa.Table))
 
-        if not arrow_data.schema.equals(self._arrow_schema):
+        if arrow_data.schema != self._arrow_schema or any(
+            isinstance(tp, pa.TimestampType) for tp in arrow_data.schema.types
+        ):
             type_dict = dict(zip(arrow_data.schema.names, arrow_data.schema.types))
             column_dict = dict(zip(arrow_data.schema.names, arrow_data.columns))
             arrays = []
             for name, tp in zip(self._arrow_schema.names, self._arrow_schema.types):
                 if name not in column_dict:
-                    raise ValueError("Input record batch does not contain column %s" % name)
+                    raise ValueError(
+                        "Input record batch does not contain column %s" % name
+                    )
 
-                if tp == pa.timestamp("ms") or tp == pa.timestamp("ns"):
+                if isinstance(tp, pa.TimestampType):
                     if self._schema[name].type == types.timestamp_ntz:
-                        column_dict[name] = self._localize_timezone(column_dict[name], "UTC")
+                        col = self._localize_timezone(column_dict[name], "UTC")
                     else:
-                        column_dict[name] = self._localize_timezone(column_dict[name])
+                        col = self._localize_timezone(column_dict[name])
+                    column_dict[name] = col.cast(pa.timestamp(tp.unit, col.type.tz))
 
                 if tp == type_dict[name]:
                     arrays.append(column_dict[name])
@@ -611,7 +624,9 @@ class BaseArrowWriter(object):
                     try:
                         arrays.append(column_dict[name].cast(tp, safe=False))
                     except (pa.ArrowInvalid, pa.ArrowNotImplementedError):
-                        raise ValueError("Failed to cast column %s to type %s" % (name, tp))
+                        raise ValueError(
+                            "Failed to cast column %s to type %s" % (name, tp)
+                        )
             pa_type = type(arrow_data)
             arrow_data = pa_type.from_arrays(arrays, names=self._arrow_schema.names)
 
@@ -624,9 +639,10 @@ class BaseArrowWriter(object):
             data = batch.serialize().to_pybytes()
             written_bytes = 0
             while written_bytes < len(data):
-                length = min(self._chunk_size - self._cur_chunk_size,
-                             len(data) - written_bytes)
-                chunk_data = data[written_bytes: written_bytes + length]
+                length = min(
+                    self._chunk_size - self._cur_chunk_size, len(data) - written_bytes
+                )
+                chunk_data = data[written_bytes : written_bytes + length]
                 self._write_chunk(chunk_data)
                 written_bytes += length
 
@@ -656,9 +672,7 @@ class BaseArrowWriter(object):
 
 
 class ArrowWriter(BaseArrowWriter):
-    def __init__(
-        self, schema, request_callback, compress_option=None, chunk_size=None
-    ):
+    def __init__(self, schema, request_callback, compress_option=None, chunk_size=None):
         self._req_io = RequestsIO(request_callback, chunk_size=chunk_size)
 
         out = get_compress_stream(self._req_io, compress_option)
@@ -750,8 +764,8 @@ class BufferedArrowWriter(BaseArrowWriter):
 
 
 class Upsert(object):
-    DEFAULT_MAX_BUFFER_SIZE = 64 * 1024 ** 2
-    DEFAULT_SLOT_BUFFER_SIZE = 1024 ** 2
+    DEFAULT_MAX_BUFFER_SIZE = 64 * 1024**2
+    DEFAULT_SLOT_BUFFER_SIZE = 1024**2
 
     class Operation(Enum):
         UPSERT = "UPSERT"
@@ -887,7 +901,9 @@ class Upsert(object):
             record[self._session.UPSERT_VALUE_COLS_KEY] = []
         else:
             valid_cols_set = set(valid_columns)
-            col_idxes = [idx for idx, col in self._schema.columns if col in valid_cols_set]
+            col_idxes = [
+                idx for idx, col in self._schema.columns if col in valid_cols_set
+            ]
             record[self._session.UPSERT_VALUE_COLS_KEY] = col_idxes
 
         writer = self._bucket_writers[bucket]

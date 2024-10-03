@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,20 +23,22 @@ import time
 
 import mock
 import pytest
+
 try:
     import pandas as pd
 except ImportError:
     pd = None
 try:
-    from filelock import FileLock, Timeout as FLTimeout
+    from filelock import FileLock
+    from filelock import Timeout as FLTimeout
 except ImportError:
     FileLock = None
 
-from ... import errors, ODPS
-from ...errors import ODPSError, InvalidStateSetting
+from ... import ODPS, errors
+from ...errors import InvalidStateSetting, ODPSError
 from ...tests.core import tn
-from .. import Instance, TableSchema, Record
-from ..session import FallbackPolicy, FallbackMode
+from .. import Instance, Record, TableSchema
+from ..session import FallbackMode, FallbackPolicy
 
 logger = logging.getLogger(__name__)
 is_windows = sys.platform.lower().startswith("win")
@@ -45,8 +47,8 @@ TEST_SESSION_WORKERS = 4
 TEST_SESSION_WORKER_MEMORY = 512
 
 TEST_TABLE_NAME = tn("_pyodps__session_test_table")
-TEST_CREATE_SCHEMA = TableSchema.from_lists(['id'], ['string'])
-TEST_DATA = [['1'], ['2'], ['3'], ['4'], ['5']]
+TEST_CREATE_SCHEMA = TableSchema.from_lists(["id"], ["string"])
+TEST_DATA = [["1"], ["2"], ["3"], ["4"], ["5"]]
 TEST_SELECT_STRING = "select * from %s" % TEST_TABLE_NAME
 
 
@@ -117,7 +119,9 @@ def _wait_session_startup(session_instance):
 
 
 def test_create_mcqa_session(odps):
-    sess_instance = odps._create_mcqa_session(TEST_SESSION_WORKERS, TEST_SESSION_WORKER_MEMORY)
+    sess_instance = odps._create_mcqa_session(
+        TEST_SESSION_WORKERS, TEST_SESSION_WORKER_MEMORY
+    )
     assert sess_instance
     with mock.patch(
         "odps.models.instance.Instance.is_running", new=lambda *_, **__: False
@@ -129,7 +133,9 @@ def test_create_mcqa_session(odps):
 
 
 def test_attach_mcqa_session(odps):
-    sess_instance = odps._create_mcqa_session(TEST_SESSION_WORKERS, TEST_SESSION_WORKER_MEMORY)
+    sess_instance = odps._create_mcqa_session(
+        TEST_SESSION_WORKERS, TEST_SESSION_WORKER_MEMORY
+    )
     assert sess_instance
     # wait to running
     _wait_session_startup(sess_instance)
@@ -149,7 +155,9 @@ def test_attach_default_session(odps):
 
 def test_session_failing_sql(odps):
     odps.delete_table(TEST_TABLE_NAME, if_exists=True)
-    sess_instance = odps._create_mcqa_session(TEST_SESSION_WORKERS, TEST_SESSION_WORKER_MEMORY)
+    sess_instance = odps._create_mcqa_session(
+        TEST_SESSION_WORKERS, TEST_SESSION_WORKER_MEMORY
+    )
     assert sess_instance
     # wait to running
     _wait_session_startup(sess_instance)
@@ -164,12 +172,16 @@ def test_session_failing_sql(odps):
 def test_direct_execute_failing_sql(odps):
     odps.delete_table(TEST_TABLE_NAME, if_exists=True)
     # the default public session may not exist, so we create one beforehand
-    sess_instance = odps._create_mcqa_session(TEST_SESSION_WORKERS, TEST_SESSION_WORKER_MEMORY)
+    sess_instance = odps._create_mcqa_session(
+        TEST_SESSION_WORKERS, TEST_SESSION_WORKER_MEMORY
+    )
     assert sess_instance
     # wait to running
     _wait_session_startup(sess_instance)
 
-    select_inst = odps.run_sql_interactive(TEST_SELECT_STRING, service_name=sess_instance.name)
+    select_inst = odps.run_sql_interactive(
+        TEST_SELECT_STRING, service_name=sess_instance.name
+    )
     select_inst.wait_for_completion()  # should return normally even the task is failed
 
     with pytest.raises(ODPSError):
@@ -181,7 +193,9 @@ def test_session_sql(odps):
     odps.delete_table(TEST_TABLE_NAME, if_exists=True)
     table = odps.create_table(TEST_TABLE_NAME, TEST_CREATE_SCHEMA)
     assert table
-    sess_instance = odps._create_mcqa_session(TEST_SESSION_WORKERS, TEST_SESSION_WORKER_MEMORY)
+    sess_instance = odps._create_mcqa_session(
+        TEST_SESSION_WORKERS, TEST_SESSION_WORKER_MEMORY
+    )
     assert sess_instance
     # wait to running
     _wait_session_startup(sess_instance)
@@ -197,9 +211,19 @@ def test_session_sql(odps):
             rows.append(each_row.values)
 
     if pd is not None:
-        with _dump_instance_results(select_inst), select_inst.open_reader(tunnel=True) as rd:
+        with _dump_instance_results(select_inst), select_inst.open_reader(
+            tunnel=True
+        ) as rd:
             pd_result = rd.to_pandas()
-        pd.testing.assert_frame_equal(pd_result, pd.DataFrame(TEST_DATA, columns=["id"]))
+        pd.testing.assert_frame_equal(
+            pd_result, pd.DataFrame(TEST_DATA, columns=["id"])
+        )
+
+        with _dump_instance_results(select_inst):
+            pd_result = select_inst.to_pandas()
+        pd.testing.assert_frame_equal(
+            pd_result, pd.DataFrame(TEST_DATA, columns=["id"])
+        )
 
     assert len(rows) == len(TEST_DATA)
     assert len(rows[0]) == len(TEST_DATA[0])
@@ -214,15 +238,25 @@ def test_direct_execute_sql(odps):
     table = odps.create_table(TEST_TABLE_NAME, TEST_CREATE_SCHEMA)
     assert table
     # the default public session may not exist, so we create one beforehand
-    sess_instance = odps._create_mcqa_session(TEST_SESSION_WORKERS, TEST_SESSION_WORKER_MEMORY)
+    sess_instance = odps._create_mcqa_session(
+        TEST_SESSION_WORKERS, TEST_SESSION_WORKER_MEMORY
+    )
     assert sess_instance
     # wait to running
     _wait_session_startup(sess_instance)
 
     records = [Record(schema=TEST_CREATE_SCHEMA, values=values) for values in TEST_DATA]
     odps.write_table(table, 0, records)
-    select_inst = odps.run_sql_interactive(TEST_SELECT_STRING, service_name=sess_instance.name)
-    select_inst.wait_for_success()
+    select_inst = odps.run_sql_interactive(
+        TEST_SELECT_STRING, service_name=sess_instance.name
+    )
+
+    assert "subQuery" in select_inst.get_logview_address()
+    assert select_inst._get_queueing_info()
+    time.sleep(3)
+    assert select_inst.get_sql_query().rstrip(";") == TEST_SELECT_STRING.rstrip(";")
+    assert select_inst.get_task_detail2(select_inst._session_task_name)
+
     rows = []
 
     with _dump_instance_results(select_inst), select_inst.open_reader() as rd:
@@ -242,7 +276,9 @@ def test_direct_execute_sql_fallback(odps):
     table = odps.create_table(TEST_TABLE_NAME, TEST_CREATE_SCHEMA)
     assert table
     # the default public session may not exist, so we create one beforehand
-    sess_instance = odps._create_mcqa_session(TEST_SESSION_WORKERS, TEST_SESSION_WORKER_MEMORY)
+    sess_instance = odps._create_mcqa_session(
+        TEST_SESSION_WORKERS, TEST_SESSION_WORKER_MEMORY
+    )
     assert sess_instance
     # wait to running
     _wait_session_startup(sess_instance)
@@ -253,15 +289,24 @@ def test_direct_execute_sql_fallback(odps):
 
     with pytest.raises(ODPSError):
         odps.execute_sql_interactive(
-            TEST_SELECT_STRING, service_name=sess_instance.name, hints=hints, fallback=False
+            TEST_SELECT_STRING,
+            service_name=sess_instance.name,
+            hints=hints,
+            fallback=False,
         )
     with pytest.raises(ODPSError):
         odps.execute_sql_interactive(
-            TEST_SELECT_STRING, service_name=sess_instance.name, hints=hints, fallback="noresource"
+            TEST_SELECT_STRING,
+            service_name=sess_instance.name,
+            hints=hints,
+            fallback="noresource",
         )
     with pytest.raises(ODPSError):
         odps.execute_sql_interactive(
-            TEST_SELECT_STRING, service_name=sess_instance.name, hints=hints, fallback={"generic", "noresource"}
+            TEST_SELECT_STRING,
+            service_name=sess_instance.name,
+            hints=hints,
+            fallback={"generic", "noresource"},
         )
 
     select_inst = odps.execute_sql_interactive(
@@ -286,7 +331,9 @@ def test_session_sql_with_instance_tunnel(odps):
     odps.delete_table(TEST_TABLE_NAME, if_exists=True)
     table = odps.create_table(TEST_TABLE_NAME, TEST_CREATE_SCHEMA)
     assert table
-    sess_instance = odps._create_mcqa_session(TEST_SESSION_WORKERS, TEST_SESSION_WORKER_MEMORY)
+    sess_instance = odps._create_mcqa_session(
+        TEST_SESSION_WORKERS, TEST_SESSION_WORKER_MEMORY
+    )
     assert sess_instance
     # wait to running
     _wait_session_startup(sess_instance)
@@ -297,7 +344,9 @@ def test_session_sql_with_instance_tunnel(odps):
     select_inst.wait_for_success()
     rows = []
 
-    with _dump_instance_results(select_inst), select_inst.open_reader(tunnel=True) as rd:
+    with _dump_instance_results(select_inst), select_inst.open_reader(
+        tunnel=True
+    ) as rd:
         for each_row in rd:
             rows.append(each_row.values)
 
@@ -328,36 +377,48 @@ def test_fallback_policy():
             assert getattr(set_str_policy, policy_name)
             assert policy_name in repr(set_policy)
 
-        assert policy.get_mode_from_exception(
-            errors.SQARetryError("Retry")
-        ) == FallbackMode.INTERACTIVE
-        assert policy.get_mode_from_exception(
-            errors.ODPSError("Job is cancelled")
-        ) is None
-    assert all_policy.get_mode_from_exception(
-        errors.ODPSError("MiscError")
-    ) == FallbackMode.OFFLINE
-    assert set_policy.get_mode_from_exception(
-        errors.ODPSError("MiscError")
-    ) is None
-    assert set_policy.get_mode_from_exception(
-        errors.SQAGenericError("MiscError")
-    ) is FallbackMode.OFFLINE
-    assert default_policy.get_mode_from_exception(
-        errors.SQAGenericError("MiscError")
-    ) is None
-    assert default_policy.get_mode_from_exception(
-        errors.SQAUnsupportedFeature("UnsupportedFeature")
-    ) is FallbackMode.OFFLINE
-    assert default_policy.get_mode_from_exception(
-        errors.SQAServiceUnavailable("ServiceUnavailable")
-    ) is FallbackMode.OFFLINE
-    assert default_policy.get_mode_from_exception(
-        errors.SQAResourceNotEnough("ResourceNotEnough")
-    ) is FallbackMode.OFFLINE
-    assert default_policy.get_mode_from_exception(
-        errors.SQAQueryTimedout("QueryTimedout")
-    ) is FallbackMode.OFFLINE
+        assert (
+            policy.get_mode_from_exception(errors.SQARetryError("Retry"))
+            == FallbackMode.INTERACTIVE
+        )
+        assert (
+            policy.get_mode_from_exception(errors.ODPSError("Job is cancelled")) is None
+        )
+    assert (
+        all_policy.get_mode_from_exception(errors.ODPSError("MiscError"))
+        == FallbackMode.OFFLINE
+    )
+    assert set_policy.get_mode_from_exception(errors.ODPSError("MiscError")) is None
+    assert (
+        set_policy.get_mode_from_exception(errors.SQAGenericError("MiscError"))
+        is FallbackMode.OFFLINE
+    )
+    assert (
+        default_policy.get_mode_from_exception(errors.SQAGenericError("MiscError"))
+        is None
+    )
+    assert (
+        default_policy.get_mode_from_exception(
+            errors.SQAUnsupportedFeature("UnsupportedFeature")
+        )
+        is FallbackMode.OFFLINE
+    )
+    assert (
+        default_policy.get_mode_from_exception(
+            errors.SQAServiceUnavailable("ServiceUnavailable")
+        )
+        is FallbackMode.OFFLINE
+    )
+    assert (
+        default_policy.get_mode_from_exception(
+            errors.SQAResourceNotEnough("ResourceNotEnough")
+        )
+        is FallbackMode.OFFLINE
+    )
+    assert (
+        default_policy.get_mode_from_exception(errors.SQAQueryTimedout("QueryTimedout"))
+        is FallbackMode.OFFLINE
+    )
 
 
 def test_reuse_session(odps):

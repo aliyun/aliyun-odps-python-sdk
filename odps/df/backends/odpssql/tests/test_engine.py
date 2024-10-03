@@ -14,16 +14,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import math
-import itertools
-import sys
-import uuid
-import os
-import zipfile
-import tarfile
-import re
 import functools
+import itertools
+import math
+import os
+import re
+import sys
+import tarfile
 import time
+import uuid
+import zipfile
 from collections import namedtuple, OrderedDict
 from datetime import datetime, timedelta
 from functools import partial
@@ -35,7 +35,9 @@ from ..... import options, types
 from .....compat import PY27, irange as xrange, six, futures, BytesIO
 from .....errors import ODPSError
 from .....models import TableSchema
-from .....tests.core import get_result, approx_list, py_and_c, run_sub_tests_in_parallel
+from .....tests.core import (
+    get_result, approx_list, py_and_c, get_test_unique_name, run_sub_tests_in_parallel
+)
 from .....utils import to_text
 from ....expr.expressions import CollectionExpr
 from ....types import validate_data_type, DynamicSchema
@@ -54,6 +56,8 @@ def _reloader():
     cfg = get_config()
     cfg.tunnel = TableTunnel(cfg.odps, endpoint=cfg.odps._tunnel_endpoint)
 
+_pypi_index = os.environ.get("PYPI_INDEX") or "http://mirrors.aliyun.com/pypi/simple"
+_pypi_prefix = _pypi_index.rstrip("/").rsplit("/", 1)[0]
 
 py_and_c_deco = py_and_c([
     "odps.models.record", "odps.models", "odps.tunnel.io.reader",
@@ -155,7 +159,7 @@ def test_tunnel_cases(odps, setup):
     result = get_result(res)
     assert [it[:1] for it in data] == result
 
-    table_name = tn('pyodps_test_engine_partitioned')
+    table_name = tn('pyodps_test_engine_partitioned_' + get_test_unique_name(5))
     odps.delete_table(table_name, if_exists=True)
 
     df = setup.engine.persist(setup.expr, table_name, partitions=['name'])
@@ -961,10 +965,10 @@ def test_function_resources(odps, setup):
                     return arg
         return h
 
-    file_resource_name = tn('pyodps_tmp_file_resource')
-    table_resource_name = tn('pyodps_tmp_table_resource')
-    table_name = tn('pyodps_tmp_function_resource_table')
-    table_name2 = tn('pyodps_tmp_function_resource_table2')
+    file_resource_name = tn('pyodps_t_tmp_file_resource')
+    table_resource_name = tn('pyodps_t_tmp_table_resource')
+    table_name = tn('pyodps_t_tmp_function_resource_table')
+    table_name2 = tn('pyodps_t_tmp_function_resource_table2')
     try:
         odps.delete_resource(file_resource_name)
     except:
@@ -1046,7 +1050,7 @@ def test_function_resources(odps, setup):
 def test_function_resources_with_partition(odps, setup):
     data = setup.gen_data(5)
 
-    table_name = tn('pyodps_tmp_function_resource_part_table')
+    table_name = tn('pyodps_t_tmp_function_resource_part_table')
     odps.delete_table(table_name, if_exists=True)
     t = odps.create_table(table_name, TableSchema.from_lists(
         ['id', 'id2'], ['bigint', 'bigint'], ['ds'], ['string']
@@ -1056,7 +1060,7 @@ def test_function_resources_with_partition(odps, setup):
     with t.open_writer(partition='ds=ds2', create_partition=True) as w:
         w.write([2, 3])
 
-    table_resource_name = tn('pyodps_tmp_part_table_resource')
+    table_resource_name = tn('pyodps_t_tmp_part_table_resource')
     try:
         odps.delete_resource(table_resource_name)
     except:
@@ -1101,13 +1105,13 @@ def test_third_party_libraries(odps, setup):
     setup.gen_data(data=data)
 
     dateutil_urls = [
-        'http://mirrors.aliyun.com/pypi/packages/d4/70/'
+        _pypi_prefix + '/packages/d4/70/'
         'd60450c3dd48ef87586924207ae8907090de0b306af2bce5d134d78615cb/'
         'python_dateutil-2.8.1-py2.py3-none-any.whl',
-        'https://mirrors.aliyun.com/pypi/packages/be/ed/'
+        _pypi_prefix + '/packages/be/ed/'
         '5bbc91f03fa4c839c4c7360375da77f9659af5f7086b7a7bdda65771c8e0/'
         'python-dateutil-2.8.1.tar.gz',
-        'http://mirrors.aliyun.com/pypi/packages/b7/9f/'
+        _pypi_prefix + '/packages/b7/9f/'
         'ba2b6aaf27e74df59f31b77d1927d5b037cc79a89cda604071f93d289eaf/'
         'python-dateutil-2.5.3.zip#md5=52b3f339f41986c25c3a2247e722db17',
     ]
@@ -1238,7 +1242,7 @@ def test_third_party_wheel(odps, setup):
     setup.gen_data(data=data)
 
     dateutil_url = (
-        'http://mirrors.aliyun.com/pypi/packages/d4/70/'
+        _pypi_prefix + '/packages/d4/70/'
         'd60450c3dd48ef87586924207ae8907090de0b306af2bce5d134d78615cb/'
         'python_dateutil-2.8.1-py2.py3-none-any.whl'
     )
@@ -2038,7 +2042,7 @@ def test_join_groupby(odps, setup):
         ['name', 'id2', 'id3'], [types.string, types.bigint, types.bigint]
     )
 
-    table_name = tn('pyodps_test_engine_table2')
+    table_name = tn('pyodps_test_engine_table2_' + get_test_unique_name(5))
     odps.delete_table(table_name, if_exists=True)
     table2 = odps.create_table(name=table_name, table_schema=schema2)
     expr2 = CollectionExpr(_source_data=table2, _schema=odps_schema_to_df_schema(schema2))
@@ -2640,7 +2644,7 @@ def test_join_map_reduce(odps, setup):
         ['name2', 'id2', 'id3'], [types.string, types.bigint, types.bigint]
     )
 
-    table_name = tn('pyodps_test_engine_table2')
+    table_name = tn('pyodps_test_engine_table2_' + get_test_unique_name(5))
     odps.delete_table(table_name, if_exists=True)
     table2 = odps.create_table(name=table_name, table_schema=schema2)
     expr2 = CollectionExpr(_source_data=table2, _schema=odps_schema_to_df_schema(schema2))
@@ -2746,9 +2750,9 @@ def test_join(odps, setup):
     schema2 = TableSchema.from_lists(
         ['name', 'id2', 'id3'], [types.string, types.bigint, types.bigint]
     )
-    table_name = tn('pyodps_test_engine_table2')
+    table_name = tn('pyodps_test_engine_table2_' + get_test_unique_name(5))
     odps.delete_table(table_name, if_exists=True)
-    table2 = odps.create_table(name=table_name, table_schema=schema2)
+    table2 = odps.create_table(name=table_name, table_schema=schema2, lifecycle=1)
     expr2 = CollectionExpr(_source_data=table2, _schema=odps_schema_to_df_schema(schema2))
 
     setup.gen_data(data=data)
@@ -2885,7 +2889,7 @@ def test_union(odps, setup):
     schema2 = TableSchema.from_lists(
         ['name', 'id2', 'id3'], [types.string, types.bigint, types.bigint]
     )
-    table_name = tn('pyodps_test_engine_table2')
+    table_name = tn('pyodps_test_engine_table2_' + get_test_unique_name(5))
     odps.delete_table(table_name, if_exists=True)
     table2 = odps.create_table(name=table_name, table_schema=schema2)
     expr2 = CollectionExpr(_source_data=table2, _schema=odps_schema_to_df_schema(schema2))
@@ -3499,7 +3503,7 @@ def test_except_intersect(odps, setup):
         ['name3', 1], ['name3', 3],
     ]
     schema1 = TableSchema.from_lists(['name', 'id'], [types.string, types.bigint])
-    table_name1 = tn('pyodps_test_engine_drop1')
+    table_name1 = tn('pyodps_test_engine_except_intersect1')
     odps.delete_table(table_name1, if_exists=True)
     table1 = odps.create_table(name=table_name1, table_schema=schema1)
     expr1 = CollectionExpr(_source_data=table1, _schema=odps_schema_to_df_schema(schema1))
@@ -3509,7 +3513,7 @@ def test_except_intersect(odps, setup):
         ['name2', 1], ['name2', 2],
     ]
     schema2 = TableSchema.from_lists(['name', 'id'], [types.string, types.bigint])
-    table_name2 = tn('pyodps_test_engine_drop2')
+    table_name2 = tn('pyodps_test_engine_except_intersect2')
     odps.delete_table(table_name2, if_exists=True)
     table2 = odps.create_table(name=table_name2, table_schema=schema2)
     expr2 = CollectionExpr(_source_data=table2, _schema=odps_schema_to_df_schema(schema2))
@@ -3885,7 +3889,7 @@ def test_string_splits(odps, setup):
     datatypes = lambda *types: [validate_data_type(t) for t in types]
     schema = TableSchema.from_lists(['name', 'id'], datatypes('string', 'int64'))
     odps_schema = df_schema_to_odps_schema(schema)
-    table_name = tn('pyodps_test_engine_composites1')
+    table_name = tn('pyodps_test_engine_str_splits1')
     odps.delete_table(table_name, if_exists=True)
     table = odps.create_table(name=table_name, table_schema=odps_schema)
     expr_in = CollectionExpr(_source_data=table, _schema=schema)

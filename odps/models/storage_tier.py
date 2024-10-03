@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ class StorageTier(Enum):
 
 
 class StorageTierInfo(serializers.JSONSerializableModel):
-    __slots__ = "storage_size",
+    __slots__ = ("storage_size",)
 
     _storage_tier_size_names = {
         StorageTier.STANDARD: "StandardSize",
@@ -42,10 +42,10 @@ class StorageTierInfo(serializers.JSONSerializableModel):
     }
 
     storage_tier = serializers.JSONNodeField(
-        'StorageTier', parse_callback=lambda x: StorageTier(x.lower()) if x else None
+        "StorageTier", parse_callback=lambda x: StorageTier(x.lower()) if x else None
     )
     last_modified_time = serializers.JSONNodeField(
-        'StorageLastModifiedTime',
+        "StorageLastModifiedTime",
         parse_callback=lambda x: datetime.datetime.fromtimestamp(int(x)),
     )
 
@@ -56,7 +56,10 @@ class StorageTierInfo(serializers.JSONSerializableModel):
     @classmethod
     def deserial(cls, content, obj=None, **kw):
         res = super(StorageTierInfo, cls).deserial(content, obj=obj, **kw)
-        for key_defs in (cls._storage_tier_size_names, cls._storage_tier_charge_size_names):
+        for key_defs in (
+            cls._storage_tier_size_names,
+            cls._storage_tier_charge_size_names,
+        ):
             for tier, key in key_defs.items():
                 if key not in content:
                     continue

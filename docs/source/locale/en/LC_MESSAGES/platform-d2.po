@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2023-07-19 13:45+0800\n"
+"POT-Creation-Date: 2024-04-04 18:39+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -41,8 +41,8 @@ msgstr "Use the ODPS object"
 
 #: ../../source/platform-d2.rst:21
 msgid ""
-"DataWorks 的 PyODPS 节点中，将会包含一个全局的变量 ``odps`` 或者 ``o`` ，即 ODPS 入口。用户不需要手动定义"
-" ODPS 入口。"
+"DataWorks 的 PyODPS 节点中，将会包含一个全局的变量 ``odps`` 或者 ``o`` ，"
+"即 ODPS 入口。用户不需要手动定义 ODPS 入口。"
 msgstr ""
 "The PyODPS node in DataWorks includes global variable ``odps`` or ``o``, "
 "which is the ODPS object. You do not need to manually define the ODPS "
@@ -54,8 +54,9 @@ msgstr ""
 
 #: ../../source/platform-d2.rst:29
 msgid ""
-"o 变量在 PyODPS 节点执行前已经提前赋值。除非确定必须这么做，请不要手动设置该变量，这将导致 ODPS 入口被改写， "
-"并可能使节点在生产调度时由于默认账号发生变化从而导致权限错误。"
+"o 变量在 PyODPS 节点执行前已经提前赋值。除非确定必须这么做，请不要手动"
+"设置该变量，这将导致 ODPS 入口被改写， 并可能使节点在生产调度时由于默认"
+"账号发生变化从而导致权限错误。"
 msgstr ""
 "Value of variable ``o`` is already set before your PyODPS node is "
 "executed. Please do not set this variable manually unless you have to, or"
@@ -68,14 +69,14 @@ msgid "执行SQL"
 msgstr "Execute SQL statements"
 
 #: ../../source/platform-d2.rst:35
-msgid "可以参考 :ref:`执行SQL文档 <execute_sql>` 。"
+msgid "可以参考\\ :ref:`执行SQL文档 <execute_sql>`\\ 。"
 msgstr "For more information, see :ref:`Execute SQL statements <execute_sql>` ."
 
 #: ../../source/platform-d2.rst:38
 msgid ""
-"Dataworks 上默认没有打开 instance tunnel，即 instance.open_reader 默认走 result "
-"接口（最多一万条）。 打开 instance tunnel，通过 reader.count 能取到记录数，如果要迭代获取全部数据，则需要关闭 "
-"limit 限制。"
+"Dataworks 上默认没有打开 instance tunnel，即 instance.open_reader 默认走 "
+"result 接口（最多一万条）。 打开 instance tunnel，通过 reader.count 能取"
+"到记录数，如果要迭代获取全部数据，则需要关闭 limit 限制。"
 msgstr ""
 "Instance tunnel is not enabled by default on Dataworks, thus 10000 "
 "records can be fetched at most. When instance tunnel is enabled, "
@@ -103,8 +104,9 @@ msgstr ""
 
 #: ../../source/platform-d2.rst:52
 msgid ""
-"或者通过在 open_reader 上添加 ``tunnel=True``，来仅对这次 open_reader 打开 instance "
-"tunnel； 添加 ``limit=False``，来关闭 limit 限制从而能下载全部数据。"
+"或者通过在 open_reader 上添加 ``tunnel=True``，来仅对这次 open_reader "
+"打开 instance tunnel； 添加 ``limit=False``，来关闭 limit 限制从而能下载"
+"全部数据。"
 msgstr ""
 "Also you can add ``tunnel=True`` to open_reader to enable instance tunnel"
 " for this reader only, and add ``limit=False`` to disable limitation and "
@@ -120,8 +122,9 @@ msgstr ""
 
 #: ../../source/platform-d2.rst:61
 msgid ""
-"需要注意的是，部分 Project 可能对 Tunnel 下载全部数据设置了限制，因而打开这些选项可能会导致权限错误。 此时应当与 Project"
-" Owner 协调，或者考虑将数据处理放在 MaxCompute 中，而不是下载到本地。"
+"需要注意的是，部分 Project 可能对 Tunnel 下载全部数据设置了限制，因而打开"
+"这些选项可能会导致权限错误。 此时应当与 Project Owner 协调，或者考虑将"
+"数据处理放在 MaxCompute 中，而不是下载到本地。"
 msgstr ""
 "Note that some project may limit downloading all data from tables, "
 "therefore you may get a permission error after configuring these options."
@@ -138,8 +141,8 @@ msgstr "Execution"
 
 #: ../../source/platform-d2.rst:70
 msgid ""
-"在 DataWorks 的环境里， :ref:`DataFrame <df>` 的执行需要显式调用 "
-":ref:`立即执行的方法（如execute，head等） <df_delay_execute>` 。"
+"在 DataWorks 的环境里，\\ :ref:`DataFrame <df>` 的执行需要显式调用\\ :ref"
+":`立即执行的方法（如execute，head等） <df_delay_execute>`\\ 。"
 msgstr ""
 "To execute :ref:`DataFrame <df>` in DataWorks, you need to explicitly "
 "call :ref:`automatically executed actions such as execute and head "
@@ -150,7 +153,8 @@ msgid ""
 "from odps.df import DataFrame\n"
 "\n"
 "iris = DataFrame(o.get_table('pyodps_iris'))\n"
-"for record in iris[iris.sepal_width < 3].execute():  # 调用立即执行的方法\n"
+"for record in iris[iris.sepal_width < 3].execute():  # 调用立即执行的方法"
+"\n"
 "    # 处理每条record"
 msgstr ""
 "from odps.df import DataFrame\n"
@@ -191,8 +195,8 @@ msgstr "Print details"
 
 #: ../../source/platform-d2.rst:97
 msgid ""
-"通过设置 ``options.verbose`` 选项。在 DataWorks 上，默认已经处于打开状态，运行过程会打印 logview "
-"等详细过程。"
+"通过设置 ``options.verbose`` 选项。在 DataWorks 上，默认已经处于打开状态"
+"，运行过程会打印 logview 等详细过程。"
 msgstr ""
 "To print details, you need to set ``options.verbose``. By default, this "
 "parameter is set to True in DataWorks. The system prints the logview and "
@@ -204,9 +208,10 @@ msgstr "Obtain scheduling parameters"
 
 #: ../../source/platform-d2.rst:103
 msgid ""
-"与 DataWorks 中的 SQL 节点不同，为了避免侵入代码，PyODPS 节点 **不会** 在代码中替换 ${param_name} "
-"这样的字符串，而是在执行代码前，在全局变量中增加一个名为 ``args`` 的 dict，调度参数可以在此获取。例如， 在节点基本属性 -> "
-"参数中设置 ``ds=${yyyymmdd}`` ，则可以通过下面的方式在代码中获取此参数"
+"与 DataWorks 中的 SQL 节点不同，为了避免侵入代码，PyODPS 节点 **不会** 在"
+"代码中替换 ${param_name} 这样的字符串，而是在执行代码前，在全局变量中增加"
+"一个名为 ``args`` 的 dict，调度参数可以在此获取。例如， 在节点基本属性 ->"
+" 参数中设置 ``ds=${yyyymmdd}`` ，则可以通过下面的方式在代码中获取此参数"
 msgstr ""
 "Different from SQL nodes in DataWorks, to avoid invading your Python code"
 " which might lead to unpredictable consequences, PyODPS nodes DOES NOT "
@@ -242,22 +247,26 @@ msgstr ""
 
 #: ../../source/platform-d2.rst:123
 msgid ""
-"关于如何使用调度参数的详细例子可以参考 `DataWorks 文档 "
-"<https://help.aliyun.com/document_detail/417492.htm>`_ 。"
+"关于如何使用调度参数的详细例子可以参考 `DataWorks 文档 <https://help."
+"aliyun.com/document_detail/417492.htm>`_ 。"
 msgstr ""
 "More examples of using schedule parameters can be seen in `DataWorks "
 "documentation <https://www.alibabacloud.com/help/en/dataworks/latest"
 "/example-of-scheduling-parameter-configuration-for-each-type-of-node>`_ ."
 
 #: ../../source/platform-d2.rst:126
-msgid "args 变量在 PyODPS 节点执行前已经提前赋值，请不要手动设置该变量，这将导致调度参数被改写。"
+msgid ""
+"args 变量在 PyODPS 节点执行前已经提前赋值，请不要手动设置该变量，这将导致"
+"调度参数被改写。"
 msgstr ""
 "Value of ``arg`` is already set before your PyODPS node is executed. "
 "Please do not set this variable manually or schedule parameters can be "
 "overwritten."
 
 #: ../../source/platform-d2.rst:128
-msgid "SQL 节点中可用的 ${param_name} 写法不能在 PyODPS 节点中使用， 即便在某些情况下它似乎输出了正确的结果。"
+msgid ""
+"SQL 节点中可用的 ${param_name} 写法不能在 PyODPS 节点中使用， 即便在某些"
+"情况下它似乎输出了正确的结果。"
 msgstr ""
 "${param_name} style parameters in SQL nodes shall never be used in PyODPS"
 " nodes, even if it seems that they produce `correct` results in some "
@@ -383,89 +392,128 @@ msgstr ""
 
 #: ../../source/platform-d2.rst:150
 msgid ""
-"如果你需要使用上面列表中不存在的包，DataWorks 节点提供了 ``load_resource_package`` 方法，支持从 "
-"MaxCompute 资源下载三方包。使用 ``pyodps-pack`` 打包后，可以直接使用 "
-"``load_resource_package`` 方法加载三方包，此后就可以 import 包中的内容。关于 ``pyodps-pack`` "
-"的文档可见 :ref:`制作和使用三方包 <pyodps_pack>`。"
+"如果你需要使用上面列表中不存在的包，0.12.0 以上版本的 DataWorks PyODPS "
+"Python 3 节点提供了 ``resource_pack`` 注释，支持从 MaxCompute 资源下载"
+"三方包。使用 ``pyodps-pack`` 打包后，可以直接使用 ``resource_pack`` 注释"
+"加载三方包，此后就可以 import 包中的内容。关于 ``pyodps-pack`` 的文档可见"
+"\\ :ref:`制作和使用三方包 <pyodps_pack>`。"
 msgstr ""
-"If you need to use packages not listed above, ``load_resource_package`` "
-"method can be used. After calling ``pyodps-pack`` to pack your "
-"dependencies, you can call ``load_resource_package`` to install third-"
-"party libraries and then use import statement to use them. Details about "
-"``pyodps-pack`` can be found :ref:`here <pyodps_pack>`."
+"If you need to use packages not listed above, ``resource_pack`` comment "
+"annotation can be used when you are using PyODPS Python 3 node in "
+"DataWorks and the version is above 0.12.0. After calling ``pyodps-pack`` "
+"to pack your dependencies, you can add a comment with ``resource_pack`` "
+"to install third-party libraries and then use import statement to use "
+"them. Details about ``pyodps-pack`` can be found :ref:`here "
+"<pyodps_pack>`."
 
 #: ../../source/platform-d2.rst:156
-msgid "如果为 Python 2 节点打包，请在打包时为 ``pyodps-pack`` 增加 ``--dwpy27`` 参数。"
+msgid ""
+"如果为 Python 2 节点打包，请在打包时为 ``pyodps-pack`` 增加 ``--dwpy27`` "
+"参数。"
 msgstr ""
 "If you are creating packages for Python2 nodes, please add ``--dwpy27`` "
 "argument when calling ``pyodps-pack``."
 
 #: ../../source/platform-d2.rst:158
+msgid ""
+"建议使用 PyODPS 包版本至少为 0.11.3，否则部分生成的包可能无法正常加载。"
+"关于 PyODPS 包及节点执行组件的升级可参考\\ :ref:`这个章节 <dw_upgrade>`。"
+msgstr ""
+"We propose using PyODPS later than 0.11.3 to load third-party libraries "
+"with DataWorks, or some packages may not be imported properly. For more "
+"information about upgrading PyODPS and node execution component can be "
+"seen in :ref:`this chapter <dw_upgrade>`."
+
+#: ../../source/platform-d2.rst:161
 msgid "例如，使用下面的命令打包"
 msgstr "For instance, we use command below to create package."
 
-#: ../../source/platform-d2.rst:160
+#: ../../source/platform-d2.rst:163
 msgid "pyodps-pack -o ipaddress-bundle.tar.gz ipaddress"
 msgstr ""
 
-#: ../../source/platform-d2.rst:164
-msgid ""
-"并上传 / 提交 ``ipaddress-bundle.tar.gz`` 为资源后，可以在 PyODPS 3 节点中按照下面的方法使用 "
-"ipaddress 包："
-msgstr ""
-"After uploading and submitting ``ipaddress-bundle.tar.gz`` as a resource,"
-" you can use ``ipaddress`` package with code below."
-
 #: ../../source/platform-d2.rst:167
 msgid ""
-"load_resource_package(\"ipaddress-bundle.tar.gz\")\n"
+"并上传 / 提交 ``ipaddress-bundle.tar.gz`` 为资源后，可以在 PyODPS 3 节点"
+"中按照下面的方法使用 ipaddress 包（注意注释是必须的）："
+msgstr ""
+"After uploading and submitting ``ipaddress-bundle.tar.gz`` as a resource,"
+" you can use ``ipaddress`` package with code below. Note that you need to"
+" keep the comment line in your code."
+
+#: ../../source/platform-d2.rst:170
+msgid ""
+"# -*- resource_pack: ipaddress-bundle.tar.gz\n"
 "import ipaddress"
 msgstr ""
 
-#: ../../source/platform-d2.rst:172
+#: ../../source/platform-d2.rst:175
 msgid ""
-"DataWorks 限制下载的包总大小为 100MB。如果你需要跳过预装包的打包，可以在打包时使用 ``pyodps-pack`` 提供的 "
-"``--exclude`` 参数。例如，下面的打包方法排除了 DataWorks 环境中存在的 numpy 和 pandas 包。"
+"DataWorks 限制下载的包总大小为 100MB。如果你需要跳过预装包的打包，可以在"
+"打包时使用 ``pyodps-pack`` 提供的 ``--exclude`` 参数。例如，下面的打包"
+"方法排除了 DataWorks 环境中存在的 numpy 和 pandas 包。"
 msgstr ""
 "DataWorks limits total package size to 100MB. If you want to exclude "
 "these preinstalled packages, you can add ``--exclude`` argument when "
 "calling ``pyodps-pack``. For instance, command below excludes numpy and "
 "scipy which exists in DataWorks environment."
 
-#: ../../source/platform-d2.rst:175
+#: ../../source/platform-d2.rst:178
 msgid ""
 "pyodps-pack -o bundle.tar.gz --exclude numpy --exclude pandas "
 "<your_package>"
 msgstr ""
 
-#: ../../source/platform-d2.rst:180
-msgid "使用其他账号"
-msgstr "Use other accounts"
+#: ../../source/platform-d2.rst:182
+msgid "你可以在 ``resource_pack`` 中通过逗号分割的方式引入多个包。"
+msgstr ""
+"You may add multiple packages with ``resource_pack`` by separating them "
+"with commas."
 
 #: ../../source/platform-d2.rst:184
 msgid ""
-"``as_account`` 方法从 PyODPS 0.11.3 开始支持。如果你的 DataWorks 未部署该版本，则无法使用该方法。 "
-"如果你使用的是独享资源组，可以考虑升级资源组中的 PyODPS 版本，具体可见 `该文档 "
-"<https://help.aliyun.com/document_detail/144824.htm>`_ 。"
+"对于 0.11.3 以上版本的 DataWorks PyODPS Python 3 节点，你也可以使用 ``"
+"pyodps-pack`` 打包，并在包加载前\\ 使用 ``load_resource_package`` 方法"
+"引入三方包："
 msgstr ""
-"``as_account`` method is supported since PyODPS 0.11.3. The method is not"
-" available when DataWorks you are using does not deploy this version. If "
-"you are using exclusive resource groups, you may consider upgrading "
-"PyODPS to the latest version. Details can be seen in `this document "
-"<https://www.alibabacloud.com/help/en/dataworks/latest/o-and-m-assistant>`_."
+"For node execution component later tha 0.11.3, you can also create your "
+"package with ``pyodps-pack`` and call ``load_resource_package`` before "
+"importing your package."
 
 #: ../../source/platform-d2.rst:187
 msgid ""
-"在某些情形下你可能希望使用其他账号（而非平台提供的账号）访问 MaxCompute。此时，可以使用 ODPS 入口对象的 "
-"``as_account`` 方法创建一个使用新账号的入口对象，该对象与系统默认提供的 ``o`` 实例彼此独立。例如："
+"load_resource_package('ipaddress-bundle.tar.gz')\n"
+"import ipaddress"
+msgstr ""
+
+#: ../../source/platform-d2.rst:192
+msgid ""
+"需要注意的是，如果你需要使用的三方包已经在预装三方包中，使用 ``load_"
+"resource_package`` 可能无法加载所需\\ 的版本，此时建议使用 ``resource_"
+"pack`` 注释的方式。"
+msgstr ""
+"Note that if the third-party library you need is already pre-installed, "
+"the expected version may not be imported with ``load_resource_package``. "
+"In this case you may use ``resource_pack`` comment."
+
+#: ../../source/platform-d2.rst:196
+msgid "使用其他账号"
+msgstr "Use other accounts"
+
+#: ../../source/platform-d2.rst:197
+msgid ""
+"在某些情形下你可能希望使用其他账号（而非平台提供的账号）访问 MaxCompute。"
+"从 PyODPS 0.11.3 开始，可以使用 MaxCompute 入口对象的 ``as_account`` 方法"
+"创建一个使用新账号的入口对象，该对象与系统默认提供的 ``o`` 实例彼此独立。"
+"例如："
 msgstr ""
 "In some cases you may want to use another account to access MaxCompute "
-"instead of the one provided by the platform. You may use ``as_account`` "
-"method of ``ODPS`` entrance object to create a new entrance object "
-"independent with the variable ``o`` provided by the platform. For "
-"instance,"
+"instead of the one provided by the platform. Since PyODPS 0.11.3, you may"
+" use ``as_account`` method of MaxCompute entrance object to create a new "
+"entrance object independent with the variable ``o`` provided by the "
+"platform. For instance,"
 
-#: ../../source/platform-d2.rst:190
+#: ../../source/platform-d2.rst:200
 msgid ""
 "import os\n"
 "# 确保 ALIBABA_CLOUD_ACCESS_KEY_ID 环境变量设置为 Access Key ID，\n"
@@ -488,41 +536,45 @@ msgstr ""
 "    os.getenv('ALIBABA_CLOUD_ACCESS_KEY_SECRET'),\n"
 ")"
 
-#: ../../source/platform-d2.rst:202
+#: ../../source/platform-d2.rst:212
 msgid "问题诊断"
-msgstr ""
+msgstr "Diagnose problems"
 
-#: ../../source/platform-d2.rst:203
-msgid "如果你的代码在执行中卡死且没有任何输出，你可以在代码头部增加以下注释，DataWorks 每隔 30 秒将输出所有线程的堆栈："
+#: ../../source/platform-d2.rst:213
+msgid ""
+"如果你的代码在执行中卡死且没有任何输出，你可以在代码头部增加以下注释，"
+"0.11.3 以上版本的 DataWorks PyODPS Python 3 节点每隔 30 秒将输出所有线程"
+"的堆栈："
 msgstr ""
 "If your code stuck on execution and no outputs emitted, you can add "
-"comment shown below to let DataWorks dump stack trace of all threads "
-"every 30 seconds."
+"comment shown below to let DataWorks PyODPS Python 3 node dumps stack "
+"trace of all threads every 30 seconds."
 
-#: ../../source/platform-d2.rst:205
+#: ../../source/platform-d2.rst:216
 msgid "# -*- dump_traceback: true -*-"
 msgstr ""
 
-#: ../../source/platform-d2.rst:210
+#: ../../source/platform-d2.rst:221
 msgid "受限功能"
 msgstr "Feature restriction"
 
-#: ../../source/platform-d2.rst:212
+#: ../../source/platform-d2.rst:223
 msgid "由于缺少 matplotlib 等包，所以如下功能可能会受限。"
 msgstr ""
 "DataWorks does not have the ``matplotlib`` library. Therefore, the "
 "following features may be restricted:"
 
-#: ../../source/platform-d2.rst:214
+#: ../../source/platform-d2.rst:225
 msgid "DataFrame的plot函数"
 msgstr "DataFrame plot function"
 
-#: ../../source/platform-d2.rst:216
+#: ../../source/platform-d2.rst:227
 msgid ""
-"DataFrame 自定义函数需要提交到 MaxCompute 执行。由于 Python 沙箱的原因，第三方库只支持所有的纯 Python 库以及"
-" Numpy， 因此不能直接使用 Pandas，可参考 :ref:`第三方库支持 <third_party_library>` "
-"上传和使用所需的库。DataWorks 中执行的非自定义函数代码可以使用平台预装的 Numpy 和 "
-"Pandas。其他带有二进制代码的三方包不被支持。"
+"DataFrame 自定义函数需要提交到 MaxCompute 执行。由于 Python 沙箱的原因，"
+"第三方库只支持所有的纯 Python 库以及 Numpy， 因此不能直接使用 Pandas，可"
+"参考\\ :ref:`第三方库支持 <third_party_library>`\\ 上传和使用所需的库。"
+"DataWorks 中执行的非自定义函数代码可以使用平台预装的 Numpy 和 Pandas。"
+"其他带有二进制代码的三方包不被支持。"
 msgstr ""
 "Custom functions in DataFrame need to be submitted to MaxCompute before "
 "execution. Due to Python sandbox, third-party libraries which are written"
@@ -533,45 +585,108 @@ msgstr ""
 "can use pre-installed Numpy and Pandas in DataWorks. Other third-party "
 "libraries with binary codes are not supported currently."
 
-#: ../../source/platform-d2.rst:220
+#: ../../source/platform-d2.rst:231
 msgid ""
-"由于兼容性的原因，在 DataWorks 中，`options.tunnel.use_instance_tunnel` 默认设置为 "
-"False。如果需要全局开启 Instance Tunnel， 需要手动将该值设置为 True。"
+"由于兼容性的原因，在 DataWorks 中，`options.tunnel.use_instance_tunnel` "
+"默认设置为 False。如果需要全局开启 Instance Tunnel， 需要手动将该值设置为"
+" True。"
 msgstr ""
 "For compatibility reasons, `options.tunnel.use_instance_tunnel` in "
 "DataWorks is set to False by default. To enable Instance Tunnel globally,"
 " you need to manually set `options.tunnel.use_instance_tunnel` to True."
 
-#: ../../source/platform-d2.rst:223
-msgid "由于实现的原因，Python 的 atexit 包不被支持，请使用 try - finally 结构实现相关功能。"
+#: ../../source/platform-d2.rst:234
+msgid ""
+"由于实现的原因，Python 的 atexit 包不被支持，请使用 try - finally 结构"
+"实现相关功能。"
 msgstr ""
 "For implementation reasons, the Python atexit package is not supported. "
 "You need to use the try - finally structure to implement related "
 "features."
 
-#: ../../source/platform-d2.rst:226
+#: ../../source/platform-d2.rst:237
 msgid "使用限制"
 msgstr "Usage restrictions"
 
-#: ../../source/platform-d2.rst:228
+#: ../../source/platform-d2.rst:239
 msgid ""
-"在 DataWorks 上使用 PyODPS，为了防止对 DataWorks 的 gateway 造成压力，对内存和 CPU 都有限制。这个限制由"
-" DataWorks 统一管理。"
+"在 DataWorks 上使用 PyODPS，为了防止对 DataWorks 的 gateway 造成压力，对"
+"内存和 CPU 都有限制。这个限制由 DataWorks 统一管理。"
 msgstr ""
 "To avoid pressure on the gateway of DataWorks when running PyODPS in "
 "DataWorks, the CPU and memory usage is restricted. DataWorks provides "
 "central management for this restriction."
 
-#: ../../source/platform-d2.rst:230
-msgid "如果看到 **Got killed** ，即内存使用超限，进程被 kill。因此，尽量避免本地的数据操作。"
+#: ../../source/platform-d2.rst:241
+msgid ""
+"如果看到 **Got killed** ，即内存使用超限，进程被 kill。因此，尽量避免本地"
+"的数据操作。"
 msgstr ""
 "If the system displays **Got killed**, this indicates an out-of-memory "
 "error and that the process has been terminated. Therefore, we do not "
 "recommend starting local data operations."
 
-#: ../../source/platform-d2.rst:232
+#: ../../source/platform-d2.rst:243
 msgid "通过 PyODPS 起的 SQL 和 DataFrame 任务（除 to_pandas) 不受此限制。"
 msgstr ""
 "However, the preceding restriction does not work on SQL and DataFrame "
 "tasks (except to_pandas) that are initiated by PyODPS."
+
+#: ../../source/platform-d2.rst:248
+msgid "升级"
+msgstr "Upgrade"
+
+#: ../../source/platform-d2.rst:250
+msgid ""
+"共享资源组中的 DataWorks PyODPS 节点执行组件及 PyODPS 包版本由阿里云维护"
+"，并会随着 PyODPS 更新而更新。\\ 独享资源组中的节点执行组件及 PyODPS 包则"
+"可能在资源组生成时即固定下来。如果你需要使用更新版本 PyODPS 包中\\ 提供的"
+"功能（通常指本文档以外的 API），可以参考\\ `该文档 <https://help.aliyun."
+"com/document_detail/144824.htm>`_\\ 自行升级所需的 PyODPS 版本。需要注意"
+"的是，下列功能由 PyODPS 节点执行组件而非 PyODPS 包本身提供。无法通过\\ "
+"自行升级进行安装："
+msgstr ""
+"PyODPS and DataWorks PyODPS node execution component in shared resource "
+"groups is maintained by Alibaba Cloud and will be upgraded when PyODPS "
+"package is upgraded. PyODPS and DataWorks PyODPS node execution component"
+" in private resource groups are fixed once the resource groups are "
+"created. If you need to use functionalities provided by PyODPS package, "
+"i.e., functionalities described outside this document, you may take a "
+"look at `this document "
+"<https://www.alibabacloud.com/help/en/dataworks/latest/o-and-m-assistant>`_"
+" to upgrade your PyODPS package. Note that features listed below are "
+"provided by the node execution component, not PyODPS package, and cannot "
+"be upgraded via self-assisting approach."
+
+#: ../../source/platform-d2.rst:256
+msgid "调度参数"
+msgstr "Scheduling parameters"
+
+#: ../../source/platform-d2.rst:257
+msgid "通过代码注释提供的能力，例如 ``dump_traceback`` 等"
+msgstr "Capabilities provided by comments, for instance, ``dump_traceback``"
+
+#: ../../source/platform-d2.rst:258
+msgid "``load_resource_package``"
+msgstr ""
+
+#: ../../source/platform-d2.rst:259
+msgid "错误信息自动提示"
+msgstr "Automatic hints for errors"
+
+#: ../../source/platform-d2.rst:261
+msgid ""
+"对于 0.11.5 及后续版本的 PyODPS 节点执行组件，当版本与 PyODPS 版本不一致"
+"时，会在执行时在日志中同时显示两个\\ 版本号。阿里云将会不定期更新 PyODPS "
+"节点执行组件，更新时间点相比共享资源组存在一定的延后。如你对节点执行组件"
+"有\\ 更新需求，可以通过工单联系阿里云寻求升级支持。"
+msgstr ""
+"For node execution components later than 0.11.5, when its version is "
+"different from the version of PyODPS, both versions will be shown in the "
+"execution log. Alibaba Cloud will upgrade node execution components of "
+"node execution component in private resource groups if needed, and the "
+"upgrade will be later than shared resource groups. If you need to upgrade"
+" node execution component within your private resource group right now, "
+"please submit a supporting ticket to seek for assistance from Alibaba "
+"Cloud."
 

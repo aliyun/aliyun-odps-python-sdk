@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 # limitations under the License.
 
 from __future__ import print_function
+
 import base64
 import functools
 import json
@@ -28,23 +29,27 @@ from datetime import datetime
 
 import requests
 
-from .. import serializers, utils, errors, compat, readers, options
+from .. import compat, errors, options, readers, serializers, utils
 from ..accounts import BearerTokenAccount
 from ..compat import Enum, six
 from ..lib.monotonic import monotonic
+from ..lib.tblib import pickling_support
 from ..utils import to_str
-from .core import LazyLoad, XMLRemoteModel, JSONRemoteModel
+from .core import JSONRemoteModel, LazyLoad, XMLRemoteModel
 from .job import Job
-from .readers import TunnelRecordReader, TunnelArrowReader
-from .worker import WorkerDetail2, LOG_TYPES_MAPPING
+from .readers import TunnelArrowReader, TunnelRecordReader
+from .tasks import SQLTask
+from .worker import LOG_TYPES_MAPPING, WorkerDetail2
 
 logger = logging.getLogger(__name__)
+pickling_support.install()
 
 
 _RESULT_LIMIT_HELPER_MSG = (
-    'See https://pyodps.readthedocs.io/zh_CN/latest/base-sql.html#read-sql-exec-result '
-    'for more information about limits on instance results.'
+    "See https://pyodps.readthedocs.io/zh_CN/latest/base-sql.html#read-sql-exec-result "
+    "for more information about limits on instance results."
 )
+_STATUS_QUERY_TIMEOUT = 5 * 60  # timeout when getting status
 
 
 def _with_status_api_lock(func):
@@ -63,9 +68,16 @@ class SpawnedInstanceReaderMixin(object):
 
     @staticmethod
     def _read_instance_split(
-        conn, download_id, start, count, idx,
-        rest_client=None, project=None, instance_id=None, tunnel_endpoint=None,
-        columns=None
+        conn,
+        download_id,
+        start,
+        count,
+        idx,
+        rest_client=None,
+        project=None,
+        instance_id=None,
+        tunnel_endpoint=None,
+        columns=None,
     ):
         # read part data
         from ..tunnel import InstanceTunnel
@@ -74,15 +86,28 @@ class SpawnedInstanceReaderMixin(object):
             instance_tunnel = InstanceTunnel(
                 client=rest_client, project=project, endpoint=tunnel_endpoint
             )
-            session = instance_tunnel.create_download_session(
-                instance=instance_id, download_id=download_id
+            session = utils.call_with_retry(
+                instance_tunnel.create_download_session,
+                instance=instance_id,
+                download_id=download_id,
             )
-            with session.open_record_reader(start, count, columns=columns) as reader:
-                conn.send((idx, reader.to_pandas(), True))
-        except:
-            conn.send((idx, sys.exc_info(), False))
 
-    def _get_process_split_reader(self, columns=None):
+            def _data_to_pandas():
+                with session.open_record_reader(
+                    start, count, columns=columns
+                ) as reader:
+                    return reader.to_pandas()
+
+            data = utils.call_with_retry(_data_to_pandas)
+            conn.send((idx, data, True))
+        except:
+            try:
+                conn.send((idx, sys.exc_info(), False))
+            except:
+                logger.exception("Failed to write in process %d", idx)
+                raise
+
+    def _get_process_split_reader(self, columns=None, append_partitions=None):  # noqa
         rest_client = self._parent._client
         project = self._parent.project.name
         tunnel_endpoint = self._parent.project._tunnel_endpoint
@@ -99,17 +124,17 @@ class SpawnedInstanceReaderMixin(object):
 
 
 class InstanceRecordReader(SpawnedInstanceReaderMixin, TunnelRecordReader):
-    def __init__(self, instance, download_session):
+    def __init__(self, instance, download_session, columns=None):
         super(InstanceRecordReader, self).__init__(
-            instance, download_session
+            instance, download_session, columns=columns
         )
         self._schema = download_session.schema
 
 
 class InstanceArrowReader(SpawnedInstanceReaderMixin, TunnelArrowReader):
-    def __init__(self, instance, download_session):
+    def __init__(self, instance, download_session, columns=None):
         super(InstanceArrowReader, self).__init__(
-            instance, download_session
+            instance, download_session, columns=columns
         )
         self._schema = download_session.schema
 
@@ -139,19 +164,19 @@ class Instance(LazyLoad):
     __slots__ = (
         "_task_results",
         "_is_sync",
-        "_instance_tunnel",
         "_id_thread_local",
         "_status_api_lock",
         "_logview_address",
         "_logview_address_time",
         "_logview_logged",
+        "_job_source",
     )
 
-    _download_id = utils.thread_local_attribute('_id_thread_local', lambda: None)
+    _download_id = utils.thread_local_attribute("_id_thread_local", lambda: None)
 
     def __init__(self, **kwargs):
-        if 'task_results' in kwargs:
-            kwargs['_task_results'] = kwargs.pop('task_results')
+        if "task_results" in kwargs:
+            kwargs["_task_results"] = kwargs.pop("task_results")
         super(Instance, self).__init__(**kwargs)
 
         try:
@@ -170,37 +195,35 @@ class Instance(LazyLoad):
         self._logview_address = None
         self._logview_address_time = None
         self._logview_logged = False
+        self._job_source = None
 
     @property
     def id(self):
         return self.name
 
     class Status(Enum):
-        RUNNING = 'Running'
-        SUSPENDED = 'Suspended'
-        TERMINATED = 'Terminated'
+        RUNNING = "Running"
+        SUSPENDED = "Suspended"
+        TERMINATED = "Terminated"
 
     class InstanceStatus(XMLRemoteModel):
-        _root = 'Instance'
+        _root = "Instance"
 
-        status = serializers.XMLNodeField('Status')
+        status = serializers.XMLNodeField("Status")
 
     class InstanceResult(XMLRemoteModel):
-
         class TaskResult(XMLRemoteModel):
-
             class Result(XMLRemoteModel):
-
-                transform = serializers.XMLNodeAttributeField(attr='Transform')
-                format = serializers.XMLNodeAttributeField(attr='Format')
-                text = serializers.XMLNodeField('.', default='')
+                transform = serializers.XMLNodeAttributeField(attr="Transform")
+                format = serializers.XMLNodeAttributeField(attr="Format")
+                text = serializers.XMLNodeField(".", default="")
 
                 def __str__(self):
                     if six.PY2:
                         text = utils.to_binary(self.text)
                     else:
                         text = self.text
-                    if self.transform is not None and self.transform == 'Base64':
+                    if self.transform is not None and self.transform == "Base64":
                         try:
                             return utils.to_str(base64.b64decode(text))
                         except TypeError:
@@ -209,18 +232,18 @@ class Instance(LazyLoad):
 
                 def __bytes__(self):
                     text = utils.to_binary(self.text)
-                    if self.transform is not None and self.transform == 'Base64':
+                    if self.transform is not None and self.transform == "Base64":
                         try:
                             return utils.to_binary(base64.b64decode(text))
                         except TypeError:
                             return text
                     return text
 
-            type = serializers.XMLNodeAttributeField(attr='Type')
-            name = serializers.XMLNodeField('Name')
-            result = serializers.XMLNodeReferenceField(Result, 'Result')
+            type = serializers.XMLNodeAttributeField(attr="Type")
+            name = serializers.XMLNodeField("Name")
+            result = serializers.XMLNodeReferenceField(Result, "Result")
 
-        task_results = serializers.XMLNodesReferencesField(TaskResult, 'Tasks', 'Task')
+        task_results = serializers.XMLNodesReferencesField(TaskResult, "Tasks", "Task")
 
     class Task(XMLRemoteModel):
         """
@@ -229,21 +252,28 @@ class Instance(LazyLoad):
         It has a name, a task type, the start to end time, and a running status.
         """
 
-        name = serializers.XMLNodeField('Name')
-        type = serializers.XMLNodeAttributeField(attr='Type')
-        start_time = serializers.XMLNodeField('StartTime', parse_callback=utils.parse_rfc822)
-        end_time = serializers.XMLNodeField('EndTime', parse_callback=utils.parse_rfc822)
+        name = serializers.XMLNodeField("Name")
+        type = serializers.XMLNodeAttributeField(attr="Type")
+        start_time = serializers.XMLNodeField(
+            "StartTime", parse_callback=utils.parse_rfc822
+        )
+        end_time = serializers.XMLNodeField(
+            "EndTime", parse_callback=utils.parse_rfc822
+        )
         status = serializers.XMLNodeField(
-            'Status', parse_callback=lambda s: Instance.Task.TaskStatus(s.upper()))
-        histories = serializers.XMLNodesReferencesField('Instance.Task', 'Histories', 'History')
+            "Status", parse_callback=lambda s: Instance.Task.TaskStatus(s.upper())
+        )
+        histories = serializers.XMLNodesReferencesField(
+            "Instance.Task", "Histories", "History"
+        )
 
         class TaskStatus(Enum):
-            WAITING = 'WAITING'
-            RUNNING = 'RUNNING'
-            SUCCESS = 'SUCCESS'
-            FAILED = 'FAILED'
-            SUSPENDED = 'SUSPENDED'
-            CANCELLED = 'CANCELLED'
+            WAITING = "WAITING"
+            RUNNING = "RUNNING"
+            SUCCESS = "SUCCESS"
+            FAILED = "FAILED"
+            SUSPENDED = "SUSPENDED"
+            CANCELLED = "CANCELLED"
 
         class TaskProgress(XMLRemoteModel):
             """
@@ -259,45 +289,62 @@ class Instance(LazyLoad):
             """
 
             class StageProgress(XMLRemoteModel):
+                name = serializers.XMLNodeAttributeField(attr="ID")
+                backup_workers = serializers.XMLNodeField(
+                    "BackupWorkers", parse_callback=int
+                )
+                terminated_workers = serializers.XMLNodeField(
+                    "TerminatedWorkers", parse_callback=int
+                )
+                running_workers = serializers.XMLNodeField(
+                    "RunningWorkers", parse_callback=int
+                )
+                total_workers = serializers.XMLNodeField(
+                    "TotalWorkers", parse_callback=int
+                )
+                input_records = serializers.XMLNodeField(
+                    "InputRecords", parse_callback=int
+                )
+                output_records = serializers.XMLNodeField(
+                    "OutputRecords", parse_callback=int
+                )
+                finished_percentage = serializers.XMLNodeField(
+                    "FinishedPercentage", parse_callback=int
+                )
 
-                name = serializers.XMLNodeAttributeField(attr='ID')
-                backup_workers = serializers.XMLNodeField('BackupWorkers', parse_callback=int)
-                terminated_workers = serializers.XMLNodeField('TerminatedWorkers', parse_callback=int)
-                running_workers = serializers.XMLNodeField('RunningWorkers', parse_callback=int)
-                total_workers = serializers.XMLNodeField('TotalWorkers', parse_callback=int)
-                input_records = serializers.XMLNodeField('InputRecords', parse_callback=int)
-                output_records = serializers.XMLNodeField('OutputRecords', parse_callback=int)
-                finished_percentage = serializers.XMLNodeField('FinishedPercentage', parse_callback=int)
-
-            stages = serializers.XMLNodesReferencesField(StageProgress, 'Stage')
+            stages = serializers.XMLNodesReferencesField(StageProgress, "Stage")
 
             def get_stage_progress_formatted_string(self):
                 buf = six.StringIO()
 
-                buf.write(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
-                buf.write(' ')
+                buf.write(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+                buf.write(" ")
 
                 for stage in self.stages:
-                    buf.write('{0}:{1}/{2}/{3}{4}[{5}%]\t'.format(
-                        stage.name,
-                        stage.running_workers,
-                        stage.terminated_workers,
-                        stage.total_workers,
-                        '(+%s backups)' % stage.backup_workers if stage.backup_workers > 0 else '',
-                        stage.finished_percentage
-                    ))
+                    buf.write(
+                        "{0}:{1}/{2}/{3}{4}[{5}%]\t".format(
+                            stage.name,
+                            stage.running_workers,
+                            stage.terminated_workers,
+                            stage.total_workers,
+                            "(+%s backups)" % stage.backup_workers
+                            if stage.backup_workers > 0
+                            else "",
+                            stage.finished_percentage,
+                        )
+                    )
 
                 return buf.getvalue()
 
     class TaskInfo(serializers.XMLSerializableModel):
-        _root = 'Instance'
-        __slots__ = 'key', 'value'
+        _root = "Instance"
+        __slots__ = "key", "value"
 
-        key = serializers.XMLNodeField('Key')
-        value = serializers.XMLNodeField('Value')
+        key = serializers.XMLNodeField("Key")
+        value = serializers.XMLNodeField("Value")
 
     class TaskCost(object):
-        __slots__ = 'cpu_cost', 'memory_cost', 'input_size'
+        __slots__ = "cpu_cost", "memory_cost", "input_size"
 
         def __init__(self, cpu_cost=None, memory_cost=None, input_size=None):
             self.cpu_cost = cpu_cost
@@ -305,7 +352,7 @@ class Instance(LazyLoad):
             self.input_size = input_size
 
     class SQLCost(object):
-        __slots__ = 'udf_num', 'complexity', 'input_size'
+        __slots__ = "udf_num", "complexity", "input_size"
 
         def __init__(self, udf_num=None, complexity=None, input_size=None):
             self.udf_num = udf_num
@@ -315,51 +362,49 @@ class Instance(LazyLoad):
     class DownloadSessionCreationError(errors.InternalServerError):
         pass
 
-    name = serializers.XMLNodeField('Name')
-    owner = serializers.XMLNodeField('Owner')
-    start_time = serializers.XMLNodeField('StartTime', parse_callback=utils.parse_rfc822)
-    end_time = serializers.XMLNodeField('EndTime', parse_callback=utils.parse_rfc822)
-    _status = serializers.XMLNodeField('Status', parse_callback=lambda s: Instance.Status(s))
-    _tasks = serializers.XMLNodesReferencesField(Task, 'Tasks', 'Task')
-
     class TaskSummary(dict):
         def __init__(self, *args, **kwargs):
             super(Instance.TaskSummary, self).__init__(*args, **kwargs)
             self.summary_text, self.json_summary = None, None
 
     class AnonymousSubmitInstance(XMLRemoteModel):
-        _root = 'Instance'
-        job = serializers.XMLNodeReferenceField(Job, 'Job')
+        _root = "Instance"
+        job = serializers.XMLNodeReferenceField(Job, "Job")
 
     class InstanceQueueingInfo(JSONRemoteModel):
-        __slots__ = '_instance',
+        __slots__ = ("_instance",)
 
         class Status(Enum):
-            RUNNING = 'Running'
-            SUSPENDED = 'Suspended'
-            TERMINATED = 'Terminated'
-            UNKNOWN = 'Unknown'
+            RUNNING = "Running"
+            SUSPENDED = "Suspended"
+            TERMINATED = "Terminated"
+            UNKNOWN = "Unknown"
 
         _properties = serializers.JSONRawField()  # hold the raw dict
-        instance_id = serializers.JSONNodeField('instanceId')
-        priority = serializers.JSONNodeField('instancePriority')
-        progress = serializers.JSONNodeField('instanceProcess')
-        job_name = serializers.JSONNodeField('jobName')
-        project = serializers.JSONNodeField('projectName')
-        skynet_id = serializers.JSONNodeField('skynetId')
-        start_time = serializers.JSONNodeField('startTime', parse_callback=utils.strptime_with_tz)
-        task_type = serializers.JSONNodeField('taskType')
-        task_name = serializers.JSONNodeField('taskName')
-        user_account = serializers.JSONNodeField('userAccount')
-        status = serializers.JSONNodeField('status', parse_callback=Status)
+        instance_id = serializers.JSONNodeField("instanceId")
+        priority = serializers.JSONNodeField("instancePriority")
+        progress = serializers.JSONNodeField("instanceProcess")
+        job_name = serializers.JSONNodeField("jobName")
+        project = serializers.JSONNodeField("projectName")
+        skynet_id = serializers.JSONNodeField("skynetId")
+        start_time = serializers.JSONNodeField(
+            "startTime", parse_callback=utils.strptime_with_tz
+        )
+        task_type = serializers.JSONNodeField("taskType")
+        task_name = serializers.JSONNodeField("taskName")
+        user_account = serializers.JSONNodeField("userAccount")
+        status = serializers.JSONNodeField("status", parse_callback=Status)
 
         @property
         def instance(self):
-            if hasattr(self, '_instance') and self._instance:
+            if hasattr(self, "_instance") and self._instance:
                 return self._instance
 
             from .projects import Projects
-            self._instance = Projects(client=self._client)[self.project].instances[self.instance_id]
+
+            self._instance = Projects(client=self._client)[self.project].instances[
+                self.instance_id
+            ]
             return self._instance
 
         def __getattr__(self, item):
@@ -370,14 +415,30 @@ class Instance(LazyLoad):
 
             return super(Instance.InstanceQueueingInfo, self).__getattr__(item)
 
-    def reload(self):
-        resp = self._client.get(self.resource())
+    name = serializers.XMLNodeField("Name")
+    owner = serializers.XMLNodeField("Owner")
+    start_time = serializers.XMLNodeField(
+        "StartTime", parse_callback=utils.parse_rfc822
+    )
+    end_time = serializers.XMLNodeField("EndTime", parse_callback=utils.parse_rfc822)
+    _status = serializers.XMLNodeField(
+        "Status", parse_callback=lambda s: Instance.Status(s)
+    )
+    _tasks = serializers.XMLNodesReferencesField(Task, "Tasks", "Task")
 
-        self.owner = resp.headers.get('x-odps-owner')
-        self.start_time = utils.parse_rfc822(resp.headers.get('x-odps-start-time'))
-        end_time_header = 'x-odps-end-time'
-        if end_time_header in resp.headers and \
-                len(resp.headers[end_time_header].strip()) > 0:
+    def reload(self, blocking=False):
+        actions = []
+        if blocking:
+            actions.append("instancestatus")
+        resp = self._client.get(self.resource(), actions=actions)
+
+        self.owner = resp.headers.get("x-odps-owner")
+        self.start_time = utils.parse_rfc822(resp.headers.get("x-odps-start-time"))
+        end_time_header = "x-odps-end-time"
+        if (
+            end_time_header in resp.headers
+            and len(resp.headers[end_time_header].strip()) > 0
+        ):
             self.end_time = utils.parse_rfc822(resp.headers.get(end_time_header))
 
         self.parse(self._client, resp, obj=self)
@@ -390,24 +451,37 @@ class Instance(LazyLoad):
         :return: None
         """
 
-        instance_status = Instance.InstanceStatus(status='Terminated')
+        instance_status = Instance.InstanceStatus(status="Terminated")
         xml_content = instance_status.serialize()
 
-        headers = {'Content-Type': 'application/xml'}
+        headers = {"Content-Type": "application/xml"}
         self._client.put(self.resource(), xml_content, headers=headers)
 
+    @staticmethod
+    def _call_with_retry(func, retry=False, retry_timeout=None):
+        retry_kw = {
+            "retry_times": options.retry_times if retry else 0,
+            "exc_type": (errors.InternalServerError, errors.RequestTimeTooSkewed),
+        }
+        if retry and retry_timeout is not None:
+            # use retry timeout instead of retry count
+            retry_kw.update({"retry_times": None, "retry_timeout": retry_timeout})
+        return utils.call_with_retry(func, **retry_kw)
+
     @_with_status_api_lock
-    def get_task_results_without_format(self, timeout=None):
+    def get_task_results_without_format(self, timeout=None, retry=True):
         if self._is_sync:
             return self._task_results
 
-        resp = self._client.get(self.resource(), action="result", timeout=timeout)
+        def _get_resp():
+            return self._client.get(self.resource(), action="result", timeout=timeout)
 
+        resp = self._call_with_retry(_get_resp, retry=retry, retry_timeout=timeout)
         instance_result = Instance.InstanceResult.parse(self._client, resp)
         return OrderedDict([(r.name, r.result) for r in instance_result.task_results])
 
     @_with_status_api_lock
-    def get_task_results(self, timeout=None):
+    def get_task_results(self, timeout=None, retry=True):
         """
         Get all the task results.
 
@@ -415,14 +489,25 @@ class Instance(LazyLoad):
         :rtype: dict
         """
 
-        results = self.get_task_results_without_format(timeout=timeout)
+        results = self.get_task_results_without_format(timeout=timeout, retry=retry)
         if options.tunnel.string_as_binary:
-            return OrderedDict([(k, bytes(result)) for k, result in six.iteritems(results)])
+            return OrderedDict(
+                [(k, bytes(result)) for k, result in six.iteritems(results)]
+            )
         else:
-            return OrderedDict([(k, str(result)) for k, result in six.iteritems(results)])
+            return OrderedDict(
+                [(k, str(result)) for k, result in six.iteritems(results)]
+            )
+
+    def _get_default_task_name(self):
+        job = self._get_job()
+        if len(job.tasks) != 1:
+            msg = "No tasks" if len(job.tasks) == 0 else "Multiple tasks"
+            raise errors.ODPSError("%s in instance." % msg)
+        return job.tasks[0].name
 
     @_with_status_api_lock
-    def get_task_result(self, task_name, timeout=None):
+    def get_task_result(self, task_name=None, timeout=None, retry=True):
         """
         Get a single task result.
 
@@ -430,10 +515,11 @@ class Instance(LazyLoad):
         :return: task result
         :rtype: str
         """
-        return self.get_task_results(timeout=timeout).get(task_name)
+        task_name = task_name or self._get_default_task_name()
+        return self.get_task_results(timeout=timeout, retry=retry).get(task_name)
 
     @_with_status_api_lock
-    def get_task_summary(self, task_name):
+    def get_task_summary(self, task_name=None):
         """
         Get a task's summary, mostly used for MapReduce.
 
@@ -441,37 +527,40 @@ class Instance(LazyLoad):
         :return: summary as a dict parsed from JSON
         :rtype: dict
         """
-
-        params = {'taskname': task_name}
+        task_name = task_name or self._get_default_task_name()
+        params = {"taskname": task_name}
         resp = self._client.get(
-            self.resource(), action='instancesummary', params=params
+            self.resource(), action="instancesummary", params=params
         )
 
-        map_reduce = resp.json().get('Instance')
+        map_reduce = resp.json().get("Instance")
         if map_reduce:
-            json_summary = map_reduce.get('JsonSummary')
+            json_summary = map_reduce.get("JsonSummary")
             if json_summary:
                 summary = Instance.TaskSummary(json.loads(json_summary))
-                summary.summary_text = map_reduce.get('Summary')
+                summary.summary_text = map_reduce.get("Summary")
                 summary.json_summary = json_summary
 
                 return summary
 
     @_with_status_api_lock
-    def get_task_statuses(self):
+    def get_task_statuses(self, retry=True, timeout=None):
         """
         Get all tasks' statuses
 
         :return: a dict which key is the task name and value is the :class:`odps.models.Instance.Task` object
         :rtype: dict
         """
-        resp = self._client.get(self.resource(), action="taskstatus")
-        self.parse(self._client, resp, obj=self)
 
+        def _get_resp():
+            return self._client.get(self.resource(), action="taskstatus")
+
+        resp = self._call_with_retry(_get_resp, retry=retry, retry_timeout=timeout)
+        self.parse(self._client, resp, obj=self)
         return dict([(task.name, task) for task in self._tasks])
 
     @_with_status_api_lock
-    def get_task_names(self):
+    def get_task_names(self, retry=True, timeout=None):
         """
         Get names of all tasks
 
@@ -479,9 +568,9 @@ class Instance(LazyLoad):
         :rtype: list
         """
 
-        return compat.lkeys(self.get_task_statuses())
+        return compat.lkeys(self.get_task_statuses(retry=retry, timeout=timeout))
 
-    def get_task_cost(self, task_name):
+    def get_task_cost(self, task_name=None):
         """
         Get task cost
 
@@ -499,54 +588,78 @@ class Instance(LazyLoad):
         >>> cost.input_size
         0
         """
+        task_name = task_name or self._get_default_task_name()
         summary = self.get_task_summary(task_name)
         if summary is None:
             return None
 
-        if 'Cost' in summary:
-            task_cost = summary['Cost']
+        if "Cost" in summary:
+            task_cost = summary["Cost"]
 
-            cpu_cost = task_cost.get('CPU')
-            memory = task_cost.get('Memory')
-            input_size = task_cost.get('Input')
+            cpu_cost = task_cost.get("CPU")
+            memory = task_cost.get("Memory")
+            input_size = task_cost.get("Input")
 
             return Instance.TaskCost(cpu_cost, memory, input_size)
 
-    def get_task_info(self, task_name, key):
+    def _raise_empty_task_info(self, resp):
+        raise errors.EmptyTaskInfoError(
+            "Empty response. Task server maybe dead.",
+            code=resp.status_code,
+            instance_id=self.id,
+            endpoint=self._client.endpoint,
+            request_id=resp.headers.get("x-odps-request-id"),
+            tag="ODPS",
+        )
+
+    def get_task_info(self, task_name, key, raise_empty=False):
         """
         Get task related information.
 
         :param task_name: name of the task
         :param key: key of the information item
+        :param raise_empty: if True, will raise error when response is empty
         :return: a string of the task information
         """
         actions = ["info"]
-        params = OrderedDict([('taskname', task_name), ('key', key)])
+        params = OrderedDict([("taskname", task_name), ("key", key)])
 
         resp = self._client.get(self.resource(), actions=actions, params=params)
-        return resp.content.decode()
+        resp_data = resp.content.decode()
+        if raise_empty and not resp_data:
+            self._raise_empty_task_info(resp)
+        return resp_data
 
-    def put_task_info(self, task_name, key, value, check_location=False):
+    def put_task_info(
+        self, task_name, key, value, check_location=False, raise_empty=False
+    ):
         """
         Put information into a task.
 
         :param task_name: name of the task
         :param key: key of the information item
         :param value: value of the information item
+        :param check_location: raises if Location header is missing
+        :param raise_empty: if True, will raise error when response is empty
         """
         actions = ["info"]
-        params = {'taskname': task_name}
-        headers = {'Content-Type': 'application/xml'}
+        params = {"taskname": task_name}
+        headers = {"Content-Type": "application/xml"}
         body = self.TaskInfo(key=key, value=value).serialize()
 
-        resp = self._client.put(self.resource(), actions=actions, params=params, headers=headers, data=body)
+        resp = self._client.put(
+            self.resource(), actions=actions, params=params, headers=headers, data=body
+        )
 
-        location = resp.headers.get('Location')
+        location = resp.headers.get("Location")
         if check_location and (location is None or len(location) == 0):
-            raise errors.ODPSError('Invalid response, Location header required.')
-        return resp.content.decode()
+            raise errors.ODPSError("Invalid response, Location header required.")
+        resp_data = resp.content.decode()
+        if raise_empty and not resp_data:
+            self._raise_empty_task_info(resp)
+        return resp_data
 
-    def get_task_quota(self, task_name):
+    def get_task_quota(self, task_name=None):
         """
         Get queueing info of the task.
         Note that time between two calls should larger than 30 seconds, otherwise empty dict is returned.
@@ -554,8 +667,9 @@ class Instance(LazyLoad):
         :param task_name: name of the task
         :return: quota info in dict format
         """
-        actions = ['instancequota']
-        params = {'taskname': task_name}
+        task_name = task_name or self._get_default_task_name()
+        actions = ["instancequota"]
+        params = {"taskname": task_name}
         resp = self._client.get(self.resource(), actions=actions, params=params)
         return json.loads(resp.text)
 
@@ -571,48 +685,50 @@ class Instance(LazyLoad):
         """
         resp = self.get_task_result(self.get_task_names()[0])
         cost = json.loads(resp)
-        sql_cost = cost['Cost']['SQL']
+        sql_cost = cost["Cost"]["SQL"]
 
-        udf_num = sql_cost.get('UDF')
-        complexity = sql_cost.get('Complexity')
-        input_size = sql_cost.get('Input')
+        udf_num = sql_cost.get("UDF")
+        complexity = sql_cost.get("Complexity")
+        input_size = sql_cost.get("Input")
         return Instance.SQLCost(udf_num, complexity, input_size)
+
+    def _get_status(self, blocking=False):
+        if self._status != Instance.Status.TERMINATED:
+            self.reload(blocking)
+        return self._status
 
     @property
     @_with_status_api_lock
     def status(self):
-        if self._status != Instance.Status.TERMINATED:
-            self.reload()
+        return self._get_status()
 
-        return self._status
-
-    def is_terminated(self, retry=False):
+    def is_terminated(self, retry=True, blocking=False, retry_timeout=None):
         """
         If this instance has finished or not.
 
         :return: True if finished else False
         :rtype: bool
         """
-        return utils.call_with_retry(
-            lambda: self.status == Instance.Status.TERMINATED,
-            retry_times=options.retry_times if retry else 0,
-            exc_type=(errors.InternalServerError, errors.RequestTimeTooSkewed),
+        return self._call_with_retry(
+            lambda: self._get_status(blocking) == Instance.Status.TERMINATED,
+            retry=retry,
+            retry_timeout=retry_timeout,
         )
 
-    def is_running(self, retry=False):
+    def is_running(self, retry=True, blocking=False, retry_timeout=None):
         """
         If this instance is still running.
 
         :return: True if still running else False
         :rtype: bool
         """
-        return utils.call_with_retry(
-            lambda: self.status == Instance.Status.RUNNING,
-            retry_times=options.retry_times if retry else 0,
-            exc_type=(errors.InternalServerError, errors.RequestTimeTooSkewed),
+        return self._call_with_retry(
+            lambda: self._get_status(blocking) == Instance.Status.RUNNING,
+            retry=retry,
+            retry_timeout=retry_timeout,
         )
 
-    def is_successful(self, retry=False):
+    def is_successful(self, retry=True, retry_timeout=None):
         """
         If the instance runs successfully.
 
@@ -630,10 +746,8 @@ class Instance(LazyLoad):
                 for task in statuses.values()
             )
 
-        return utils.call_with_retry(
-            _get_successful,
-            retry_times=options.retry_times if retry else 0,
-            exc_type=(errors.InternalServerError, errors.RequestTimeTooSkewed),
+        return self._call_with_retry(
+            _get_successful, retry=retry, retry_timeout=retry_timeout
         )
 
     @property
@@ -646,7 +760,9 @@ class Instance(LazyLoad):
             for task_name in self.get_task_names()
         }
 
-    def wait_for_completion(self, interval=1, timeout=None, max_interval=None):
+    def wait_for_completion(
+        self, interval=1, timeout=None, max_interval=None, blocking=True
+    ):
         """
         Wait for the instance to complete, and neglect the consequence.
 
@@ -654,21 +770,27 @@ class Instance(LazyLoad):
         :param max_interval: if specified, next check interval will be
             multiplied by 2 till max_interval is reached.
         :param timeout: time
+        :param blocking: whether to block waiting at server side. Note that this option does
+            not affect client behavior.
         :return: None
         """
 
-        start_time = monotonic()
-        progress_time = monotonic()
+        start_time = check_time = progress_time = monotonic()
         last_progress = 0
-        while not self.is_terminated(retry=True):
+        while not self.is_terminated(
+            retry=True, blocking=blocking, retry_timeout=_STATUS_QUERY_TIMEOUT
+        ):
             try:
-                time.sleep(interval)
+                sleep_interval_left = interval - (monotonic() - check_time)
+                if sleep_interval_left > 0:
+                    time.sleep(sleep_interval_left)
                 check_time = monotonic()
                 if max_interval is not None:
                     interval = min(interval * 2, max_interval)
                 if timeout is not None and check_time - start_time > timeout:
                     raise errors.WaitTimeoutError(
-                        "Wait completion of instance %s timed out" % self.id, instance_id=self.id
+                        "Wait completion of instance %s timed out" % self.id,
+                        instance_id=self.id,
                     )
 
                 if logger.getEffectiveLevel() <= logging.INFO:
@@ -679,14 +801,21 @@ class Instance(LazyLoad):
                             for progress in task_progresses.values()
                             for stage in progress.stages
                         )
-                        if check_time - start_time >= options.progress_time_interval and (
-                            total_progress - last_progress >= options.progress_percentage_gap
-                            or check_time - progress_time >= options.progress_time_interval
+                        if (
+                            check_time - start_time >= options.progress_time_interval
+                            and (
+                                total_progress - last_progress
+                                >= options.progress_percentage_gap
+                                or check_time - progress_time
+                                >= options.progress_time_interval
+                            )
                         ):
                             if not self._logview_logged:
                                 self._logview_logged = True
                                 logger.info(
-                                    "Instance ID: %s\n  Log view: %s", self.id, self.get_logview_address()
+                                    "Instance ID: %s\n  Log view: %s",
+                                    self.id,
+                                    self.get_logview_address(),
                                 )
 
                             output_parts = [str(self.id)] + [
@@ -703,7 +832,9 @@ class Instance(LazyLoad):
             except KeyboardInterrupt:
                 break
 
-    def wait_for_success(self, interval=1, timeout=None, max_interval=None):
+    def wait_for_success(
+        self, interval=1, timeout=None, max_interval=None, blocking=True
+    ):
         """
         Wait for instance to complete, and check if the instance is successful.
 
@@ -711,11 +842,18 @@ class Instance(LazyLoad):
         :param max_interval: if specified, next check interval will be
             multiplied by 2 till max_interval is reached.
         :param timeout: time
+        :param blocking: whether to block waiting at server side. Note that this option does
+            not affect client behavior.
         :return: None
         :raise: :class:`odps.errors.ODPSError` if the instance failed
         """
 
-        self.wait_for_completion(interval=interval, max_interval=max_interval, timeout=timeout)
+        self.wait_for_completion(
+            interval=interval,
+            max_interval=max_interval,
+            timeout=timeout,
+            blocking=blocking,
+        )
 
         if not self.is_successful(retry=True):
             for task_name, task in six.iteritems(self.get_task_statuses()):
@@ -723,13 +861,15 @@ class Instance(LazyLoad):
                 if task.status == Instance.Task.TaskStatus.FAILED:
                     exc = errors.parse_instance_error(self.get_task_result(task_name))
                 elif task.status != Instance.Task.TaskStatus.SUCCESS:
-                    exc = errors.ODPSError('%s, status=%s' % (task_name, task.status.value))
+                    exc = errors.ODPSError(
+                        "%s, status=%s" % (task_name, task.status.value)
+                    )
                 if exc:
                     exc.instance_id = self.id
                     raise exc
 
     @_with_status_api_lock
-    def get_task_progress(self, task_name):
+    def get_task_progress(self, task_name=None):
         """
         Get task's current progress
 
@@ -737,14 +877,14 @@ class Instance(LazyLoad):
         :return: the task's progress
         :rtype: :class:`odps.models.Instance.Task.TaskProgress`
         """
-
-        params = {'instanceprogress': task_name, 'taskname': task_name}
+        task_name = task_name or self._get_default_task_name()
+        params = {"instanceprogress": task_name, "taskname": task_name}
 
         resp = self._client.get(self.resource(), params=params)
         return Instance.Task.TaskProgress.parse(self._client, resp)
 
     @_with_status_api_lock
-    def get_task_detail(self, task_name):
+    def get_task_detail(self, task_name=None):
         """
         Get task's detail
 
@@ -752,18 +892,20 @@ class Instance(LazyLoad):
         :return: the task's detail
         :rtype: list or dict according to the JSON
         """
+
         def _get_detail():
             from ..compat import json  # fix object_pairs_hook parameter for Py2.6
 
-            params = {'taskname': task_name}
+            params = {"taskname": task_name}
             resp = self._client.get(
-                self.resource(), action='instancedetail', params=params
+                self.resource(), action="instancedetail", params=params
             )
             return json.loads(
                 resp.content.decode() if six.PY3 else resp.content,
-                object_pairs_hook=OrderedDict
+                object_pairs_hook=OrderedDict,
             )
 
+        task_name = task_name or self._get_default_task_name()
         result = _get_detail()
         if not result:
             # todo: this is a workaround for the bug that get_task_detail returns nothing.
@@ -772,7 +914,7 @@ class Instance(LazyLoad):
             return result
 
     @_with_status_api_lock
-    def get_task_detail2(self, task_name):
+    def get_task_detail2(self, task_name=None, **kw):
         """
         Get task's detail v2
 
@@ -780,9 +922,12 @@ class Instance(LazyLoad):
         :return: the task's detail
         :rtype: list or dict according to the JSON
         """
-        params = {'taskname': task_name}
+        task_name = task_name or self._get_default_task_name()
+        params = {"taskname": task_name}
+        if "subquery_id" in kw:
+            params["subquery_id"] = str(kw.pop("subquery_id"))
 
-        resp = self._client.get(self.resource(), action='detail', params=params)
+        resp = self._client.get(self.resource(), action="detail", params=params)
         res = resp.content.decode() if six.PY3 else resp.content
         try:
             return json.loads(res, object_pairs_hook=OrderedDict)
@@ -799,12 +944,14 @@ class Instance(LazyLoad):
 
         .. seealso:: :class:`odps.models.Worker`
         """
-        if task_name is None and json_obj is None:
-            raise ValueError('Either task_name or json_obj should be provided')
+        if json_obj is None:
+            task_name = task_name or self._get_default_task_name()
 
         if json_obj is None:
             json_obj = self.get_task_detail2(task_name)
-        return WorkerDetail2.extract_from_json(json_obj, client=self._client, parent=self)
+        return WorkerDetail2.extract_from_json(
+            json_obj, client=self._client, parent=self
+        )
 
     @_with_status_api_lock
     def get_worker_log(self, log_id, log_type, size=0):
@@ -816,18 +963,23 @@ class Instance(LazyLoad):
         :param size: length of the log to retrieve
         :return: log content
         """
-        params = OrderedDict([('log', ''), ('id', log_id)])
+        params = OrderedDict([("log", ""), ("id", log_id)])
         if log_type is not None:
             log_type = log_type.lower()
             if log_type not in LOG_TYPES_MAPPING:
-                raise ValueError('log_type should choose a value in ' +
-                                 ' '.join(six.iterkeys(LOG_TYPES_MAPPING)))
-            params['logtype'] = LOG_TYPES_MAPPING[log_type]
+                raise ValueError(
+                    "log_type should choose a value in "
+                    + " ".join(six.iterkeys(LOG_TYPES_MAPPING))
+                )
+            params["logtype"] = LOG_TYPES_MAPPING[log_type]
         if size > 0:
-            params['size'] = str(size)
+            params["size"] = str(size)
         resp = self._client.get(self.resource(), params=params)
         return resp.text
-    get_worker_log.__doc__ = get_worker_log.__doc__.format(log_types=', '.join(sorted(six.iterkeys(LOG_TYPES_MAPPING))))
+
+    get_worker_log.__doc__ = get_worker_log.__doc__.format(
+        log_types=", ".join(sorted(six.iterkeys(LOG_TYPES_MAPPING)))
+    )
 
     @_with_status_api_lock
     def get_logview_address(self, hours=None):
@@ -850,12 +1002,15 @@ class Instance(LazyLoad):
         else:
             hours = hours or options.logview_hours
             policy = {
-                'Statement': [{
-                    'Action': ['odps:Read'],
-                    'Effect': 'Allow',
-                    'Resource': 'acs:odps:*:projects/%s/instances/%s' % (project.name, self.id)
-                }],
-                'Version': '1',
+                "Statement": [
+                    {
+                        "Action": ["odps:Read"],
+                        "Effect": "Allow",
+                        "Resource": "acs:odps:*:projects/%s/instances/%s"
+                        % (project.name, self.id),
+                    }
+                ],
+                "Version": "1",
             }
             token = self.project.generate_auth_token(policy, "bearer", hours)
 
@@ -878,11 +1033,12 @@ class Instance(LazyLoad):
         return self.id
 
     def _get_job(self):
-        url = self.resource()
-        resp = self._client.get(url, action='source')
+        if not self._job_source:
+            url = self.resource()
+            resp = self._client.get(url, action="source")
 
-        job = Job.parse(self._client, resp, parent=self)
-        return job
+            self._job_source = Job.parse(self._client, resp, parent=self)
+        return self._job_source
 
     def get_tasks(self):
         return self.tasks
@@ -897,50 +1053,78 @@ class Instance(LazyLoad):
         job = self._get_job()
         return job.priority
 
-    def _get_queueing_info(self):
+    def _get_queueing_info(self, **kw):
+        params = {}
+        if "subquery_id" in kw:
+            params["subquery_id"] = str(kw.pop("subquery_id"))
+
         url = self.resource()
-        resp = self._client.get(url, action='cached')
-        return Instance.InstanceQueueingInfo.parse(
-            self._client, resp, parent=self.project.instance_queueing_infos), resp
+        resp = self._client.get(url, action="cached", params=params)
+        return (
+            Instance.InstanceQueueingInfo.parse(
+                self._client, resp, parent=self.project.instance_queueing_infos
+            ),
+            resp,
+        )
 
     def get_queueing_info(self):
         info, _ = self._get_queueing_info()
         return info
 
-    def _create_instance_tunnel(self, endpoint=None):
-        if self._instance_tunnel is not None:
-            return self._instance_tunnel
+    def get_sql_query(self):
+        task = [t for t in self.tasks if isinstance(t, SQLTask)]
+        if not task:
+            raise errors.ODPSError("Instance %s does not contain a SQLTask.", self.id)
+        if len(task) > 1:  # pragma: no cover
+            raise errors.ODPSError("Multiple SQLTasks exist in instance %s.", self.id)
+        return task[0].query
 
-        from ..tunnel import InstanceTunnel
-
-        self._instance_tunnel = InstanceTunnel(
-            client=self._client, project=self.project,
-            endpoint=endpoint or self.project._tunnel_endpoint
-        )
-        return self._instance_tunnel
-
-    @utils.survey
-    def _open_result_reader(self, schema=None, task_name=None, timeout=None, **_):
+    def _check_get_task_name(self, task_type, task_name=None, err_head=None):
         if not self.is_successful(retry=True):
             raise errors.ODPSError(
-                'Cannot open reader, instance(%s) may fail or has not finished yet' % self.id)
+                "%s, instance(%s) may fail or has not finished yet"
+                % (err_head, self.id)
+            )
 
-        sql_tasks = dict([(name, task) for name, task in six.iteritems(self.get_task_statuses())
-                          if task.type.lower() == 'sql'])
-        if len(sql_tasks) > 1:
+        task_type = task_type.lower()
+        filtered_tasks = {
+            name: task
+            for name, task in six.iteritems(self.get_task_statuses())
+            if task.type.lower() == task_type
+        }
+        if len(filtered_tasks) > 1:
             if task_name is None:
                 raise errors.ODPSError(
-                    'Cannot open reader, job has more than one sql tasks, please specify one')
-            elif task_name not in sql_tasks:
+                    "%s, job has more than one %s tasks, please specify one"
+                    % (err_head, task_type)
+                )
+            elif task_name not in filtered_tasks:
                 raise errors.ODPSError(
-                    'Cannot open reader, unknown task name: %s' % task_name)
-        elif len(sql_tasks) == 1:
-            task_name = list(sql_tasks)[0]
+                    "%s, unknown task name: %s" % (err_head, task_name)
+                )
+            return task_name
+        elif len(filtered_tasks) == 1:
+            return list(filtered_tasks)[0]
         else:
-            raise errors.ODPSError('Cannot open reader, job has no sql task')
+            raise errors.ODPSError("%s, job has no %s task" % (err_head, task_type))
 
+    def _create_instance_tunnel(self, endpoint=None, quota_name=None):
+        from ..tunnel import InstanceTunnel
+
+        return InstanceTunnel(
+            client=self._client,
+            project=self.project,
+            quota_name=quota_name,
+            endpoint=endpoint or self.project._tunnel_endpoint,
+        )
+
+    @utils.survey
+    def _open_result_reader(self, schema=None, task_name=None, timeout=None, **kw):
+        task_name = self._check_get_task_name(
+            "sql", task_name=task_name, err_head="Cannot open reader"
+        )
         result = self.get_task_result(task_name, timeout=timeout)
-        reader = readers.CsvRecordReader(schema, result)
+        reader = readers.CsvRecordReader(schema, result, **kw)
         if options.result_reader_create_callback:
             options.result_reader_create_callback(reader)
         return reader
@@ -948,17 +1132,23 @@ class Instance(LazyLoad):
     def _open_tunnel_reader(self, **kw):
         from ..tunnel.instancetunnel import InstanceDownloadSession
 
-        reopen = kw.pop('reopen', False)
-        endpoint = kw.pop('endpoint', None)
+        reopen = kw.pop("reopen", False)
+        endpoint = kw.pop("endpoint", None)
+        quota_name = kw.pop("quota_name", None)
         arrow = kw.pop("arrow", False)
-        tunnel = self._create_instance_tunnel(endpoint=endpoint)
+        columns = kw.pop("columns", None)
+
+        tunnel = self._create_instance_tunnel(endpoint=endpoint, quota_name=quota_name)
         download_id = self._download_id if not reopen else None
 
         try:
             download_session = tunnel.create_download_session(
                 instance=self, download_id=download_id, **kw
             )
-            if download_id and download_session.status != InstanceDownloadSession.Status.Normal:
+            if (
+                download_id
+                and download_session.status != InstanceDownloadSession.Status.Normal
+            ):
                 download_session = tunnel.create_download_session(instance=self, **kw)
         except errors.InternalServerError:
             e, tb = sys.exc_info()[1:]
@@ -968,9 +1158,9 @@ class Instance(LazyLoad):
         self._download_id = download_session.id
 
         if arrow:
-            return InstanceArrowReader(self, download_session)
+            return InstanceArrowReader(self, download_session, columns=columns)
         else:
-            return InstanceRecordReader(self, download_session)
+            return InstanceRecordReader(self, download_session, columns=columns)
 
     def open_reader(self, *args, **kwargs):
         """
@@ -1004,31 +1194,37 @@ class Instance(LazyLoad):
         >>>     for record in reader[0: count]:
         >>>         # read all data, actually better to split into reading for many times
         """
-        use_tunnel = kwargs.get('use_tunnel', kwargs.get('tunnel'))
+        use_tunnel = kwargs.get("use_tunnel", kwargs.get("tunnel"))
         auto_fallback_result = use_tunnel is None
 
         timeout = kwargs.pop("timeout", None)
         if use_tunnel is None:
             use_tunnel = options.tunnel.use_instance_tunnel
             if use_tunnel:
-                timeout = timeout if timeout is not None else options.tunnel.legacy_fallback_timeout
+                timeout = (
+                    timeout
+                    if timeout is not None
+                    else options.tunnel.legacy_fallback_timeout
+                )
         kwargs["timeout"] = timeout
 
         result_fallback_errors = (
-            errors.InvalidProjectTable, errors.InvalidArgument, errors.NoSuchProject
+            errors.InvalidProjectTable,
+            errors.InvalidArgument,
+            errors.NoSuchProject,
         )
         if use_tunnel:
             # for compatibility
-            if 'limit_enabled' in kwargs:
-                kwargs['limit'] = kwargs['limit_enabled']
-                del kwargs['limit_enabled']
+            if "limit_enabled" in kwargs:
+                kwargs["limit"] = kwargs["limit_enabled"]
+                del kwargs["limit_enabled"]
 
-            if 'limit' not in kwargs:
-                kwargs['limit'] = options.tunnel.limit_instance_tunnel
+            if "limit" not in kwargs:
+                kwargs["limit"] = options.tunnel.limit_instance_tunnel
 
             auto_fallback_protection = False
-            if kwargs['limit'] is None:
-                kwargs['limit'] = False
+            if kwargs["limit"] is None:
+                kwargs["limit"] = False
                 auto_fallback_protection = True
 
             try:
@@ -1037,21 +1233,27 @@ class Instance(LazyLoad):
                 # service version too low to support instance tunnel.
                 if not auto_fallback_result:
                     raise
-                if not kwargs.get('limit'):
-                    warnings.warn('Instance tunnel not supported, will fallback to '
-                                  'conventional ways. 10000 records will be limited. '
-                                  + _RESULT_LIMIT_HELPER_MSG)
+                if not kwargs.get("limit"):
+                    warnings.warn(
+                        "Instance tunnel not supported, will fallback to "
+                        "conventional ways. 10000 records will be limited. "
+                        + _RESULT_LIMIT_HELPER_MSG
+                    )
             except requests.Timeout:
                 # tunnel creation timed out, which might be caused by too many files
                 # on the service.
                 if not auto_fallback_result:
                     raise
-                if not kwargs.get('limit'):
+                if not kwargs.get("limit"):
                     warnings.warn(
-                        'Instance tunnel timed out, will fallback to conventional ways. '
-                        '10000 records will be limited. You may try merging small files '
-                        'on your source table. ' + _RESULT_LIMIT_HELPER_MSG)
-            except (Instance.DownloadSessionCreationError, errors.InstanceTypeNotSupported):
+                        "Instance tunnel timed out, will fallback to conventional ways. "
+                        "10000 records will be limited. You may try merging small files "
+                        "on your source table. " + _RESULT_LIMIT_HELPER_MSG
+                    )
+            except (
+                Instance.DownloadSessionCreationError,
+                errors.InstanceTypeNotSupported,
+            ):
                 # this is for DDL sql instances such as `show partitions` which raises
                 # InternalServerError when creating download sessions.
                 if not auto_fallback_result:
@@ -1060,10 +1262,115 @@ class Instance(LazyLoad):
                 # project is protected
                 if not auto_fallback_protection:
                     raise
-                if not kwargs.get('limit'):
-                    warnings.warn('Project under protection, 10000 records will be limited.'
-                                  + _RESULT_LIMIT_HELPER_MSG)
-                    kwargs['limit'] = True
+                if not kwargs.get("limit"):
+                    warnings.warn(
+                        "Project under protection, 10000 records will be limited."
+                        + _RESULT_LIMIT_HELPER_MSG
+                    )
+                    kwargs["limit"] = True
                     return self.open_reader(*args, **kwargs)
 
         return self._open_result_reader(*args, **kwargs)
+
+    def _iter_reader_with_pandas(self, iter_func, **kw):
+        try:
+            with self.open_reader(**kw) as reader:
+                for batch in iter_func(reader):
+                    yield batch
+        except (errors.ChecksumError, errors.MethodNotAllowed):
+            # arrow tunnel not implemented or not supported
+            kw.pop("arrow", None)
+            with self.open_reader(**kw) as reader:
+                for batch in iter_func(reader):
+                    yield batch
+
+    def to_pandas(
+        self,
+        columns=None,
+        limit=None,
+        start=None,
+        count=None,
+        n_process=1,
+        quota_name=None,
+        tags=None,
+        **kwargs
+    ):
+        """
+        Read instance data into pandas DataFrame. The limit argument follows definition
+        of `open_reader` API.
+
+        :param list columns: columns to read
+        :param bool limit: if True, enable the limitation
+        :param int start: start row index from 0
+        :param int count: data count to read
+        :param int n_process: number of processes to accelerate reading
+        :param str quota_name: name of tunnel quota to use
+        """
+        try:
+            import pyarrow as pa
+        except ImportError:
+            pa = None
+
+        kw = dict(
+            limit=limit,
+            columns=columns,
+            arrow=pa is not None,
+            quota_name=quota_name,
+            tags=tags,
+            **kwargs
+        )
+        if limit is None:
+            kw.pop("limit")
+
+        def _it(reader):
+            yield reader.to_pandas(start=start, count=count, n_process=n_process)
+
+        return next(self._iter_reader_with_pandas(_it, **kw))
+
+    def iter_pandas(
+        self,
+        columns=None,
+        limit=None,
+        batch_size=None,
+        start=None,
+        count=None,
+        quota_name=None,
+        tags=None,
+        **kwargs
+    ):
+        """
+        Iterate table data in blocks as pandas DataFrame. The limit argument
+        follows definition of `open_reader` API.
+
+        :param list columns: columns to read
+        :param bool limit: if True, enable the limitation
+        :param int batch_size: size of DataFrame batch to read
+        :param int start: start row index from 0
+        :param int count: data count to read
+        :param str quota_name: name of tunnel quota to use
+        """
+        try:
+            import pyarrow as pa
+        except ImportError:
+            pa = None
+
+        batch_size = batch_size or options.tunnel.read_row_batch_size
+        kw = dict(
+            limit=limit,
+            columns=columns,
+            arrow=pa is not None,
+            quota_name=quota_name,
+            tags=tags,
+            **kwargs
+        )
+        if limit is None:
+            kw.pop("limit")
+
+        def _it(reader):
+            for batch in reader.iter_pandas(
+                batch_size, start=start, count=count, columns=columns
+            ):
+                yield batch
+
+        for batch in self._iter_reader_with_pandas(_it, **kw):
+            yield batch

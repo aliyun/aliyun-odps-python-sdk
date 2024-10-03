@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,20 +20,20 @@ import warnings
 import weakref
 
 from .. import serializers, utils
-from ..compat import six, Enum
+from ..compat import Enum, six
 from ..errors import SecurityQueryError
 from .core import LazyLoad, XMLRemoteModel
 from .functions import Functions
-from .instances import Instances, CachedInstances
+from .instances import CachedInstances, Instances
 from .ml import OfflineModels
 from .resources import Resources
 from .schemas import Schemas
+from .security.roles import Roles
+from .security.users import User, Users
+from .storage_tier import StorageTierInfo
 from .tables import Tables
 from .volumes import Volumes
 from .xflows import XFlows
-from .security.users import Users, User
-from .security.roles import Roles
-from .storage_tier import StorageTierInfo
 
 
 class Project(LazyLoad):
@@ -62,6 +62,7 @@ class Project(LazyLoad):
         "_policy_cache",
         "_logview_host",
         "_default_schema",
+        "_quota_name",
         "_tunnel_endpoint",
         "_all_props_loaded",
         "_extended_props_loaded",
@@ -69,31 +70,34 @@ class Project(LazyLoad):
     )
 
     class Cluster(XMLRemoteModel):
-
-        name = serializers.XMLNodeField('Name')
-        quota_id = serializers.XMLNodeField('QuotaID')
+        name = serializers.XMLNodeField("Name")
+        quota_id = serializers.XMLNodeField("QuotaID")
 
         @classmethod
         def deserial(cls, content, obj=None, **kw):
             ret = super(Project.Cluster, cls).deserial(content, obj=obj, **kw)
-            if not getattr(ret, 'name', None) or not getattr(ret, 'quota_id', None):
-                raise ValueError('Missing arguments: name or quotaID')
+            if not getattr(ret, "name", None) or not getattr(ret, "quota_id", None):
+                raise ValueError("Missing arguments: name or quotaID")
             return ret
 
     class ExtendedProperties(XMLRemoteModel):
         _extended_properties = serializers.XMLNodePropertiesField(
-            'ExtendedProperties', 'Property', key_tag='Name', value_tag='Value', set_to_parent=True
+            "ExtendedProperties",
+            "Property",
+            key_tag="Name",
+            value_tag="Value",
+            set_to_parent=True,
         )
 
     class AuthQueryRequest(serializers.XMLSerializableModel):
-        _root = 'Authorization'
-        query = serializers.XMLNodeField('Query')
-        use_json = serializers.XMLNodeField('ResponseInJsonFormat', type='bool')
-        settings = serializers.XMLNodeField('Settings')
+        _root = "Authorization"
+        query = serializers.XMLNodeField("Query")
+        use_json = serializers.XMLNodeField("ResponseInJsonFormat", type="bool")
+        settings = serializers.XMLNodeField("Settings")
 
     class AuthQueryResponse(serializers.XMLSerializableModel):
-        _root = 'Authorization'
-        result = serializers.XMLNodeField('Result')
+        _root = "Authorization"
+        result = serializers.XMLNodeField("Result")
 
     class AuthQueryStatus(Enum):
         TERMINATED = "TERMINATED"
@@ -127,9 +131,9 @@ class Project(LazyLoad):
 
     class AuthQueryStatusResponse(serializers.XMLSerializableModel):
         _root = "AuthorizationQuery"
-        result = serializers.XMLNodeField('Result')
+        result = serializers.XMLNodeField("Result")
         status = serializers.XMLNodeField(
-            'Status', parse_callback=lambda s: Project.AuthQueryStatus(s.upper())
+            "Status", parse_callback=lambda s: Project.AuthQueryStatus(s.upper())
         )
 
     class AuthQueryInstance(object):
@@ -165,30 +169,30 @@ class Project(LazyLoad):
             status = self.query_status()
             return status.status == Project.AuthQueryStatus.TERMINATED
 
-    name = serializers.XMLNodeField('Name')
-    type = serializers.XMLNodeField('Type', parse_callback=ProjectType.from_str)
-    comment = serializers.XMLNodeField('Comment')
-    owner = serializers.XMLNodeField('Owner')
-    super_administrator = serializers.XMLNodeField('SuperAdministrator')
+    name = serializers.XMLNodeField("Name")
+    type = serializers.XMLNodeField("Type", parse_callback=ProjectType.from_str)
+    comment = serializers.XMLNodeField("Comment")
+    owner = serializers.XMLNodeField("Owner")
+    super_administrator = serializers.XMLNodeField("SuperAdministrator")
     creation_time = serializers.XMLNodeField(
-        'CreationTime', parse_callback=utils.parse_rfc822
+        "CreationTime", parse_callback=utils.parse_rfc822
     )
     last_modified_time = serializers.XMLNodeField(
-        'LastModifiedTime', parse_callback=utils.parse_rfc822
+        "LastModifiedTime", parse_callback=utils.parse_rfc822
     )
-    project_group_name = serializers.XMLNodeField('ProjectGroupName')
+    project_group_name = serializers.XMLNodeField("ProjectGroupName")
     properties = serializers.XMLNodePropertiesField(
-        'Properties', 'Property', key_tag='Name', value_tag='Value'
+        "Properties", "Property", key_tag="Name", value_tag="Value"
     )
     _extended_properties = serializers.XMLNodePropertiesField(
-        'ExtendedProperties', 'Property', key_tag='Name', value_tag='Value'
+        "ExtendedProperties", "Property", key_tag="Name", value_tag="Value"
     )
-    _state = serializers.XMLNodeField('State')
-    clusters = serializers.XMLNodesReferencesField(Cluster, 'Clusters', 'Cluster')
-    region_id = serializers.XMLNodeField('Region')
-    tenant_id = serializers.XMLNodeField('TenantId')
-    default_quota_nickname = serializers.XMLNodeField('DefaultQuotaNickname')
-    default_quota_region = serializers.XMLNodeField('DefaultQuotaRegion')
+    _state = serializers.XMLNodeField("State")
+    clusters = serializers.XMLNodesReferencesField(Cluster, "Clusters", "Cluster")
+    region_id = serializers.XMLNodeField("Region")
+    tenant_id = serializers.XMLNodeField("TenantId")
+    default_quota_nickname = serializers.XMLNodeField("DefaultQuotaNickname")
+    default_quota_region = serializers.XMLNodeField("DefaultQuotaRegion")
 
     def __init__(self, *args, **kwargs):
         self._tunnel_endpoint = None
@@ -208,9 +212,9 @@ class Project(LazyLoad):
 
         self.parse(self._client, resp, obj=self)
 
-        self.owner = resp.headers['x-odps-owner']
-        self.creation_time = utils.parse_rfc822(resp.headers['x-odps-creation-time'])
-        self.last_modified_time = utils.parse_rfc822(resp.headers['Last-Modified'])
+        self.owner = resp.headers["x-odps-owner"]
+        self.creation_time = utils.parse_rfc822(resp.headers["x-odps-creation-time"])
+        self.last_modified_time = utils.parse_rfc822(resp.headers["Last-Modified"])
 
         self._loaded = True
         self._all_props_loaded = all_props
@@ -221,7 +225,7 @@ class Project(LazyLoad):
             return self._getattr("_extended_properties")
 
         url = self.resource()
-        resp = self._client.get(url, action='extended')
+        resp = self._client.get(url, action="extended")
         Project.ExtendedProperties.parse(self._client, resp, parent=self)
 
         self._extended_props_loaded = True
@@ -234,11 +238,13 @@ class Project(LazyLoad):
     @property
     def state(self):
         warnings.warn(
-            'Project.state is deprecated and will be replaced by Project.status.',
+            "Project.state is deprecated and will be replaced by Project.status.",
             DeprecationWarning,
             stacklevel=3,
         )
-        utils.add_survey_call(".".join([type(self).__module__, type(self).__name__, "state"]))
+        utils.add_survey_call(
+            ".".join([type(self).__module__, type(self).__name__, "state"])
+        )
         return self._state
 
     @property
@@ -303,11 +309,12 @@ class Project(LazyLoad):
     @property
     def security_options(self):
         from .security import SecurityConfiguration
+
         return SecurityConfiguration(client=self._client, parent=self)
 
     @property
     def system_info(self):
-        resp = self._client.get(self.resource() + '/system')
+        resp = self._client.get(self.resource() + "/system")
         return json.loads(resp.content.decode() if six.PY3 else resp.content)
 
     @property
@@ -337,7 +344,7 @@ class Project(LazyLoad):
             schema=client.schema,
             tunnel_endpoint=self._tunnel_endpoint,
             logview_host=self._logview_host,
-            app_account=getattr(client, 'app_account', None),
+            app_account=getattr(client, "app_account", None),
             overwrite_global=False,
         )
         self._odps_ref = weakref.ref(odps)
@@ -356,7 +363,7 @@ class Project(LazyLoad):
     @property
     def policy(self):
         if self._getattr("_policy_cache") is None:
-            params = dict(policy='')
+            params = dict(policy="")
             resp = self._client.get(self.resource(), params=params)
             self._policy_cache = resp.content.decode() if six.PY3 else resp.content
         if self._getattr("_policy_cache"):
@@ -369,34 +376,43 @@ class Project(LazyLoad):
         if isinstance(value, (dict, list)):
             value = json.dumps(value)
         elif value is None:
-            value = ''
+            value = ""
         self._policy_cache = value
-        params = dict(policy='')
+        params = dict(policy="")
         self._client.put(self.resource(), data=value, params=params)
 
     @property
     def current_user(self):
         user_cache = type(self)._user_cache
-        user_key = self._client.account.access_id + '##' + self.name
+        user_key = self._client.account.access_id + "##" + self.name
         if user_key not in user_cache:
-            user = self.run_security_query('whoami')
-            user_cache[user_key] = User(_client=self._client, parent=self.users,
-                                        id=user['ID'], display_name=user['DisplayName'])
+            user = self.run_security_query("whoami")
+            user_cache[user_key] = User(
+                _client=self._client,
+                parent=self.users,
+                id=user["ID"],
+                display_name=user["DisplayName"],
+            )
         return user_cache[user_key]
 
     def auth_resource(self, client=None):
         return self.resource(client) + "/authorization"
 
-    def run_security_query(self, query, schema=None, token=None, hints=None, output_json=True):
+    def run_security_query(
+        self, query, schema=None, token=None, hints=None, output_json=True
+    ):
         url = self.auth_resource()
-        headers = {'Content-Type': 'application/xml'}
+        headers = {"Content-Type": "application/xml"}
         if token:
-            headers['odps-x-supervision-token'] = token
+            headers["odps-x-supervision-token"] = token
 
         if schema is not None or self.odps.is_schema_namespace_enabled():
             hints = hints or {}
             hints["odps.namespace.schema"] = "true"
-            hints["odps.default.schema"] = hints.get("odps.default.schema") or schema or "default"
+            hints["odps.sql.allow.namespace.schema"] = "true"
+            hints["odps.default.schema"] = (
+                hints.get("odps.default.schema") or schema or "default"
+            )
 
         req_obj = self.AuthQueryRequest(
             query=query, use_json=True, settings=json.dumps(hints) if hints else None
@@ -414,16 +430,13 @@ class Project(LazyLoad):
             raise SecurityQueryError("Unsupported token type " + type)
 
         url = self.auth_resource()
-        headers = {'Content-Type': 'application/json'}
+        headers = {"Content-Type": "application/json"}
 
-        policy_dict = {
-            'expires_in_hours': expire_hours,
-            'policy': policy
-        }
+        policy_dict = {"expires_in_hours": expire_hours, "policy": policy}
         data = json.dumps(policy_dict)
 
         query_resp = self._client.post(
-            url, data, action='sign_bearer_token', headers=headers
+            url, data, action="sign_bearer_token", headers=headers
         )
         resp = self.AuthQueryResponse.parse(query_resp)
         return resp.result

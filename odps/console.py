@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,15 +14,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import sys
+import codecs
+import locale
+import math
 import multiprocessing
+import os
+import struct
+import sys
 import threading
 import time
-import struct
-import os
-import math
-import locale
-import codecs
 import warnings
 
 try:
@@ -32,15 +32,16 @@ except ImportError:  # pragma: no cover
 
 try:
     import fcntl
-    import termios
     import signal
+    import termios
+
     _CAN_RESIZE_TERMINAL = True
 except ImportError:
     _CAN_RESIZE_TERMINAL = False
 
 try:
     from IPython import get_ipython
-except ImportError:
+except (ImportError, AttributeError):
     pass
 try:
     get_ipython()
@@ -50,6 +51,7 @@ except NameError:
     widgets = None
 else:
     from IPython import version_info
+
     ipython_major_version = version_info[0]
 
     try:
@@ -68,6 +70,7 @@ else:
 
     if OutStream is not None:
         from IPython.utils import io as ipyio
+
         # On Windows in particular this is necessary, as the io.stdout stream
         # in IPython gets hooked up to some pyreadline magic to handle colors
         try:
@@ -85,7 +88,8 @@ else:
         from pyreadyline.console import Console as PyreadlineConsole
     except ImportError:
         # Just define a dummy class
-        class PyreadlineConsole(object): pass
+        class PyreadlineConsole(object):
+            pass
 
     # import widgets and display
     try:
@@ -99,15 +103,16 @@ else:
 
     # ignore widgets deprecated message
     def _ignore_deprecated_warnings():
-        warnings.filterwarnings('ignore', category=DeprecationWarning, module=r'.*widget.*')
+        warnings.filterwarnings(
+            "ignore", category=DeprecationWarning, module=r".*widget.*"
+        )
 
     if get_ipython and get_ipython():
-        get_ipython().events.register('pre_execute', _ignore_deprecated_warnings)
+        get_ipython().events.register("pre_execute", _ignore_deprecated_warnings)
 
 from .compat import six
 
-
-_DEFAULT_ENCODING = 'utf-8'
+_DEFAULT_ENCODING = "utf-8"
 _initial_defencoding = None
 
 
@@ -117,6 +122,7 @@ def detect_console_encoding():
     slighly modified from the way IPython handles the same issue.
     """
     import locale
+
     global _initial_defencoding
 
     encoding = None
@@ -126,14 +132,14 @@ def detect_console_encoding():
         pass
 
     # try again for something better
-    if not encoding or 'ascii' in encoding.lower():
+    if not encoding or "ascii" in encoding.lower():
         try:
             encoding = locale.getpreferredencoding()
         except Exception:
             pass
 
     # when all else fails. this will usually be "ascii"
-    if not encoding or 'ascii' in encoding.lower():
+    if not encoding or "ascii" in encoding.lower():
         encoding = sys.getdefaultencoding()
 
     # GH3360, save the reported defencoding at import time
@@ -152,30 +158,35 @@ def get_terminal_size():
     IPython zmq frontends, or IDLE do not run in a terminal,
     """
     import platform
+
     current_os = platform.system()
     tuple_xy = None
-    if current_os == 'Windows':
+    if current_os == "Windows":
         tuple_xy = _get_terminal_size_windows()
         if tuple_xy is None:
             tuple_xy = _get_terminal_size_tput()
             # needed for window's python in cygwin's xterm!
-    if current_os == 'Linux' or \
-        current_os == 'Darwin' or \
-            current_os.startswith('CYGWIN'):
+    if (
+        current_os == "Linux"
+        or current_os == "Darwin"
+        or current_os.startswith("CYGWIN")
+    ):
         tuple_xy = _get_terminal_size_linux()
     if tuple_xy is None:
-        tuple_xy = (80, 25)      # default value
+        tuple_xy = (80, 25)  # default value
     return tuple_xy
 
 
 def in_interactive_session():
-    """ check if we're running in an interactive shell
+    """check if we're running in an interactive shell
 
     returns True if running under python/ipython interactive shell
     """
+
     def check_main():
         import __main__ as main
-        return not hasattr(main, '__file__')
+
+        return not hasattr(main, "__file__")
 
     try:
         return __IPYTHON__ or check_main()  # noqa: F821
@@ -189,7 +200,7 @@ def in_ipython_frontend():
     """
     try:
         ip = get_ipython()
-        return 'zmq' in str(type(ip)).lower()
+        return "zmq" in str(type(ip)).lower()
     except:
         pass
 
@@ -204,26 +215,28 @@ def get_notebook_backend():
     if _backend_name is not None:
         return _backend_name
 
-    if 'VSCODE_PID' in os.environ:
-        _backend_name = 'VSCode'
+    if "VSCODE_PID" in os.environ:
+        _backend_name = "VSCode"
         return _backend_name
 
     # DSW always use jupyter lab
     for env_name in os.environ.keys():
-        if env_name.lower().startswith('dsw_'):
-            _backend_name = 'DSW'
+        if env_name.lower().startswith("dsw_"):
+            _backend_name = "DSW"
             return _backend_name
 
     for arg in sys.argv:
-        if arg.endswith('.json') and os.path.exists(arg):
+        if arg.endswith(".json") and os.path.exists(arg):
             ipy_json_path = os.path.dirname(arg)
             # jupyter lab will generate a jpserver-{pid}.json, while
             # jupyter notebook will generate a nbserver-{pid}.json instead
-            lab_cfg_path = os.path.join(ipy_json_path, 'jpserver-%d.json' % os.getppid())
+            lab_cfg_path = os.path.join(
+                ipy_json_path, "jpserver-%d.json" % os.getppid()
+            )
             if os.path.exists(lab_cfg_path):
-                _backend_name = 'JupyterLab'
+                _backend_name = "JupyterLab"
                 return _backend_name
-    _backend_name = 'JupyterNotebook'
+    _backend_name = "JupyterNotebook"
     return _backend_name
 
 
@@ -234,11 +247,11 @@ def is_widgets_available():
         return False
 
     # todo when widget for lab or vscode ready, change this
-    if get_notebook_backend() in ('DSW', 'JupyterLab', 'VSCode'):
+    if get_notebook_backend() in ("DSW", "JupyterLab", "VSCode"):
         return False
 
-    if hasattr(widgets.Widget, '_version_validated'):
-        return bool(getattr(widgets.Widget, '_version_validated', None))
+    if hasattr(widgets.Widget, "_version_validated"):
+        return bool(getattr(widgets.Widget, "_version_validated", None))
     else:
         return True
 
@@ -251,11 +264,10 @@ def in_qtconsole():
     """
     try:
         ip = get_ipython()
-        front_end = (
-            ip.config.get('KernelApp', {}).get('parent_appname', "") or
-            ip.config.get('IPKernelApp', {}).get('parent_appname', "")
-        )
-        if 'qtconsole' in front_end.lower():
+        front_end = ip.config.get("KernelApp", {}).get(
+            "parent_appname", ""
+        ) or ip.config.get("IPKernelApp", {}).get("parent_appname", "")
+        if "qtconsole" in front_end.lower():
             return True
     except:
         return False
@@ -289,8 +301,9 @@ def get_console_size():
             # match default for width,height in config_init
             try:
                 from pandas.core.config import get_default_val
-                terminal_width = get_default_val('display.width')
-                terminal_height = get_default_val('display.max_rows')
+
+                terminal_width = get_default_val("display.width")
+                terminal_height = get_default_val("display.max_rows")
             except ImportError:
                 terminal_width, terminal_height = None, None
         else:
@@ -308,7 +321,7 @@ def get_console_size():
 def _get_terminal_size_windows():
     res = None
     try:
-        from ctypes import windll, create_string_buffer
+        from ctypes import create_string_buffer, windll
 
         # stdin handle is -10
         # stdout handle is -11
@@ -321,8 +334,20 @@ def _get_terminal_size_windows():
         return None
     if res:
         import struct
-        (bufx, bufy, curx, cury, wattr, left, top, right, bottom, maxx,
-         maxy) = struct.unpack("hhhhHhhhhhh", csbi.raw)
+
+        (
+            bufx,
+            bufy,
+            curx,
+            cury,
+            wattr,
+            left,
+            top,
+            right,
+            bottom,
+            maxx,
+            maxy,
+        ) = struct.unpack("hhhhHhhhhhh", csbi.raw)
         sizex = right - left + 1
         sizey = bottom - top + 1
         return sizex, sizey
@@ -336,14 +361,15 @@ def _get_terminal_size_tput():
     # -height-of-a-terminal-window
     try:
         import subprocess
-        proc = subprocess.Popen(["tput", "cols"],
-                                stdin=subprocess.PIPE,
-                                stdout=subprocess.PIPE)
+
+        proc = subprocess.Popen(
+            ["tput", "cols"], stdin=subprocess.PIPE, stdout=subprocess.PIPE
+        )
         output = proc.communicate(input=None)
         cols = int(output[0])
-        proc = subprocess.Popen(["tput", "lines"],
-                                stdin=subprocess.PIPE,
-                                stdout=subprocess.PIPE)
+        proc = subprocess.Popen(
+            ["tput", "lines"], stdin=subprocess.PIPE, stdout=subprocess.PIPE
+        )
         output = proc.communicate(input=None)
         rows = int(output[0])
         return (cols, rows)
@@ -355,13 +381,14 @@ def _get_terminal_size_linux():
     def ioctl_GWINSZ(fd):
         try:
             import fcntl
-            import termios
             import struct
+            import termios
 
-            cr = struct.unpack('hh', fcntl.ioctl(fd, termios.TIOCGWINSZ, '1234'))
+            cr = struct.unpack("hh", fcntl.ioctl(fd, termios.TIOCGWINSZ, "1234"))
         except:
             return None
         return cr
+
     cr = ioctl_GWINSZ(0) or ioctl_GWINSZ(1) or ioctl_GWINSZ(2)
     if not cr:
         try:
@@ -373,7 +400,8 @@ def _get_terminal_size_linux():
     if not cr or cr == (0, 0):
         try:
             from os import environ as env
-            cr = (env['LINES'], env['COLUMNS'])
+
+            cr = (env["LINES"], env["COLUMNS"])
         except:
             return None
     return int(cr[1]), int(cr[0])
@@ -390,9 +418,9 @@ def _get_stdout(stderr=False):
     """
 
     if stderr:
-        stream = 'stderr'
+        stream = "stderr"
     else:
-        stream = 'stdout'
+        stream = "stdout"
 
     sys_stream = getattr(sys, stream)
 
@@ -424,16 +452,19 @@ def isatty(file):
     except AttributeError:  # pragma: no cover
         thread_name = threading.current_thread().getName()
 
-    if proc_name != 'MainProcess' or thread_name != 'MainThread':
+    if proc_name != "MainProcess" or thread_name != "MainThread":
         return False
 
-    if hasattr(file, 'isatty'):
+    if hasattr(file, "isatty"):
         return file.isatty()
-    elif (OutStream is not None and
-          isinstance(file, (OutStream, IPythonIOStream)) and
-          ((hasattr(file, 'name') and file.name == 'stdout') or
-           (hasattr(file, 'stream') and
-               isinstance(file.stream, PyreadlineConsole)))):
+    elif (
+        OutStream is not None
+        and isinstance(file, (OutStream, IPythonIOStream))
+        and (
+            (hasattr(file, "name") and file.name == "stdout")
+            or (hasattr(file, "stream") and isinstance(file.stream, PyreadlineConsole))
+        )
+    ):
         # File is an IPython OutStream or IOStream and
         #    File name is 'stdout' or
         #    File wraps a Console
@@ -467,8 +498,7 @@ def _terminal_size(file=None):
     except:
         try:
             # see if POSIX standard variables will work
-            return (int(os.environ.get('LINES')),
-                    int(os.environ.get('COLUMNS')))
+            return (int(os.environ.get("LINES")), int(os.environ.get("COLUMNS")))
         except TypeError:
             # fall back on configuration variables, or if not
             # set, (25, 80)
@@ -502,30 +532,31 @@ def _color_text(text, color):
         lightmagenta, lightcyan, white, or '' (the empty string).
     """
     color_mapping = {
-        'black': '0;30',
-        'red': '0;31',
-        'green': '0;32',
-        'brown': '0;33',
-        'blue': '0;34',
-        'magenta': '0;35',
-        'cyan': '0;36',
-        'lightgrey': '0;37',
-        'default': '0;39',
-        'darkgrey': '1;30',
-        'lightred': '1;31',
-        'lightgreen': '1;32',
-        'yellow': '1;33',
-        'lightblue': '1;34',
-        'lightmagenta': '1;35',
-        'lightcyan': '1;36',
-        'white': '1;37'}
+        "black": "0;30",
+        "red": "0;31",
+        "green": "0;32",
+        "brown": "0;33",
+        "blue": "0;34",
+        "magenta": "0;35",
+        "cyan": "0;36",
+        "lightgrey": "0;37",
+        "default": "0;39",
+        "darkgrey": "1;30",
+        "lightred": "1;31",
+        "lightgreen": "1;32",
+        "yellow": "1;33",
+        "lightblue": "1;34",
+        "lightmagenta": "1;35",
+        "lightcyan": "1;36",
+        "white": "1;37",
+    }
 
-    if sys.platform == 'win32' and OutStream is None:
+    if sys.platform == "win32" and OutStream is None:
         # On Windows do not colorize text unless in IPython
         return text
 
-    color_code = color_mapping.get(color, '0;39')
-    return '\033[{0}m{1}\033[0m'.format(color_code, text)
+    color_code = color_mapping.get(color, "0;39")
+    return "\033[{0}m{1}\033[0m".format(color_code, text)
 
 
 def _decode_preferred_encoding(s):
@@ -543,7 +574,7 @@ def _decode_preferred_encoding(s):
             enc = _DEFAULT_ENCODING
         return s.decode(enc)
     except UnicodeDecodeError:
-        return s.decode('latin-1')
+        return s.decode("latin-1")
 
 
 def _write_with_fallback(s, write, fileobj):
@@ -581,7 +612,7 @@ def _write_with_fallback(s, write, fileobj):
         write(s)
         return write
     except UnicodeEncodeError:
-        Writer = codecs.getwriter('latin-1')
+        Writer = codecs.getwriter("latin-1")
         f = Writer(fileobj)
         write = f.write
 
@@ -622,16 +653,16 @@ def color_print(*args, **kwargs):
     """
     from .config import options
 
-    file = kwargs.get('file', _get_stdout())
+    file = kwargs.get("file", _get_stdout())
 
-    end = kwargs.get('end', '\n')
+    end = kwargs.get("end", "\n")
 
     write = file.write
     if isatty(file) and options.console.use_color:
         for i in range(0, len(args), 2):
             msg = args[i]
             if i + 1 == len(args):
-                color = ''
+                color = ""
             else:
                 color = args[i + 1]
 
@@ -686,26 +717,26 @@ def human_time(seconds):
         that is always exactly 6 characters.
     """
     units = [
-        ('y', 60 * 60 * 24 * 7 * 52),
-        ('w', 60 * 60 * 24 * 7),
-        ('d', 60 * 60 * 24),
-        ('h', 60 * 60),
-        ('m', 60),
-        ('s', 1),
+        ("y", 60 * 60 * 24 * 7 * 52),
+        ("w", 60 * 60 * 24 * 7),
+        ("d", 60 * 60 * 24),
+        ("h", 60 * 60),
+        ("m", 60),
+        ("s", 1),
     ]
 
     seconds = int(seconds)
 
     if seconds < 60:
-        return '   {0:2d}s'.format(seconds)
+        return "   {0:2d}s".format(seconds)
     for i in range(len(units) - 1):
         unit1, limit1 = units[i]
         unit2, limit2 = units[i + 1]
         if seconds >= limit1:
-            return '{0:2d}{1}{2:2d}{3}'.format(
-                seconds // limit1, unit1,
-                (seconds % limit1) // limit2, unit2)
-    return '  ~inf'
+            return "{0:2d}{1}{2:2d}{3}".format(
+                seconds // limit1, unit1, (seconds % limit1) // limit2, unit2
+            )
+    return "  ~inf"
 
 
 def human_file_size(size):
@@ -730,23 +761,23 @@ def human_file_size(size):
     size : str
         A human-friendly representation of the size of the file
     """
-    suffixes = ' kMGTPEZY'
+    suffixes = " kMGTPEZY"
     if size == 0:
         num_scale = 0
     else:
         num_scale = int(math.floor(math.log(size) / math.log(1000)))
     num_scale = max(num_scale, 0)
     if num_scale >= len(suffixes):
-        suffix = '?'
+        suffix = "?"
     else:
         suffix = suffixes[num_scale]
     num_scale = int(math.pow(1000, num_scale))
     value = float(size) / num_scale
     str_value = str(value)
-    if suffix == ' ':
-        if '.' in str_value:
-            str_value = str_value[:str_value.index('.')]
-    elif str_value[2] == '.':
+    if suffix == " ":
+        if "." in str_value:
+            str_value = str_value[: str_value.index(".")]
+    elif str_value[2] == ".":
         str_value = str_value[:2]
     else:
         str_value = str_value[:3]
@@ -765,8 +796,8 @@ def create_progress_widget():
     from .ui.common import build_trait
 
     class TransientProgressBar(widget_cls):
-        _view_name = build_trait(Unicode, 'TransientProgressView', sync=True)
-        _view_module = build_trait(Unicode, 'pyodps/progress', sync=True)
+        _view_name = build_trait(Unicode, "TransientProgressView", sync=True)
+        _view_module = build_trait(Unicode, "pyodps/progress", sync=True)
 
     return TransientProgressBar()
 
@@ -786,6 +817,7 @@ class ProgressBar(six.Iterator):
         for item in ProgressBar(items):
             item.process()
     """
+
     def __init__(self, total_or_items, ipython_widget=False, file=None):
         """
         Parameters
@@ -844,11 +876,9 @@ class ProgressBar(six.Iterator):
         self._human_total = human_file_size(self._total)
         self._ipython_widget = ipython_widget
 
-
         self._signal_set = False
         if not ipython_widget:
-            self._should_handle_resize = (
-                _CAN_RESIZE_TERMINAL and self._file.isatty())
+            self._should_handle_resize = _CAN_RESIZE_TERMINAL and self._file.isatty()
             self._handle_resize()
             if self._should_handle_resize:
                 signal.signal(signal.SIGWINCH, self._handle_resize)
@@ -867,7 +897,7 @@ class ProgressBar(six.Iterator):
         if not self._silent:
             if exc_type is None:
                 self.update(self._total)
-            self._file.write('\n')
+            self._file.write("\n")
             self._file.flush()
             if self._signal_set:
                 signal.signal(signal.SIGWINCH, signal.SIG_DFL)
@@ -928,26 +958,24 @@ class ProgressBar(six.Iterator):
             bar_fill = int(self._bar_length)
         else:
             bar_fill = int(float(self._bar_length) * frac)
-        write('\r|')
-        color_print('=' * bar_fill, 'blue', file=file, end='')
+        write("\r|")
+        color_print("=" * bar_fill, "blue", file=file, end="")
         if bar_fill < self._bar_length:
-            color_print('>', 'green', file=file, end='')
-            write('-' * (self._bar_length - bar_fill - 1))
-        write('|')
+            color_print(">", "green", file=file, end="")
+            write("-" * (self._bar_length - bar_fill - 1))
+        write("|")
 
         if value >= self._total:
             t = time.time() - self._start_time
-            prefix = '     '
+            prefix = "     "
         elif value <= 0:
             t = None
-            prefix = ''
+            prefix = ""
         else:
             t = ((time.time() - self._start_time) * (1.0 - frac)) / frac
-            prefix = ' ETA '
-        write(' {0:>4s}/{1:>4s}'.format(
-            human_file_size(value),
-            self._human_total))
-        write(' ({0:>6s}%)'.format('{0:.2f}'.format(frac * 100.0)))
+            prefix = " ETA "
+        write(" {0:>4s}/{1:>4s}".format(human_file_size(value), self._human_total))
+        write(" ({0:>6s}%)".format("{0:.2f}".format(frac * 100.0)))
         write(prefix)
         if t is not None:
             write(human_time(t))
@@ -963,16 +991,16 @@ class ProgressBar(six.Iterator):
 
         # Create and display an empty progress bar widget,
         # if none exists.
-        if not hasattr(self, '_widget'):
+        if not hasattr(self, "_widget"):
             self._widget = create_progress_widget()
             if in_ipython_frontend() and is_widgets_available():
                 display(self._widget)
             self._widget.value = 0
 
         # Calculate percent completion, and update progress bar
-        percent = (float(value)/self._total) * 100.0
+        percent = (float(value) / self._total) * 100.0
         self._widget.value = percent
-        self._widget.description =' ({0:>6s}%)'.format('{0:.2f}'.format(percent))
+        self._widget.description = " ({0:>6s}%)".format("{0:.2f}".format(percent))
 
     def _silent_update(self, value=None):
         pass
@@ -1025,8 +1053,7 @@ class ProgressBar(six.Iterator):
                         bar.update(i)
             else:
                 p = multiprocessing.Pool()
-                for i, result in enumerate(
-                    p.imap_unordered(function, items, steps)):
+                for i, result in enumerate(p.imap_unordered(function, items, steps)):
                     bar.update(i)
                     results.append(result)
                 p.close()

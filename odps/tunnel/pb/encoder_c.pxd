@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 
 from libc.stdint cimport *
 from libc.string cimport *
+
 from ...src.stringstream cimport stringstream
 
 
@@ -23,15 +24,15 @@ cdef class CEncoder:
 
     cdef size_t position(self) nogil
     cpdef bytes tostring(self)
-    cdef int append_tag(self, int field_num, int wire_type) except + nogil
-    cdef int append_sint32(self, int32_t value) except + nogil
-    cdef int append_uint32(self, uint32_t value) except + nogil
-    cdef int append_sint64(self, int64_t value) except + nogil
-    cdef int append_uint64(self, uint64_t value) except + nogil
-    cdef int append_bool(self, bint value) except + nogil
-    cdef int append_double(self, double value) except + nogil
-    cdef int append_float(self, float value) except + nogil
-    cdef int append_string(self, const char *ptr, size_t value_len) except + nogil
+    cdef int append_tag(self, int field_num, int wire_type) except -1 nogil
+    cdef int append_sint32(self, int32_t value) except -1 nogil
+    cdef int append_uint32(self, uint32_t value) except -1 nogil
+    cdef int append_sint64(self, int64_t value) except -1 nogil
+    cdef int append_uint64(self, uint64_t value) except -1 nogil
+    cdef int append_bool(self, bint value) except -1 nogil
+    cdef int append_double(self, double value) except -1 nogil
+    cdef int append_float(self, float value) except -1 nogil
+    cdef int append_string(self, const char *ptr, size_t value_len) except -1 nogil
 
 
 cdef class Encoder:

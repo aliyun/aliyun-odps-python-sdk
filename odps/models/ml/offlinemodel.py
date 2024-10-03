@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,25 +14,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ..core import LazyLoad
 from ... import serializers, utils
 from ...compat import urlparse
+from ..core import LazyLoad
 
 
 class OfflineModelInfo(serializers.XMLSerializableModel):
-    _root = 'Offlinemodel'
+    _root = "Offlinemodel"
 
-    name = serializers.XMLNodeField('Name', default='')
-    model_path = serializers.XMLNodeField('ModelPath', default='')
-    role_arn = serializers.XMLNodeField('Rolearn')
-    type = serializers.XMLNodeField('Type')
-    version = serializers.XMLNodeField('Version')
-    processor = serializers.XMLNodeField('Processor')
-    configuration = serializers.XMLNodeField('Configuration')
-    src_project = serializers.XMLNodeField('SrcProject')
-    src_model = serializers.XMLNodeField('SrcModel')
-    dest_project = serializers.XMLNodeField('DestProject')
-    dest_model = serializers.XMLNodeField('DestModel')
+    name = serializers.XMLNodeField("Name", default="")
+    model_path = serializers.XMLNodeField("ModelPath", default="")
+    role_arn = serializers.XMLNodeField("Rolearn")
+    type = serializers.XMLNodeField("Type")
+    version = serializers.XMLNodeField("Version")
+    processor = serializers.XMLNodeField("Processor")
+    configuration = serializers.XMLNodeField("Configuration")
+    src_project = serializers.XMLNodeField("SrcProject")
+    src_model = serializers.XMLNodeField("SrcModel")
+    dest_project = serializers.XMLNodeField("DestProject")
+    dest_model = serializers.XMLNodeField("DestModel")
 
 
 class OfflineModel(LazyLoad):
@@ -40,12 +40,14 @@ class OfflineModel(LazyLoad):
     Representing an ODPS offline model.
     """
 
-    name = serializers.XMLNodeField('Name')
-    owner = serializers.XMLNodeField('Owner')
+    name = serializers.XMLNodeField("Name")
+    owner = serializers.XMLNodeField("Owner")
     creation_time = serializers.XMLNodeField(
-        'CreationTime', parse_callback=utils.parse_rfc822)
+        "CreationTime", parse_callback=utils.parse_rfc822
+    )
     last_modified_time = serializers.XMLNodeField(
-        'LastModifiedTime', parse_callback=utils.parse_rfc822)
+        "LastModifiedTime", parse_callback=utils.parse_rfc822
+    )
 
     def reload(self):
         resp = self._client.get(self.resource())
@@ -57,7 +59,7 @@ class OfflineModel(LazyLoad):
         via this method might be incomplete due to size limitations.
         """
         url = self.resource()
-        resp = self._client.get(url, action='data')
+        resp = self._client.get(url, action="data")
 
         return resp.text
 
@@ -73,13 +75,17 @@ class OfflineModel(LazyLoad):
         url = self.parent.resource()
         new_project = new_project or self.project.name
 
-        info = OfflineModelInfo(src_model=self.name, src_project=self.project.name,
-                                dest_model=new_name, dest_project=new_project)
-        headers = {'Content-Type': 'application/xml'}
+        info = OfflineModelInfo(
+            src_model=self.name,
+            src_project=self.project.name,
+            dest_model=new_name,
+            dest_project=new_project,
+        )
+        headers = {"Content-Type": "application/xml"}
         resp = self._client.post(url, info.serialize(), headers=headers)
 
-        inst_url = resp.headers['Location'].rstrip('/')
-        inst_id = urlparse(inst_url).path.rsplit('/', 1)[-1]
+        inst_url = resp.headers["Location"].rstrip("/")
+        inst_id = urlparse(inst_url).path.rsplit("/", 1)[-1]
         inst = self.project.instances[inst_id]
 
         if not async_:

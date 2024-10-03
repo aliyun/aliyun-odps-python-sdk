@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,17 +16,18 @@
 from libc.stdint cimport *
 from libc.string cimport *
 
+
 cdef class Checksum:
 
     cdef uint32_t _checksum
     cdef int use_c
 
-    cdef void c_update_bool(self, bint val) nogil
-    cdef void c_update_int(self, int32_t val) nogil
-    cdef void c_update_long(self, int64_t val) nogil
-    cdef void c_update_float(self, float val) nogil
-    cdef void c_update_double(self, double val) nogil
-    cdef void c_update(self, const char *ptr, size_t length) nogil
+    cdef void c_update_bool(self, bint val) noexcept nogil
+    cdef void c_update_int(self, int32_t val) noexcept nogil
+    cdef void c_update_long(self, int64_t val) noexcept nogil
+    cdef void c_update_float(self, float val) noexcept nogil
+    cdef void c_update_double(self, double val) noexcept nogil
+    cdef void c_update(self, const char *ptr, size_t length) noexcept nogil
     cdef uint32_t c_getvalue(self) nogil
     cdef uint32_t c_setvalue(self, uint32_t val) nogil
     cdef void c_reset(self) nogil

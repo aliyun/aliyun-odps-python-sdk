@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,8 +17,8 @@
 import json
 import warnings
 
-from .. import serializers, errors, utils
-from ..compat import six, Enum
+from .. import errors, serializers, utils
+from ..compat import Enum, six
 from ..errors import InternalServerError
 from .cache import cache
 from .core import Iterable, LazyLoad
@@ -33,26 +33,32 @@ class Volume(LazyLoad):
     EXTERNAL_VOLUME_ROLEARN_KEY = "odps.properties.rolearn"
 
     class Type(Enum):
-        NEW = 'NEW'
-        OLD = 'OLD'
-        EXTERNAL = 'EXTERNAL'
-        UNKNOWN = 'UNKNOWN'
+        NEW = "NEW"
+        OLD = "OLD"
+        EXTERNAL = "EXTERNAL"
+        UNKNOWN = "UNKNOWN"
 
-    _root = 'Meta'
-    _type_indicator = 'type'
+    _root = "Meta"
+    _type_indicator = "type"
 
-    name = serializers.XMLNodeField('Name')
-    owner = serializers.XMLNodeField('Owner')
-    comment = serializers.XMLNodeField('Comment')
+    name = serializers.XMLNodeField("Name")
+    owner = serializers.XMLNodeField("Owner")
+    comment = serializers.XMLNodeField("Comment")
     type = serializers.XMLNodeField(
-        'Type', parse_callback=lambda t: Volume.Type(t.upper()), serialize_callback=lambda t: t.value
+        "Type",
+        parse_callback=lambda t: Volume.Type(t.upper()),
+        serialize_callback=lambda t: t.value,
     )
-    length = serializers.XMLNodeField('Length', parse_callback=int)
-    file_number = serializers.XMLNodeField('FileNumber', parse_callback=int)
-    creation_time = serializers.XMLNodeField('CreationTime', parse_callback=utils.parse_rfc822)
-    last_modified_time = serializers.XMLNodeField('LastModifiedTime', parse_callback=utils.parse_rfc822)
+    length = serializers.XMLNodeField("Length", parse_callback=int)
+    file_number = serializers.XMLNodeField("FileNumber", parse_callback=int)
+    creation_time = serializers.XMLNodeField(
+        "CreationTime", parse_callback=utils.parse_rfc822
+    )
+    last_modified_time = serializers.XMLNodeField(
+        "LastModifiedTime", parse_callback=utils.parse_rfc822
+    )
     properties = serializers.XMLNodeField(
-        'Properties', parse_callback=json.loads, serialize_callback=json.dumps
+        "Properties", parse_callback=json.loads, serialize_callback=json.dumps
     )
 
     @classmethod
@@ -64,27 +70,30 @@ class Volume(LazyLoad):
 
         if typo == Volume.Type.OLD:
             from . import PartedVolume
+
             return PartedVolume
         elif typo == Volume.Type.NEW:
             from . import FSVolume
+
             return FSVolume
         elif typo == Volume.Type.EXTERNAL:
             from . import ExternalVolume
+
             return ExternalVolume
         elif typo == Volume.Type.UNKNOWN:
             return Volume
 
     @staticmethod
     def _filter_cache(_, **kwargs):
-        return kwargs.get('type') is not None and kwargs['type'] != Volume.Type.UNKNOWN
+        return kwargs.get("type") is not None and kwargs["type"] != Volume.Type.UNKNOWN
 
     @cache
     def __new__(cls, *args, **kwargs):
-        typo = kwargs.get('type')
+        typo = kwargs.get("type")
         if typo is not None or (cls != Volume and issubclass(cls, Volume)):
             return object.__new__(cls._get_cls(typo))
 
-        kwargs['type'] = Volume.Type.UNKNOWN
+        kwargs["type"] = Volume.Type.UNKNOWN
         obj = Volume(**kwargs)
         try:
             obj.reload()
@@ -96,7 +105,7 @@ class Volume(LazyLoad):
             return obj
 
     def __init__(self, **kwargs):
-        typo = kwargs.get('type')
+        typo = kwargs.get("type")
 
         properties = kwargs.get("properties") or {}
         location = kwargs.pop("location", None)
@@ -109,25 +118,26 @@ class Volume(LazyLoad):
             kwargs["properties"] = properties
 
         if isinstance(typo, six.string_types):
-            kwargs['type'] = Volume.Type(typo.upper())
+            kwargs["type"] = Volume.Type(typo.upper())
         super(Volume, self).__init__(**kwargs)
 
     def reload(self):
         params = {}
         schema_name = self._get_schema_name()
         if schema_name is not None:
-            params['curr_schema'] = schema_name
-        resp = self._client.get(self.resource(), action='meta', params=params)
+            params["curr_schema"] = schema_name
+        resp = self._client.get(self.resource(), action="meta", params=params)
         self.parse(self._client, resp, obj=self)
 
-    def drop(self):
-        return self.parent.delete(self)
+    def drop(self, auto_remove_dir=False, recursive=False):
+        return self.parent.delete(
+            self, auto_remove_dir=auto_remove_dir, recursive=recursive
+        )
 
 
 class Volumes(Iterable):
-
-    marker = serializers.XMLNodeField('Marker')
-    volumes = serializers.XMLNodesReferencesField(Volume, 'Volume')
+    marker = serializers.XMLNodeField("Marker")
+    volumes = serializers.XMLNodesReferencesField(Volume, "Volume")
 
     def _get(self, item):
         return Volume(client=self._client, parent=self, name=item)
@@ -160,25 +170,24 @@ class Volumes(Iterable):
         :return:
         """
         schema_name = self._get_schema_name()
-        params = {'expectmarker': 'true'}
+        params = {"expectmarker": "true"}
         if name is not None:
-            params['name'] = name
+            params["name"] = name
         if owner is not None:
-            params['owner'] = owner
+            params["owner"] = owner
         if schema_name is not None:
-            params['curr_schema'] = schema_name
+            params["curr_schema"] = schema_name
 
         def _it():
-            last_marker = params.get('marker')
-            if 'marker' in params and \
-                    (last_marker is None or len(last_marker) == 0):
+            last_marker = params.get("marker")
+            if "marker" in params and (last_marker is None or len(last_marker) == 0):
                 return
 
             url = self.resource()
             resp = self._client.get(url, params=params)
 
             v = Volumes.parse(self._client, resp, obj=self)
-            params['marker'] = v.marker
+            params["marker"] = v.marker
 
             return v.volumes
 
@@ -190,30 +199,40 @@ class Volumes(Iterable):
                 yield volume
 
     def _create(self, obj=None, **kwargs):
+        auto_create_dir = kwargs.pop("auto_create_dir", False)
+
         volume = obj or Volume(parent=self, client=self._client, **kwargs)
         if volume.parent is None:
             volume._parent = self
         if volume._client is None:
             volume._client = self._client
 
-        headers = {'Content-Type': 'application/xml'}
+        headers = {"Content-Type": "application/xml"}
         data = volume.serialize()
 
+        params = {}
+        if auto_create_dir:
+            params["autoMkDir"] = ""
+
         self._client.post(
-            self.resource(), data, headers=headers, curr_schema=self._get_schema_name()
+            self.resource(),
+            data,
+            headers=headers,
+            params=params,
+            curr_schema=self._get_schema_name(),
         )
         return self[volume.name]
 
     def create_parted(self, obj=None, **kwargs):
-        return self._create(obj=obj, type='old', **kwargs)
+        return self._create(obj=obj, type="old", **kwargs)
 
     def create_fs(self, obj=None, **kwargs):
-        return self._create(obj=obj, type='new', **kwargs)
+        return self._create(obj=obj, type="new", **kwargs)
 
     def create_external(self, obj=None, **kwargs):
-        return self._create(obj=obj, type='external', **kwargs)
+        return self._create(obj=obj, type="external", **kwargs)
 
-    def delete(self, name):
+    def delete(self, name, auto_remove_dir=False, recursive=False):
         if not isinstance(name, Volume):
             volume = Volume(name=name, parent=self, client=self._client)
         else:
@@ -221,6 +240,12 @@ class Volumes(Iterable):
             name = name.name
         del self[name]  # release cache
 
+        params = {}
+        if auto_remove_dir:
+            params["autoRmDir"] = ""
+        if recursive:
+            params["recursive"] = "true"
+
         url = volume.resource()
 
-        self._client.delete(url, curr_schema=self._get_schema_name())
+        self._client.delete(url, params=params, curr_schema=self._get_schema_name())

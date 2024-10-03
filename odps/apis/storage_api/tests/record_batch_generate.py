@@ -1,4 +1,4 @@
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,8 +21,10 @@ import logging
 RANDOM_STRING_LENGTH = 10
 logger = logging.getLogger(__name__)
 
+
 def generate_bigint_value(item, column_index, row_index):
     return (item.val + row_index) * (column_index + 1)
+
 
 def generate_bigint_list(item, column_index):
     pylist = []
@@ -31,13 +33,15 @@ def generate_bigint_list(item, column_index):
 
     return pylist
 
+
 def generate_string_value(item, column_index, row_index):
     str = ""
     for idx in range(0, RANDOM_STRING_LENGTH):
-        c = chr(ord('a') + (item.val + row_index) * (column_index + idx) % 26)
+        c = chr(ord("a") + (item.val + row_index) * (column_index + idx) % 26)
         str += c
 
     return str
+
 
 def generate_string_list(item, column_index):
     pylist = []
@@ -45,6 +49,7 @@ def generate_string_list(item, column_index):
         pylist.append(generate_string_value(item, column_index, i))
 
     return pylist
+
 
 def build_list_from_schema(item, type, column_index):
     if type == "bigint":
@@ -54,27 +59,39 @@ def build_list_from_schema(item, type, column_index):
     else:
         raise ValueError("Type " + type + " not supported yet")
 
+
 def check_array_based_on_type_info(array, column_index, row_index, item, offset):
     if type(array) == pa.Int64Array:
-        if array[row_index - offset].as_py() != generate_bigint_value(item, column_index, row_index % item.batch_size):
+        if array[row_index - offset].as_py() != generate_bigint_value(
+            item, column_index, row_index % item.batch_size
+        ):
             return False
     elif type(array) == pa.StringArray:
-        if array[row_index - offset].as_py() != generate_string_value(item, column_index, row_index % item.batch_size):
+        if array[row_index - offset].as_py() != generate_string_value(
+            item, column_index, row_index % item.batch_size
+        ):
             return False
     else:
         raise ValueError("Type " + str(type(array)) + " not supported yet")
 
     return True
 
+
 def verify_data(record_batch, item, total_line):
     offset = total_line % item.batch_size
     for i in range(0, len(item.data_columns)):
-        for j in range(total_line % item.batch_size, total_line % item.batch_size + record_batch.num_rows):
-            if not check_array_based_on_type_info(record_batch.column(i), i, j, item, offset):
+        for j in range(
+            total_line % item.batch_size,
+            total_line % item.batch_size + record_batch.num_rows,
+        ):
+            if not check_array_based_on_type_info(
+                record_batch.column(i), i, j, item, offset
+            ):
                 logger.info("Row value is not correct")
                 return False
 
     return True
+
 
 def generate_data_based_on_odps_schema(item):
     build_arrays = []
@@ -100,6 +117,7 @@ def generate_data_based_on_odps_schema(item):
     record_batch = pa.RecordBatch.from_arrays(build_arrays, name_list)
 
     return record_batch
+
 
 def generate_base_table(item):
     return generate_data_based_on_odps_schema(item)

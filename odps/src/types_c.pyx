@@ -1,4 +1,4 @@
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,19 +13,22 @@
 # limitations under the License.
 
 import sys
+
+from cpython.bool cimport PyBool_Check
+from cpython.datetime cimport PyDateTime_Check, import_datetime
 from libc.stdint cimport *
 from libc.string cimport *
-from cpython.bool cimport PyBool_Check
-from cpython.datetime cimport import_datetime, PyDateTime_Check
+
 from datetime import datetime
 
-from .. import types, options
+from .. import options, types
+
 
 cdef int64_t bigint_min = types.bigint._bounds[0]
 cdef int64_t bigint_max = types.bigint._bounds[1]
 cdef int string_len_max = types.string._max_length
 cdef object pd_na_type = types.pd_na_type
-cdef bint is_py3 = sys.version_info[0] == 3
+cdef bint is_py3 = sys.version_info[0] >= 3
 
 cdef:
     int64_t BOOL_TYPE_ID = types.boolean._type_id
@@ -46,7 +49,7 @@ cdef object _validate_bigint(object val, int64_t max_field_size):
     cdef int64_t i_val = val
     if bigint_min <= i_val <= bigint_max:
         return i_val
-    raise ValueError('InvalidData: Bigint(%s) out of range' % val)
+    raise ValueError("InvalidData: Bigint(%s) out of range" % val)
 
 
 cdef object _validate_string(object val, int64_t max_field_size):
@@ -57,15 +60,15 @@ cdef object _validate_string(object val, int64_t max_field_size):
     if max_field_size == 0:
         max_field_size = string_len_max
 
-    if isinstance(val, bytes):
+    if type(val) is bytes or isinstance(val, bytes):
         s_size = len(<bytes> val)
-        u_val = (<bytes> val).decode('utf-8')
-    elif isinstance(val, unicode):
+        u_val = (<bytes> val).decode("utf-8")
+    elif type(val) is unicode or isinstance(val, unicode):
         u_val = <unicode> val
         s_size = 4 * len(u_val)
         if s_size > max_field_size:
             # only encode when strings are long enough
-            s_size = len(u_val.encode('utf-8'))
+            s_size = len(u_val.encode("utf-8"))
     else:
         raise TypeError("Invalid data type: expect bytes or unicode, got %s" % type(val))
 
@@ -85,10 +88,10 @@ cdef object _validate_binary(object val, int64_t max_field_size):
     if max_field_size == 0:
         max_field_size = string_len_max
 
-    if isinstance(val, bytes):
+    if type(val) is bytes or isinstance(val, bytes):
         bytes_val = <bytes> val
-    elif isinstance(val, unicode):
-        bytes_val = (<unicode> val).encode('utf-8')
+    elif type(val) is unicode or isinstance(val, unicode):
+        bytes_val = (<unicode> val).encode("utf-8")
     else:
         raise TypeError("Invalid data type: expect bytes or unicode, got %s" % type(val))
 
@@ -106,7 +109,7 @@ cdef object _validate_datetime(object val, int64_t max_field_size):
     if PyDateTime_Check(val):
         return val
     if isinstance(val, (bytes, unicode)):
-        return py_strptime(val, '%Y-%m-%d %H:%M:%S')
+        return py_strptime(val, "%Y-%m-%d %H:%M:%S")
     raise TypeError("Invalid data type: expect datetime, got %s" % type(val))
 
 
@@ -121,12 +124,12 @@ cdef object _validate_timestamp(object val, int64_t max_field_size):
             pd_ts = pd.Timestamp
             pd_ts_strptime = pd_ts.strptime
         except (ImportError, ValueError):
-            raise ImportError('To use TIMESTAMP in pyodps, you need to install pandas.')
+            raise ImportError("To use TIMESTAMP in pyodps, you need to install pandas.")
 
     if isinstance(val, pd_ts):
         return val
     if isinstance(val, (bytes, unicode)):
-        return pd_ts_strptime(val, '%Y-%m-%d %H:%M:%S')
+        return pd_ts_strptime(val, "%Y-%m-%d %H:%M:%S")
     raise TypeError("Invalid data type: expect timestamp, got %s" % type(val))
 
 
@@ -250,7 +253,7 @@ cdef class SchemaSnapshot:
 
 cdef class BaseRecord:
     def __cinit__(self, columns=None, schema=None, values=None, max_field_size=None):
-        self._c_schema_snapshot = getattr(schema, '_snapshot', None)
+        self._c_schema_snapshot = getattr(schema, "_snapshot", None)
         if columns is not None:
             self._c_columns = columns
             self._c_name_indexes = {col.name: i for i, col in enumerate(self._c_columns)}
@@ -261,7 +264,7 @@ cdef class BaseRecord:
         self._max_field_size = max_field_size or 0
 
         if self._c_columns is None:
-            raise ValueError('Either columns or schema should not be provided')
+            raise ValueError("Either columns or schema should not be provided")
 
         self._c_values = [None] * len(self._c_columns)
         if values is not None:
@@ -295,7 +298,7 @@ cdef class BaseRecord:
         self._c_name_indexes = value
 
     def _mode(self):
-        return 'c'
+        return "c"
 
     cdef size_t _get_non_partition_col_count(self):
         if self._c_schema_snapshot is not None:
@@ -347,8 +350,8 @@ cdef class BaseRecord:
             n_values != self._get_non_partition_col_count()
         ):
             raise ValueError(
-                'The values set to records are against the schema, '
-                'expect len %s, got len %s' % (len(self._c_columns), n_values)
+                "The values set to records are against the schema, "
+                "expect len %s, got len %s" % (len(self._c_columns), n_values)
             )
 
         if type(values) is list:
@@ -372,7 +375,7 @@ cdef class BaseRecord:
             self._set(key, value)
 
     def __getattr__(self, item):
-        if item == '_name_indexes':
+        if item == "_name_indexes":
             return self._c_name_indexes
         if item in self._c_name_indexes:
             i = self._c_name_indexes[item]

@@ -132,7 +132,8 @@ def test_unixsocket_access(odps):
         proxy_obj.start()
 
         local_endpoint = "http+unix://%s%s" % (
-            quote_plus(sock_name), parsed_endpoint.path
+            quote_plus(sock_name),
+            parsed_endpoint.path,
         )
         unix_odps = ODPS(
             account=odps.account, project=odps.project, endpoint=local_endpoint

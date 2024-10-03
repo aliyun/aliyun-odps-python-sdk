@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,7 +19,6 @@ import copy
 import glob
 import hashlib
 import json
-import logging
 import os
 import platform
 import stat
@@ -30,14 +29,14 @@ import threading
 import time
 import uuid
 
+from . import utils
 from .accounts import AliyunAccount
-from .compat import pickle, six, builtins, futures
+from .compat import builtins, futures, pickle, six
 from .config import options
 from .errors import NoSuchObject
-from . import utils
 
-TEMP_ROOT = utils.build_pyodps_dir('tempobjs')
-SESSION_KEY = '%d_%s' % (int(time.time()), uuid.uuid4())
+TEMP_ROOT = utils.build_pyodps_dir("tempobjs")
+SESSION_KEY = "%d_%s" % (int(time.time()), uuid.uuid4())
 CLEANER_THREADS = 100
 USER_FILE_RIGHTS = stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR
 
@@ -96,7 +95,7 @@ class ExecutionEnv(object):
         self.os = os
         self.sys = sys
         self._g_env = copy.copy(globals())
-        self.is_windows = 'windows' in platform.platform().lower()
+        self.is_windows = "windows" in platform.platform().lower()
         self.pid = os.getpid()
         self.os_sep = os.sep
         self.executable = sys.executable
@@ -106,16 +105,18 @@ class ExecutionEnv(object):
         package_root = os.path.dirname(__file__)
         if package_root not in import_paths:
             import_paths.append(package_root)
-        self.import_path_json = utils.to_text(json.dumps(import_paths, ensure_ascii=False))
+        self.import_path_json = utils.to_text(
+            json.dumps(import_paths, ensure_ascii=False)
+        )
 
         self.builtins = builtins
-        self.io = __import__('io', fromlist=[''])
+        self.io = __import__("io", fromlist=[""])
         if six.PY3:
-            self.conv_bytes = (lambda s: s.encode() if isinstance(s, str) else s)
-            self.conv_unicode = (lambda s: s if isinstance(s, str) else s.decode())
+            self.conv_bytes = lambda s: s.encode() if isinstance(s, str) else s
+            self.conv_unicode = lambda s: s if isinstance(s, str) else s.decode()
         else:
-            self.conv_bytes = (lambda s: s.encode() if isinstance(s, unicode) else s)
-            self.conv_unicode = (lambda s: s if isinstance(s, unicode) else s.decode())
+            self.conv_bytes = lambda s: s.encode() if isinstance(s, unicode) else s
+            self.conv_unicode = lambda s: s if isinstance(s, unicode) else s.decode()
         self.subprocess = subprocess
         self.temp_dir = tempfile.gettempdir()
         self.template = CLEANUP_SCRIPT_TMPL
@@ -127,7 +128,7 @@ class ExecutionEnv(object):
 
 class TempObject(object):
     __slots__ = ()
-    _type = ''
+    _type = ""
     _priority = 0
 
     def __init__(self, *args, **kwargs):
@@ -154,7 +155,9 @@ class TempObject(object):
         return not self.__eq__(other)
 
     def __getstate__(self):
-        return {slot: getattr(self, slot) for slot in self.__slots__ if hasattr(self, slot)}
+        return {
+            slot: getattr(self, slot) for slot in self.__slots__ if hasattr(self, slot)
+        }
 
     def __setstate__(self, state):
         for slot, value in state.items():
@@ -162,52 +165,62 @@ class TempObject(object):
 
 
 class TempTable(TempObject):
-    __slots__ = 'table', 'project', 'schema'
-    _type = 'Table'
+    __slots__ = "table", "project", "schema"
+    _type = "Table"
 
     def drop(self, odps):
         odps.delete_table(
-            self.table, if_exists=True, project=self.project, schema=self.schema, async_=True
+            self.table,
+            if_exists=True,
+            project=self.project,
+            schema=self.schema,
+            async_=True,
         )
 
 
 class TempModel(TempObject):
-    __slots__ = 'model', 'project', 'schema'
-    _type = 'OfflineModel'
+    __slots__ = "model", "project", "schema"
+    _type = "OfflineModel"
 
     def drop(self, odps):
         try:
-            odps.delete_offline_model(self.model, project=self.project, schema=self.schema)
+            odps.delete_offline_model(
+                self.model, project=self.project, schema=self.schema
+            )
         except NoSuchObject:
             pass
 
 
 class TempFunction(TempObject):
-    __slots__ = 'function', 'project', 'schema'
-    _type = 'Function'
+    __slots__ = "function", "project", "schema"
+    _type = "Function"
     _priority = 1
 
     def drop(self, odps):
         try:
-            odps.delete_function(self.function, project=self.project, schema=self.schema)
+            odps.delete_function(
+                self.function, project=self.project, schema=self.schema
+            )
         except NoSuchObject:
             pass
 
 
 class TempResource(TempObject):
-    __slots__ = 'resource', 'project', 'schema'
-    _type = 'Resource'
+    __slots__ = "resource", "project", "schema"
+    _type = "Resource"
 
     def drop(self, odps):
         try:
-            odps.delete_resource(self.resource, project=self.project, schema=self.schema)
+            odps.delete_resource(
+                self.resource, project=self.project, schema=self.schema
+            )
         except NoSuchObject:
             pass
 
 
 class TempVolumePartition(TempObject):
-    __slots__ = 'volume', 'partition', 'project', 'schema'
-    _type = 'VolumePartition'
+    __slots__ = "volume", "partition", "project", "schema"
+    _type = "VolumePartition"
 
     def drop(self, odps):
         try:
@@ -245,7 +258,11 @@ class ObjectRepository(object):
                 pool = futures.ThreadPoolExecutor(CLEANER_THREADS)
                 list(pool.map(_cleaner, reversed(list(self._container))))
             else:
-                for o in sorted(list(self._container), key=lambda ro: type(ro)._priority, reverse=True):
+                for o in sorted(
+                    list(self._container),
+                    key=lambda ro: type(ro)._priority,
+                    reverse=True,
+                ):
                     _cleaner(o)
         for obj in cleaned:
             if obj in self._container:
@@ -262,7 +279,7 @@ class ObjectRepository(object):
         if self._file_name is None:
             return
         try:
-            with open(self._file_name, 'wb') as outf:
+            with open(self._file_name, "wb") as outf:
                 pickle.dump(list(self._container), outf, protocol=0)
                 outf.close()
         except OSError:
@@ -271,7 +288,7 @@ class ObjectRepository(object):
 
     def load(self):
         try:
-            with open(self._file_name, 'rb') as inpf:
+            with open(self._file_name, "rb") as inpf:
                 contents = pickle.load(inpf)
             self._container.update(contents)
         except (EOFError, OSError):
@@ -279,7 +296,7 @@ class ObjectRepository(object):
 
 
 class ObjectRepositoryLib(dict):
-    biz_ids = set([options.biz_id, ]) if options.biz_id else set(['default', ])
+    biz_ids = set([options.biz_id]) if options.biz_id else set(["default"])
     odps_info = dict()
 
     biz_ids_json = json.dumps(list(biz_ids))
@@ -322,18 +339,26 @@ class ObjectRepositoryLib(dict):
             return
         env.cleaned = True
 
-        script = env.template.format(import_paths=env.import_path_json, odps_info=self.odps_info_json,
-                                     host_pid=env.pid, biz_ids=self.biz_ids_json)
+        script = env.template.format(
+            import_paths=env.import_path_json,
+            odps_info=self.odps_info_json,
+            host_pid=env.pid,
+            biz_ids=self.biz_ids_json,
+        )
 
-        script_name = env.temp_dir + env.os_sep + 'tmp_' + str(env.pid) + '_cleanup_script.py'
-        script_file = env.io.FileIO(script_name, 'w')
+        script_name = (
+            env.temp_dir + env.os_sep + "tmp_" + str(env.pid) + "_cleanup_script.py"
+        )
+        script_file = env.io.FileIO(script_name, "w")
         script_file.write(env.conv_bytes(script))
         script_file.close()
         try:
             if env.is_windows:
                 env.os.chmod(script_name, env.file_right)
             else:
-                env.subprocess.call(['chmod', oct(env.file_right).replace('o', ''), script_name])
+                env.subprocess.call(
+                    ["chmod", oct(env.file_right).replace("o", ""), script_name]
+                )
         except:
             pass
 
@@ -341,18 +366,25 @@ class ObjectRepositoryLib(dict):
         if env.is_windows:
             si = subprocess.STARTUPINFO()
             si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-            kwargs['startupinfo'] = si
+            kwargs["startupinfo"] = si
         env.subprocess.call([env.executable, script_name], **kwargs)
 
 
 _cleaned_keys = set()
-_obj_repos = ObjectRepositoryLib()  # this line should be put last due to initialization dependency
+_obj_repos = (
+    ObjectRepositoryLib()
+)  # this line should be put last due to initialization dependency
 atexit.register(_obj_repos._exec_cleanup_script)
 
 
 def _is_pid_running(pid):
-    if 'windows' in platform.platform().lower():
-        task_lines = os.popen('TASKLIST /FI "PID eq {0}" /NH'.format(pid)).read().strip().splitlines()
+    if "windows" in platform.platform().lower():
+        task_lines = (
+            os.popen('TASKLIST /FI "PID eq {0}" /NH'.format(pid))
+            .read()
+            .strip()
+            .splitlines()
+        )
         if not task_lines:
             return False
         return str(pid) in set(task_lines[0].split())
@@ -372,7 +404,7 @@ def clean_objects(odps, biz_ids=None, use_threads=False):
     files = []
     biz_ids = biz_ids or _obj_repos.biz_ids
     for biz_id in biz_ids:
-        files.extend(glob.glob(os.path.join(TEMP_ROOT, biz_id, odps_key, '*.his')))
+        files.extend(glob.glob(os.path.join(TEMP_ROOT, biz_id, odps_key, "*.his")))
 
     for fn in files:
         repo = ObjectRepository(fn)
@@ -392,11 +424,11 @@ def clean_stored_objects(odps):
 
     files = []
     for biz_id in _obj_repos.biz_ids:
-        files.extend(glob.glob(os.path.join(TEMP_ROOT, biz_id, odps_key, '*.his')))
+        files.extend(glob.glob(os.path.join(TEMP_ROOT, biz_id, odps_key, "*.his")))
 
     def clean_thread():
         for fn in files:
-            writer_pid = int(fn.rsplit('__', 1)[-1].split('.', 1)[0])
+            writer_pid = int(fn.rsplit("__", 1)[-1].split(".", 1)[0])
 
             # we do not clean running process, unless its pid equals host_pid
             if writer_pid != host_pid and _is_pid_running(writer_pid):
@@ -416,13 +448,13 @@ def clean_stored_objects(odps):
 
 
 def _gen_repository_key(odps):
-    if getattr(odps.account, 'access_id', None):
+    if getattr(odps.account, "access_id", None):
         keys = [odps.account.access_id, odps.endpoint, str(odps.project)]
-    elif getattr(odps.account, 'token', None):
+    elif getattr(odps.account, "token", None):
         keys = [utils.to_str(odps.account.token), odps.endpoint, str(odps.project)]
     else:
         return
-    return hashlib.md5(utils.to_binary('####'.join(keys))).hexdigest()
+    return hashlib.md5(utils.to_binary("####".join(keys))).hexdigest()
 
 
 def _put_objects(odps, objs):
@@ -430,7 +462,7 @@ def _put_objects(odps, objs):
     if odps_key is None:
         return
 
-    biz_id = options.biz_id if options.biz_id else 'default'
+    biz_id = options.biz_id if options.biz_id else "default"
     ObjectRepositoryLib.add_biz_id(biz_id)
     if odps_key not in _obj_repos:
         if isinstance(odps.account, AliyunAccount):
@@ -441,7 +473,9 @@ def _put_objects(odps, objs):
                 os.makedirs(file_dir)
         except OSError:
             pass
-        file_name = os.path.join(file_dir, 'temp_objs_{0}__{1}.his'.format(SESSION_KEY, os.getpid()))
+        file_name = os.path.join(
+            file_dir, "temp_objs_{0}__{1}.his".format(SESSION_KEY, os.getpid())
+        )
         _obj_repos[odps_key] = ObjectRepository(file_name)
     [_obj_repos[odps_key].put(o, False) for o in objs]
     _obj_repos[odps_key].dump()
@@ -449,40 +483,67 @@ def _put_objects(odps, objs):
 
 def register_temp_table(odps, table, project=None, schema=None):
     if isinstance(table, six.string_types):
-        table = [table, ]
-    _put_objects(odps, [
-        TempTable(t, project or odps.project, schema=schema or odps.schema) for t in table
-    ])
+        table = [table]
+    _put_objects(
+        odps,
+        [
+            TempTable(t, project or odps.project, schema=schema or odps.schema)
+            for t in table
+        ],
+    )
 
 
 def register_temp_model(odps, model, project=None, schema=None):
     if isinstance(model, six.string_types):
-        model = [model, ]
-    _put_objects(odps, [
-        TempModel(m, project or odps.project, schema=schema or odps.schema) for m in model
-    ])
+        model = [model]
+    _put_objects(
+        odps,
+        [
+            TempModel(m, project or odps.project, schema=schema or odps.schema)
+            for m in model
+        ],
+    )
 
 
 def register_temp_resource(odps, resource, project=None, schema=None):
     if isinstance(resource, six.string_types):
-        resource = [resource, ]
-    _put_objects(odps, [
-        TempResource(r, project if project else odps.project, schema=schema or odps.schema) for r in resource
-    ])
+        resource = [resource]
+    _put_objects(
+        odps,
+        [
+            TempResource(
+                r, project if project else odps.project, schema=schema or odps.schema
+            )
+            for r in resource
+        ],
+    )
 
 
 def register_temp_function(odps, func, project=None, schema=None):
     if isinstance(func, six.string_types):
-        func = [func, ]
-    _put_objects(odps, [
-        TempFunction(f, project if project else odps.project, schema=schema or odps.schema) for f in func
-    ])
+        func = [func]
+    _put_objects(
+        odps,
+        [
+            TempFunction(
+                f, project if project else odps.project, schema=schema or odps.schema
+            )
+            for f in func
+        ],
+    )
 
 
-def register_temp_volume_partition(odps, volume_partition_tuple, project=None, schema=None):
+def register_temp_volume_partition(
+    odps, volume_partition_tuple, project=None, schema=None
+):
     if isinstance(volume_partition_tuple, tuple):
-        volume_partition_tuple = [volume_partition_tuple, ]
-    _put_objects(odps, [
-        TempVolumePartition(v, p, project if project else odps.project, schema=schema or odps.schema)
-        for v, p in volume_partition_tuple
-    ])
+        volume_partition_tuple = [volume_partition_tuple]
+    _put_objects(
+        odps,
+        [
+            TempVolumePartition(
+                v, p, project if project else odps.project, schema=schema or odps.schema
+            )
+            for v, p in volume_partition_tuple
+        ],
+    )

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,23 +15,29 @@
 
 import json
 
-
 MAX_SCRIPT_LOAD_SEC = 5
 SCRIPT_LOAD_CHECK_INTERVAL = 0.01
 
-COMMON_JS = 'common'
+COMMON_JS = "common"
 CSS_REGISTER_JS = """
 require(['pyodps'], function(p) { p.register_css('##CSS_STR##'); });
 """.strip()
 
 
 try:
-    from ..console import widgets, ipython_major_version, in_ipython_frontend, is_widgets_available
+    from ..console import (
+        in_ipython_frontend,
+        ipython_major_version,
+        is_widgets_available,
+        widgets,
+    )
+
     if any(v is None for v in (widgets, ipython_major_version, in_ipython_frontend)):
         raise ImportError
 
     if ipython_major_version < 4:
-        from IPython.utils.traitlets import Unicode, List
+        from IPython.utils.traitlets import List, Unicode
+
         traitlets_version = (3, 0)
     else:
         from traitlets import Unicode, List  # noqa: F401
@@ -59,9 +65,9 @@ else:
                 return trait_cls().tag(**metadata)
 
     class HTMLNotifier(widgets.DOMWidget):
-        _view_name = build_trait(Unicode, 'HTMLNotifier', sync=True)
-        _view_module = build_trait(Unicode, 'pyodps/html-notify', sync=True)
-        msg = build_trait(Unicode, 'msg', sync=True)
+        _view_name = build_trait(Unicode, "HTMLNotifier", sync=True)
+        _view_module = build_trait(Unicode, "pyodps/html-notify", sync=True)
+        msg = build_trait(Unicode, "msg", sync=True)
 
         def notify(self, msg):
             self.msg = json.dumps(dict(body=msg))

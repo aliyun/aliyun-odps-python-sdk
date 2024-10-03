@@ -48,8 +48,8 @@ INT64_MIN = -(1 << 63)
 UINT64_MAX = (1 << 64) - 1
 
 # "struct" format strings that will encode/decode the specified formats.
-FORMAT_UINT32_LITTLE_ENDIAN = '<I'
-FORMAT_UINT64_LITTLE_ENDIAN = '<Q'
+FORMAT_UINT32_LITTLE_ENDIAN = "<I"
+FORMAT_UINT64_LITTLE_ENDIAN = "<Q"
 
 # We'll have to provide alternate implementations of AppendLittleEndian*() on
 # any architectures where these checks fail.
@@ -68,7 +68,7 @@ def pack_tag(field_number, wire_type):
       wire_type: One of the WIRETYPE_* constants.
     """
     if not 0 <= wire_type <= _WIRETYPE_MAX:
-        raise errors.EncodeError('Unknown wire type: %d' % wire_type)
+        raise errors.EncodeError("Unknown wire type: %d" % wire_type)
     return (field_number << TAG_TYPE_BITS) | wire_type
 
 
@@ -106,7 +106,7 @@ def int32_byte_size(field_number, int32):
 
 def int64_byte_size(field_number, int64):
     # Have to convert to uint before calling UInt64ByteSize().
-    return UInt64ByteSize(field_number, 0xffffffffffffffff & int64)
+    return UInt64ByteSize(field_number, 0xFFFFFFFFFFFFFFFF & int64)
 
 
 def uint32_byte_size(field_number, uint32):
@@ -158,9 +158,11 @@ def enum_byte_size(field_number, enum):
 
 
 def string_byte_size(field_number, string):
-    return (_tag_byte_size(field_number)
-            + _var_uint64_byte_size_no_tag(len(string))
-            + len(string))
+    return (
+        _tag_byte_size(field_number)
+        + _var_uint64_byte_size_no_tag(len(string))
+        + len(string)
+    )
 
 
 def bytes_byte_size(field_number, b):
@@ -168,14 +170,15 @@ def bytes_byte_size(field_number, b):
 
 
 def group_byte_size(field_number, message):
-    return (2 * _tag_byte_size(field_number)  # START and END group.
-            + message.ByteSize())
+    return 2 * _tag_byte_size(field_number) + message.ByteSize()  # START and END group.
 
 
 def message_byte_size(field_number, message):
-    return (_tag_byte_size(field_number)
-            + _var_uint64_byte_size_no_tag(message.ByteSize())
-            + message.ByteSize())
+    return (
+        _tag_byte_size(field_number)
+        + _var_uint64_byte_size_no_tag(message.ByteSize())
+        + message.ByteSize()
+    )
 
 
 def message_set_item_byte_size(field_number, msg):
@@ -183,7 +186,7 @@ def message_set_item_byte_size(field_number, msg):
     # There are 2 tags for the beginning and ending of the repeated group, that
     # is field number 1, one with field number 2 (type_id) and one with field
     # number 3 (message).
-    total_size = (2 * _tag_byte_size(1) + _tag_byte_size(2) + _tag_byte_size(3))
+    total_size = 2 * _tag_byte_size(1) + _tag_byte_size(2) + _tag_byte_size(3)
 
     # Add the number of bytes for type_id.
     total_size += _var_uint64_byte_size_no_tag(field_number)
@@ -212,9 +215,9 @@ def _var_uint64_byte_size_no_tag(uint64):
     uint64 must be unsigned.
     """
     if uint64 > UINT64_MAX:
-        raise errors.EncodeError('Value out of range: %d' % uint64)
+        raise errors.EncodeError("Value out of range: %d" % uint64)
     bytes = 1
-    while uint64 > 0x7f:
+    while uint64 > 0x7F:
         bytes += 1
         uint64 >>= 7
     return bytes

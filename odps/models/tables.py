@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,17 +14,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .. import serializers, errors, utils
+from .. import errors, serializers, utils
 from ..compat import six
 from .core import Iterable
 from .table import Table
 
 
 class Tables(Iterable):
-
-    marker = serializers.XMLNodeField('Marker')
-    max_items = serializers.XMLNodeField('MaxItems', parse_callback=int)
-    tables = serializers.XMLNodesReferencesField(Table, 'Table')
+    marker = serializers.XMLNodeField("Marker")
+    max_items = serializers.XMLNodeField("MaxItems", parse_callback=int)
+    tables = serializers.XMLNodesReferencesField(Table, "Table")
 
     def _get(self, item):
         return Table(client=self._client, parent=self, name=item)
@@ -55,32 +54,32 @@ class Tables(Iterable):
         :return:
         """
         actions = []
-        params = {'expectmarker': 'true'}
+        params = {"expectmarker": "true"}
         if name is not None:
-            params['name'] = name
+            params["name"] = name
         if owner is not None:
-            params['owner'] = owner
+            params["owner"] = owner
         if type is not None:
             table_type = type.upper() if isinstance(type, str) else type
             table_type = Table.Type(table_type)
-            params['type'] = table_type.value
+            params["type"] = table_type.value
         if extended:
             actions.append("extended")
 
         schema_name = self._get_schema_name()
         if schema_name is not None:
-            params['curr_schema'] = schema_name
+            params["curr_schema"] = schema_name
 
         def _it():
-            last_marker = params.get('marker')
-            if 'marker' in params and (last_marker is None or len(last_marker) == 0):
+            last_marker = params.get("marker")
+            if "marker" in params and (last_marker is None or len(last_marker) == 0):
                 return
 
             url = self.resource()
             resp = self._client.get(url, actions=actions, params=params)
 
             t = Tables.parse(self._client, resp, obj=self)
-            params['marker'] = t.marker
+            params["marker"] = t.marker
 
             return t.tables
 
@@ -92,20 +91,40 @@ class Tables(Iterable):
                 yield table
 
     @utils.with_wait_argument
-    def create(self, table_name, table_schema, comment=None, if_not_exists=False,
-               lifecycle=None, shard_num=None, hub_lifecycle=None, hints=None,
-               transactional=False, storage_tier=None, async_=False, **kw):
+    def create(
+        self,
+        table_name,
+        table_schema,
+        comment=None,
+        if_not_exists=False,
+        lifecycle=None,
+        shard_num=None,
+        hub_lifecycle=None,
+        hints=None,
+        transactional=False,
+        storage_tier=None,
+        async_=False,
+        **kw
+    ):
         project_name = self._parent.project.name
         schema_name = self._get_schema_name()
         sql = Table.gen_create_table_sql(
-            table_name, table_schema, comment=comment, if_not_exists=if_not_exists,
-            lifecycle=lifecycle, shard_num=shard_num, hub_lifecycle=hub_lifecycle,
-            transactional=transactional, project=project_name,
-            schema=schema_name, **kw)
+            table_name,
+            table_schema,
+            comment=comment,
+            if_not_exists=if_not_exists,
+            lifecycle=lifecycle,
+            shard_num=shard_num,
+            hub_lifecycle=hub_lifecycle,
+            transactional=transactional,
+            project=project_name,
+            schema=schema_name,
+            **kw
+        )
 
         from .tasks import SQLTask
 
-        task = SQLTask(name='SQLCreateTableTask', query=sql)
+        task = SQLTask(name="SQLCreateTableTask", query=sql)
         hints = hints or {}
         if schema_name is not None:
             hints["odps.sql.allow.namespace.schema"] = "true"
@@ -113,7 +132,9 @@ class Tables(Iterable):
         else:
             hints["odps.namespace.schema"] = "false"
         if storage_tier:
-            hints['odps.tiered.storage.enable'] = 'true'
+            hints["odps.tiered.storage.enable"] = "true"
+        if self._parent.project.odps.quota_name:
+            hints["odps.task.wlm.quota"] = self._parent.project.odps.quota_name
         task.update_sql_settings(hints)
         instance = self._parent.project.instances.create(task=task)
 
@@ -124,50 +145,64 @@ class Tables(Iterable):
         else:
             return instance
 
-    def _gen_delete_table_sql(self, table_name, if_exists=False):
+    def _gen_delete_table_sql(self, table_name, if_exists=False, table_type=None):
         project_name = self._parent.project.name
         schema_name = self._get_schema_name()
 
         buf = six.StringIO()
-        tb = self._get(table_name)
-        if tb._getattr("type") is None:
-            # if table not loaded, use 'TABLE' type to reduce request
-            type_str = 'TABLE'
-        elif tb.type == Table.Type.VIRTUAL_VIEW:
-            type_str = 'VIEW'
-        elif tb.type == Table.Type.MATERIALIZED_VIEW:
-            type_str = 'MATERIALIZED VIEW'
-        else:
-            type_str = 'TABLE'
 
-        buf.write('DROP %s ' % type_str)
-        if if_exists:
-            buf.write('IF EXISTS ')
-        if schema_name is not None:
-            buf.write('%s.%s.`%s`' % (project_name, schema_name, table_name))
+        if table_type is not None and isinstance(table_type, six.string_types):
+            table_type = Table.Type(table_type.upper())
+
+        # override provided type if the object is already cached
+        cached_table_type = self._get(table_name)._getattr("type")
+        if cached_table_type is not None and (
+            table_type is None or table_type == Table.Type.MANAGED_TABLE
+        ):
+            table_type = cached_table_type
+
+        if table_type == Table.Type.VIRTUAL_VIEW:
+            type_str = "VIEW"
+        elif table_type == Table.Type.MATERIALIZED_VIEW:
+            type_str = "MATERIALIZED VIEW"
         else:
-            buf.write('%s.`%s`' % (project_name, table_name))
+            type_str = "TABLE"
+
+        buf.write("DROP %s " % type_str)
+        if if_exists:
+            buf.write("IF EXISTS ")
+        if schema_name is not None:
+            buf.write("%s.%s.`%s`" % (project_name, schema_name, table_name))
+        else:
+            buf.write("%s.`%s`" % (project_name, table_name))
 
         return buf.getvalue()
 
     @utils.with_wait_argument
-    def delete(self, table_name, if_exists=False, async_=False, hints=None):
+    def delete(
+        self, table_name, if_exists=False, async_=False, hints=None, table_type=None
+    ):
         if isinstance(table_name, Table):
             table_name = table_name.name
 
-        sql = self._gen_delete_table_sql(table_name, if_exists=if_exists)
+        sql = self._gen_delete_table_sql(
+            table_name, if_exists=if_exists, table_type=table_type
+        )
 
         del self[table_name]  # release table in cache
 
         from .tasks import SQLTask
-        task = SQLTask(name='SQLDropTableTask', query=sql)
+
+        task = SQLTask(name="SQLDropTableTask", query=sql)
 
         hints = hints or {}
-        hints['odps.sql.submit.mode'] = ''
+        hints["odps.sql.submit.mode"] = ""
         schema_name = self._get_schema_name()
         if schema_name is not None:
             hints["odps.sql.allow.namespace.schema"] = "true"
             hints["odps.namespace.schema"] = "true"
+        if self._parent.project.odps.quota_name:
+            hints["odps.task.wlm.quota"] = self._parent.project.odps.quota_name
         task.update_sql_settings(hints)
         instance = self._parent.project.instances.create(task=task)
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,15 +14,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import datetime
 import email.header
 import textwrap
 import time
-from datetime import datetime
 
-from ..serializers import *
 from .. import utils
+from ..serializers import *
 
-expected_xml_template = '''<?xml version="1.0" encoding="utf-8"?>
+expected_xml_template = """<?xml version="1.0" encoding="utf-8"?>
 <Example type="ex">
   <Name>example 1</Name>
   <Created>%s</Created>
@@ -51,88 +51,128 @@ expected_xml_template = '''<?xml version="1.0" encoding="utf-8"?>
   <json>{"label": "json", "tags": [{"tag": "t1"}, {"tag": "t2"}], "nest": {"name": "n"}, "nests": {"nest": [{"name": "n1"}, {"name": "n2"}]}}</json>
   <Disabled>false</Disabled>
   <Enabled>true</Enabled>
+  <Config2>
+    <Property name="test2">
+      <Value>false</Value>
+    </Property>
+  </Config2>
+  <Config3>
+    <Property name="test3">test-val</Property>
+  </Config3>
 </Example>
-'''
+"""
 
-LIST_OBJ_TMPL = '''<?xml version="1.0" ?>
+LIST_OBJ_TMPL = """<?xml version="1.0" ?>
 <objs>
   <marker>%s</marker>
   <obj>%s</obj>
 </objs>
-'''
+"""
 
-LIST_OBJ_LAST_TMPL = '''<?xml version="1.0" ?>
+LIST_OBJ_LAST_TMPL = """<?xml version="1.0" ?>
 <objs>
   <obj>%s</obj>
 </objs>
-'''
+"""
 
 
 class Example(XMLSerializableModel):
-    __slots__ = 'name', 'type', 'date', 'lessons', 'teacher', 'student',\
-                'professors', 'properties', 'jsn', 'bool_false', 'bool_true'
+    __slots__ = (
+        "name",
+        "type",
+        "date",
+        "lessons",
+        "teacher",
+        "student",
+        "professors",
+        "properties",
+        "jsn",
+        "bool_false",
+        "bool_true",
+    )
 
-    _root = 'Example'
+    _root = "Example"
 
     class Teacher(XMLSerializableModel):
-
-        name = XMLNodeField('Name')
-        tag = XMLTagField('.')
+        name = XMLNodeField("Name")
+        tag = XMLTagField(".")
 
         def __eq__(self, other):
-            return isinstance(other, Example.Teacher) and \
-                   self.name == other.name
+            return isinstance(other, Example.Teacher) and self.name == other.name
 
     class Student(XMLSerializableModel):
-        name = XMLNodeAttributeField(attr='name')
-        content = XMLNodeField('.')
+        name = XMLNodeAttributeField(attr="name")
+        content = XMLNodeField(".")
 
         def __eq__(self, other):
-            return isinstance(other, Example.Student) and \
-                   self.name == other.name and \
-                   self.content == other.content
+            return (
+                isinstance(other, Example.Student)
+                and self.name == other.name
+                and self.content == other.content
+            )
 
     class Json(JSONSerializableModel):
-
-        __slots__ = 'label', 'tags', 'nest', 'nests'
+        __slots__ = "label", "tags", "nest", "nests"
 
         class Nest(JSONSerializableModel):
-            name = JSONNodeField('name')
+            name = JSONNodeField("name")
 
             def __eq__(self, other):
-                return isinstance(other, Example.Json.Nest) and \
-                       self.name == other.name
+                return isinstance(other, Example.Json.Nest) and self.name == other.name
 
-        label = JSONNodeField('label')
-        tags = JSONNodesField('tags', 'tag')
-        nest = JSONNodeReferenceField(Nest, 'nest')
-        nests = JSONNodesReferencesField(Nest, 'nests', 'nest')
+        label = JSONNodeField("label")
+        tags = JSONNodesField("tags", "tag")
+        nest = JSONNodeReferenceField(Nest, "nest")
+        nests = JSONNodesReferencesField(Nest, "nests", "nest")
 
-    name = XMLNodeField('Name')
-    type = XMLNodeAttributeField('.', attr='type')
-    date = XMLNodeField('Created', type='rfc822l')
-    bool_true = XMLNodeField('Enabled', type='bool')
-    bool_false = XMLNodeField('Disabled', type='bool')
-    lessons = XMLNodesField('Lessons', 'Lesson')
-    teacher = XMLNodeReferenceField(Teacher, 'Teacher')
-    student = XMLNodeReferenceField(Student, 'Student')
-    professors = XMLNodesReferencesField(Teacher, 'Professors', 'Professor')
-    properties = XMLNodePropertiesField('Config', 'Property', key_tag='Name', value_tag='Value')
-    jsn = XMLNodeReferenceField(Json, 'json')
+    name = XMLNodeField("Name")
+    type = XMLNodeAttributeField(".", attr="type")
+    date = XMLNodeField("Created", type="rfc822l")
+    bool_true = XMLNodeField("Enabled", type="bool")
+    bool_false = XMLNodeField("Disabled", type="bool")
+    lessons = XMLNodesField("Lessons", "Lesson")
+    teacher = XMLNodeReferenceField(Teacher, "Teacher")
+    student = XMLNodeReferenceField(Student, "Student")
+    professors = XMLNodesReferencesField(Teacher, "Professors", "Professor")
+    properties = XMLNodePropertiesField(
+        "Config", "Property", key_tag="Name", value_tag="Value"
+    )
+    properties2 = XMLNodePropertiesField(
+        "Config2", "Property", key_attr="name", value_tag="Value"
+    )
+    properties3 = XMLNodePropertiesField("Config3", "Property", key_attr="name")
+    jsn = XMLNodeReferenceField(Json, "json")
 
 
 def test_serializers():
-    teacher = Example.Teacher(name='t1')
-    student = Example.Student(name='s1', content='s1_content')
-    professors = [Example.Teacher(name='p1'), Example.Teacher(name='p2')]
-    jsn = Example.Json(label='json', tags=['t1', 't2'],
-                       nest=Example.Json.Nest(name='n'),
-                       nests=[Example.Json.Nest(name='n1'), Example.Json.Nest(name='n2')])
+    teacher = Example.Teacher(name="t1")
+    student = Example.Student(name="s1", content="s1_content")
+    professors = [Example.Teacher(name="p1"), Example.Teacher(name="p2")]
+    jsn = Example.Json(
+        label="json",
+        tags=["t1", "t2"],
+        nest=Example.Json.Nest(name="n"),
+        nests=[Example.Json.Nest(name="n1"), Example.Json.Nest(name="n2")],
+    )
 
-    dt = datetime.fromtimestamp(time.mktime(datetime.now().timetuple()))
-    example = Example(name='example 1', type='ex', date=dt, bool_true=True, bool_false=False,
-                      lessons=['less1', 'less2'], teacher=teacher, student=student,
-                      professors=professors, properties={'test': 'true'}, jsn=jsn)
+    dt = datetime.datetime.fromtimestamp(
+        time.mktime(datetime.datetime.now().timetuple())
+    )
+    example = Example(
+        name="example 1",
+        type="ex",
+        date=dt,
+        bool_true=True,
+        bool_false=False,
+        lessons=["less1", "less2"],
+        teacher=teacher,
+        student=student,
+        professors=professors,
+        properties={"test": "true"},
+        properties2={"test2": "false"},
+        properties3={"test3": "test-val"},
+        jsn=jsn,
+    )
     sel = example.serialize()
 
     assert utils.to_str(
@@ -150,9 +190,18 @@ def test_serializers():
     assert example.teacher == parsed_example.teacher
     assert example.student == parsed_example.student
     assert list(example.professors) == list(parsed_example.professors)
-    assert len(example.properties) == len(parsed_example.properties) and \
-        (any(example.properties[it] == parsed_example.properties[it])
-                        for it in example.properties)
+    assert len(example.properties) == len(parsed_example.properties) and (
+        any(example.properties[it] == parsed_example.properties[it])
+        for it in example.properties
+    )
+    assert len(example.properties2) == len(parsed_example.properties2) and (
+        any(example.properties2[it] == parsed_example.properties2[it])
+        for it in example.properties2
+    )
+    assert len(example.properties3) == len(parsed_example.properties3) and (
+        any(example.properties3[it] == parsed_example.properties3[it])
+        for it in example.properties3
+    )
     assert example.jsn.label == parsed_example.jsn.label
     assert example.jsn.tags == parsed_example.jsn.tags
     assert example.jsn.nest == parsed_example.jsn.nest
@@ -160,16 +209,25 @@ def test_serializers():
 
 
 def test_coded_json():
-    parsed_example = Example.parse(expected_xml_template % utils.gen_rfc822(datetime.now(), localtime=True))
+    parsed_example = Example.parse(
+        expected_xml_template
+        % utils.gen_rfc822(datetime.datetime.now(), localtime=True)
+    )
     json_bytes = parsed_example.jsn.serialize().encode("iso-8859-1")
     coded_json = email.header.Header(json_bytes, "iso-8859-1").encode()
 
-    coded = textwrap.dedent('''
+    coded = (
+        textwrap.dedent(
+            """
     <?xml version="1.0" encoding="utf-8"?>
     <Example type="ex">
       <json>{JSON_CODED}</json>
     </Example>
-    ''').strip().replace("{JSON_CODED}", coded_json)
+    """
+        )
+        .strip()
+        .replace("{JSON_CODED}", coded_json)
+    )
 
     parsed = Example.parse(coded)
     assert list(parsed.jsn.nests) == list(parsed_example.jsn.nests)
@@ -186,8 +244,8 @@ def test_property_override():
     class Objs(XMLSerializableModel):
         skip_null = False
 
-        marker = XMLNodeField('marker')
-        obj = XMLNodeField('obj')
+        marker = XMLNodeField("marker")
+        obj = XMLNodeField("obj")
 
     objs = Objs()
     i = 1

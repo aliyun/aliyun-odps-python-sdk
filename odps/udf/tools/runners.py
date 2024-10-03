@@ -1,4 +1,4 @@
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,38 +12,59 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""UDF runners implementing the local run framework.
-"""
+"""UDF runners implementing the local run framework."""
 
-import sys
 import csv
-from datetime import datetime
+import re
+import sys
 
-from ... import udf
 from ... import distcache
-from ...compat import six
+from ... import types as odps_types
+from ... import udf
+from ...utils import to_date, to_milliseconds
 from . import utils
 
+__all__ = ["get_csv_runner", "get_table_runner"]
 
-__all__ = ['get_default_runner']
+PY2 = sys.version_info[0] == 2
+_table_bracket_re = re.compile(r"[^\(]+\([^\)]+\)")
 
 
-def get_default_runner(udf_class, input_col_delim=',', null_indicator='NULL', stdin=None):
-    """Create a default runner with specified udf class.
-    """
+def get_csv_runner(
+    udf_class,
+    input_col_delim=",",
+    null_indicator="NULL",
+    stdin=None,
+    collector_cls=None,
+):
+    """Create a runner to read csv with specified udf class."""
     proto = udf.get_annotation(udf_class)
     in_types, out_types = parse_proto(proto)
     stdin = stdin or sys.stdin
     arg_parser = ArgParser(in_types, stdin, input_col_delim, null_indicator)
-    stdin_feed = make_feed(arg_parser)
-    collector = StdoutCollector(out_types)
+    stdin_feed = arg_parser.parse()
+
+    collector_cls = collector_cls or StdoutCollector
+    collector = collector_cls(out_types)
     ctor = _get_runner_class(udf_class)
     return ctor(udf_class, stdin_feed, collector)
 
 
+def get_table_runner(
+    udf_class, odps_entry, table_desc, record_limit=None, collector_cls=None
+):
+    """Create a runner to read table with specified udf class."""
+    proto = udf.get_annotation(udf_class)
+    in_types, out_types = parse_proto(proto)
+    tb_feed = table_feed(odps_entry, table_desc, in_types, record_limit)
+
+    collector_cls = collector_cls or StdoutCollector
+    collector = collector_cls(out_types)
+    ctor = _get_runner_class(udf_class)
+    return ctor(udf_class, tb_feed, collector)
+
+
 def simple_run(udf_class, args):
-    """
-    """
     proto = udf.get_annotation(udf_class)
     in_types, out_types = parse_proto(proto)
     feed = direct_feed(args)
@@ -55,25 +76,38 @@ def simple_run(udf_class, args):
 
 
 def initialize():
-    """Initialize the local run environment.
-    """
+    """Initialize the local run environment."""
     distcache.get_cache_table = utils.get_cache_table
 
 
-def _get_types(types):
+def _split_data_types(types_str):
+    bracket_level = 0
+    ret_types = [""]
+    for ch in types_str:
+        if bracket_level == 0 and ch == ",":
+            ret_types[-1] = ret_types[-1].strip()
+            ret_types.append("")
+        else:
+            ret_types[-1] += ch
+            if ch in ("<", "("):
+                bracket_level += 1
+            elif ch in (">", ")"):
+                bracket_level -= 1
+    return [s for s in ret_types if s]
+
+
+def _get_types(types_str):
     entries = []
-    for t in types.split(','):
+    for t in _split_data_types(types_str):
         t = t.strip()
-        if t not in _allowed_data_types:
-            raise Exception('type not in '+ ','.join(_allowed_data_types))
-        entries.append(_type_registry[t])
+        entries.append(odps_types.validate_data_type(t))
     return entries
 
 
 def _get_in_types(types):
-    if types == '':
+    if types == "":
         return []
-    return _get_types(types) if types != '*' else [_type_registry[types], ]
+    return _get_types(types) if types != "*" else ["*"]
 
 
 def _get_runner_class(udf_class):
@@ -87,15 +121,10 @@ def _get_runner_class(udf_class):
 
 
 def parse_proto(proto):
-    tokens = proto.lower().split('->')
+    tokens = proto.lower().split("->")
     if len(tokens) != 2:
-        raise Exception('@annotate(' + proto + ') error')
+        raise ValueError("Illegal format of @annotate(%s)" % proto)
     return _get_in_types(tokens[0].strip()), _get_types(tokens[1].strip())
-
-
-def make_feed(arg_parser):
-    for r in arg_parser.parse():
-        yield r
 
 
 def direct_feed(args):
@@ -103,11 +132,65 @@ def direct_feed(args):
         yield a
 
 
+def _convert_value(value, tp):
+    try:
+        odps_types._date_allow_int_conversion = True
+        value = odps_types.validate_value(value, tp)
+    finally:
+        odps_types._date_allow_int_conversion = False
+
+    if not PY2:
+        return value
+
+    if isinstance(tp, odps_types.Datetime):
+        return to_milliseconds(value)
+    elif isinstance(tp, odps_types.Date):
+        return to_date(value)
+    elif isinstance(tp, odps_types.Array):
+        return [_convert_value(v, tp.value_type) for v in value]
+    elif isinstance(tp, odps_types.Map):
+        return {
+            _convert_value(k, tp.key_type): _convert_value(v, tp.value_type)
+            for k, v in value.items()
+        }
+    elif isinstance(tp, odps_types.Struct):
+        if isinstance(value, dict):
+            vals = {
+                k: _convert_value(value[k], ftp) for k, ftp in tp.field_types.items()
+            }
+        else:
+            vals = {
+                k: _convert_value(getattr(value, k), ftp)
+                for k, ftp in tp.field_types.items()
+            }
+        return tp.namedtuple_type(**vals)
+    else:
+        return value
+
+
+def _validate_values(values, types):
+    if types == ["*"]:
+        return values
+    if len(values) != len(types):
+        raise ValueError(
+            "Input length mismatch: %d expected, %d provided"
+            % (len(types), len(values))
+        )
+    ret_vals = [None] * len(values)
+    for idx, (tp, d) in enumerate(zip(types, values)):
+        if d is None:
+            continue
+        try:
+            ret_vals[idx] = _convert_value(d, tp)
+        except:
+            raise ValueError("Input type mismatch: expected %s, received %r" % (tp, d))
+    return ret_vals
+
+
 class ArgParser(object):
+    NULL_INDICATOR = "NULL"
 
-    NULL_INDICATOR = 'NULL'
-
-    def __init__(self, types, fileobj, delim=',', null_indicator='NULL'):
+    def __init__(self, types, fileobj, delim=",", null_indicator="NULL"):
         self.types = types
         self.delim = delim
         self.null_indicator = null_indicator
@@ -122,22 +205,46 @@ class ArgParser(object):
                     tokens.append(None)
                 else:
                     tokens.append(token)
-            if len(self.types) == 1 and self.types[0].typestr == '*':
-                yield tokens
-                continue
+
             if len(self.types) == 0 and len(tokens) == 0:
-                yield ''
+                yield ""
                 continue
-
-            if len(tokens) != len(self.types):
-                raise Exception('Schema error: %r' % record)
-            yield map(lambda tp, data: tp.converter(data), self.types, tokens)
+            yield _validate_values(tokens, self.types)
 
 
-class ArgFormater(object):
+def _get_table_or_partition(odps_entry, table_desc):
+    table_names = []
+    table_part = None
+    table_cols = None
+    for part in table_desc.split("."):
+        part = part.strip()
+        if not _table_bracket_re.match(part):
+            table_names.append(part)
+        elif part.startswith("p("):
+            table_part = part[2:-1]
+        elif part.startswith("c("):
+            table_cols = [s.strip() for s in part[2:-1].split(",")]
+    data_obj = odps_entry.get_table(".".join(table_names))
+    if table_part is not None:
+        data_obj = data_obj.get_partition(table_part)
+    return data_obj, table_cols
 
-    DELIM = '\t'
-    NULL_INDICATOR = 'NULL'
+
+def table_feed(odps_entry, table_desc, in_types, record_limit):
+    data_obj, cols = _get_table_or_partition(odps_entry, table_desc)
+    with data_obj.open_reader(columns=cols) as reader:
+        if record_limit is not None:
+            data_src = reader[:record_limit]
+        else:
+            data_src = reader
+
+        for row in data_src:
+            yield _validate_values(row.values, in_types)
+
+
+class ArgFormatter(object):
+    DELIM = "\t"
+    NULL_INDICATOR = "NULL"
 
     def __init__(self, types):
         self.types = types
@@ -148,40 +255,32 @@ class ArgFormater(object):
 
 
 class BaseCollector(object):
-    """Basic common logic of collector.
-    """
+    """Basic common logic of collector."""
+
     def __init__(self, schema):
         self.schema = schema
 
-    def _validate_records(self, *args):
-        if len(args) != len(self.schema):
-            raise Exception('Schema error: ' + repr(args))
-        for i, a in enumerate(args):
-            if a is None:
-                continue
-            elif not isinstance(a, self.schema[i].type):
-                raise Exception('Schema error: ' + repr(args))
-
     def collect(self, *args):
-        self._validate_records(*args)
+        _validate_values(args, self.schema)
         self.handle_collect(*args)
+
+    def handle_collect(self, *args):
+        raise NotImplementedError
 
 
 class StdoutCollector(BaseCollector):
-    """Collect the results to stdout.
-    """
+    """Collect the results to stdout."""
 
     def __init__(self, schema):
         super(StdoutCollector, self).__init__(schema)
-        self.formater = ArgFormater(schema)
+        self.formatter = ArgFormatter(schema)
 
     def handle_collect(self, *args):
-        print(self.formater.format(*args))
+        print(self.formatter.format(*args))
 
 
 class DirectCollector(BaseCollector):
-    """Collect results which can be fetched via self.results into memory.
-    """
+    """Collect results which can be fetched via self.results into memory."""
 
     def __init__(self, schema):
         super(DirectCollector, self).__init__(schema)
@@ -195,7 +294,6 @@ class DirectCollector(BaseCollector):
 
 
 class BaseRunner(object):
-
     def __init__(self, udf_class, feed, collector):
         self.udf_class = udf_class
         self.feed = feed
@@ -205,7 +303,6 @@ class BaseRunner(object):
 
 
 class UDFRunner(BaseRunner):
-
     def run(self):
         obj = self.obj
         collector = self.collector
@@ -215,12 +312,13 @@ class UDFRunner(BaseRunner):
 
 
 class UDTFRunner(BaseRunner):
-
     def run(self):
         obj = self.obj
         collector = self.collector
+
         def local_forward(*r):
             collector.collect(*r)
+
         obj.forward = local_forward
         for args in self.feed:
             obj.process(*args)
@@ -228,7 +326,6 @@ class UDTFRunner(BaseRunner):
 
 
 class UDAFRunner(BaseRunner):
-
     def run(self):
         obj = self.obj
         collector = self.collector
@@ -249,53 +346,4 @@ class UDAFRunner(BaseRunner):
         collector.collect(obj.terminate(merge_buf))
 
 
-
-###########################################
-###         Static type registry        ###
-
-def register_type(enum, typestr, tp):
-    type_obj = TypeEntry(typestr, tp)
-    globals()[enum] = type_obj
-    _type_registry[typestr] = type_obj
-
-
-_type_registry = {
-}
-
-
-def _gen_converter(typestr, tp):
-    def f(v):
-        if v == "NULL" or v is None:
-            return None
-        if typestr in ('bigint', 'datetime'):
-            return int(v)
-        elif typestr == 'string':
-            return str(v)
-        return tp(v)
-    return f
-
-
-class TypeEntry(object):
-
-    def __init__(self, typestr, tp):
-        self.typestr = typestr
-        self.type = tp
-        self.converter = _gen_converter(typestr, tp)
-
-register_type('TP_BIGINT',   'bigint',   six.integer_types)
-register_type('TP_STRING',   'string',   six.string_types)
-if sys.version_info[0] == 2:
-    register_type('TP_DATETIME', 'datetime', six.integer_types)
-else:
-    register_type('TP_DATETIME', 'datetime', datetime)
-register_type('TP_DOUBLE',   'double',   float)
-register_type('TP_BOOLEAN',  'boolean',  bool)
-register_type('TP_STAR',     '*',        lambda x: x)
-
-_allowed_data_types = [k for k in _type_registry.keys() if k != '*']
-
-###########################################
-
-
 initialize()
-

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@ except ImportError:
     contextvars = None
 
 
-DEFAULT_BLOCK_BUFFER_SIZE = 20 * 1024 ** 2
+DEFAULT_BLOCK_BUFFER_SIZE = 20 * 1024**2
 DEFAULT_CHUNK_SIZE = 65536
 DEFAULT_CONNECT_RETRY_TIMES = 4
 DEFAULT_CONNECT_TIMEOUT = 120
@@ -38,16 +38,16 @@ DEFAULT_READ_TIMEOUT = 120
 DEFAULT_POOL_CONNECTIONS = 10
 DEFAULT_POOL_MAXSIZE = 10
 DEFAULT_RETRY_DELAY = 0.1
-_DEFAULT_REDIRECT_WARN = 'Option {source} has been replaced by {target} and might be removed in a future release.'
+_DEFAULT_REDIRECT_WARN = "Option {source} has been replaced by {target} and might be removed in a future release."
 
 
-class OptionError(Exception):
+class OptionError(AttributeError):
     pass
 
 
 class Redirection(object):
     def __init__(self, item, warn=None):
-        self._items = item.split('.')
+        self._items = item.split(".")
         self._warn = warn
         self._warned = True
         self._parent = None
@@ -59,8 +59,9 @@ class Redirection(object):
 
     def getvalue(self, silent=False):
         if not silent and self._warn and not self._warned:
-            in_completer = any(1 for st in traceback.extract_stack()
-                               if 'completer' in st[0].lower())
+            in_completer = any(
+                1 for st in traceback.extract_stack() if "completer" in st[0].lower()
+            )
             if not in_completer:
                 self._warned = True
                 warnings.warn(self._warn)
@@ -93,8 +94,9 @@ class PandasRedirection(Redirection):
     def getvalue(self, silent=False):
         if self._use_pd:
             import pandas as pd
+
             try:
-                return pd.get_option('.'.join(self._items))
+                return pd.get_option(".".join(self._items))
             except (KeyError, LookupError, AttributeError):
                 self._use_pd = False
         else:
@@ -103,7 +105,8 @@ class PandasRedirection(Redirection):
     def setvalue(self, value, silent=False):
         if self._use_pd:
             import pandas as pd
-            key = '.'.join(self._items)
+
+            key = ".".join(self._items)
             if value != pd.get_option(key):
                 pd.set_option(key, value)
         else:
@@ -113,7 +116,7 @@ class PandasRedirection(Redirection):
 class AttributeDict(dict):
     def __init__(self, *args, **kwargs):
         self._inited = False
-        self._parent = kwargs.pop('_parent', None)
+        self._parent = kwargs.pop("_parent", None)
         self._root = None
         super(AttributeDict, self).__init__(*args, **kwargs)
         self._inited = True
@@ -153,7 +156,9 @@ class AttributeDict(dict):
     def add_validator(self, key, validator):
         value, old_validator = self[key]
         validators = getattr(
-            old_validator, "validators", [old_validator] if callable(old_validator) else []
+            old_validator,
+            "validators",
+            [old_validator] if callable(old_validator) else [],
         )
         validators.append(validator)
         self[key] = (value, all_validator(*validators))
@@ -169,7 +174,7 @@ class AttributeDict(dict):
                 validate = self[key][1]
                 if validate is not None:
                     if not validate(value):
-                        raise ValueError('Cannot set value %s' % value)
+                        raise ValueError("Cannot set value %s" % value)
                 if isinstance(val[0], Redirection):
                     val[0].setvalue(value)
                 else:
@@ -180,7 +185,7 @@ class AttributeDict(dict):
             self[key] = value
 
     def __setattr__(self, key, value):
-        if key == '_inited':
+        if key == "_inited":
             super(AttributeDict, self).__setattr__(key, value)
             return
         try:
@@ -198,8 +203,8 @@ class AttributeDict(dict):
     def loads(self, d):
         dispatches = collections.defaultdict(dict)
         for k, v in six.iteritems(d):
-            if '.' in k:
-                sk, rk = k.split('.', 1)
+            if "." in k:
+                sk, rk = k.split(".", 1)
                 dispatches[sk][rk] = v
             elif isinstance(self[k][0], Redirection):
                 self[k][0].setvalue(v, silent=True)
@@ -214,7 +219,9 @@ class AttributeDict(dict):
         result_dict = dict()
         for k, v in six.iteritems(self):
             if isinstance(v, AttributeDict):
-                result_dict.update((k + '.' + sk, sv) for sk, sv in six.iteritems(v.dumps()))
+                result_dict.update(
+                    (k + "." + sk, sv) for sk, sv in six.iteritems(v.dumps())
+                )
             elif isinstance(v[0], BaseAccount) or callable(v[0]):
                 # ignore accounts in config dumps
                 result_dict[k] = None
@@ -236,14 +243,14 @@ class Config(object):
         return getattr(self._config, item)
 
     def __setattr__(self, key, value):
-        if key == '_config':
+        if key == "_config":
             object.__setattr__(self, key, value)
             return
         setattr(self._config, key, value)
 
     def register_option(self, option, value, validator=None):
         assert validator is None or callable(validator)
-        splits = option.split('.')
+        splits = option.split(".")
         conf = self._config
 
         for name in splits[:-1]:
@@ -254,14 +261,14 @@ class Config(object):
                 conf = val
             elif not isinstance(config, dict):
                 raise AttributeError(
-                    'Fail to set option: %s, conflict has encountered' % option)
+                    "Fail to set option: %s, conflict has encountered" % option
+                )
             else:
                 conf = config
 
         key = splits[-1]
         if conf.get(key) is not None:
-            raise AttributeError(
-                'Fail to set option: %s, option has been set' % option)
+            raise AttributeError("Fail to set option: %s, option has been set" % option)
 
         conf.register(key, value, validator)
 
@@ -276,19 +283,22 @@ class Config(object):
         self.register_option(option, redir)
 
     def unregister_option(self, option):
-        splits = option.split('.')
+        splits = option.split(".")
         conf = self._config
         for name in splits[:-1]:
             config = conf.get(name)
             if not isinstance(config, dict):
                 raise AttributeError(
-                    'Fail to unregister option: %s, conflict has encountered' % option)
+                    "Fail to unregister option: %s, conflict has encountered" % option
+                )
             else:
                 conf = config
 
         key = splits[-1]
         if key not in conf:
-            raise AttributeError('Option %s not configured, thus failed to unregister.' % option)
+            raise AttributeError(
+                "Option %s not configured, thus failed to unregister." % option
+            )
         conf.unregister(key)
 
     def update(self, new_config):
@@ -301,19 +311,22 @@ class Config(object):
                 setattr(self, option, value)
 
     def add_validator(self, option, validator):
-        splits = option.split('.')
+        splits = option.split(".")
         conf = self._config
         for name in splits[:-1]:
             config = conf.get(name)
             if not isinstance(config, dict):
                 raise AttributeError(
-                    'Fail to add validator: %s, conflict has encountered' % option)
+                    "Fail to add validator: %s, conflict has encountered" % option
+                )
             else:
                 conf = config
 
         key = splits[-1]
         if key not in conf:
-            raise AttributeError('Option %s not configured, thus failed to set validator.' % option)
+            raise AttributeError(
+                "Option %s not configured, thus failed to set validator." % option
+            )
         conf.add_validator(key, validator)
 
     def loads(self, d):
@@ -325,13 +338,15 @@ class Config(object):
 
 def is_interactive():
     import __main__ as main
-    return not hasattr(main, '__file__')
+
+    return not hasattr(main, "__file__")
 
 
 # validators
 def any_validator(*validators):
     def validate(x):
         return any(validator(x) for validator in validators)
+
     return validate
 
 
@@ -349,11 +364,13 @@ is_float = lambda x: isinstance(x, float)
 is_integer = lambda x: isinstance(x, six.integer_types)
 is_string = lambda x: isinstance(x, six.string_types)
 is_dict = lambda x: isinstance(x, dict)
+is_list = lambda x: isinstance(x, list)
 
 
 def is_in(vals):
     def validate(x):
         return x in vals
+
     return validate
 
 
@@ -414,173 +431,262 @@ _verbose_log_handler = VerboseLogHandler()
 
 
 default_options = Config()
-default_options.register_option('is_global_account_overwritable', True, validator=is_bool)
-default_options.register_option('account', None)
-default_options.register_option('endpoint', None)
-default_options.redirect_option('end_point', 'endpoint')
-default_options.register_option('default_project', None)
-default_options.register_option('default_schema', None)
-default_options.register_option('app_account', None)
-default_options.register_option('region_name', None)
-default_options.register_option('local_timezone', None)
-default_options.register_option('use_legacy_parsedate', False)
-default_options.register_option('allow_antique_date', False)
 default_options.register_option(
-    'user_agent_pattern', '$pyodps_version $python_version $os_version $maxframe_version'
+    "is_global_account_overwritable", True, validator=is_bool
 )
-default_options.register_option('logview_host', None)
-default_options.register_option('logview_hours', 24 * 30, validator=is_integer)
-default_options.redirect_option('log_view_host', 'logview_host')
-default_options.redirect_option('log_view_hours', 'logview_hours')
-default_options.register_option('api_proxy', None)
-default_options.register_option('data_proxy', None)
-default_options.redirect_option('tunnel_proxy', 'data_proxy')
-default_options.register_option('seahawks_url', None)
-default_options.register_option('biz_id', None)
-default_options.register_option('priority', None, validator=any_validator(is_null, is_integer))
-default_options.register_option('get_priority', None)
-default_options.register_option('temp_lifecycle', 1, validator=is_integer)
-default_options.register_option('lifecycle', None, validator=any_validator(is_null, is_integer))
-default_options.register_option('table_read_limit', None, validator=any_validator(is_null, is_integer))
-default_options.register_option('completion_size', 10, validator=is_integer)
-default_options.register_option('default_task_settings', None, validator=any_validator(is_null, is_dict))
-default_options.register_option('resource_chunk_size', 64 << 20, validator=is_integer)
-default_options.register_option('upload_resource_in_chunks', True, validator=is_bool)
-default_options.register_option('verify_ssl', True)
-default_options.register_option('always_enable_schema', False, validator=is_bool)
-default_options.register_option('table_auto_flush_time', 150, validator=is_integer)
-default_options.register_option('struct_as_dict', False, validator=is_bool)
-default_options.register_option('progress_time_interval', 5 * 60, validator=any_validator(is_float, is_integer))
-default_options.register_option('progress_percentage_gap', 5, validator=is_integer)
-default_options.register_option('enable_v4_sign', False, validator=is_bool)
+default_options.register_option("account", None)
+default_options.register_option("endpoint", None)
+default_options.redirect_option("end_point", "endpoint")
+default_options.register_option("default_project", None)
+default_options.register_option("default_schema", None)
+default_options.register_option("app_account", None)
+default_options.register_option("region_name", None)
+default_options.register_option("quota_name", None)
+default_options.register_option("local_timezone", None)
+default_options.register_option("use_legacy_parsedate", False)
+default_options.register_option("allow_antique_date", False)
+default_options.register_option(
+    "user_agent_pattern",
+    "$pyodps_version $python_version $os_version $maxframe_version",
+)
+default_options.register_option("logview_host", None)
+default_options.register_option("logview_hours", 24 * 30, validator=is_integer)
+default_options.redirect_option("log_view_host", "logview_host")
+default_options.redirect_option("log_view_hours", "logview_hours")
+default_options.register_option("api_proxy", None)
+default_options.register_option("data_proxy", None)
+default_options.redirect_option("tunnel_proxy", "data_proxy")
+default_options.register_option("seahawks_url", None)
+default_options.register_option("biz_id", None)
+default_options.register_option(
+    "priority", None, validator=any_validator(is_null, is_integer)
+)
+default_options.register_option("get_priority", None)
+default_options.register_option("temp_lifecycle", 1, validator=is_integer)
+default_options.register_option(
+    "lifecycle", None, validator=any_validator(is_null, is_integer)
+)
+default_options.register_option(
+    "table_read_limit", None, validator=any_validator(is_null, is_integer)
+)
+default_options.register_option("completion_size", 10, validator=is_integer)
+default_options.register_option(
+    "default_task_settings", None, validator=any_validator(is_null, is_dict)
+)
+default_options.register_option("resource_chunk_size", 64 << 20, validator=is_integer)
+default_options.register_option("upload_resource_in_chunks", True, validator=is_bool)
+default_options.register_option("verify_ssl", True)
+default_options.register_option("enable_schema", False, validator=is_bool)
+default_options.redirect_option("always_enable_schema", "enable_schema")
+default_options.register_option("table_auto_flush_time", 150, validator=is_integer)
+default_options.register_option("struct_as_dict", False, validator=is_bool)
+default_options.register_option(
+    "progress_time_interval", 5 * 60, validator=any_validator(is_float, is_integer)
+)
+default_options.register_option("progress_percentage_gap", 5, validator=is_integer)
+default_options.register_option("enable_v4_sign", False, validator=is_bool)
+default_options.register_option("align_supported_python_tag", True, validator=is_bool)
 
 # c or python mode, use for UT, in other cases, please do not modify the value
-default_options.register_option('force_c', False, validator=is_integer)
-default_options.register_option('force_py', False, validator=is_integer)
+default_options.register_option("force_c", False, validator=is_integer)
+default_options.register_option("force_py", False, validator=is_integer)
 
 # callbacks for wrappers
-default_options.register_option('instance_create_callback', None)
+default_options.register_option("instance_create_callback", None)
 default_options.register_option("tunnel_session_create_callback", None)
 default_options.register_option("tunnel_session_create_timeout_callback", None)
 default_options.register_option("result_reader_create_callback", None)
-default_options.register_option('tunnel_read_timeout_callback', None)
+default_options.register_option("tunnel_read_timeout_callback", None)
 default_options.register_option("skipped_survey_regexes", [])
 
 # network connections
-default_options.register_option('chunk_size', DEFAULT_CHUNK_SIZE, validator=is_integer)
-default_options.register_option('retry_times', DEFAULT_CONNECT_RETRY_TIMES, validator=is_integer)
-default_options.register_option('retry_delay', DEFAULT_RETRY_DELAY, validator=any_validator(is_integer, is_float))
-default_options.register_option('connect_timeout', DEFAULT_CONNECT_TIMEOUT, validator=is_integer)
-default_options.register_option('read_timeout', DEFAULT_READ_TIMEOUT, validator=is_integer)
-default_options.register_option('pool_connections', DEFAULT_POOL_CONNECTIONS, validator=is_integer)
-default_options.register_option('pool_maxsize', DEFAULT_POOL_MAXSIZE, validator=is_integer)
+default_options.register_option("chunk_size", DEFAULT_CHUNK_SIZE, validator=is_integer)
+default_options.register_option(
+    "retry_times", DEFAULT_CONNECT_RETRY_TIMES, validator=is_integer
+)
+default_options.register_option(
+    "retry_delay", DEFAULT_RETRY_DELAY, validator=any_validator(is_integer, is_float)
+)
+default_options.register_option(
+    "connect_timeout", DEFAULT_CONNECT_TIMEOUT, validator=is_integer
+)
+default_options.register_option(
+    "read_timeout", DEFAULT_READ_TIMEOUT, validator=is_integer
+)
+default_options.register_option(
+    "pool_connections", DEFAULT_POOL_CONNECTIONS, validator=is_integer
+)
+default_options.register_option(
+    "pool_maxsize", DEFAULT_POOL_MAXSIZE, validator=is_integer
+)
 
 # Tunnel
-default_options.register_option('tunnel.endpoint', None)
-default_options.register_option('tunnel.string_as_binary', False, validator=is_bool)
-default_options.register_option('tunnel.use_instance_tunnel', True, validator=is_bool)
+default_options.register_option("tunnel.endpoint", None)
+default_options.register_option("tunnel.string_as_binary", False, validator=is_bool)
+default_options.register_option("tunnel.use_instance_tunnel", True, validator=is_bool)
 default_options.register_option(
-    'tunnel.limit_instance_tunnel', None, validator=any_validator(is_null, is_bool)
+    "tunnel.limit_instance_tunnel", None, validator=any_validator(is_null, is_bool)
 )
 default_options.register_option(
-    'tunnel.legacy_fallback_timeout', None, validator=any_validator(is_null, is_integer)
+    "tunnel.legacy_fallback_timeout", None, validator=any_validator(is_null, is_integer)
 )
-default_options.register_option('tunnel.pd_mem_cache_size', 1024 * 4, validator=is_integer)
-default_options.register_option('tunnel.pd_row_cache_size', 1024 * 16, validator=is_integer)
-default_options.register_option('tunnel.read_row_batch_size', 1024, validator=is_integer)
-default_options.register_option('tunnel.write_row_batch_size', 1024, validator=is_integer)
-default_options.register_option('tunnel.batch_merge_threshold', 128, validator=is_integer)
-default_options.register_option('tunnel.overflow_date_as_none', False, validator=is_bool)
 default_options.register_option(
-    'tunnel.quota_name', None, validator=any_validator(is_null, is_string)
+    "tunnel.pd_mem_cache_size", 1024 * 4, validator=is_integer
 )
-default_options.register_option('tunnel.block_buffer_size', DEFAULT_BLOCK_BUFFER_SIZE, validator=is_integer)
-default_options.register_option('tunnel.use_block_writer_by_default', False, validator=is_bool)
+default_options.register_option(
+    "tunnel.pd_row_cache_size", 1024 * 16, validator=is_integer
+)
+default_options.register_option(
+    "tunnel.read_row_batch_size", 1024, validator=is_integer
+)
+default_options.register_option(
+    "tunnel.write_row_batch_size", 1024, validator=is_integer
+)
+default_options.register_option(
+    "tunnel.batch_merge_threshold", 128, validator=is_integer
+)
+default_options.register_option(
+    "tunnel.overflow_date_as_none", False, validator=is_bool
+)
+default_options.register_option(
+    "tunnel.quota_name", None, validator=any_validator(is_null, is_string)
+)
+default_options.register_option(
+    "tunnel.block_buffer_size", DEFAULT_BLOCK_BUFFER_SIZE, validator=is_integer
+)
+default_options.register_option(
+    "tunnel.use_block_writer_by_default", False, validator=is_bool
+)
+default_options.register_option(
+    "tunnel.tags", None, validator=any_validator(is_null, is_string, is_list)
+)
 
-default_options.redirect_option('tunnel_endpoint', 'tunnel.endpoint')
-default_options.redirect_option('use_instance_tunnel', 'tunnel.use_instance_tunnel')
-default_options.redirect_option('limited_instance_tunnel', 'tunnel.limit_instance_tunnel')
-default_options.redirect_option('tunnel.limited_instance_tunnel', 'tunnel.limit_instance_tunnel')
+default_options.redirect_option("tunnel_endpoint", "tunnel.endpoint")
+default_options.redirect_option("use_instance_tunnel", "tunnel.use_instance_tunnel")
+default_options.redirect_option(
+    "limited_instance_tunnel", "tunnel.limit_instance_tunnel"
+)
+default_options.redirect_option(
+    "tunnel.limited_instance_tunnel", "tunnel.limit_instance_tunnel"
+)
 
 # terminal
-default_options.register_option('console.max_lines', None)
-default_options.register_option('console.max_width', None)
-default_options.register_option('console.use_color', False, validator=is_bool)
+default_options.register_option("console.max_lines", None)
+default_options.register_option("console.max_width", None)
+default_options.register_option("console.use_color", False, validator=is_bool)
 
 # SQL
-default_options.register_option('sql.settings', None, validator=any_validator(is_null, is_dict))
-default_options.register_option('sql.ignore_fields_not_null', False, validator=is_bool)
-default_options.register_option('sql.use_odps2_extension', None, validator=any_validator(is_null, is_bool))
+default_options.register_option(
+    "sql.settings", None, validator=any_validator(is_null, is_dict)
+)
+default_options.register_option("sql.ignore_fields_not_null", False, validator=is_bool)
+default_options.register_option(
+    "sql.use_odps2_extension", None, validator=any_validator(is_null, is_bool)
+)
 
 # sqlalchemy
-default_options.register_option('sqlalchemy.project_as_schema', False, validator=is_bool)
+default_options.register_option(
+    "sqlalchemy.project_as_schema", None, validator=any_validator(is_null, is_bool)
+)
 
 # DataFrame
-default_options.register_option('interactive', is_interactive(), validator=is_bool)
-default_options.register_option('verbose', False, validator=all_validator(is_bool, verbose_log_validator))
-default_options.register_option('verbose_log', None)
-default_options.register_option('df.optimize', True, validator=is_bool)
-default_options.register_option('df.optimizes.cp', True, validator=is_bool)
-default_options.register_option('df.optimizes.pp', True, validator=is_bool)
-default_options.register_option('df.optimizes.tunnel', True, validator=is_bool)
-default_options.register_option('df.analyze', True, validator=is_bool)
-default_options.register_option('df.use_cache', True, validator=is_bool)
-default_options.register_option('df.quote', True, validator=is_bool)
-default_options.register_option('df.dump_udf', False, validator=is_bool)
-default_options.register_option('df.supersede_libraries', True, validator=is_bool)
-default_options.register_option('df.libraries', None)
-default_options.register_option('df.image', None)
-default_options.register_option('df.odps.sort.limit', 10000)
-default_options.register_option('df.odps.nan_handler', 'py')  # None for not handled, builtin for built-in ISNAN function
-default_options.register_option('df.sqlalchemy.execution_options', None, validator=any_validator(is_null, is_dict))
-default_options.register_option('df.seahawks.max_size', 10 * 1024 * 1024 * 1024)  # 10G
-default_options.register_option('df.delete_udfs', True, validator=is_bool)
-default_options.register_option('df.use_xflow_sample', False, validator=is_bool)
-default_options.register_option('df.writer_count_limit', 50, validator=is_integer)
+default_options.register_option("interactive", is_interactive(), validator=is_bool)
+default_options.register_option(
+    "verbose", False, validator=all_validator(is_bool, verbose_log_validator)
+)
+default_options.register_option("verbose_log", None)
+default_options.register_option("df.optimize", True, validator=is_bool)
+default_options.register_option("df.optimizes.cp", True, validator=is_bool)
+default_options.register_option("df.optimizes.pp", True, validator=is_bool)
+default_options.register_option("df.optimizes.tunnel", True, validator=is_bool)
+default_options.register_option("df.analyze", True, validator=is_bool)
+default_options.register_option("df.use_cache", True, validator=is_bool)
+default_options.register_option("df.quote", True, validator=is_bool)
+default_options.register_option("df.dump_udf", False, validator=is_bool)
+default_options.register_option("df.supersede_libraries", True, validator=is_bool)
+default_options.register_option("df.libraries", None)
+default_options.register_option("df.image", None)
+default_options.register_option("df.odps.sort.limit", 10000)
+default_options.register_option(
+    "df.odps.nan_handler", "py"
+)  # None for not handled, builtin for built-in ISNAN function
+default_options.register_option(
+    "df.sqlalchemy.execution_options", None, validator=any_validator(is_null, is_dict)
+)
+default_options.register_option("df.seahawks.max_size", 10 * 1024 * 1024 * 1024)  # 10G
+default_options.register_option("df.delete_udfs", True, validator=is_bool)
+default_options.register_option("df.use_xflow_sample", False, validator=is_bool)
+default_options.register_option("df.writer_count_limit", 50, validator=is_integer)
 
 # PyODPS ML
-default_options.register_option('ml.xflow_project', 'algo_public', validator=is_string)
-default_options.register_option('ml.xflow_settings', None, validator=any_validator(is_null, is_dict))
-default_options.register_option('ml.dry_run', False, validator=is_bool)
-default_options.register_option('ml.use_model_transfer', False, validator=is_bool)
-default_options.register_option('ml.use_old_metrics', True, validator=is_bool)
-default_options.register_option('ml.model_volume', 'pyodps_volume', validator=is_string)
+default_options.register_option("ml.xflow_project", "algo_public", validator=is_string)
+default_options.register_option(
+    "ml.xflow_settings", None, validator=any_validator(is_null, is_dict)
+)
+default_options.register_option("ml.dry_run", False, validator=is_bool)
+default_options.register_option("ml.use_model_transfer", False, validator=is_bool)
+default_options.register_option("ml.use_old_metrics", True, validator=is_bool)
+default_options.register_option("ml.model_volume", "pyodps_volume", validator=is_string)
 
 # Runner
-default_options.redirect_option('runner.dry_run', 'ml.dry_run')
+default_options.redirect_option("runner.dry_run", "ml.dry_run")
 
 # display
 from .console import detect_console_encoding
 
-default_options.register_pandas('display.encoding', detect_console_encoding(), validator=is_string)
-default_options.register_pandas('display.max_rows', 60, validator=any_validator(is_null, is_integer))
-default_options.register_pandas('display.max_columns', 20, validator=any_validator(is_null, is_integer))
-default_options.register_pandas('display.large_repr', 'truncate', validator=is_in(['truncate', 'info']))
-default_options.register_pandas('display.notebook_repr_html', True, validator=is_bool)
-default_options.register_pandas('display.precision', 6, validator=is_integer)
-default_options.register_pandas('display.float_format', None)
-default_options.register_pandas('display.chop_threshold', None)
-default_options.register_pandas('display.column_space', 12, validator=is_integer)
-default_options.register_pandas('display.pprint_nest_depth', 3, validator=is_integer)
-default_options.register_pandas('display.max_seq_items', 100, validator=is_integer)
-default_options.register_pandas('display.max_colwidth', 50, validator=is_integer)
-default_options.register_pandas('display.multi_sparse', True, validator=is_bool)
-default_options.register_pandas('display.colheader_justify', 'right', validator=is_string)
-default_options.register_pandas('display.unicode.ambiguous_as_wide', False, validator=is_bool)
-default_options.register_pandas('display.unicode.east_asian_width', False, validator=is_bool)
-default_options.redirect_option('display.height', 'display.max_rows')
-default_options.register_pandas('display.width', 80, validator=any_validator(is_null, is_integer))
-default_options.register_pandas('display.expand_frame_repr', True)
-default_options.register_pandas('display.show_dimensions', 'truncate', validator=is_in([True, False, 'truncate']))
+default_options.register_pandas(
+    "display.encoding", detect_console_encoding(), validator=is_string
+)
+default_options.register_pandas(
+    "display.max_rows", 60, validator=any_validator(is_null, is_integer)
+)
+default_options.register_pandas(
+    "display.max_columns", 20, validator=any_validator(is_null, is_integer)
+)
+default_options.register_pandas(
+    "display.large_repr", "truncate", validator=is_in(["truncate", "info"])
+)
+default_options.register_pandas("display.notebook_repr_html", True, validator=is_bool)
+default_options.register_pandas("display.precision", 6, validator=is_integer)
+default_options.register_pandas("display.float_format", None)
+default_options.register_pandas("display.chop_threshold", None)
+default_options.register_pandas("display.column_space", 12, validator=is_integer)
+default_options.register_pandas("display.pprint_nest_depth", 3, validator=is_integer)
+default_options.register_pandas("display.max_seq_items", 100, validator=is_integer)
+default_options.register_pandas("display.max_colwidth", 50, validator=is_integer)
+default_options.register_pandas("display.multi_sparse", True, validator=is_bool)
+default_options.register_pandas(
+    "display.colheader_justify", "right", validator=is_string
+)
+default_options.register_pandas(
+    "display.unicode.ambiguous_as_wide", False, validator=is_bool
+)
+default_options.register_pandas(
+    "display.unicode.east_asian_width", False, validator=is_bool
+)
+default_options.redirect_option("display.height", "display.max_rows")
+default_options.register_pandas(
+    "display.width", 80, validator=any_validator(is_null, is_integer)
+)
+default_options.register_pandas("display.expand_frame_repr", True)
+default_options.register_pandas(
+    "display.show_dimensions", "truncate", validator=is_in([True, False, "truncate"])
+)
 
-default_options.register_option('display.notebook_widget', True, validator=is_bool)
-default_options.redirect_option('display.notebook_repr_widget', 'display.notebook_widget')
+default_options.register_option("display.notebook_widget", True, validator=is_bool)
+default_options.redirect_option(
+    "display.notebook_repr_widget", "display.notebook_widget"
+)
 
 # Mars
-default_options.register_option('mars.use_common_proxy', True, validator=is_bool)
-default_options.register_option('mars.launch_notebook', False, validator=is_bool)
-default_options.register_option('mars.to_dataframe_memory_scale', None, validator=any_validator(is_null, is_integer))
-default_options.register_option('mars.container_status_timeout', 120, validator=is_integer)
+default_options.register_option("mars.use_common_proxy", True, validator=is_bool)
+default_options.register_option("mars.launch_notebook", False, validator=is_bool)
+default_options.register_option(
+    "mars.to_dataframe_memory_scale", None, validator=any_validator(is_null, is_integer)
+)
+default_options.register_option(
+    "mars.container_status_timeout", 120, validator=is_integer
+)
 
 
 _options_local = threading.local()

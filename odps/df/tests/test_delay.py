@@ -71,16 +71,19 @@ def test_async_execute(setup):
     filtered = df[df.id > 0].cache()
     sub_futures = [make_filter(filtered, i).execute(delay=delay) for i in range(1, 4)]
     future = delay.execute(async_=True, n_parallel=3)
-    pytest.raises(RuntimeError, lambda: delay.execute())
+    pytest.raises(RuntimeError, delay.execute)
 
-    for i in range(1, 4):
-        assert future.done() is False
-        assert any(f.done() for f in sub_futures[i - 1:]) is False
-        assert all(f.done() for f in sub_futures[:i - 1]) is True
-        assert get_result(sub_futures[i - 1].result()) == [d for d in data if d[2] == i]
-    assert all(f.done() for f in sub_futures) is True
-    future.result(timeout=10 * 60)
-    assert future.done() is True
+    try:
+        for i in range(1, 4):
+            assert future.done() is False
+            assert any(f.done() for f in sub_futures[i - 1:]) is False
+            assert all(f.done() for f in sub_futures[:i - 1]) is True
+            assert get_result(sub_futures[i - 1].result()) == [d for d in data if d[2] == i]
+        assert all(f.done() for f in sub_futures) is True
+        future.result(timeout=10 * 60)
+        assert future.done() is True
+    finally:
+        future.result()
 
 
 def test_persist_execute(odps, setup):

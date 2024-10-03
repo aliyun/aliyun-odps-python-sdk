@@ -43,7 +43,7 @@ def setup_module_schema(odps_with_schema):
     _project_has_schema_api.pop(
         (odps_with_schema.endpoint, odps_with_schema.project), None
     )
-    options.always_enable_schema = False
+    options.enable_schema = False
 
     for cls_schema_names in (TEST_CLS_SCHEMA_NAME, TEST_CLS_SCHEMA_NAME2):
         if odps_with_schema.exist_schema(cls_schema_names):
@@ -68,7 +68,7 @@ def reset_schema_config(odps_with_schema):
         _project_has_schema_api.pop(
             (odps_with_schema.endpoint, odps_with_schema.project), None
         )
-        options.always_enable_schema = False
+        options.enable_schema = False
 
 
 def _assert_schema_deleted(odps, schema_name):
@@ -154,7 +154,9 @@ def test_default_schema(odps_with_schema):
     assert schema.project.name == odps_with_schema.project
     assert schema.name == TEST_CLS_SCHEMA_NAME
 
-    res = new_odps.create_resource(TEST_RESOURCE_NAME, "file", fileobj=BytesIO(b"content"))
+    res = new_odps.create_resource(
+        TEST_RESOURCE_NAME, "file", fileobj=BytesIO(b"content")
+    )
     assert new_odps.exist_resource(TEST_RESOURCE_NAME)
     assert res.schema.name == TEST_CLS_SCHEMA_NAME
 
@@ -174,7 +176,7 @@ def test_table_with_schema(odps_with_schema, schema_name):
     odps = odps_with_schema
 
     if schema_name is None:
-        options.always_enable_schema = True
+        options.enable_schema = True
 
     default_schema_name = "default" if odps.is_schema_namespace_enabled() else None
 
@@ -188,9 +190,7 @@ def test_table_with_schema(odps_with_schema, schema_name):
     )
     assert table.get_schema().name == schema_name or default_schema_name
 
-    tables = list(
-        odps.list_tables(prefix=test_table_name, schema=schema_name)
-    )
+    tables = list(odps.list_tables(prefix=test_table_name, schema=schema_name))
     assert len(tables) >= 1
     assert tables[0].name == test_table_name
     assert tables[0].get_schema().name == schema_name or default_schema_name
@@ -214,7 +214,9 @@ def test_table_with_schema(odps_with_schema, schema_name):
             arrow_array = pa.array(["abc", "def"])
             writer.write(pa.record_batch([arrow_array], names=["col1"]))
 
-        with table.open_reader(reopen=True, partition=test_partition, arrow=True) as reader:
+        with table.open_reader(
+            reopen=True, partition=test_partition, arrow=True
+        ) as reader:
             arrow_table = reader.read_all()
             assert arrow_table.num_rows == 2
 
@@ -233,10 +235,8 @@ def test_get_table_with_schema_opt(odps_with_schema):
     test_table_name = tn("pyodps_test_table_with_schema2")
 
     try:
-        options.always_enable_schema = True
-        odps.delete_table(
-            test_table_name, schema=TEST_CLS_SCHEMA_NAME, if_exists=True
-        )
+        options.enable_schema = True
+        odps.delete_table(test_table_name, schema=TEST_CLS_SCHEMA_NAME, if_exists=True)
         odps.create_table(
             test_table_name, "col1 string", schema=TEST_CLS_SCHEMA_NAME, lifecycle=1
         )
@@ -247,7 +247,7 @@ def test_get_table_with_schema_opt(odps_with_schema):
 
         tb.drop()
     finally:
-        options.always_enable_schema = False
+        options.enable_schema = False
 
 
 def test_table_tenant_config(odps_with_schema):
@@ -277,16 +277,23 @@ def test_file_resource_with_schema(odps_with_schema):
     test_file_res_name = tn("pyodps_test_file_resource")
 
     try:
-        odps_with_schema.delete_resource(test_file_res_name, schema=TEST_CLS_SCHEMA_NAME)
+        odps_with_schema.delete_resource(
+            test_file_res_name, schema=TEST_CLS_SCHEMA_NAME
+        )
     except NoSuchObject:
         pass
 
     res = odps_with_schema.create_resource(
-        test_file_res_name, "file", fileobj=BytesIO(b"content"), schema=TEST_CLS_SCHEMA_NAME
+        test_file_res_name,
+        "file",
+        fileobj=BytesIO(b"content"),
+        schema=TEST_CLS_SCHEMA_NAME,
     )
     assert res.schema.name == TEST_CLS_SCHEMA_NAME
 
-    assert odps_with_schema.exist_resource(test_file_res_name, schema=TEST_CLS_SCHEMA_NAME)
+    assert odps_with_schema.exist_resource(
+        test_file_res_name, schema=TEST_CLS_SCHEMA_NAME
+    )
 
     resources = list(odps_with_schema.list_resources(schema=TEST_CLS_SCHEMA_NAME))
     assert 1 == len(resources)
@@ -307,7 +314,9 @@ def test_table_resource_with_schema(odps_with_schema):
     test_res_table_name = tn("pyodps_test_resource_table")
 
     try:
-        odps_with_schema.delete_resource(test_table_res_name, schema=TEST_CLS_SCHEMA_NAME)
+        odps_with_schema.delete_resource(
+            test_table_res_name, schema=TEST_CLS_SCHEMA_NAME
+        )
     except NoSuchObject:
         pass
 
@@ -362,7 +371,7 @@ def test_function_with_resource(odps_with_schema):
         test_func_name,
         class_type=test_func_res_name + ".MyPlus",
         resources=[res],
-        schema=TEST_CLS_SCHEMA_NAME
+        schema=TEST_CLS_SCHEMA_NAME,
     )
     assert func.schema.name == TEST_CLS_SCHEMA_NAME
 
@@ -376,5 +385,7 @@ def test_function_with_resource(odps_with_schema):
     assert funcs[0].resources[0].schema.name == TEST_CLS_SCHEMA_NAME2
 
     odps.delete_function(test_func_name, schema=TEST_CLS_SCHEMA_NAME)
-    assert not odps_with_schema.exist_function(test_func_name, schema=TEST_CLS_SCHEMA_NAME)
+    assert not odps_with_schema.exist_function(
+        test_func_name, schema=TEST_CLS_SCHEMA_NAME
+    )
     odps.delete_resource(test_func_res_file, schema=TEST_CLS_SCHEMA_NAME2)

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,25 +14,28 @@
 # limitations under the License.
 
 cimport cython
+
 import decimal
 import json
 import warnings
 from collections import OrderedDict
+
 from cpython.datetime cimport import_datetime
 from libc.stdint cimport *
 from libc.string cimport *
 
 from ...src.types_c cimport BaseRecord
 from ...src.utils_c cimport CMillisecondsConverter
-from ..pb.decoder_c cimport CDecoder
 from ..checksum_c cimport Checksum
+from ..pb.decoder_c cimport CDecoder
 
-from ... import utils, types, compat, options
-from ...errors import DatetimeOverflowError
+from ... import compat, options, types, utils
+from ...errors import ChecksumError, DatetimeOverflowError
 from ...models import Record
-from ...readers import AbstractRecordReader
+from ...readers import AbstractRecordReader  # noqa
 from ...types import PartitionSpec
 from ..wireconstants import ProtoWireConstants
+
 
 cdef int64_t MAX_READ_SIZE_LIMIT = (1 << 63) - 1
 
@@ -65,10 +68,21 @@ cdef:
 import_datetime()
 
 cdef class BaseTunnelRecordReader:
-    def __init__(self, object schema, object input_stream, columns=None, partition_spec=None):
+    def __init__(
+        self,
+        object schema,
+        object stream_creator,
+        object columns=None,
+        object partition_spec=None,
+        bint append_partitions=True,
+    ):
         self._schema = schema
         if columns is None:
-            self._columns = self._schema.columns
+            self._columns = (
+                self._schema.columns
+                if append_partitions
+                else self._schema.simple_columns
+            )
         else:
             self._columns = [self._schema[c] for c in columns]
         self._reader_schema = types.OdpsSchema(columns=self._columns)
@@ -77,6 +91,7 @@ cdef class BaseTunnelRecordReader:
         self._overflow_date_as_none = options.tunnel.overflow_date_as_none
         self._struct_as_dict = options.struct_as_dict
         self._partition_vals = []
+        self._append_partitions = append_partitions
 
         partition_spec = PartitionSpec(partition_spec) if partition_spec is not None else None
 
@@ -118,17 +133,31 @@ cdef class BaseTunnelRecordReader:
             if partition_spec is not None and self._columns[i].name in partition_spec:
                 self._partition_vals.append((i, partition_spec[self._columns[i].name]))
 
-        self._reader = CDecoder(input_stream)
-        self._crc = Checksum()
-        self._crccrc = Checksum()
         self._curr_cursor = 0
+        self._stream_creator = stream_creator
+        self._reopen_reader()
+
         self._read_limit = -1 if options.table_read_limit is None else options.table_read_limit
         self._mills_converter = CMillisecondsConverter()
         self._mills_converter_utc = CMillisecondsConverter(local_tz=False)
         self._to_date = utils.to_date
 
+        self._n_injected_error_cursor = -1
+        self._injected_error_exc = None
+
+    def _reopen_reader(self):
+        self._last_n_bytes = self._reader.position() if self._curr_cursor != 0 else 0
+        self._reader = CDecoder(self._stream_creator(self._curr_cursor))
+        self._crc = Checksum()
+        self._crccrc = Checksum()
+        self._attempt_row_count = 0
+
+    def _inject_error(self, cursor, exc):
+        self._n_injected_error_cursor = cursor
+        self._injected_error_exc = exc
+
     def _mode(self):
-        return 'c'
+        return "c"
 
     @property
     def count(self):
@@ -184,7 +213,7 @@ cdef class BaseTunnelRecordReader:
         elif isinstance(data_type, types.Struct):
             val = self._read_struct(data_type)
         else:
-            raise IOError('Unsupported type %s' % data_type)
+            raise IOError("Unsupported type %s" % data_type)
         return val
 
     cdef list _read_array(self, object value_type):
@@ -357,7 +386,7 @@ cdef class BaseTunnelRecordReader:
         self._set_record_list_value(record, i, json.loads(val))
         return 0
 
-    cpdef read(self):
+    cdef _read(self):
         cdef:
             int index
             int checksum
@@ -368,9 +397,13 @@ cdef class BaseTunnelRecordReader:
             BaseRecord record
             list rec_list
 
+        if self._n_injected_error_cursor == self._curr_cursor:
+            self._n_injected_error_cursor = -1
+            raise self._injected_error_exc
+
         if self._curr_cursor >= self._read_limit > 0:
             warnings.warn(
-                'Number of lines read via tunnel already reaches the limitation.',
+                "Number of lines read via tunnel already reaches the limitation.",
                 RuntimeWarning,
             )
             return None
@@ -386,27 +419,29 @@ cdef class BaseTunnelRecordReader:
             if index == WIRE_TUNNEL_END_RECORD:
                 checksum = <int32_t>self._crc.c_getvalue()
                 if self._reader.read_uint32() != <uint32_t>checksum:
-                    raise IOError('Checksum invalid')
+                    raise ChecksumError("Checksum invalid")
                 self._crc.c_reset()
                 self._crccrc.c_update_int(checksum)
                 break
 
             if index == WIRE_TUNNEL_META_COUNT:
-                if self._curr_cursor != self._reader.read_sint64():
-                    raise IOError('count does not match')
+                if self._attempt_row_count != self._reader.read_sint64():
+                    raise IOError("count does not match")
                 idx_of_checksum = self._reader.read_field_number()
                 if WIRE_TUNNEL_META_CHECKSUM != idx_of_checksum:
-                    raise IOError('Invalid stream data.')
+                    raise IOError("Invalid stream data.")
                 if self._crccrc.c_getvalue() != self._reader.read_uint32():
-                    raise IOError('Checksum invalid.')
+                    raise ChecksumError("Checksum invalid.")
                 # if not self._reader.at_end():
                 #     raise IOError('Expect at the end of stream, but not.')
 
                 return
 
             if index > self._n_columns:
-                raise IOError('Invalid protobuf tag. Perhaps the datastream '
-                              'from server is crushed.')
+                raise IOError(
+                    "Invalid protobuf tag. Perhaps the datastream "
+                    "from server is crushed."
+                )
 
             self._crc.c_update_int(index)
 
@@ -427,26 +462,39 @@ cdef class BaseTunnelRecordReader:
                     val = self._read_struct(data_type)
                     rec_list[i] = self._schema_snapshot.validate_value(i, val, MAX_READ_SIZE_LIMIT)
                 else:
-                    raise IOError('Unsupported type %s' % data_type)
+                    raise IOError("Unsupported type %s" % data_type)
 
-        for idx, val in self._partition_vals:
-            rec_list[idx] = val
+        if self._append_partitions:
+            for idx, val in self._partition_vals:
+                rec_list[idx] = val
 
+        self._attempt_row_count += 1
         self._curr_cursor += 1
         return record
+
+    cpdef read(self):
+        cdef int retry_num = 0
+        while True:
+            try:
+                return self._read()
+            except:
+                retry_num += 1
+                if retry_num > options.retry_times:
+                    raise
+                self._reopen_reader()
 
     def reads(self):
         return self.__iter__()
 
     @property
     def n_bytes(self):
-        return self._reader.position()
+        return self._last_n_bytes + self._reader.position()
 
     def get_total_bytes(self):
         return self.n_bytes
 
     def close(self):
-        if hasattr(self._schema, 'close'):
+        if hasattr(self._schema, "close"):
             self._schema.close()
 
     def __enter__(self):
@@ -492,8 +540,8 @@ cdef inline int32_t decimal_print_dig(
         data = val[i]
         while data != 0:
             r = data // 10
-            ptr[0] = data - r * 10 + ord('0')
-            if ptr[0] != ord('0') and (not tail or ret[0] == ord('0')):
+            ptr[0] = data - r * 10 + ord("0")
+            if ptr[0] != ord("0") and (not tail or ret[0] == ord("0")):
                 ret = ptr
             data = r
             ptr -= 1
@@ -524,7 +572,7 @@ cpdef convert_legacy_decimal_bytes(bytes value, int32_t frac = 0):
 
     cdef char buf[9 * (2 + 4) + 4]
     cdef char *buf_ptr = buf
-    memset(buf_ptr, ord('0'), sizeof(buf))
+    memset(buf_ptr, ord("0"), sizeof(buf))
 
     if is_null:  # pragma: no cover
         return None
@@ -544,7 +592,7 @@ cpdef convert_legacy_decimal_bytes(bytes value, int32_t frac = 0):
 
     if sign:
         start -= 1
-        start[0] = ord('-')
+        start[0] = ord("-")
 
     cdef int32_t fcnt = decimal_print_dig(
         buf_ptr + DECIMAL_PREC_DIGS + 1, <const int32_t *>data, DECIMAL_FRAC_CNT, True
@@ -554,7 +602,7 @@ cpdef convert_legacy_decimal_bytes(bytes value, int32_t frac = 0):
     else:
         frac = DECIMAL_FRAC_DIGS
     fcnt = max(fcnt, frac)
-    buf[DECIMAL_INTG_DIGS + 1] = ord('.')
+    buf[DECIMAL_INTG_DIGS + 1] = ord(".")
 
     dec_cnt = buf_ptr + DECIMAL_INTG_DIGS + 1 - start + (fcnt + 1 if fcnt > 0 else 0)
     return decimal.Decimal(start[0:dec_cnt].decode())

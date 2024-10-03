@@ -1,4 +1,4 @@
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,11 +17,11 @@ from datetime import datetime
 import pytest
 
 from ...compat import six
-from .. import Projects, Project
+from .. import Project, Projects
 
 
 def test_projects_exists(odps):
-    not_exists_project_name = 'a_not_exists_project'
+    not_exists_project_name = "a_not_exists_project"
     assert odps.exist_project(not_exists_project_name) is False
 
     assert odps.exist_project(odps.project) is True
