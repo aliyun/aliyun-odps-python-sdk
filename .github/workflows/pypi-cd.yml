@@ -79,7 +79,7 @@ jobs:
           python -m twine upload -r pypi --skip-existing wheelhouse/*
 
       - name: Upload artifacts to github
-        uses: actions/upload-artifact@v1
+        uses: actions/upload-artifact@v4
         if: ${{ always() }}
         with:
           name: wheels
