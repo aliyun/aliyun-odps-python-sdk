@@ -31,6 +31,20 @@ class BaseInstances(Iterable):
     def _get(self, name):
         return Instance(client=self._client, parent=self, name=name)
 
+    def get(self, name, quota_name=None):
+        from .session.v2 import McqaV2Methods
+
+        if (
+            quota_name is None
+            or not isinstance(name, six.string_types)
+            or not name.endswith("_mcqa")
+        ):
+            # return non-mcqa instance
+            return self._get(name)
+
+        mcqa_odps = McqaV2Methods._load_mcqa_conn(self.parent.odps, quota_name)
+        return mcqa_odps.get_instance(name, project=self.parent.name)
+
     def __contains__(self, item):
         if isinstance(item, six.string_types):
             instance = self._get(item)

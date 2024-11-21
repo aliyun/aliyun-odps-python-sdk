@@ -641,6 +641,7 @@ class TableStreamUploadSession(BaseTableTunnelSession):
         "_quota_name",
         "_create_partition",
         "_zorder_columns",
+        "_allow_schema_mismatch",
     )
 
     class Slots(object):
@@ -691,6 +692,8 @@ class TableStreamUploadSession(BaseTableTunnelSession):
         create_partition=False,
         zorder_columns=None,
         schema_version=None,
+        allow_schema_mismatch=True,
+        upload_id=None,
         tags=None,
     ):
         super(TableStreamUploadSession, self).__init__()
@@ -702,9 +705,14 @@ class TableStreamUploadSession(BaseTableTunnelSession):
         self._quota_name = quota_name
         self._create_partition = create_partition
         self._zorder_columns = zorder_columns
+        self._allow_schema_mismatch = allow_schema_mismatch
         self.schema_version = schema_version
 
-        self._init(tags=tags)
+        if upload_id is None:
+            self._init(tags=tags)
+        else:
+            self.id = upload_id
+            self.reload(tags=tags)
         self._compress_option = compress_option
 
         logger.info("Tunnel session created: %r", self)
@@ -735,6 +743,7 @@ class TableStreamUploadSession(BaseTableTunnelSession):
             if not isinstance(self._zorder_columns, six.string_types):
                 cols = ",".join(self._zorder_columns)
             params["zorder_columns"] = cols
+        params["check_latest_schema"] = str(not self._allow_schema_mismatch).lower()
 
         url = self._get_resource()
         resp = self._client.post(url, {}, params=params, headers=headers)
@@ -823,6 +832,7 @@ class TableUpsertSession(BaseTableTunnelSession):
         "_slot_num",
         "_commit_timeout",
         "_quota_name",
+        "_lifecycle",
     )
 
     UPSERT_EXTRA_COL_NUM = 5
@@ -880,7 +890,9 @@ class TableUpsertSession(BaseTableTunnelSession):
         compress_option=None,
         slot_num=1,
         commit_timeout=DEFAULT_UPSERT_COMMIT_TIMEOUT,
+        lifecycle=None,
         quota_name=None,
+        upsert_id=None,
         tags=None,
     ):
         super(TableUpsertSession, self).__init__()
@@ -888,12 +900,17 @@ class TableUpsertSession(BaseTableTunnelSession):
         self._client = client
         self._table = table
         self._partition_spec = self.normalize_partition_spec(partition_spec)
+        self._lifecycle = lifecycle
         self._quota_name = quota_name
 
         self._slot_num = slot_num
         self._commit_timeout = commit_timeout
 
-        self._init(tags=tags)
+        if upsert_id is None:
+            self._init(tags=tags)
+        else:
+            self.id = upsert_id
+            self.reload(tags=tags)
         self._compress_option = compress_option
 
         logger.info("Upsert session created: %r", self)
@@ -945,6 +962,8 @@ class TableUpsertSession(BaseTableTunnelSession):
 
         url = self._get_resource()
         if not reload:
+            if self._lifecycle:
+                params["lifecycle"] = self._lifecycle
             resp = self._client.post(url, {}, params=params, headers=headers)
         else:
             resp = self._client.get(url, params=params, headers=headers)
@@ -980,7 +999,9 @@ class TableUpsertSession(BaseTableTunnelSession):
         headers = self.get_common_headers()
 
         compress_option = self._compress_option or CompressOption()
-        if compress:
+        if not compress:
+            compress_option = None
+        else:
             encoding = compress_option.algorithm.get_encoding()
             if encoding:
                 headers["Content-Encoding"] = encoding
@@ -1043,9 +1064,11 @@ class TableUpsertSession(BaseTableTunnelSession):
 
 class TableTunnel(BaseTunnel):
     def _get_tunnel_table(self, table, schema=None):
+        project_odps = None
         try:
+            project_odps = self._project.odps
             if isinstance(table, six.string_types):
-                table = self._project.odps.get_table(table)
+                table = project_odps.get_table(table, project=self._project.name)
         except:
             pass
 
@@ -1057,7 +1080,7 @@ class TableTunnel(BaseTunnel):
 
         parent = Projects(client=self.tunnel_rest)[project_name]
         # tailor project for resource locating only
-        parent._set_tunnel_defaults()
+        parent._set_tunnel_defaults(odps_entry=project_odps)
         if schema is not None:
             parent = parent.schemas[schema]
         return parent.tables[table]
@@ -1148,6 +1171,7 @@ class TableTunnel(BaseTunnel):
         compress_strategy=None,
         schema=None,
         schema_version=None,
+        upload_id=None,
         tags=None,
     ):
         table = self._get_tunnel_table(table, schema)
@@ -1163,6 +1187,7 @@ class TableTunnel(BaseTunnel):
             compress_option=compress_option,
             quota_name=self._quota_name,
             schema_version=schema_version,
+            upload_id=upload_id,
             tags=tags,
         )
 
@@ -1177,6 +1202,7 @@ class TableTunnel(BaseTunnel):
         compress_level=None,
         compress_strategy=None,
         schema=None,
+        upsert_id=None,
         tags=None,
     ):
         table = self._get_tunnel_table(table, schema)
@@ -1190,6 +1216,7 @@ class TableTunnel(BaseTunnel):
             table,
             partition_spec,
             slot_num=slot_num,
+            upsert_id=upsert_id,
             commit_timeout=commit_timeout,
             compress_option=compress_option,
             quota_name=self._quota_name,

@@ -34,7 +34,7 @@ from .compat import six
 from .core import DEFAULT_ENDPOINT, ODPS
 from .errors import BaseODPSError, InternalServerError, NoSuchObject
 from .models import Table
-from .models.session import PUBLIC_SESSION_NAME
+from .models.session.v1 import PUBLIC_SESSION_NAME
 from .utils import to_str, to_text
 
 test_setting = threading.local()

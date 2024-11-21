@@ -25,7 +25,6 @@ import os
 from babel.messages import pofile
 from babel.messages.pofile import escape
 
-
 _original_normalize = pofile.normalize
 
 

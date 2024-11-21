@@ -35,8 +35,28 @@ STRING_LITERAL = (
 def schema():
     pr = cProfile.Profile()
     pr.enable()
-    fields = ["bigint", "double", "datetime", "boolean", "string", "decimal"]
-    types = ["bigint", "double", "datetime", "boolean", "string", "decimal"]
+    fields = [
+        "bigint",
+        "double",
+        "datetime",
+        "boolean",
+        "string",
+        "decimal",
+        "array",
+        "map",
+        "struct",
+    ]
+    types = [
+        "bigint",
+        "double",
+        "datetime",
+        "boolean",
+        "string",
+        "decimal",
+        "array<bigint>",
+        "map<string, bigint>",
+        "struct<key:string, value:bigint>",
+    ]
     try:
         schema = TableSchema.from_lists(fields, types)
         schema.build_snapshot()
@@ -50,35 +70,53 @@ def schema():
 
 def test_set_record_field_bigint(schema):
     r = Record(schema=schema)
-    for i in range(10**6):
+    for _ in range(10**6):
         r["bigint"] = 2**63 - 1
 
 
 def test_set_record_field_double(schema):
     r = Record(schema=schema)
-    for i in range(10**6):
+    for _ in range(10**6):
         r["double"] = 0.0001
 
 
 def test_set_record_field_boolean(schema):
     r = Record(schema=schema)
-    for i in range(10**6):
+    for _ in range(10**6):
         r["boolean"] = False
 
 
 def test_set_record_field_string(schema):
     r = Record(schema=schema)
-    for i in range(10**6):
+    for _ in range(10**6):
         r["string"] = STRING_LITERAL
 
 
-def test_write_set_record_field_datetime(schema):
+def test_set_record_field_datetime(schema):
     r = Record(schema=schema)
-    for i in range(10**6):
+    for _ in range(10**6):
         r["datetime"] = datetime(2016, 1, 1)
 
 
 def test_set_record_field_decimal(schema):
     r = Record(schema=schema)
-    for i in range(10**6):
+    for _ in range(10**6):
         r["decimal"] = Decimal("1.111111")
+
+
+def test_set_record_field_array(schema):
+    r = Record(schema=schema)
+    for _ in range(10**6):
+        r["array"] = [2**63 - 1]
+
+
+def test_set_record_field_map(schema):
+    r = Record(schema=schema)
+    for _ in range(10**6):
+        r["map"] = {"data_key": 2**63 - 1}
+
+
+def test_set_record_field_struct(schema):
+    r = Record(schema=schema)
+    for _ in range(10**6):
+        r["struct"] = ("data_key", 2**63 - 1)

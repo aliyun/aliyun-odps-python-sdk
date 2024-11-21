@@ -73,7 +73,9 @@ class SplitOptions(JSONRemoteModel):
 
         self.split_mode = self.split_mode or SplitOptions.SplitMode.SIZE
         self.split_number = self.split_number or 256 * 1024 * 1024
-        self.cross_partition = self.cross_partition or True
+        self.cross_partition = (
+            self.cross_partition if self.cross_partition is not None else True
+        )
 
     @classmethod
     def get_default_options(self, mode):
@@ -238,7 +240,7 @@ class TableBatchWriteRequest(serializers.JSONSerializableModel):
         self.dynamic_partition_options = (
             self.dynamic_partition_options or DynamicPartitionOptions()
         )
-        self.overwrite = self.overwrite or True
+        self.overwrite = self.overwrite if self.overwrite is not None else True
         self.support_write_cluster = self.support_write_cluster or False
 
 

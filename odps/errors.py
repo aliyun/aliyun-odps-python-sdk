@@ -70,6 +70,7 @@ def parse_response(resp, endpoint=None, tag=None):
             host_id=host_id,
             endpoint=endpoint,
             tag=tag,
+            response_headers=resp.headers,
         )
     except:
         # Error occurred during parsing the response. We ignore it and delegate
@@ -77,7 +78,10 @@ def parse_response(resp, endpoint=None, tag=None):
         logger.debug(utils.stringify_expt())
 
     if resp.status_code == 404:
-        return NoSuchObject("No such object.", endpoint=endpoint, tag=tag)
+        msg = "Not found error reported by server."
+        if endpoint:
+            msg += " Endpoint %s might be malfunctioning." % endpoint
+        return NoSuchObject(msg, endpoint=endpoint, tag=tag)
     elif resp.status_code == 401:
         return Unauthorized("Unauthorized.", endpoint=endpoint, tag=tag)
     else:
@@ -174,6 +178,7 @@ class BaseODPSError(Exception):
         instance_id=None,
         endpoint=None,
         tag=None,
+        response_headers=None,
     ):
         super(BaseODPSError, self).__init__(msg)
         self.request_id = request_id
@@ -354,6 +359,15 @@ class OverwriteModeNotAllowed(ServerDefinedException):
 
 class TableModified(ServerDefinedException):
     pass
+
+
+class SchemaModified(ServerDefinedException):
+    def __init__(self, *args, **kw):
+        super(SchemaModified, self).__init__(*args, **kw)
+        response_headers = kw.get("response_headers") or dict()
+        self.latest_schema_version = response_headers.get(
+            "odps-tunnel-latest-schema-version"
+        )
 
 
 class RequestTimeTooSkewed(ServerDefinedException):

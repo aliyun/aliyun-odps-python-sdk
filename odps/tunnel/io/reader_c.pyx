@@ -24,6 +24,8 @@ from cpython.datetime cimport import_datetime
 from libc.stdint cimport *
 from libc.string cimport *
 
+from ...lib.monotonic import monotonic
+
 from ...src.types_c cimport BaseRecord
 from ...src.utils_c cimport CMillisecondsConverter
 from ..checksum_c cimport Checksum
@@ -34,16 +36,20 @@ from ...errors import ChecksumError, DatetimeOverflowError
 from ...models import Record
 from ...readers import AbstractRecordReader  # noqa
 from ...types import PartitionSpec
+from ..pb import wire_format
 from ..wireconstants import ProtoWireConstants
 
-
-cdef int64_t MAX_READ_SIZE_LIMIT = (1 << 63) - 1
+DEF MAX_READ_SIZE_LIMIT = (1 << 63) - 1
+DEF MICRO_SEC_PER_SEC = 1_000_000L
 
 
 cdef:
     uint32_t WIRE_TUNNEL_META_COUNT = ProtoWireConstants.TUNNEL_META_COUNT
     uint32_t WIRE_TUNNEL_META_CHECKSUM = ProtoWireConstants.TUNNEL_META_CHECKSUM
     uint32_t WIRE_TUNNEL_END_RECORD = ProtoWireConstants.TUNNEL_END_RECORD
+    uint32_t WIRE_TUNNEL_END_METRICS = ProtoWireConstants.TUNNEL_END_METRICS
+
+    uint32_t WIRETYPE_LENGTH_DELIMITED = wire_format.WIRETYPE_LENGTH_DELIMITED
 
 cdef:
     int64_t BOOL_TYPE_ID = types.boolean._type_id
@@ -76,6 +82,16 @@ cdef class BaseTunnelRecordReader:
         object partition_spec=None,
         bint append_partitions=True,
     ):
+        cdef double ts
+
+        self._enable_client_metrics = options.tunnel.enable_client_metrics
+        self._server_metrics_string = None
+        self._c_local_wall_time_ms = 0
+        self._c_acc_network_time_ms = 0
+
+        if self._enable_client_metrics:
+            ts = monotonic()
+
         self._schema = schema
         if columns is None:
             self._columns = (
@@ -133,24 +149,60 @@ cdef class BaseTunnelRecordReader:
             if partition_spec is not None and self._columns[i].name in partition_spec:
                 self._partition_vals.append((i, partition_spec[self._columns[i].name]))
 
+        if self._enable_client_metrics:
+            self._c_local_wall_time_ms += <long>(
+                MICRO_SEC_PER_SEC * (<double>monotonic() - ts)
+            )
+
         self._curr_cursor = 0
         self._stream_creator = stream_creator
+        self._reader = None
         self._reopen_reader()
+
+        if self._enable_client_metrics:
+            ts = monotonic()
 
         self._read_limit = -1 if options.table_read_limit is None else options.table_read_limit
         self._mills_converter = CMillisecondsConverter()
         self._mills_converter_utc = CMillisecondsConverter(local_tz=False)
         self._to_date = utils.to_date
 
+        if self._enable_client_metrics:
+            self._c_local_wall_time_ms += <long>(
+                MICRO_SEC_PER_SEC * (<double>monotonic() - ts)
+            )
+
         self._n_injected_error_cursor = -1
         self._injected_error_exc = None
 
+    @cython.cdivision(True)
     def _reopen_reader(self):
+        cdef object stream
+        cdef double ts
+
+        if self._enable_client_metrics:
+            ts = monotonic()
+
+        stream = self._stream_creator(self._curr_cursor)
+        if self._enable_client_metrics:
+            self._c_acc_network_time_ms += <long>(
+                MICRO_SEC_PER_SEC * (<double>monotonic() - ts)
+            )
+            if self._reader is not None:
+                self._c_acc_network_time_ms += (
+                    self._reader._network_wall_time_ns // 1000
+                )
+
+        self._reader = CDecoder(stream, record_network_time=self._enable_client_metrics)
         self._last_n_bytes = self._reader.position() if self._curr_cursor != 0 else 0
-        self._reader = CDecoder(self._stream_creator(self._curr_cursor))
         self._crc = Checksum()
         self._crccrc = Checksum()
         self._attempt_row_count = 0
+
+        if self._enable_client_metrics:
+            self._c_local_wall_time_ms += <long>(
+                MICRO_SEC_PER_SEC * (<double>monotonic() - ts)
+            )
 
     def _inject_error(self, cursor, exc):
         self._n_injected_error_cursor = cursor
@@ -393,6 +445,7 @@ cdef class BaseTunnelRecordReader:
             int idx_of_checksum
             int i
             int data_type_id
+            int32_t wire_type
             object data_type
             BaseRecord record
             list rec_list
@@ -412,7 +465,7 @@ cdef class BaseTunnelRecordReader:
         rec_list = record._c_values
 
         while True:
-            index = self._reader.read_field_number()
+            index = self._reader.read_field_number(NULL)
 
             if index == 0:
                 continue
@@ -427,13 +480,31 @@ cdef class BaseTunnelRecordReader:
             if index == WIRE_TUNNEL_META_COUNT:
                 if self._attempt_row_count != self._reader.read_sint64():
                     raise IOError("count does not match")
-                idx_of_checksum = self._reader.read_field_number()
+                idx_of_checksum = self._reader.read_field_number(&wire_type)
+
+                if WIRE_TUNNEL_META_CHECKSUM != idx_of_checksum:
+                    if wire_type != WIRETYPE_LENGTH_DELIMITED:
+                        raise IOError("Invalid stream data.")
+                    self._crc.c_update_int(idx_of_checksum)
+
+                    self._server_metrics_string = self._reader.read_string()
+                    self._crc.c_update(
+                        self._server_metrics_string, len(self._server_metrics_string)
+                    )
+
+                    idx_of_checksum = self._reader.read_field_number(NULL)
+                    if idx_of_checksum != WIRE_TUNNEL_END_METRICS:
+                        raise IOError("Invalid stream data.")
+                    checksum = <int32_t>self._crc.c_getvalue()
+                    if <uint32_t>checksum != self._reader.read_uint32():
+                        raise ChecksumError("Checksum invalid.")
+                    self._crc.reset()
+
+                    idx_of_checksum = self._reader.read_field_number(NULL)
                 if WIRE_TUNNEL_META_CHECKSUM != idx_of_checksum:
                     raise IOError("Invalid stream data.")
                 if self._crccrc.c_getvalue() != self._reader.read_uint32():
                     raise ChecksumError("Checksum invalid.")
-                # if not self._reader.at_end():
-                #     raise IOError('Expect at the end of stream, but not.')
 
                 return
 
@@ -473,10 +544,21 @@ cdef class BaseTunnelRecordReader:
         return record
 
     cpdef read(self):
-        cdef int retry_num = 0
+        cdef:
+            int retry_num = 0
+            double ts
+            object result
+
+        if self._enable_client_metrics:
+            ts = monotonic()
         while True:
             try:
-                return self._read()
+                result = self._read()
+                if self._enable_client_metrics:
+                    self._c_local_wall_time_ms += <long>(
+                        MICRO_SEC_PER_SEC * (<double>monotonic() - ts)
+                    )
+                return result
             except:
                 retry_num += 1
                 if retry_num > options.retry_times:
@@ -493,29 +575,14 @@ cdef class BaseTunnelRecordReader:
     def get_total_bytes(self):
         return self.n_bytes
 
-    def close(self):
-        if hasattr(self._schema, "close"):
-            self._schema.close()
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *_):
-        self.close()
-
-
-class TunnelRecordReader(BaseTunnelRecordReader, AbstractRecordReader):
-    def __next__(self):
-        record = self.read()
-        if record is None:
-            raise StopIteration
-        return record
-
-    next = __next__
+    @property
+    def _local_wall_time_ms(self):
+        return self._c_local_wall_time_ms
 
     @property
-    def schema(self):
-        return self._schema
+    @cython.cdivision(True)
+    def _network_wall_time_ms(self):
+        return self._reader._network_wall_time_ns // 1000 + self._c_acc_network_time_ms
 
 
 cdef int DECIMAL_FRAC_CNT = 2

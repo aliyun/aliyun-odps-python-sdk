@@ -19,7 +19,7 @@ import sys as _sys
 
 __all__ = ['Enum', 'IntEnum', 'unique']
 
-version = 1, 0, 4
+version = (1, 1, 10)
 
 pyver = float('%s.%s' % _sys.version_info[:2])
 
@@ -133,10 +133,13 @@ class _EnumDict(dict):
                 leftover from 2.x
 
         """
-        if pyver >= 3.0 and key == '__order__':
-                return
+        if pyver >= 3.0 and key in ('_order_', '__order__'):
+            return
+        elif key == '__order__':
+            key = '_order_'
         if _is_sunder(key):
-            raise ValueError('_names_ are reserved for future Enum use')
+            if key not in ('_missing_', '_order_'):
+                raise ValueError('_names_ are reserved for future Enum use')
         elif _is_dunder(key):
             pass
         elif key in self._member_names:
@@ -150,9 +153,9 @@ class _EnumDict(dict):
         super(_EnumDict, self).__setitem__(key, value)
 
 
-# Dummy value for Enum as EnumMeta explicity checks for it, but of course until
-# EnumMeta finishes running the first time the Enum class doesn't exist.  This
-# is also why there are checks in EnumMeta like `if Enum is not None`
+# Dummy value for Enum as EnumMeta explicitly checks for it, but of course
+# until EnumMeta finishes running the first time the Enum class doesn't exist.
+# This is also why there are checks in EnumMeta like `if Enum is not None`
 Enum = None
 
 
@@ -183,27 +186,36 @@ class EnumMeta(type):
             del classdict[name]
 
         # py2 support for definition order
-        __order__ = classdict.get('__order__')
-        if __order__ is None:
+        _order_ = classdict.get('_order_')
+        if _order_ is None:
             if pyver < 3.0:
                 try:
-                    __order__ = [name for (name, value) in sorted(members.items(), key=lambda item: item[1])]
+                    _order_ = [name for (name, value) in sorted(members.items(), key=lambda item: item[1])]
                 except TypeError:
-                    __order__ = [name for name in sorted(members.keys())]
+                    _order_ = [name for name in sorted(members.keys())]
             else:
-                __order__ = classdict._member_names
+                _order_ = classdict._member_names
         else:
-            del classdict['__order__']
+            del classdict['_order_']
             if pyver < 3.0:
-                __order__ = __order__.replace(',', ' ').split()
-                aliases = [name for name in members if name not in __order__]
-                __order__ += aliases
+                if isinstance(_order_, basestring):
+                    _order_ = _order_.replace(',', ' ').split()
+                aliases = [name for name in members if name not in _order_]
+                _order_ += aliases
 
         # check for illegal enum names (any others?)
         invalid_names = set(members) & set(['mro'])
         if invalid_names:
-            raise ValueError('Invalid enum member name(s): %s' % (
-                ', '.join(invalid_names), ))
+            raise ValueError('Invalid enum member name: {0}'.format(
+                ','.join(invalid_names)))
+
+        # create a default docstring if one has not been provided
+        if '__doc__' not in classdict:
+            classdict['__doc__'] = 'An enumeration.'
+
+        # save attributes from super classes so we know if we can take
+        # the shortcut of storing members in the class dict
+        base_attributes = set([a for b in bases for a in b.__dict__])
 
         # create our new Enum type
         enum_class = super(EnumMeta, metacls).__new__(metacls, cls, bases, classdict)
@@ -223,7 +235,7 @@ class EnumMeta(type):
         # auto-numbering ;)
         if __new__ is None:
             __new__ = enum_class.__new__
-        for member_name in __order__:
+        for member_name in _order_:
             value = members[member_name]
             if not isinstance(value, tuple):
                 args = (value, )
@@ -252,6 +264,11 @@ class EnumMeta(type):
             else:
                 # Aliases don't appear in member names (only in __members__).
                 enum_class._member_names_.append(member_name)
+            # performance boost for any member that would not shadow
+            # a DynamicClassAttribute (aka _RouteClassAttributeToGetattr)
+            if member_name not in base_attributes:
+                setattr(enum_class, member_name, enum_member)
+            # now add to _member_map_
             enum_class._member_map_[member_name] = enum_member
             try:
                 # This may fail if value is not hashable. We can't add the value
@@ -325,26 +342,41 @@ class EnumMeta(type):
             setattr(enum_class, '__new__', Enum.__dict__['__new__'])
         return enum_class
 
-    def __call__(cls, value, names=None, module=None, type=None):
+    def __bool__(cls):
+        """
+        classes/types should always be True.
+        """
+        return True
+
+    def __call__(cls, value, names=None, module=None, qualname=None, type=None, start=1):
         """Either returns an existing member, or creates a new enum class.
 
         This method is used both when an enum class is given a value to match
         to an enumeration member (i.e. Color(3)) and for the functional API
         (i.e. Color = Enum('Color', names='red green blue')).
 
-        When used for the functional API: `module`, if set, will be stored in
-        the new class' __module__ attribute; `type`, if set, will be mixed in
-        as the first base class.
+        When used for the functional API:
 
-        Note: if `module` is not set this routine will attempt to discover the
-        calling module by walking the frame stack; if this is unsuccessful
-        the resulting class will not be pickleable.
+        `value` will be the name of the new class.
+
+        `names` should be either a string of white-space/comma delimited names
+        (values will start at `start`), or an iterator/mapping of name, value pairs.
+
+        `module` should be set to the module this class is being created in;
+        if it is not set, an attempt to find that module will be made, but if
+        it fails the class will not be picklable.
+
+        `qualname` should be set to the actual location this class can be found
+        at in its module; by default it is set to the global scope.  If this is
+        not correct, unpickling will fail in some circumstances.
+
+        `type`, if set, will be mixed in as the first base class.
 
         """
         if names is None:  # simple value lookup
             return cls.__new__(cls, value)
         # otherwise, functional API: we're creating a new Enum type
-        return cls._create_(value, names, module=module, type=type)
+        return cls._create_(value, names, module=module, qualname=qualname, type=type, start=start)
 
     def __contains__(cls, member):
         return isinstance(member, cls) and member.name in cls._member_map_
@@ -399,6 +431,8 @@ class EnumMeta(type):
     def __len__(cls):
         return len(cls._member_names_)
 
+    __nonzero__ = __bool__
+
     def __repr__(cls):
         return "<enum %r>" % cls.__name__
 
@@ -415,14 +449,14 @@ class EnumMeta(type):
             raise AttributeError('Cannot reassign members.')
         super(EnumMeta, cls).__setattr__(name, value)
 
-    def _create_(cls, class_name, names=None, module=None, type=None):
+    def _create_(cls, class_name, names=None, module=None, qualname=None, type=None, start=1):
         """Convenience method to create a new Enum class.
 
         `names` can be:
 
         * A string containing member names, separated either with spaces or
-          commas.  Values are auto-numbered from 1.
-        * An iterable of member names.  Values are auto-numbered from 1.
+          commas.  Values are incremented by 1 from `start`.
+        * An iterable of member names.  Values are incremented by 1 from `start`.
         * An iterable of (member name, value) pairs.
         * A mapping of member name -> value.
 
@@ -440,25 +474,26 @@ class EnumMeta(type):
         else:
             bases = (type, cls)
         classdict = metacls.__prepare__(class_name, bases)
-        __order__ = []
+        _order_ = []
 
         # special processing needed for names?
         if isinstance(names, basestring):
             names = names.replace(',', ' ').split()
         if isinstance(names, (tuple, list)) and isinstance(names[0], basestring):
-            names = [(e, i+1) for (i, e) in enumerate(names)]
+            names = [(e, i) for (i, e) in enumerate(names, start)]
 
         # Here, names is either an iterable of (name, value) or a mapping.
+        item = None  # in case names is empty
         for item in names:
             if isinstance(item, basestring):
                 member_name, member_value = item, names[item]
             else:
                 member_name, member_value = item
             classdict[member_name] = member_value
-            __order__.append(member_name)
-        # only set __order__ in classdict if name/value was not from a mapping
+            _order_.append(member_name)
+        # only set _order_ in classdict if name/value was not from a mapping
         if not isinstance(item, basestring):
-            classdict['__order__'] = ' '.join(__order__)
+            classdict['_order_'] = _order_
         enum_class = metacls.__new__(metacls, class_name, bases, classdict)
 
         # TODO: replace the frame hack if a blessed way to know the calling
@@ -472,6 +507,8 @@ class EnumMeta(type):
             _make_class_unpicklable(enum_class)
         else:
             enum_class.__module__ = module
+        if pyver >= 3.0 and qualname is not None:
+            enum_class.__qualname__ = qualname
 
         return enum_class
 
@@ -485,7 +522,6 @@ class EnumMeta(type):
         """
         if not bases or Enum is None:
             return object, Enum
-
 
         # double check that we are not subclassing a class with existing
         # enumeration members; while we're at it, see if any other data
@@ -654,7 +690,8 @@ def __new__(cls, value):
         for member in cls._member_map_.values():
             if member.value == value:
                 return member
-    raise ValueError("%s is not a valid %s" % (value, cls.__name__))
+    # still not found -- try _missing_ hook
+    return cls._missing_(value)
 temp_enum_dict['__new__'] = __new__
 del __new__
 
@@ -669,16 +706,17 @@ def __str__(self):
 temp_enum_dict['__str__'] = __str__
 del __str__
 
-def __dir__(self):
-    added_behavior = [
-            m
-            for cls in self.__class__.mro()
-            for m in cls.__dict__
-            if m[0] != '_'
-            ]
-    return (['__class__', '__doc__', '__module__', ] + added_behavior)
-temp_enum_dict['__dir__'] = __dir__
-del __dir__
+if pyver >= 3.0:
+    def __dir__(self):
+        added_behavior = [
+                m
+                for cls in self.__class__.mro()
+                for m in cls.__dict__
+                if m[0] != '_' and m not in self._member_map_
+                ]
+        return (['__class__', '__doc__', '__module__'] + added_behavior)
+    temp_enum_dict['__dir__'] = __dir__
+    del __dir__
 
 def __format__(self, format_spec):
     # mixed-in Enums should use the mixed-in type's __format__, otherwise
@@ -760,6 +798,12 @@ def __reduce_ex__(self, proto):
 temp_enum_dict['__reduce_ex__'] = __reduce_ex__
 del __reduce_ex__
 
+@classmethod
+def _missing_(cls, value):
+    raise ValueError("%r is not a valid %s" % (value, cls.__name__))
+temp_enum_dict['_missing_'] = _missing_
+del _missing_
+
 # _RouteClassAttributeToGetattr is used to provide access to the `name`
 # and `value` properties of enum members while keeping some measure of
 # protection from modification, while still allowing for an enumeration
@@ -779,6 +823,30 @@ def value(self):
 temp_enum_dict['value'] = value
 del value
 
+@classmethod
+def _convert(cls, name, module, filter, source=None):
+    """
+    Create a new Enum subclass that replaces a collection of global constants
+    """
+    # convert all constants from source (or module) that pass filter() to
+    # a new Enum called name, and export the enum and its members back to
+    # module;
+    # also, replace the __reduce_ex__ method so unpickling works in
+    # previous Python versions
+    module_globals = vars(_sys.modules[module])
+    if source:
+        source = vars(source)
+    else:
+        source = module_globals
+    members = dict((name, value) for name, value in source.items() if filter(name))
+    cls = cls(name, members, module=module)
+    cls.__reduce_ex__ = _reduce_ex_by_name
+    module_globals.update(cls.__members__)
+    module_globals[name] = cls
+    return cls
+temp_enum_dict['_convert'] = _convert
+del _convert
+
 Enum = EnumMeta('Enum', (object, ), temp_enum_dict)
 del temp_enum_dict
 
@@ -788,19 +856,18 @@ del temp_enum_dict
 class IntEnum(int, Enum):
     """Enum where members are also (and must be) ints"""
 
+def _reduce_ex_by_name(self, proto):
+    return self.name
 
 def unique(enumeration):
-    """Class decorator that ensures only unique members exist in an enumeration."""
+    """Class decorator for enumerations ensuring unique member values."""
     duplicates = []
     for name, member in enumeration.__members__.items():
         if name != member.name:
             duplicates.append((name, member.name))
     if duplicates:
-        duplicate_names = ', '.join(
-                ["%s -> %s" % (alias, name) for (alias, name) in duplicates]
-                )
-        raise ValueError('duplicate names found in %r: %s' %
-                (enumeration, duplicate_names)
-                )
+        alias_details = ', '.join(
+                ["%s -> %s" % (alias, name) for (alias, name) in duplicates])
+        raise ValueError('duplicate values found in %r: %s' %
+                (enumeration, alias_details))
     return enumeration
-

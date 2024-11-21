@@ -25,11 +25,11 @@ import sys
 import time
 import warnings
 
-from .. import errors, readers, utils
-from ..compat import enum, six
-from ..lib.monotonic import monotonic
-from ..models import tasks
-from .instance import Instance, InstanceArrowReader, InstanceRecordReader
+from ... import errors, readers, utils
+from ...compat import enum, six
+from ...lib.monotonic import monotonic
+from .. import tasks
+from ..instance import Instance, InstanceArrowReader, InstanceRecordReader
 
 DEFAULT_TASK_NAME = "AnonymousSQLRTTask"
 PUBLIC_SESSION_NAME = "public.default"
@@ -611,7 +611,7 @@ class InSessionInstance(Instance):
         )
 
 
-class SessionMethods(object):
+class McqaV1Methods(object):
     @classmethod
     @utils.deprecated(
         "You no longer have to manipulate session instances to use MaxCompute QueryAcceleration. "

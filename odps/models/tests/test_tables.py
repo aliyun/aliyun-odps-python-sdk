@@ -328,6 +328,28 @@ def test_create_table_with_chinese_column(odps):
 def test_create_transactional_table(odps):
     test_table_name = tn("pyodps_t_tmp_transactional")
     schema = TableSchema.from_lists(["key", "value"], ["string", "string"])
+    schema["key"].comment = "comment_text"
+    schema["value"].comment = "comment_text2"
+
+    odps.delete_table(test_table_name, if_exists=True)
+    assert odps.exist_table(test_table_name) is False
+
+    table = odps.create_table(test_table_name, schema, transactional=True, lifecycle=1)
+    table.reload()
+
+    assert table.is_transactional
+    assert "transactional" in table.get_ddl()
+    assert "PRIMARY KEY" not in table.get_ddl()
+    with table.open_writer() as writer:
+        writer.write([["abc", "def"]])
+    with table.open_reader() as reader:
+        assert [r.values for r in reader] == [["abc", "def"]]
+    table.drop()
+
+
+def test_create_transactional_table_with_keys(odps):
+    test_table_name = tn("pyodps_t_tmp_transactional_with_keys")
+    schema = TableSchema.from_lists(["key", "value"], ["string", "string"])
     schema["key"].nullable = False
     schema["key"].comment = "comment_text"
     schema["value"].comment = "comment_text2"

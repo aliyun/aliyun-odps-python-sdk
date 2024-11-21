@@ -34,6 +34,14 @@ def odps_with_schema():
 
 
 @pytest.fixture(scope="session")
+def odps_with_mcqa2():
+    try:
+        return get_config().odps_with_mcqa2
+    except AttributeError:
+        pytest.skip("ODPS project with schema not defined")
+
+
+@pytest.fixture(scope="session")
 def odps_with_tunnel_quota():
     try:
         return get_config().odps_with_tunnel_quota

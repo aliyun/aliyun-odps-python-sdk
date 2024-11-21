@@ -1065,8 +1065,9 @@ def test_function_resources_with_partition(odps, setup):
         odps.delete_resource(table_resource_name)
     except:
         pass
-    table_resource = odps.create_resource(table_resource_name, 'table',
-                                               table_name=table_name, partition='ds=ds1')
+    table_resource = odps.create_resource(
+        table_resource_name, 'table', table_name=table_name, partition='ds=ds1'
+    )
     df = odps.get_table(table_name).get_partition('ds=ds2').to_df()
     try:
         @output(['n'], ['int'])

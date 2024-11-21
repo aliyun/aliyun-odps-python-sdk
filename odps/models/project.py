@@ -67,6 +67,7 @@ class Project(LazyLoad):
         "_all_props_loaded",
         "_extended_props_loaded",
         "_odps_ref",
+        "_schema_namespace_enabled",
     )
 
     class Cluster(XMLRemoteModel):
@@ -199,6 +200,8 @@ class Project(LazyLoad):
         self._policy_cache = None
         self._all_props_loaded = False
         self._odps_ref = None
+        self._logview_host = None
+        self._schema_namespace_enabled = None
         super(Project, self).__init__(*args, **kwargs)
 
     def reload(self, all_props=False):
@@ -255,9 +258,14 @@ class Project(LazyLoad):
     def storage_tier_info(self):
         return StorageTierInfo.deserial(self.extended_properties)
 
+    def _is_schema_namespace_enabled(self):
+        if self._schema_namespace_enabled is not None:
+            return self._schema_namespace_enabled
+        return self.odps.is_schema_namespace_enabled()
+
     def _get_collection_with_schema(self, iter_cls):
         schema = self._default_schema
-        if self.odps.is_schema_namespace_enabled():
+        if self._is_schema_namespace_enabled():
             schema = schema or "default"
 
         if self._default_schema is not None:
@@ -350,13 +358,23 @@ class Project(LazyLoad):
         self._odps_ref = weakref.ref(odps)
         return odps
 
-    def _set_tunnel_defaults(self):
+    def _set_tunnel_defaults(self, odps_entry=None):
         """Set this project object for tunnel resource locating only"""
         from ..config import options
         from ..core import LOGVIEW_HOST_DEFAULT
         from . import Tenant
 
-        self._logview_host = options.logview_host or LOGVIEW_HOST_DEFAULT
+        if odps_entry is not None:
+            try:
+                self._logview_host = odps_entry.logview_host
+                self._schema_namespace_enabled = (
+                    odps_entry.is_schema_namespace_enabled()
+                )
+            except:
+                pass
+        self._logview_host = (
+            self._logview_host or options.logview_host or LOGVIEW_HOST_DEFAULT
+        )
         # tunnel rest does not have tenant options, thus creating a default one
         self.odps._default_tenant = Tenant(parameters={})
 
@@ -406,7 +424,7 @@ class Project(LazyLoad):
         if token:
             headers["odps-x-supervision-token"] = token
 
-        if schema is not None or self.odps.is_schema_namespace_enabled():
+        if schema is not None or self._is_schema_namespace_enabled():
             hints = hints or {}
             hints["odps.namespace.schema"] = "true"
             hints["odps.sql.allow.namespace.schema"] = "true"

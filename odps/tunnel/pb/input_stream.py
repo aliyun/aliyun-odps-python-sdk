@@ -21,7 +21,11 @@ Modified by onesuperclark@gmail.com(onesuper).
 
 import struct
 
+from ... import compat
+from ...lib.monotonic import monotonic
 from . import errors, wire_format
+
+NANO_SEC_PER_SEC = 1000000000
 
 
 class InputStream(object):
@@ -31,9 +35,15 @@ class InputStream(object):
     in an indeterminate state and is not safe for further use.
     """
 
-    def __init__(self, input):
+    def __init__(self, input, record_network_time=False):
         self._input = input
         self._pos = 0
+        self._record_network_time = record_network_time
+        self._network_wall_time_ns = 0
+
+    @property
+    def network_wall_time_ms(self):
+        return self._network_wall_time_ns // 1000
 
     def position(self):
         """Returns the current position in the stream, or equivalently, the
@@ -48,7 +58,16 @@ class InputStream(object):
         """
         if size < 0:
             raise errors.DecodeError("Negative size %d" % size)
-        s = self._input.read(size)
+
+        if self._record_network_time:
+            ts = monotonic()
+            s = self._input.read(size)
+            self._network_wall_time_ns += compat.long_type(
+                NANO_SEC_PER_SEC * (monotonic() - ts)
+            )
+        else:
+            s = self._input.read(size)
+
         if len(s) != size:
             raise errors.DecodeError(
                 "String claims to have %d bytes, but read %d" % (size, len(s))
@@ -128,6 +147,8 @@ class InputStream(object):
         """
         result = 0
         shift = 0
+        if self._record_network_time:
+            ts = monotonic()
         while 1:
             if shift >= 64:
                 raise errors.DecodeError("Too many bytes when decoding varint.")
@@ -139,4 +160,9 @@ class InputStream(object):
             result |= (b & 0x7F) << shift
             shift += 7
             if not (b & 0x80):
-                return result
+                break
+        if self._record_network_time:
+            self._network_wall_time_ns += compat.long_type(
+                NANO_SEC_PER_SEC * (monotonic() - ts)
+            )
+        return result

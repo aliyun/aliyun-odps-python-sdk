@@ -215,22 +215,36 @@ class RestClient(object):
                     msg not in ex_msg for msg in _v4_sign_fallback_msgs
                 ):
                     raise
+                logger.info(
+                    "Fallback of V4 signature for %s. Error message: %s", url, ex
+                )
                 self._endpoints_without_v4_sign.add(self._endpoint)
                 sign_region_name = None
             except errors.InvalidParameter as ex:
                 if sign_region_name is None or "ODPS-0410051" not in str(ex):
                     # Invalid credentials error not received from server
                     raise
+                logger.info(
+                    "Fallback of V4 signature for %s. Error message: %s", url, ex
+                )
                 self._endpoints_without_v4_sign.add(self._endpoint)
                 sign_region_name = None
             except errors.AuthorizationRequired as ex:
                 if sign_region_name is None or "invalid or missing" not in str(ex):
                     raise
+                logger.info(
+                    "Fallback of V4 signature for %s. Error message: %s", url, ex
+                )
                 self._endpoints_without_v4_sign.add(self._endpoint)
                 sign_region_name = None
             except errors.AuthenticationRequestExpired:
                 if not hasattr(self.account, "reload") or auth_expire_retried:
                     raise
+                logger.info(
+                    "AuthenticationRequestExpired encountered with %r. "
+                    "Will retry with reloaded account.",
+                    self.account,
+                )
                 self.account.reload(True)
                 auth_expire_retried = True
 

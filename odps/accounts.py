@@ -24,7 +24,7 @@ import os
 import threading
 import time
 from collections import OrderedDict
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import requests
 
@@ -375,11 +375,12 @@ class SignServerAccount(BaseAccount):
 
 class TempAccountMixin(object):
     def __init__(self, expired_hours=DEFAULT_TEMP_ACCOUNT_HOURS):
-        self._last_modified_time = datetime.now()
+        self._last_refresh_time = time.time()
         if expired_hours is not None:
-            self._expired_time = timedelta(hours=expired_hours)
+            self._expire_seconds = expired_hours * 3600
+            self._expire_time = self._last_refresh_time + self._expire_seconds
         else:
-            self._expired_time = None
+            self._expire_time = self._expire_seconds = None
         self.reload()
 
     def _is_account_valid(self):
@@ -388,18 +389,24 @@ class TempAccountMixin(object):
     def _reload_account(self):
         raise NotImplementedError
 
-    def reload(self, force=False):
-        t = datetime.now()
-        if (
-            force
-            or not self._is_account_valid()
-            or (
-                self._last_modified_time is not None
-                and self._expired_time is not None
-                and (t - self._last_modified_time) > self._expired_time
+    def _need_update(self):
+        if not self._is_account_valid():
+            return True
+        if self._expire_time is not None and self._expire_seconds is not None:
+            min_exp_time = min(
+                self._expire_time, self._last_refresh_time + self._expire_seconds
             )
-        ):
-            self._last_modified_time = self._reload_account() or datetime.now()
+            return time.time() > min_exp_time
+        return False
+
+    def reload(self, force=False):
+        t = time.time()
+        if force or self._need_update():
+            self._last_refresh_time = t
+            default_expire = t + (
+                self._expire_seconds or 3600 * DEFAULT_TEMP_ACCOUNT_HOURS
+            )
+            self._expire_time = self._reload_account() or default_expire
 
 
 class StsAccount(TempAccountMixin, AliyunAccount):
@@ -434,16 +441,17 @@ class StsAccount(TempAccountMixin, AliyunAccount):
         super(StsAccount, self).sign_request(req, endpoint, region_name=region_name)
         if self.sts_token:
             req.headers["authorization-sts-token"] = self.sts_token
+        if self._last_refresh_time:
+            req.headers["x-pyodps-token-timestamp"] = str(self._last_refresh_time)
 
     def _is_account_valid(self):
         return self.sts_token is not None
 
     def _resolve_expiration(self, exp_data):
-        if exp_data is None or self._expired_time is None:
+        if exp_data is None or self._expire_seconds is None:
             return None
         try:
-            ts = calendar.timegm(time.strptime(exp_data, "%Y-%m-%dT%H:%M:%SZ"))
-            return ts - self._expired_time.total_seconds()
+            return calendar.timegm(time.strptime(exp_data, "%Y-%m-%dT%H:%M:%SZ"))
         except:
             return None
 
@@ -458,12 +466,15 @@ class StsAccount(TempAccountMixin, AliyunAccount):
                 self.secret_access_key = token_json["accessKeySecret"]
                 self.sts_token = token_json["securityToken"]
                 ts = self._resolve_expiration(token_json.get("expiration"))
+
+                logger.info("STS token reloaded: %s", self.sts_token)
         elif "ODPS_STS_ACCESS_KEY_ID" in os.environ:
             self.access_id = os.getenv("ODPS_STS_ACCESS_KEY_ID")
             self.secret_access_key = os.getenv("ODPS_STS_ACCESS_KEY_SECRET")
             self.sts_token = os.getenv("ODPS_STS_TOKEN")
+            logger.info("STS token reloaded: %s", self.sts_token)
 
-        return datetime.fromtimestamp(ts) if ts is not None else None
+        return ts if ts is not None else None
 
 
 class BearerTokenAccount(TempAccountMixin, BaseAccount):
@@ -511,10 +522,11 @@ class BearerTokenAccount(TempAccountMixin, BaseAccount):
 
     def _reload_account(self):
         token = self._get_bearer_token()
+        logger.info("Bearer token reloaded: %s", token)
         self.token = token
         try:
             resolved_token_parts = base64.b64decode(token).decode().split(",")
-            return datetime.fromtimestamp(int(resolved_token_parts[2]))
+            return int(resolved_token_parts[2])
         except:
             return None
 
@@ -524,6 +536,8 @@ class BearerTokenAccount(TempAccountMixin, BaseAccount):
         url_components = urlparse(unquote(url), allow_fragments=False)
         self._build_canonical_str(url_components, req)
         req.headers["x-odps-bearer-token"] = self.token
+        if self._last_refresh_time:
+            req.headers["x-pyodps-token-timestamp"] = str(self._last_refresh_time)
         logger.debug("headers after signing: %r", req.headers)
 
 

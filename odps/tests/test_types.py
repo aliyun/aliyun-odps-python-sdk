@@ -316,6 +316,8 @@ def test_set_with_cast():
     assert 1 == r["bigint"]
     r["datetime"] = "2016-01-01 0:0:0"
     assert datetime.datetime(2016, 1, 1) == r["datetime"]
+    r["decimal"] = "13.5641"
+    assert _decimal.Decimal("13.5641") == r["decimal"]
 
 
 @py_and_c_deco
@@ -407,6 +409,33 @@ def test_string_as_binary():
         options.tunnel.string_as_binary = False
 
 
+@py_and_c_deco
+@pytest.mark.parametrize("map_as_ordered_dict", [False, True])
+def test_validate_nested_types(map_as_ordered_dict):
+    orig_map_as_ordered_dict = options.map_as_ordered_dict
+    try:
+        options.map_as_ordered_dict = map_as_ordered_dict
+
+        s = TableSchema.from_lists(
+            ["col1"], ["array<map<string,struct<abc: int, def: string>>>"]
+        )
+        r = Record(schema=s)
+        r[0] = [{"abcd": (123, "uvw")}]
+        assert r[0] == [{"abcd": (123, "uvw")}]
+        map_type = OrderedDict if map_as_ordered_dict else dict
+        assert type(r[0][0]) is map_type
+
+        s = TableSchema.from_lists(
+            ["col1"], ["struct<abc: int, def: map<string, int>>"]
+        )
+        r = Record(schema=s)
+        r[0] = (123, {"uvw": 123})
+        assert r[0] == (123, {"uvw": 123})
+    finally:
+        options.map_as_ordered_dict = orig_map_as_ordered_dict
+
+
+@py_and_c_deco
 def test_validate_struct():
     try:
         options.struct_as_dict = True

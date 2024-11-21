@@ -238,6 +238,11 @@ class CsvRecordReader(AbstractRecordReader):
     BACK_SLASH_ESCAPE = "\\x%02x" % ord("\\")
 
     def __init__(self, schema, stream, **kwargs):
+        # shift csv field limit size to match table field size
+        max_field_size = kwargs.pop("max_field_size", 0) or types.String._max_length
+        if csv.field_size_limit() < max_field_size:
+            csv.field_size_limit(max_field_size)
+
         self._schema = schema
         self._csv_columns = None
         self._fp = stream

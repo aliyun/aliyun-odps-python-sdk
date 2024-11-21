@@ -28,7 +28,7 @@ import warnings
 from ....compat import six
 from ....config import options
 from ....errors import ODPSError, NoPermission, ConnectTimeout, ParseError
-from ....utils import TEMP_TABLE_PREFIX
+from ....utils import TEMP_TABLE_PREFIX, get_supported_python_tag
 from ....models import Table, TableSchema
 from ....models.partition import Partition
 from ....tempobj import register_temp_table
@@ -89,21 +89,6 @@ class SQLExecuteNode(ExecuteNode):
             buf.write('<p>Use tunnel to download data</p>')
 
         return buf.getvalue()
-
-
-def get_supported_python_tag(align=None):
-    # todo remove this when next releases are published
-    if align is None:
-        align = options.align_supported_python_tag
-    if align:
-        if sys.version_info[:2] >= (3, 11):
-            return "cp311"
-        elif sys.version_info[:2] >= (3, 6):
-            return "cp37"
-        else:
-            return "cp27"
-    else:
-        return "cp" + str(sys.version_info[0]) + str(sys.version_info[1])
 
 
 class ODPSSQLEngine(Engine):

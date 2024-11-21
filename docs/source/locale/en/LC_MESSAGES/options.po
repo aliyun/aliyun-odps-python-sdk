@@ -323,15 +323,6 @@ msgstr ""
 msgid "在任何情形下启用 MaxCompute Schema"
 msgstr "Enable Schema level under any scenario"
 
-#: ../../source/options.rst:1
-msgid "pythonpack.settings"
-msgstr ""
-
-#: ../../source/options.rst:1
-#, fuzzy
-msgid "PythonPack运行全局hints"
-msgstr "Global hints for PythonPack"
-
 #: ../../source/options.rst:58
 msgid "数据上传/下载配置"
 msgstr "Data upload/download configurations"

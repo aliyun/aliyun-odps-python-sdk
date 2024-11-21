@@ -37,6 +37,7 @@ from .tableio import (
     TableArrowWriter,
     TableRecordReader,
     TableRecordWriter,
+    TableUpsertWriter,
 )
 
 
@@ -203,7 +204,7 @@ class Table(LazyLoad):
     >>>     writer.write(1, gen_records(block=1))  # we can do this parallel
     """
 
-    _extend_args = (
+    _extended_args = (
         "is_archived",
         "physical_size",
         "file_num",
@@ -217,6 +218,10 @@ class Table(LazyLoad):
         "storage_tier_info",
         "cluster_info",
         "acid_data_retain_hours",
+        "cdc_size",
+        "cdc_record_num",
+        "cdc_latest_version",
+        "cdc_latest_timestamp",
     )
     __slots__ = (
         "_is_extend_info_loaded",
@@ -234,7 +239,8 @@ class Table(LazyLoad):
         "_table_tunnel",
         "_id_thread_local",
     )
-    __slots__ += _extend_args
+    __slots__ += _extended_args
+    _extended_args = set(_extended_args)
 
     class Type(Enum):
         MANAGED_TABLE = "MANAGED_TABLE"
@@ -352,6 +358,10 @@ class Table(LazyLoad):
             self.storage_tier_info = None
             self.cluster_info = None
             self.acid_data_retain_hours = -1
+            self.cdc_size = -1
+            self.cdc_record_num = -1
+            self.cdc_latest_version = -1
+            self.cdc_latest_timestamp = None
             return
         is_transactional = self.reserved.get("Transactional")
         self.is_transactional = (
@@ -363,6 +373,14 @@ class Table(LazyLoad):
         self.acid_data_retain_hours = int(
             self.reserved.get("acid.data.retain.hours", "-1")
         )
+        self.cdc_size = int(self.reserved.get("cdc_size", "-1"))
+        self.cdc_record_num = int(self.reserved.get("cdc_record_num", "-1"))
+        self.cdc_latest_version = int(self.reserved.get("cdc_latest_version", "-1"))
+        self.cdc_latest_timestamp = None
+        if "cdc_latest_timestamp" in self.reserved:
+            self.cdc_latest_timestamp = datetime.fromtimestamp(
+                int(self.reserved["cdc_latest_timestamp"])
+            )
 
     def reload_extend_info(self):
         params = {}
@@ -380,10 +398,11 @@ class Table(LazyLoad):
         self._parse_reserved()
 
     def __getattribute__(self, attr):
-        if attr in type(self)._extend_args:
+        if attr in type(self)._extended_args:
             if not self._is_extend_info_loaded:
                 self.reload_extend_info()
-                return object.__getattribute__(self, attr)
+
+            return object.__getattribute__(self, attr)
 
         val = object.__getattribute__(self, attr)
         if val is None and not self._loaded:
@@ -722,7 +741,9 @@ class Table(LazyLoad):
         resp = self._client.get(
             self.resource(), action="data", params=params, stream=True, timeout=timeout
         )
-        return readers.CsvRecordReader(self.table_schema, resp)
+        return readers.CsvRecordReader(
+            self.table_schema, resp, max_field_size=self._get_max_field_size()
+        )
 
     def _head_by_preview(
         self,
@@ -851,6 +872,18 @@ class Table(LazyLoad):
 
         from ..tunnel.tabletunnel import TableDownloadSession
 
+        if self.is_transactional and self.primary_key:
+            # currently acid 2.0 table can only be read through select statement
+            sql_stmt = "SELECT * FROM %s" % self.full_table_name
+            if partition is not None:
+                part_spec = odps_types.PartitionSpec(partition)
+                conds = " AND ".join(
+                    "%s='%s'" % (k, utils.escape_odps_string(v))
+                    for k, v in part_spec.items()
+                )
+                sql_stmt += " WHERE " + conds
+            return self.project.odps.execute_sql(sql_stmt).open_reader()
+
         if partition and not isinstance(partition, odps_types.PartitionSpec):
             partition = odps_types.PartitionSpec(partition)
         tunnel = self._create_table_tunnel(endpoint=endpoint, quota_name=quota_name)
@@ -949,33 +982,45 @@ class Table(LazyLoad):
             upload_id = upload_ids.get(partition) if not reopen else None
         else:
             upload_ids = dict()
-        upload_session = utils.call_with_retry(
-            tunnel.create_upload_session,
-            table=self,
-            partition_spec=partition,
-            upload_id=upload_id,
-            tags=tags,
-            **kw
-        )
 
+        use_upsert = self.is_transactional and self.primary_key
+
+        def _create_session(upload_id_):
+            if use_upsert:
+                return tunnel.create_upsert_session(
+                    table=self,
+                    partition_spec=partition,
+                    upsert_id=upload_id_,
+                    tags=tags,
+                    **kw
+                )
+            else:
+                return tunnel.create_upload_session(
+                    table=self,
+                    partition_spec=partition,
+                    upload_id=upload_id,
+                    tags=tags,
+                    **kw
+                )
+
+        upload_session = utils.call_with_retry(_create_session, upload_id)
         if (
             upload_id
             and upload_session.status.value != TableUploadSession.Status.Normal.value
         ):
             # check upload session status
-            upload_session = utils.call_with_retry(
-                tunnel.create_upload_session,
-                table=self,
-                partition_spec=partition,
-                tags=tags,
-                **kw
-            )
-            upload_id = None
+            upload_session = utils.call_with_retry(_create_session, None)
+
         upload_ids[partition] = upload_session.id
         # as data of partition changed, remove existing download id to avoid TableModified error
         self._download_ids.pop(partition, None)
 
-        writer_cls = TableArrowWriter if arrow else TableRecordWriter
+        if arrow:
+            writer_cls = TableArrowWriter
+        elif use_upsert:
+            writer_cls = TableUpsertWriter
+        else:
+            writer_cls = TableRecordWriter
 
         def _writer_on_close():
             if commit:
@@ -984,8 +1029,8 @@ class Table(LazyLoad):
         return writer_cls(
             self,
             upload_session,
-            blocks,
-            commit,
+            blocks=blocks,
+            commit=commit,
             on_close=_writer_on_close,
             mp_context=mp_context,
         )
@@ -1018,6 +1063,7 @@ class Table(LazyLoad):
             raise ValueError(
                 "You must specify a partition when calling to_pandas on a partitioned table"
             )
+        kwargs.pop("arrow", None)
         with self.open_reader(
             partition=partition,
             columns=columns,
@@ -1057,6 +1103,7 @@ class Table(LazyLoad):
             raise ValueError(
                 "You must specify a partition when calling to_pandas on a partitioned table"
             )
+        kwargs.pop("arrow", None)
         with self.open_reader(
             partition=partition,
             columns=columns,
@@ -1277,6 +1324,15 @@ class Table(LazyLoad):
         else:
             return instance
 
+    def _get_max_field_size(self):
+        try:
+            project_field_size = self.project.get_property(
+                "odps.sql.cfile2.field.maxsize", None
+            )
+            return int(project_field_size or 0) * 1024
+        except:
+            return 0
+
     def new_record(self, values=None):
         """
         Generate a record of the table.
@@ -1296,16 +1352,10 @@ class Table(LazyLoad):
 
         .. seealso:: :class:`odps.models.Record`
         """
-        try:
-            project_field_size = self.project.get_property(
-                "odps.sql.cfile2.field.maxsize", None
-            )
-            max_field_size = int(project_field_size or 0) * 1024
-        except:
-            max_field_size = 0
-
         return Record(
-            schema=self.table_schema, values=values, max_field_size=max_field_size
+            schema=self.table_schema,
+            values=values,
+            max_field_size=self._get_max_field_size(),
         )
 
     def to_df(self):

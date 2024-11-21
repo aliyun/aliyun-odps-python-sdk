@@ -52,7 +52,7 @@ from ..config import options
 
 
 cdef extern from "timegm.c":
-    time_t timegm(tm* t) nogil
+    time_t timegm(tm* t) noexcept nogil
 
 cdef bint _is_windows = sys.platform.lower().startswith("win")
 cdef bint _is_py3 = sys.version_info[0] == 3

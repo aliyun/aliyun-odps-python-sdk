@@ -28,15 +28,16 @@ from ..checksum_c cimport Checksum
 from ..pb.encoder_c cimport CEncoder
 
 from ... import compat, types, utils
-from ...compat import six
-
+from ...config import options
+from ...lib.monotonic import monotonic
 from ...src.utils_c cimport CMillisecondsConverter
-
 from ..pb.wire_format import WIRETYPE_FIXED32 as PY_WIRETYPE_FIXED32
 from ..pb.wire_format import WIRETYPE_FIXED64 as PY_WIRETYPE_FIXED64
 from ..pb.wire_format import WIRETYPE_LENGTH_DELIMITED as PY_WIRETYPE_LENGTH_DELIMITED
 from ..pb.wire_format import WIRETYPE_VARINT as PY_WIRETYPE_VARINT
 from ..wireconstants import ProtoWireConstants
+
+DEF MICRO_SEC_PER_SEC = 1_000_000L
 
 cdef:
     uint32_t WIRETYPE_VARINT = PY_WIRETYPE_VARINT
@@ -157,6 +158,14 @@ cdef class ProtobufRecordWriter:
 cdef class BaseRecordWriter(ProtobufRecordWriter):
 
     def __init__(self, object schema, object out, encoding="utf-8"):
+        cdef double ts
+
+        self._c_enable_client_metrics = options.tunnel.enable_client_metrics
+        self._c_local_wall_time_ms = 0
+
+        if self._c_enable_client_metrics:
+            ts = monotonic()
+
         self._encoding = encoding
         self._is_utf8 = encoding == "utf-8"
         self._schema = schema
@@ -173,6 +182,11 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
 
         super(BaseRecordWriter, self).__init__(out)
 
+        if self._c_enable_client_metrics:
+            self._c_local_wall_time_ms += <long>(
+                MICRO_SEC_PER_SEC * (<double>monotonic() - ts)
+            )
+
     @property
     def _crc(self):
         return self._crc_c
@@ -180,6 +194,14 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
     @property
     def _crccrc(self):
         return self._crccrc_c
+
+    @property
+    def _local_wall_time_ms(self):
+        return self._c_local_wall_time_ms
+
+    @_local_wall_time_ms.setter
+    def _local_wall_time_ms(self, val):
+        self._c_local_wall_time_ms = val
 
     cpdef write(self, BaseRecord record):
         cdef:
@@ -190,6 +212,10 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
             int checksum
             object val
             object data_type
+            double ts
+
+        if self._c_enable_client_metrics:
+            ts = monotonic()
 
         n_record_fields = len(record)
 
@@ -229,6 +255,11 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
         self._crccrc_c.c_update_int(checksum)
         self._curr_cursor_c += 1
 
+        if self._c_enable_client_metrics:
+            self._c_local_wall_time_ms += <long>(
+                MICRO_SEC_PER_SEC * (<double>monotonic() - ts)
+            )
+
     cdef int _write_bool(self, bint data) except -1 nogil:
         self._crc_c.c_update_bool(data)
         self._write_raw_bool(data)
@@ -252,16 +283,27 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
     @cython.nonecheck(False)
     cdef _write_string(self, object data):
         cdef bytes bdata
+        cdef const char *pbytes
+        cdef int32_t data_size
+
         if type(data) is bytes:
-            bdata = data
+            pbytes = data
+            data_size = len(data)
         elif self._is_utf8 and type(data) is unicode:
             bdata = (<unicode> data).encode("utf-8")
+            pbytes = bdata
+            data_size = len(bdata)
         elif isinstance(data, unicode):
             bdata = data.encode(self._encoding)
+            pbytes = bdata
+            data_size = len(bdata)
         else:
             bdata = bytes(data)
-        self._crc_c.c_update(bdata, len(bdata))
-        self._write_raw_string(bdata, len(bdata))
+            pbytes = bdata
+            data_size = len(bdata)
+
+        self._crc_c.c_update(pbytes, data_size)
+        self._write_raw_string(pbytes, data_size)
 
     cdef _write_timestamp_base(self, object data, bint ntz):
         cdef:
@@ -334,13 +376,9 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
             self._write_string(json.dumps(val))
         else:
             if isinstance(data_type, types.Array):
-                self._write_raw_uint(len(val))
                 self._write_array(val, data_type.value_type)
             elif isinstance(data_type, types.Map):
-                self._write_raw_uint(len(val))
-                self._write_array(compat.lkeys(val), data_type.key_type)
-                self._write_raw_uint(len(val))
-                self._write_array(compat.lvalues(val), data_type.value_type)
+                self._write_map(val, data_type)
             elif isinstance(data_type, types.Struct):
                 self._write_struct(val, data_type)
             else:
@@ -348,15 +386,32 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
 
     cdef _write_array(self, object data, object data_type):
         cdef int data_type_id = data_type._type_id
-        for value in data:
+
+        if type(data) is not list:  # not likely
+            data = list(data)
+        self._write_raw_uint(len(<list>data))
+        for value in <list>data:
             if value is None:
                 self._write_raw_bool(True)
             else:
                 self._write_raw_bool(False)
                 self._write_field(value, data_type_id, data_type)
 
+    cdef _write_map(self, object data, object data_type):
+        cdef object keys, values
+
+        if type(data) is dict:
+            keys = (<dict>data).keys()
+            values = (<dict>data).values()
+        else:
+            keys = data.keys()
+            values = data.values()
+        self._write_array(keys, data_type.key_type)
+        self._write_array(values, data_type.value_type)
+
     cdef _write_struct(self, object data, object data_type):
         cdef tuple tp_val
+
         if isinstance(data, dict):
             vals = [None] * len(data)
             for idx, key in enumerate(data_type.field_types.keys()):

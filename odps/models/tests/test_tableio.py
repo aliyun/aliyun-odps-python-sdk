@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import csv
 import logging
 import multiprocessing
 import sys
@@ -99,6 +100,9 @@ def test_record_read_write_table(odps, use_legacy):
 
     odps.delete_table(test_table_name)
     assert odps.exist_table(test_table_name) is False
+
+    if use_legacy:
+        assert csv.field_size_limit() > 131072  # check csv limit is shifted
 
 
 def test_array_iter_read_write_table(odps):
@@ -303,7 +307,7 @@ def test_table_write_error(odps):
 @pandas_case
 @pyarrow_case
 def test_table_to_pandas(odps):
-    test_table_name = tn("pyodps_t_tmp_to_pandas")
+    test_table_name = tn("pyodps_t_tmp_table_to_pandas")
     schema = TableSchema.from_lists(["num"], ["bigint"])
     odps.delete_table(test_table_name, if_exists=True)
 
@@ -324,6 +328,42 @@ def test_table_to_pandas(odps):
     assert len(batches) == 3
 
     table.drop()
+
+
+@pandas_case
+@pyarrow_case
+def test_partition_to_pandas(odps):
+    test_table_name = tn("pyodps_t_tmp_part_table_to_pandas")
+    schema = TableSchema.from_lists(["num"], ["bigint"], ["pt"], ["string"])
+    odps.delete_table(test_table_name, if_exists=True)
+
+    table = odps.create_table(test_table_name, schema, lifecycle=1)
+    with table.open_writer(
+        partition="pt=00", create_partition=True, arrow=True
+    ) as writer:
+        writer.write(pd.DataFrame({"num": np.random.randint(0, 1000, 1000)}))
+
+    pd_data = table.to_pandas(partition="pt=00", columns=["num"], start=10, count=20)
+    assert len(pd_data) == 20
+
+    pd_data = table.partitions["pt=00"].to_pandas(columns=["num"], start=10)
+    assert len(pd_data) == 990
+
+    batches = []
+    for batch in table.iter_pandas(
+        partition="pt=00", columns=["num"], start=10, count=30, batch_size=10
+    ):
+        assert len(batch) == 10
+        batches.append(batch)
+    assert len(batches) == 3
+
+    batches = []
+    for batch in table.partitions["pt=00"].iter_pandas(
+        columns=["num"], start=10, count=30, batch_size=10
+    ):
+        assert len(batch) == 10
+        batches.append(batch)
+    assert len(batches) == 3
 
 
 @pandas_case
@@ -588,7 +628,7 @@ def test_multi_thread_write(odps):
     else ["spawn"],
 )
 def test_multi_process_write(odps, ctx_name):
-    test_table_name = tn("pyodps_t_tmp_multi_process_write")
+    test_table_name = tn("pyodps_t_tmp_multi_process_write_" + get_test_unique_name(5))
     odps.delete_table(test_table_name, if_exists=True)
 
     table = odps.create_table(test_table_name, "col1 bigint, col2 bigint, col3 string")
@@ -770,19 +810,10 @@ def test_write_record_with_dynamic_parts(odps):
     odps.delete_table(test_table_name, if_exists=True)
 
     data = [[0, 134, "a"], [1, 24, "b"], [2, 131, "a"], [3, 141, "b"]]
-    schema = odps_types.OdpsSchema(
-        [
-            odps_types.Column("a", odps_types.bigint),
-            odps_types.Column("b", odps_types.bigint),
-        ],
-        [
-            odps_types.Column("p1", odps_types.string),
-            odps_types.Column("pt", odps_types.string),
-        ],
-    )
-
     try:
-        odps.create_table(test_table_name, schema, lifecycle=1)
+        odps.create_table(
+            test_table_name, ("a bigint, b bigint", "p1 string, pt string"), lifecycle=1
+        )
 
         with pytest.raises(ValueError):
             odps.write_table(
@@ -813,5 +844,28 @@ def test_write_record_with_dynamic_parts(odps):
         ]
         expected = [d[:2] for d in data if d[2:] == ["b"]]
         assert fetched == expected
+    finally:
+        odps.delete_table(test_table_name, if_exists=True)
+
+
+def test_read_write_transactional_table(odps):
+    test_table_name = tn("pyodps_t_tmp_read_write_transactional_table")
+    odps.delete_table(test_table_name, if_exists=True)
+
+    data = [["abcd", 12345], ["efgh", 94512], ["eragf", 434]]
+    try:
+        table = odps.create_table(
+            test_table_name,
+            ("a string not null, b bigint", "pt string"),
+            transactional=True,
+            primary_key="a",
+            lifecycle=1,
+        )
+        with table.open_writer(partition="pt=test", create_partition=True) as writer:
+            writer.write(data)
+            writer.delete(data[0])
+        with table.open_reader(partition="pt=test") as reader:
+            result = sorted([rec.values[:2] for rec in reader])
+        assert result == sorted(data[1:])
     finally:
         odps.delete_table(test_table_name, if_exists=True)

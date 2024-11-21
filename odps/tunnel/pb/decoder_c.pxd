@@ -25,9 +25,11 @@ cdef class CDecoder:
     cdef char* _end
     cdef bint _is_source_eof
 
+    cdef bint _record_network_time
+    cdef public long long _network_wall_time_ns
+
     cdef size_t position(self) nogil
-    cdef int32_t read_field_number(self) except? -1 nogil
-    cdef read_field_number_and_wire_type(self)
+    cdef int32_t read_field_number(self, int32_t * p_wire_type) except? -1 nogil
     cdef int32_t read_sint32(self) except? -1 nogil
     cdef uint32_t read_uint32(self) except? 0xffffffff nogil
     cdef int64_t read_sint64(self) except? -1 nogil

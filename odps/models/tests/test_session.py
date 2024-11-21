@@ -36,7 +36,7 @@ except ImportError:
 
 from ... import ODPS, errors
 from ...errors import InvalidStateSetting, ODPSError
-from ...tests.core import tn
+from ...tests.core import get_test_unique_name, tn
 from .. import Instance, Record, TableSchema
 from ..session import FallbackMode, FallbackPolicy
 
@@ -49,7 +49,7 @@ TEST_SESSION_WORKER_MEMORY = 512
 TEST_TABLE_NAME = tn("_pyodps__session_test_table")
 TEST_CREATE_SCHEMA = TableSchema.from_lists(["id"], ["string"])
 TEST_DATA = [["1"], ["2"], ["3"], ["4"], ["5"]]
-TEST_SELECT_STRING = "select * from %s" % TEST_TABLE_NAME
+TEST_SELECT_STRING = "select * from %(table_name)s"
 
 
 @pytest.fixture(autouse=True)
@@ -154,7 +154,8 @@ def test_attach_default_session(odps):
 
 
 def test_session_failing_sql(odps):
-    odps.delete_table(TEST_TABLE_NAME, if_exists=True)
+    table_name = TEST_TABLE_NAME + get_test_unique_name(5)
+    odps.delete_table(table_name, if_exists=True)
     sess_instance = odps._create_mcqa_session(
         TEST_SESSION_WORKERS, TEST_SESSION_WORKER_MEMORY
     )
@@ -162,7 +163,9 @@ def test_session_failing_sql(odps):
     # wait to running
     _wait_session_startup(sess_instance)
 
-    select_inst = sess_instance.run_sql(TEST_SELECT_STRING)
+    select_inst = sess_instance.run_sql(
+        TEST_SELECT_STRING % dict(table_name=table_name)
+    )
     select_inst.wait_for_completion()  # should return normally even the task is failed
     with pytest.raises(ODPSError):
         # wait_for_success should throw exception on failed instance
@@ -170,7 +173,8 @@ def test_session_failing_sql(odps):
 
 
 def test_direct_execute_failing_sql(odps):
-    odps.delete_table(TEST_TABLE_NAME, if_exists=True)
+    table_name = TEST_TABLE_NAME + get_test_unique_name(5)
+    odps.delete_table(table_name, if_exists=True)
     # the default public session may not exist, so we create one beforehand
     sess_instance = odps._create_mcqa_session(
         TEST_SESSION_WORKERS, TEST_SESSION_WORKER_MEMORY
@@ -180,7 +184,8 @@ def test_direct_execute_failing_sql(odps):
     _wait_session_startup(sess_instance)
 
     select_inst = odps.run_sql_interactive(
-        TEST_SELECT_STRING, service_name=sess_instance.name
+        TEST_SELECT_STRING % dict(table_name=table_name),
+        service_name=sess_instance.name,
     )
     select_inst.wait_for_completion()  # should return normally even the task is failed
 
@@ -190,8 +195,9 @@ def test_direct_execute_failing_sql(odps):
 
 
 def test_session_sql(odps):
-    odps.delete_table(TEST_TABLE_NAME, if_exists=True)
-    table = odps.create_table(TEST_TABLE_NAME, TEST_CREATE_SCHEMA)
+    table_name = TEST_TABLE_NAME + get_test_unique_name(5)
+    odps.delete_table(table_name, if_exists=True)
+    table = odps.create_table(table_name, TEST_CREATE_SCHEMA)
     assert table
     sess_instance = odps._create_mcqa_session(
         TEST_SESSION_WORKERS, TEST_SESSION_WORKER_MEMORY
@@ -202,7 +208,9 @@ def test_session_sql(odps):
 
     records = [Record(schema=TEST_CREATE_SCHEMA, values=values) for values in TEST_DATA]
     odps.write_table(table, 0, records)
-    select_inst = sess_instance.run_sql(TEST_SELECT_STRING)
+    select_inst = sess_instance.run_sql(
+        TEST_SELECT_STRING % dict(table_name=table_name)
+    )
     select_inst.wait_for_success()
     rows = []
 
@@ -230,12 +238,13 @@ def test_session_sql(odps):
     for index in range(5):
         assert int(rows[index][0]) == int(TEST_DATA[index][0])
     # OK, clear up
-    odps.delete_table(TEST_TABLE_NAME, if_exists=True)
+    odps.delete_table(table_name, if_exists=True)
 
 
 def test_direct_execute_sql(odps):
-    odps.delete_table(TEST_TABLE_NAME, if_exists=True)
-    table = odps.create_table(TEST_TABLE_NAME, TEST_CREATE_SCHEMA)
+    table_name = TEST_TABLE_NAME + get_test_unique_name(5)
+    odps.delete_table(table_name, if_exists=True)
+    table = odps.create_table(table_name, TEST_CREATE_SCHEMA)
     assert table
     # the default public session may not exist, so we create one beforehand
     sess_instance = odps._create_mcqa_session(
@@ -247,14 +256,13 @@ def test_direct_execute_sql(odps):
 
     records = [Record(schema=TEST_CREATE_SCHEMA, values=values) for values in TEST_DATA]
     odps.write_table(table, 0, records)
-    select_inst = odps.run_sql_interactive(
-        TEST_SELECT_STRING, service_name=sess_instance.name
-    )
+    test_sql = TEST_SELECT_STRING % dict(table_name=table_name)
+    select_inst = odps.run_sql_interactive(test_sql, service_name=sess_instance.name)
 
     assert "subQuery" in select_inst.get_logview_address()
     assert select_inst._get_queueing_info()
     time.sleep(3)
-    assert select_inst.get_sql_query().rstrip(";") == TEST_SELECT_STRING.rstrip(";")
+    assert select_inst.get_sql_query().rstrip(";") == test_sql.rstrip(";")
     assert select_inst.get_task_detail2(select_inst._session_task_name)
 
     rows = []
@@ -268,12 +276,13 @@ def test_direct_execute_sql(odps):
     for index in range(5):
         assert int(rows[index][0]) == int(TEST_DATA[index][0])
     # OK, clear up
-    odps.delete_table(TEST_TABLE_NAME, if_exists=True)
+    odps.delete_table(table_name, if_exists=True)
 
 
 def test_direct_execute_sql_fallback(odps):
-    odps.delete_table(TEST_TABLE_NAME, if_exists=True)
-    table = odps.create_table(TEST_TABLE_NAME, TEST_CREATE_SCHEMA)
+    table_name = TEST_TABLE_NAME + get_test_unique_name(5)
+    odps.delete_table(table_name, if_exists=True)
+    table = odps.create_table(table_name, TEST_CREATE_SCHEMA)
     assert table
     # the default public session may not exist, so we create one beforehand
     sess_instance = odps._create_mcqa_session(
@@ -287,30 +296,32 @@ def test_direct_execute_sql_fallback(odps):
     odps.write_table(table, 0, records)
     hints = {"odps.mcqa.disable": "true"}
 
+    test_sql = TEST_SELECT_STRING % dict(table_name=table_name)
+
     with pytest.raises(ODPSError):
         odps.execute_sql_interactive(
-            TEST_SELECT_STRING,
+            test_sql,
             service_name=sess_instance.name,
             hints=hints,
             fallback=False,
         )
     with pytest.raises(ODPSError):
         odps.execute_sql_interactive(
-            TEST_SELECT_STRING,
+            test_sql,
             service_name=sess_instance.name,
             hints=hints,
             fallback="noresource",
         )
     with pytest.raises(ODPSError):
         odps.execute_sql_interactive(
-            TEST_SELECT_STRING,
+            test_sql,
             service_name=sess_instance.name,
             hints=hints,
             fallback={"generic", "noresource"},
         )
 
     select_inst = odps.execute_sql_interactive(
-        TEST_SELECT_STRING, service_name=sess_instance.name, hints=hints, fallback=True
+        test_sql, service_name=sess_instance.name, hints=hints, fallback=True
     )
     select_inst.wait_for_success()
     rows = []
@@ -324,12 +335,13 @@ def test_direct_execute_sql_fallback(odps):
     for index in range(5):
         assert int(rows[index][0]) == int(TEST_DATA[index][0])
     # OK, clear up
-    odps.delete_table(TEST_TABLE_NAME, if_exists=True)
+    odps.delete_table(table_name, if_exists=True)
 
 
 def test_session_sql_with_instance_tunnel(odps):
-    odps.delete_table(TEST_TABLE_NAME, if_exists=True)
-    table = odps.create_table(TEST_TABLE_NAME, TEST_CREATE_SCHEMA)
+    table_name = TEST_TABLE_NAME + get_test_unique_name(5)
+    odps.delete_table(table_name, if_exists=True)
+    table = odps.create_table(table_name, TEST_CREATE_SCHEMA)
     assert table
     sess_instance = odps._create_mcqa_session(
         TEST_SESSION_WORKERS, TEST_SESSION_WORKER_MEMORY
@@ -340,7 +352,9 @@ def test_session_sql_with_instance_tunnel(odps):
 
     records = [Record(schema=TEST_CREATE_SCHEMA, values=values) for values in TEST_DATA]
     odps.write_table(table, 0, records)
-    select_inst = sess_instance.run_sql(TEST_SELECT_STRING)
+    select_inst = sess_instance.run_sql(
+        TEST_SELECT_STRING % dict(table_name=table_name)
+    )
     select_inst.wait_for_success()
     rows = []
 
@@ -355,7 +369,7 @@ def test_session_sql_with_instance_tunnel(odps):
     for index in range(5):
         assert int(rows[index][0]) == int(TEST_DATA[index][0])
     # OK, clear up
-    odps.delete_table(TEST_TABLE_NAME, if_exists=True)
+    odps.delete_table(table_name, if_exists=True)
 
 
 def test_fallback_policy():
@@ -427,3 +441,41 @@ def test_reuse_session(odps):
     new_odps = ODPS(account=odps.account, project=odps.project, endpoint=odps.endpoint)
     new_inst = new_odps.run_sql_interactive("select * from dual")
     assert inst.id == new_inst.id
+
+
+def test_mcqa_v2_session(odps_with_mcqa2):
+    odps = odps_with_mcqa2
+    table_name = TEST_TABLE_NAME + get_test_unique_name(5)
+
+    odps.delete_table(table_name, if_exists=True)
+    table = odps.create_table(table_name, TEST_CREATE_SCHEMA)
+
+    test_data = [["abcde"], ["fghijkl"]]
+
+    with table.open_writer() as writer:
+        writer.write(test_data)
+
+    inst = odps.execute_sql_interactive(
+        "select * from %s where id is not null" % table_name, use_mcqa_v2=True
+    )
+    with inst.open_reader(tunnel=True) as reader:
+        result = [res.values for res in reader]
+    assert result == test_data
+
+    odps_inst = odps.get_instance(inst.id, quota_name=odps.quota_name)
+    assert odps_inst.status == Instance.Status.TERMINATED
+    assert odps_inst.get_task_detail() is not None
+    with odps_inst.open_reader(tunnel=False) as reader:
+        result = [res.values for res in reader]
+    assert result == test_data
+
+    # query again will reuse current conn
+    inst = odps.execute_sql_interactive(
+        "select * from %s" % table_name, use_mcqa_v2=True
+    )
+
+    with inst.open_reader(tunnel=False) as reader:
+        result = [res.values for res in reader]
+    assert result == test_data
+
+    table.drop(if_exists=True)

@@ -174,11 +174,12 @@ PyODPS 默认不限制能够从 Instance 读取的数据规模，但 Project Own
 Instance 结果的读取，此时只能使用受限读取模式读取数据，在此模式下可读取的行数受到 Project 配置限制，通常为 10000 行。如果
 PyODPS 检测到读取 Instance 数据被限制，且 ``options.tunnel.limit_instance_tunnel`` 未设置，会自动启用受限读取模式。
 如果你的 Project 被保护，想要手动启用受限读取模式，可以为 ``open_reader`` 方法增加 ``limit=True`` 选项，或者设置
-``options.tunnel.limit_instance_tunnel = True`` 。
+``options.tunnel.limit_instance_tunnel = True``\ 。
 
 在部分环境中，例如 DataWorks，``options.tunnel.limit_instance_tunnel`` 可能默认被置为 True。此时，如果需要读取\
 所有数据，需要为 ``open_reader`` 增加参数 `tunnel=True, limit=False` 。需要注意的是，如果 Project 本身被保护，\
-这两个参数\ **不能**\ 解除保护，此时应联系 Project Owner 开放相应的读权限。
+这两个参数\ **不能**\ 解除保护，MaxCompute 也\ **不提供**\ 绕开该权限限制读取更多数据的方法。此时应联系 Project Owner
+开放相应的读权限。
 
 如果你所使用的 MaxCompute 只能支持旧 Result 接口，同时你需要读取所有数据，可将 SQL 结果写入另一张表后用读表接口读取
 （可能受到 Project 安全设置的限制）。

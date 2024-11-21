@@ -47,6 +47,11 @@ cdef class BaseTunnelRecordReader:
     cdef list _partition_vals
     cdef bint _append_partitions
 
+    cdef public bytes _server_metrics_string
+    cdef bint _enable_client_metrics
+    cdef long _c_local_wall_time_ms
+    cdef long _c_acc_network_time_ms
+
     cdef int _n_injected_error_cursor
     cdef object _injected_error_exc
 

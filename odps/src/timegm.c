@@ -11,7 +11,7 @@ int days_from_epoch(int y, int m, int d)
     return era * 146097 + doe - 719468;
 }
 
-// It  does not modify broken-down time
+// It does not modify broken-down time
 time_t timegm(struct tm const* t)
 {
     int year = t->tm_year + 1900;
