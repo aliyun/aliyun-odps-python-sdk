@@ -222,8 +222,8 @@ class TunnelEngine(object):
             logger.info(
                 'Try fetching data from tunnel. If it takes a long time, please try running your code '
                 'with distributed capabilities, see related section in '
-                'https://www.alibabacloud.com/help/en/maxcompute/latest/platform-instructions-overview#section-wy0-8st-f60 '
-                'for more details.'
+                'https://www.alibabacloud.com/help/en/maxcompute/use-cases/use-a-pyodps-node-to-download'
+                '-data-to-a-local-directory-for-processing-or-to-process-data-online for more details.'
             )
             ui.status('Try to download data with tunnel...', clear_keys=True)
             if isinstance(expr, SliceCollectionExpr):

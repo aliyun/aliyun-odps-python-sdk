@@ -14,15 +14,85 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
+
 from .. import options
 from ..compat import six, urlparse
 from ..models import Projects
 from ..rest import RestClient
 from .errors import TunnelError
 
-TUNNEL_VERSION = 5
+TUNNEL_VERSION = 6
 
 _endpoint_cache = dict()
+
+
+class TunnelMetrics(object):
+    def __init__(
+        self,
+        owner,
+        network_wall_cost=0,
+        client_process_cost=0,
+        tunnel_process_cost=0,
+        storage_cost=0,
+        server_total_cost=0,
+        server_io_cost=0,
+    ):
+        self.owner = owner
+        self.network_wall_cost = network_wall_cost
+        self.client_process_cost = client_process_cost
+        self.tunnel_process_cost = tunnel_process_cost
+        self.storage_cost = storage_cost
+        self.server_total_cost = server_total_cost
+        self.server_io_cost = server_io_cost
+
+    @classmethod
+    def from_server_json(cls, owner, server_json, local_wall_time, network_wall_time):
+        server_json_obj = json.loads(server_json)
+        storage_cost = server_json_obj["PanguIOCost"]
+        server_io_cost = server_json_obj["ServerIOCost"]
+        server_total_cost = server_json_obj["ServerTotalCost"]
+        return TunnelMetrics(
+            owner,
+            network_wall_cost=network_wall_time,
+            client_process_cost=local_wall_time - network_wall_time,
+            tunnel_process_cost=server_total_cost - server_io_cost - storage_cost,
+            storage_cost=storage_cost,
+            server_total_cost=server_total_cost,
+            server_io_cost=server_io_cost,
+        )
+
+    def to_dict(self):
+        return {
+            "owner": self.owner,
+            "network_wall_cost": self.network_wall_cost,
+            "client_process_cost": self.client_process_cost,
+            "tunnel_process_cost": self.tunnel_process_cost,
+            "storage_cost": self.storage_cost,
+            "server_total_cost": self.server_total_cost,
+            "server_io_cost": self.server_io_cost,
+        }
+
+    def __repr__(self):
+        d = self.to_dict()
+        owner = d.pop("owner", None)
+        repr_body = ", ".join("%s=%s" % pair for pair in sorted(d.items()))
+        return "<TunnelMetrics owner=%s, %s>" % (owner, repr_body)
+
+    def __add__(self, other):
+        if not isinstance(other, TunnelMetrics):  # pragma: no cover
+            return NotImplemented
+        if self.owner != other.owner:  # pragma: no cover
+            raise ValueError("Need owners be the same")
+        return TunnelMetrics(
+            self.owner,
+            network_wall_cost=self.network_wall_cost + other.network_wall_cost,
+            client_process_cost=self.client_process_cost + other.client_process_cost,
+            tunnel_process_cost=self.tunnel_process_cost + other.tunnel_process_cost,
+            storage_cost=self.storage_cost + other.storage_cost,
+            server_total_cost=self.server_total_cost,
+            server_io_cost=self.server_io_cost,
+        )
 
 
 class BaseTunnel(object):

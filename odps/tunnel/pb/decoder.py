@@ -27,13 +27,19 @@ from . import input_stream, wire_format
 class Decoder(object):
     """Decodes logical protocol buffer fields from the wire."""
 
-    def __init__(self, input):
+    def __init__(self, input, record_network_time=False):
         """Initializes the decoder to read from input stream."""
-        self._stream = input_stream.InputStream(input)
+        self._stream = input_stream.InputStream(
+            input, record_network_time=record_network_time
+        )
 
     def __len__(self):
         """Returns the 0-indexed position in |s|."""
         return self._stream.position()
+
+    @property
+    def network_wall_time_ms(self):
+        return self._stream.network_wall_time_ms
 
     def read_field_number_and_wire_type(self):
         """Reads a tag from the wire. Returns a (field_number, wire_type) pair."""
@@ -103,7 +109,3 @@ class Decoder(object):
         """Reads and returns a length-delimited string."""
         length = self._stream.read_var_uint32()
         return self._stream.read_string(length)
-
-    def ReadBytes(self):
-        """Reads and returns a length-delimited byte sequence."""
-        return self.read_string()

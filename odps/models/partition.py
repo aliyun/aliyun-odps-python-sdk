@@ -33,6 +33,16 @@ class Partition(LazyLoad):
     methods are the same as those in Table class except that there are no 'partition' params.
     """
 
+    _extended_args = (
+        "is_archived",
+        "is_exstore",
+        "lifecycle",
+        "physical_size",
+        "file_num",
+        "reserved",
+        "cdc_size",
+        "cdc_record_num",
+    )
     __slots__ = (
         "spec",
         "creation_time",
@@ -40,13 +50,9 @@ class Partition(LazyLoad):
         "last_data_modified_time",
         "size",
         "_is_extend_info_loaded",
-        "is_archived",
-        "is_exstore",
-        "lifecycle",
-        "physical_size",
-        "file_num",
-        "reserved",
     )
+    __slots__ += _extended_args
+    _extended_args = set(_extended_args)
 
     class Column(XMLRemoteModel):
         name = serializers.XMLNodeAttributeField(attr="Name")
@@ -110,14 +116,7 @@ class Partition(LazyLoad):
         )
 
     def __getattribute__(self, attr):
-        if attr in (
-            "is_archived",
-            "is_exstore",
-            "lifecycle",
-            "physical_size",
-            "file_num",
-            "reserved",
-        ):
+        if attr in type(self)._extended_args:
             if not self._is_extend_info_loaded:
                 self.reload_extend_info()
 
@@ -199,6 +198,16 @@ class Partition(LazyLoad):
 
         self.parse(self._client, resp, obj=self)
         self._is_extend_info_loaded = True
+
+        self._parse_reserved()
+
+    def _parse_reserved(self):
+        if not self.reserved:
+            self.cdc_size = -1
+            self.cdc_record_num = -1
+            return
+        self.cdc_size = int(self.reserved.get("cdc_size", "-1"))
+        self.cdc_record_num = int(self.reserved.get("cdc_record_num", "-1"))
 
     def head(self, limit, columns=None):
         """

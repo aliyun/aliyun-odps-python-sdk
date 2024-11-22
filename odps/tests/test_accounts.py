@@ -29,7 +29,6 @@ import requests
 
 from .. import ODPS, errors, options
 from ..accounts import (
-    DEFAULT_TEMP_ACCOUNT_HOURS,
     BearerTokenAccount,
     CredentialProviderAccount,
     SignServer,
@@ -137,9 +136,7 @@ def test_sts_account(odps):
             out_file.write(json.dumps(account_data))
         account = from_environments()
         assert isinstance(account, StsAccount)
-        assert account._last_modified_time == datetime.datetime.fromtimestamp(
-            exp_time
-        ) - datetime.timedelta(hours=DEFAULT_TEMP_ACCOUNT_HOURS)
+        assert account._expire_time == exp_time
 
         cp_req = copy.deepcopy(req)
         token_account.sign_request(cp_req, odps.endpoint)
@@ -212,13 +209,11 @@ def test_bearer_token_load_and_update(odps):
         env_odps = ODPS(project=odps.project, endpoint=odps.endpoint)
         assert isinstance(env_odps.account, BearerTokenAccount)
         assert env_odps.account.token == token
-        assert env_odps.account._last_modified_time > datetime.datetime.fromtimestamp(
-            create_timestamp
-        )
+        assert env_odps.account._expire_time > create_timestamp
 
-        last_timestamp = env_odps.account._last_modified_time
+        last_timestamp = env_odps.account._expire_time
         env_odps.account.reload()
-        assert env_odps.account._last_modified_time > last_timestamp
+        assert env_odps.account._expire_time > last_timestamp
 
         inst = odps.run_sql("select count(*) from dual")
         logview_address = inst.get_logview_address()
@@ -226,13 +221,13 @@ def test_bearer_token_load_and_update(odps):
         with open(token_file_name, "w") as token_file:
             token_file.write(token)
 
-        last_timestamp = env_odps.account._last_modified_time
+        last_timestamp = env_odps.account._expire_time
         env_odps.account.reload()
-        assert env_odps.account._last_modified_time != last_timestamp
+        assert env_odps.account._expire_time != last_timestamp
 
-        last_timestamp = env_odps.account._last_modified_time
+        last_timestamp = env_odps.account._expire_time
         env_odps.account.reload()
-        assert env_odps.account._last_modified_time == last_timestamp
+        assert env_odps.account._expire_time == last_timestamp
     finally:
         shutil.rmtree(tmp_path)
         os.environ.pop("ODPS_BEARER_TOKEN_HOURS", None)

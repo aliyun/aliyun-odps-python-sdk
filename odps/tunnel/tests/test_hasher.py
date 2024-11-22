@@ -20,6 +20,7 @@ try:
 except ImportError:
     pd = None
 
+from ...compat import Decimal
 from ...models import Record
 from ...types import Column, OdpsSchema
 from .. import hasher as py_hasher
@@ -117,6 +118,21 @@ def test_default_hasher(hasher_mod, pd):
     else:
         assert rec_hasher.hash(rec) == 99191800
 
+    assert hasher_mod.hash_value("default", "decimal(4,2)", Decimal("0")) == 0
+    assert hasher_mod.hash_value("default", "decimal(4,2)", Decimal("-1")) == 1405574141
+    assert (
+        hasher_mod.hash_value("default", "decimal(18,2)", Decimal("12.34"))
+        == -904458774
+    )
+    assert (
+        hasher_mod.hash_value("default", "decimal(18,2)", Decimal("-9.8e11"))
+        == -1816428053
+    )
+    assert (
+        hasher_mod.hash_value("default", "decimal(38,18)", Decimal("6.4"))
+        == -1846789132
+    )
+
 
 @pytest.mark.parametrize("hasher_mod, pd", params)
 def test_legacy_hasher(hasher_mod, pd):
@@ -158,3 +174,14 @@ def test_legacy_hasher(hasher_mod, pd):
         assert rec_hasher.hash(rec) == 1171650329
     else:
         assert rec_hasher.hash(rec) == 1259167848
+
+    assert hasher_mod.hash_value("legacy", "decimal(4,2)", Decimal("0")) == 0
+    assert hasher_mod.hash_value("legacy", "decimal(4,2)", Decimal("-1")) == 99
+    assert hasher_mod.hash_value("legacy", "decimal(18,2)", Decimal("12.34")) == 1234
+    assert (
+        hasher_mod.hash_value("default", "decimal(18,2)", Decimal("-9.8e11"))
+        == -1816428053
+    )
+    assert (
+        hasher_mod.hash_value("legacy", "decimal(38,18)", Decimal("6.4")) == 978411031
+    )

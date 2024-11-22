@@ -14,8 +14,9 @@
 
 import logging
 
-from odps.apis.storage_api import *
 from util import *
+
+from odps.apis.storage_api import *
 
 logger = logging.getLogger(__name__)
 

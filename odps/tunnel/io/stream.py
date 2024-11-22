@@ -20,12 +20,15 @@ import zlib
 
 from ... import compat, errors, options
 from ...compat import BytesIO, Enum, Semaphore, six
+from ...lib.monotonic import monotonic
 from ..errors import TunnelError
 
 try:
     from urllib3.exceptions import ReadTimeoutError
 except ImportError:
     from requests import ReadTimeout as ReadTimeoutError
+
+MICRO_SEC_PER_SEC = 1000000
 
 # used for test case to force thread io
 _FORCE_THREAD = False
@@ -68,7 +71,7 @@ class RequestsIO(object):
         else:
             return object.__new__(cls)
 
-    def __init__(self, post_call, chunk_size=None):
+    def __init__(self, post_call, chunk_size=None, record_io_time=False):
         self._buf = BytesIO()
         self._resp = None
         self._async_err = None
@@ -76,9 +79,15 @@ class RequestsIO(object):
 
         self._post_call = post_call
         self._wait_obj = None
+        self._record_io_time = record_io_time
+        self._io_time_ms = 0
+        self._io_start_time = 0
+        self._io_end_time = 0
 
     def _async_func(self):
         try:
+            if self._record_io_time:
+                self._io_start_time = monotonic()
             self._resp = self._post_call(self.data_generator())
         except:
             self._async_err = sys.exc_info()
@@ -89,7 +98,15 @@ class RequestsIO(object):
             ex_type, ex_value, tb = self._async_err
             six.reraise(ex_type, ex_value, tb)
 
+    @property
+    def io_time_ms(self):
+        return self._io_time_ms
+
     def data_generator(self):
+        if self._record_io_time:
+            self._io_time_ms += int(
+                MICRO_SEC_PER_SEC * (monotonic() - self._io_start_time)
+            )
         chunk_size = self._chunk_size
         while True:
             data = self.get()
@@ -98,9 +115,18 @@ class RequestsIO(object):
                 while data:
                     to_send = mv_to_bytes(data[:chunk_size])
                     data = data[chunk_size:]
+
+                    if self._record_io_time:
+                        ts = monotonic()
+
                     yield to_send
+
+                    if self._record_io_time:
+                        self._io_time_ms += int(MICRO_SEC_PER_SEC * (monotonic() - ts))
             else:
                 break
+        if self._record_io_time:
+            self._io_end_time = monotonic()
 
     def start(self):
         pass
@@ -132,13 +158,21 @@ class RequestsIO(object):
         wait_obj = self._wait_obj
         if wait_obj and wait_obj.is_alive():
             wait_obj.join()
+
+        if self._record_io_time:
+            self._io_time_ms += int(
+                MICRO_SEC_PER_SEC * (monotonic() - self._io_end_time)
+            )
+
         self._reraise_errors()
         return self._resp
 
 
 class ThreadRequestsIO(RequestsIO):
-    def __init__(self, post_call, chunk_size=None):
-        super(ThreadRequestsIO, self).__init__(post_call, chunk_size)
+    def __init__(self, post_call, chunk_size=None, record_io_time=False):
+        super(ThreadRequestsIO, self).__init__(
+            post_call, chunk_size, record_io_time=record_io_time
+        )
         self._last_data = None
         self._sem_put = Semaphore(1)
         self._sem_get = Semaphore(0)
@@ -182,8 +216,10 @@ try:
     from greenlet import greenlet
 
     class GreenletRequestsIO(RequestsIO):
-        def __init__(self, post_call, chunk_size=None):
-            super(GreenletRequestsIO, self).__init__(post_call, chunk_size)
+        def __init__(self, post_call, chunk_size=None, record_io_time=False):
+            super(GreenletRequestsIO, self).__init__(
+                post_call, chunk_size, record_io_time=record_io_time
+            )
             self._cur_greenlet = greenlet.getcurrent()
             self._writer_greenlet = greenlet(self._async_func)
             self._last_data = None

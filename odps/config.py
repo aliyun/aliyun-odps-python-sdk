@@ -481,6 +481,9 @@ default_options.redirect_option("always_enable_schema", "enable_schema")
 default_options.register_option("table_auto_flush_time", 150, validator=is_integer)
 default_options.register_option("struct_as_dict", False, validator=is_bool)
 default_options.register_option(
+    "map_as_ordered_dict", None, validator=any_validator(is_bool, is_null)
+)
+default_options.register_option(
     "progress_time_interval", 5 * 60, validator=any_validator(is_float, is_integer)
 )
 default_options.register_option("progress_percentage_gap", 5, validator=is_integer)
@@ -559,6 +562,9 @@ default_options.register_option(
 )
 default_options.register_option(
     "tunnel.tags", None, validator=any_validator(is_null, is_string, is_list)
+)
+default_options.register_option(
+    "tunnel.enable_client_metrics", False, validator=any_validator(is_null, is_bool)
 )
 
 default_options.redirect_option("tunnel_endpoint", "tunnel.endpoint")

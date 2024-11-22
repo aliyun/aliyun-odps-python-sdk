@@ -36,6 +36,8 @@ except (ImportError, ValueError):
 
 from ... import compat, options, types, utils
 from ...compat import Enum, futures, six
+from ...lib.monotonic import monotonic
+from ..base import TunnelMetrics
 from ..checksum import Checksum
 from ..errors import TunnelError
 from ..pb.encoder import Encoder
@@ -65,6 +67,7 @@ except ImportError as e:
 
     BaseRecordWriter = None
 
+MICRO_SEC_PER_SEC = 1000000
 
 varint_tag_types = types.integer_types + (
     types.boolean,
@@ -178,11 +181,17 @@ if BaseRecordWriter is None:
             ).to_milliseconds
             self._to_days = utils.to_days
 
+            self._enable_client_metrics = options.tunnel.enable_client_metrics
+            self._local_wall_time_ms = 0
+
             super(BaseRecordWriter, self).__init__(out)
 
         def write(self, record):
             n_record_fields = len(record)
             n_columns = len(self._columns)
+
+            if self._enable_client_metrics:
+                ts = monotonic()
 
             if n_record_fields > n_columns:
                 raise IOError("record fields count is more than schema.")
@@ -229,6 +238,9 @@ if BaseRecordWriter is None:
             self._crc.reset()
             self._crccrc.update_int(checksum)
             self._curr_cursor += 1
+
+            if self._enable_client_metrics:
+                self._local_wall_time_ms += int(MICRO_SEC_PER_SEC * (monotonic() - ts))
 
         def _write_bool(self, data):
             self._crc.update_bool(data)
@@ -367,11 +379,34 @@ class RecordWriter(BaseRecordWriter):
     def __init__(
         self, schema, request_callback, compress_option=None, encoding="utf-8"
     ):
-        self._req_io = RequestsIO(request_callback, chunk_size=options.chunk_size)
+        self._enable_client_metrics = options.tunnel.enable_client_metrics
+        self._server_metrics_string = None
+        if self._enable_client_metrics:
+            ts = monotonic()
+
+        self._req_io = RequestsIO(
+            request_callback,
+            chunk_size=options.chunk_size,
+            record_io_time=self._enable_client_metrics,
+        )
 
         out = get_compress_stream(self._req_io, compress_option)
         super(RecordWriter, self).__init__(schema, out, encoding=encoding)
         self._req_io.start()
+
+        if self._enable_client_metrics:
+            self._local_wall_time_ms += int(MICRO_SEC_PER_SEC * (monotonic() - ts))
+
+    @property
+    def metrics(self):
+        if self._server_metrics_string is None:
+            return None
+        return TunnelMetrics.from_server_json(
+            type(self).__name__,
+            self._server_metrics_string,
+            self._local_wall_time_ms,
+            self._req_io.io_time_ms,
+        )
 
     def write(self, record):
         if self._req_io._async_err:
@@ -380,8 +415,16 @@ class RecordWriter(BaseRecordWriter):
         super(RecordWriter, self).write(record)
 
     def close(self):
+        if self._enable_client_metrics:
+            ts = monotonic()
+
         super(RecordWriter, self).close()
-        self._req_io.finish()
+        resp = self._req_io.finish()
+
+        if self._enable_client_metrics:
+            self._local_wall_time_ms += int(MICRO_SEC_PER_SEC * (monotonic() - ts))
+
+        self._server_metrics_string = resp.headers.get("odps-tunnel-metrics")
 
     def get_total_bytes(self):
         return self.n_bytes
@@ -411,11 +454,23 @@ class BufferedRecordWriter(BaseRecordWriter):
         self._compress_option = compress_option
         self._block_id_gen = block_id_gen
 
+        self._enable_client_metrics = options.tunnel.enable_client_metrics
+        self._server_metrics_string = None
+        self._network_wall_time_ms = 0
+        if not self._enable_client_metrics:
+            self._accumulated_metrics = None
+        else:
+            self._accumulated_metrics = TunnelMetrics(type(self).__name__)
+            ts = monotonic()
+
         out = get_compress_stream(self._buffer, compress_option)
         super(BufferedRecordWriter, self).__init__(schema, out, encoding=encoding)
 
         # make sure block buffer size is applied correctly here
         self._buffer_size = buffer_size or options.tunnel.block_buffer_size
+
+        if self._enable_client_metrics:
+            self._local_wall_time_ms += int(MICRO_SEC_PER_SEC * (monotonic() - ts))
 
     @property
     def cur_block_id(self):
@@ -437,7 +492,24 @@ class BufferedRecordWriter(BaseRecordWriter):
         self.flush_all()
         self._buffer.close()
 
+    def _collect_metrics(self):
+        if self._enable_client_metrics:
+            if self._server_metrics_string is not None:
+                self._accumulated_metrics += TunnelMetrics.from_server_json(
+                    type(self).__name__,
+                    self._server_metrics_string,
+                    self._local_wall_time_ms,
+                    self._network_wall_time_ms,
+                )
+            self._server_metrics_string = None
+            self._local_wall_time_ms = 0
+            self._network_wall_time_ms = 0
+
     def _reset_writer(self, write_response):
+        self._collect_metrics()
+        if self._enable_client_metrics:
+            ts = monotonic()
+
         self._buffer = compat.BytesIO()
 
         out = get_compress_stream(self._buffer, self._compress_option)
@@ -446,19 +518,38 @@ class BufferedRecordWriter(BaseRecordWriter):
         self._crccrc.reset()
         self._crc.reset()
 
+        if self._enable_client_metrics:
+            self._local_wall_time_ms += int(MICRO_SEC_PER_SEC * (monotonic() - ts))
+
     def _send_buffer(self):
-        return self._request_callback(self._block_id, self._buffer.getvalue())
+        if self._enable_client_metrics:
+            ts = monotonic()
+        resp = self._request_callback(self._block_id, self._buffer.getvalue())
+        if self._enable_client_metrics:
+            self._network_wall_time_ms += int(MICRO_SEC_PER_SEC * (monotonic() - ts))
+        return resp
 
     def _flush(self):
+        if self._enable_client_metrics:
+            ts = monotonic()
+
         self._write_finish_tags()
         self._n_bytes_written += self._n_raw_bytes
         self.flush_all()
 
         resp = self._send_buffer()
+        self._server_metrics_string = resp.headers.get("odps-tunnel-metrics")
         self._blocks_written.append(self._block_id)
         self._block_id = self._get_next_block_id()
 
+        if self._enable_client_metrics:
+            self._local_wall_time_ms += int(MICRO_SEC_PER_SEC * (monotonic() - ts))
+
         self._reset_writer(resp)
+
+    @property
+    def metrics(self):
+        return self._accumulated_metrics
 
     @property
     def _n_raw_bytes(self):
@@ -916,3 +1007,12 @@ class Upsert(object):
             self.flush(False)
         elif self._total_n_bytes > self._max_buffer_size:
             self.flush(True)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        # if an error occurs inside the with block, we do not commit
+        if exc_val is not None:
+            return
+        self.close()

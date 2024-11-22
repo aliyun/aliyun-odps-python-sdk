@@ -26,7 +26,7 @@ cdef class SchemaSnapshot:
     cdef vector[int] _col_type_ids
     cdef vector[int] _col_is_partition
     cdef vector[int] _col_nullable
-    cdef vector[_VALIDATE_FUNC] _col_validators
+    cdef list _col_validators
 
     cdef object validate_value(self, int i, object val, int64_t max_field_size)
 

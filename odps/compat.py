@@ -45,6 +45,7 @@ LESS_PY32 = sys.version_info[:2] < (3, 2)
 LESS_PY33 = sys.version_info[:2] < (3, 3)
 LESS_PY34 = sys.version_info[:2] < (3, 4)
 LESS_PY35 = sys.version_info[:2] < (3, 5)
+LESS_PY36 = sys.version_info[:2] < (3, 6)
 PYPY = platform.python_implementation().lower() == "pypy"
 
 SEEK_SET = 0
@@ -87,7 +88,7 @@ if six.PY3:
     StringIO = io.StringIO
     BytesIO = io.BytesIO
 
-    if LESS_PY34:
+    if LESS_PY36:
         from .lib import enum
     else:
         import enum

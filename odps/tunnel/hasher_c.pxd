@@ -32,7 +32,9 @@ cdef class LegacyHasher(AbstractHasher):
 cpdef AbstractHasher get_hasher(hasher_type)
 
 
-ctypedef int32_t (*_HASH_FUNCTION)(RecordHasher self, object value) except? -1
+cdef class FieldHasher:
+    cdef AbstractHasher _hasher
+    cdef int32_t hash_object(self, object value) except? -1
 
 
 cdef class RecordHasher:
@@ -40,18 +42,9 @@ cdef class RecordHasher:
         AbstractHasher _hasher
         SchemaSnapshot _schema_snapshot
         vector[int32_t] _col_ids
-        vector[_HASH_FUNCTION] _idx_to_hash_fun
+        list _idx_to_hash_fun
         CMillisecondsConverter _mills_converter
 
-    cdef int32_t _hash_bigint(self, object value) except? -1
-    cdef int32_t _hash_float(self, object value) except? -1
-    cdef int32_t _hash_double(self, object value) except? -1
-    cdef int32_t _hash_bool(self, object value) except? -1
-    cdef int32_t _hash_string(self, object value) except? -1
-    cdef int32_t _hash_date(self, object value) except? -1
-    cdef int32_t _hash_datetime(self, object value) except? -1
-    cdef int32_t _hash_timestamp(self, object value) except? -1
-    cdef int32_t _hash_timedelta(self, object value) except? -1
     cpdef int32_t hash(self, BaseRecord record)
 
 

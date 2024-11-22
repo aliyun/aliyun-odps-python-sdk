@@ -18,41 +18,53 @@ include "util_c.pxi"
 from libc.stdint cimport *
 from libc.string cimport *
 
+from ...lib.monotonic import monotonic
 from .wire_format import _TAG_TYPE_MASK as _PY_TAG_TYPE_MASK
 from .wire_format import TAG_TYPE_BITS as PY_TAG_TYPE_BITS
+
+DEF NANO_SEC_PER_SEC = 1_000_000_000L
+DEF _BUFFER_SIZE = 64 * 1024
+DEF _MIN_SERIALIZED_INT_SIZE = 10  # ceil(64 / 7)
 
 cdef:
     int TAG_TYPE_BITS = PY_TAG_TYPE_BITS
     int _TAG_TYPE_MASK = _PY_TAG_TYPE_MASK
-    size_t _BUFFER_SIZE = 64 * 1024
-    size_t _MIN_SERIALIZED_INT_SIZE = 10  # ceil(64 / 7)
 
 
 cdef class CDecoder:
 
-    def __cinit__(self, stream):
+    def __cinit__(self, stream, bint record_network_time = False):
+        cdef double ts
+
+        self._record_network_time = record_network_time
+        self._network_wall_time_ns = 0
+
         self._pos = 0
         self._stream = stream
+
+        if self._record_network_time:
+            ts = monotonic()
+
         self._buffer = stream.read(_BUFFER_SIZE)
+
+        if self._record_network_time:
+            self._network_wall_time_ns += <long long>(
+                NANO_SEC_PER_SEC * (<double>monotonic() - ts)
+            )
+
         self._begin = self._buffer
         self._end = self._begin + len(self._buffer)
         self._is_source_eof = False
 
-    cdef int32_t read_field_number(self) except? -1 nogil:
+    cdef int32_t read_field_number(self, int32_t * p_wire_type) except? -1 nogil:
         if self._end - self._begin < _MIN_SERIALIZED_INT_SIZE:
             self._load_next_buffer()
 
         cdef int32_t tag_and_type
         tag_and_type = self.read_uint32()
+        if p_wire_type != NULL:
+            p_wire_type[0] = tag_and_type & _TAG_TYPE_MASK
         return tag_and_type >> TAG_TYPE_BITS
-
-    cdef read_field_number_and_wire_type(self):
-        if self._end - self._begin < _MIN_SERIALIZED_INT_SIZE:
-            self._load_next_buffer()
-
-        cdef int32_t tag_and_type
-        tag_and_type = self.read_uint32()
-        return (tag_and_type >> TAG_TYPE_BITS), (tag_and_type & _TAG_TYPE_MASK)
 
     cdef size_t position(self) nogil:
         return self._pos
@@ -140,10 +152,20 @@ cdef class CDecoder:
             return b"".join(result)
 
     cdef int _load_next_buffer(self) except -1 with gil:
+        cdef double ts
         if self._is_source_eof and (self._begin >= self._end):
             raise EOFError
 
+        if self._record_network_time:
+            ts = monotonic()
+
         cdef bytes data = self._stream.read(_BUFFER_SIZE)
+
+        if self._record_network_time:
+            self._network_wall_time_ns += <long long>(
+                NANO_SEC_PER_SEC * (<double>monotonic() - ts)
+            )
+
         cdef size_t length = len(data)
         if length == 0:
             self._is_source_eof = True
@@ -169,10 +191,12 @@ cdef class Decoder:
         return self._decoder.position()
 
     def read_field_number(self):
-        return self._decoder.read_field_number()
+        return self._decoder.read_field_number(NULL)
 
     def read_field_number_and_wire_type(self):
-        return self._decoder.read_field_number_and_wire_type()
+        cdef int32_t field_num, wire_type
+        field_num = self._decoder.read_field_number(&wire_type)
+        return field_num, wire_type
 
     def read_sint32(self):
         return self._decoder.read_sint32()

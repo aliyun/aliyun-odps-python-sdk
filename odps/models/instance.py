@@ -900,10 +900,11 @@ class Instance(LazyLoad):
             resp = self._client.get(
                 self.resource(), action="instancedetail", params=params
             )
-            return json.loads(
-                resp.content.decode() if six.PY3 else resp.content,
-                object_pairs_hook=OrderedDict,
-            )
+            res = resp.content.decode() if six.PY3 else resp.content
+            try:
+                return json.loads(res, object_pairs_hook=OrderedDict)
+            except ValueError:
+                return res
 
         task_name = task_name or self._get_default_task_name()
         result = _get_detail()

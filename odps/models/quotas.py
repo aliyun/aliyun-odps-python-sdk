@@ -26,8 +26,13 @@ class Quotas(Iterable):
     def _name(self):
         return "quotas"
 
-    def _get(self, nickname):
-        return Quota(client=self._client, parent=self, nickname=nickname)
+    def _get(self, nickname, tenant_id=None):
+        return Quota(
+            client=self._client, parent=self, nickname=nickname, tenant_id=tenant_id
+        )
+
+    def get(self, nickname, tenant_id=None):
+        return self._get(nickname, tenant_id=tenant_id)
 
     def __contains__(self, item):
         if isinstance(item, six.string_types):

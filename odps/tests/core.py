@@ -99,6 +99,10 @@ def _load_config_odps(config, section_name, overwrite_global=True):
         tunnel_endpoint = config.get(section_name, "tunnel_endpoint")
     except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
         tunnel_endpoint = None
+    try:
+        quota_name = config.get(section_name, "quota_name")
+    except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
+        quota_name = None
 
     try:
         attr_name = config.get(section_name, "attr")
@@ -111,10 +115,12 @@ def _load_config_odps(config, section_name, overwrite_global=True):
         project,
         endpoint,
         schema=schema,
+        quota_name=quota_name,
         tunnel_endpoint=tunnel_endpoint,
         seahawks_url=seahawks_url,
         overwrite_global=overwrite_global,
     )
+
     setattr(config, attr_name, odps_entry)
 
 
@@ -138,6 +144,7 @@ def get_config():
         _load_config_odps(config, "odps_with_schema", overwrite_global=False)
         _load_config_odps(config, "odps_with_tunnel_quota", overwrite_global=False)
         _load_config_odps(config, "odps_with_long_string", overwrite_global=False)
+        _load_config_odps(config, "odps_with_mcqa2", overwrite_global=False)
         # make sure main config overrides other configs
         _load_config_odps(config, "odps")
         config.tunnel = TableTunnel(config.odps, endpoint=config.odps._tunnel_endpoint)

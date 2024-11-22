@@ -18,6 +18,8 @@ from .. import serializers
 from ..compat import Enum
 from .core import LazyLoad
 
+_MCQA_VERSION = "mcqaVersion"
+
 
 class Quota(LazyLoad):
     """
@@ -26,6 +28,7 @@ class Quota(LazyLoad):
 
     VERSION = "wlm"
 
+    __slots__ = ("_mcqa_conn_header",)
     _root = "Quota"
 
     class Strategy(Enum):
@@ -47,6 +50,12 @@ class Quota(LazyLoad):
         FUXI_ONLINE = "FUXI_ONLINE"
         FUXI_STANDALONE = "FUXI_STANDALONE"
         FUXI_VW = "FUXI_VW"
+
+        UNKNOWN = "UNKNOWN"
+
+        @classmethod
+        def _missing_(cls, _value):
+            return cls.UNKNOWN
 
     class BillingPolicy(serializers.JSONSerializableModel):
         class BillingMethod(Enum):
@@ -124,8 +133,18 @@ class Quota(LazyLoad):
     is_meta_only = serializers.XMLNodeField("IsMetaOnly", type="bool")
     properties = serializers.XMLNodeField("Properties", type="json")
 
+    def __init__(self, *args, **kwds):
+        super(Quota, self).__init__(*args, **kwds)
+        self._mcqa_conn_header = None
+
     def _name(self):
         return self._getattr("nickname")
+
+    @property
+    def mcqa_conn_header(self):
+        if not self._loaded:
+            self.reload()
+        return self._mcqa_conn_header
 
     def reload(self):
         params = {
@@ -137,6 +156,20 @@ class Quota(LazyLoad):
                 params["region"] = self.region_id
         except AttributeError:
             pass
+        try:
+            if self._getattr("tenant_id"):
+                params["tenant"] = self.tenant_id
+        except AttributeError:
+            pass
         resp = self._client.get(self.resource(), params=params)
         self.parse(self._client, resp, obj=self)
+        self._mcqa_conn_header = resp.headers.get("x-odps-mcqa-conn")
         self._loaded = True
+
+    def is_interactive_quota(self):
+        if self.resource_system_type != Quota.ResourceSystemType.FUXI_VW:
+            return False
+        return (
+            self.user_defined_tags is None
+            or _MCQA_VERSION not in self.user_defined_tags
+        )

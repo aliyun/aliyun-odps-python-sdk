@@ -45,7 +45,7 @@ import pytest
 import requests
 
 from ... import options, types
-from ...compat import DECIMAL_TYPES, Decimal, Monthdelta, Version
+from ...compat import DECIMAL_TYPES, ConfigParser, Decimal, Monthdelta, Version
 from ...errors import DatetimeOverflowError, throw_if_parsable
 from ...models import Record, TableSchema
 from ...tests.core import (
@@ -62,6 +62,9 @@ from ...tests.core import (
 from ...utils import get_zone_name, to_text
 from .. import TableTunnel
 from ..errors import TunnelWriteTimeout
+from ..tabletunnel import BaseTableTunnelSession
+
+_TUNNEL_VERSION_NO_METRICS = 5
 
 
 @pytest.fixture(autouse=True)
@@ -258,7 +261,18 @@ class TunnelTestUtil(object):
             print("data =", repr(data), file=sys.stderr)
             raise
 
-    def upload_data(self, test_table, records, compress=False, **kw):
+    @classmethod
+    def _check_metrics(cls, metrics):
+        assert metrics is not None
+        repr(metrics)
+        assert metrics.network_wall_cost > 0
+        assert metrics.client_process_cost > 0
+        assert metrics.tunnel_process_cost > 0
+        assert metrics.storage_cost >= 0
+
+    def upload_data(
+        self, test_table, records, compress=False, check_metrics=False, **kw
+    ):
         tunnel = kw.pop("tunnel", self.tunnel)
         upload_ss = tunnel.create_upload_session(test_table, **kw)
         # make sure session reprs work well
@@ -276,6 +290,8 @@ class TunnelTestUtil(object):
                 record[i] = it
             writer.write(record)
         writer.close()
+        if check_metrics:
+            self._check_metrics(writer.metrics)
         upload_ss.commit([0])
 
     def stream_upload_data(self, test_table, records, compress=False, **kw):
@@ -298,7 +314,13 @@ class TunnelTestUtil(object):
         upload_ss.abort()
 
     def buffered_upload_data(
-        self, test_table, records, buffer_size=None, compress=False, **kw
+        self,
+        test_table,
+        records,
+        buffer_size=None,
+        compress=False,
+        check_metrics=False,
+        **kw
     ):
         upload_ss = self.tunnel.create_upload_session(test_table, **kw)
         # make sure session reprs work well
@@ -313,6 +335,9 @@ class TunnelTestUtil(object):
             writer.write(record)
         writer.close()
 
+        if check_metrics:
+            self._check_metrics(writer.metrics)
+
         if buffer_size is None:
             assert len(writer.get_blocks_written()) == 1
         else:
@@ -320,7 +345,13 @@ class TunnelTestUtil(object):
         upload_ss.commit(writer.get_blocks_written())
 
     def download_data(
-        self, test_table, compress=False, columns=None, append_partitions=None, **kw
+        self,
+        test_table,
+        compress=False,
+        columns=None,
+        append_partitions=None,
+        check_metrics=False,
+        **kw
     ):
         count = kw.pop("count", None)
         download_ss = self.tunnel.create_download_session(test_table, **kw)
@@ -344,7 +375,9 @@ class TunnelTestUtil(object):
                 records.append(tuple(record.values))
                 assert get_code_mode() == record._mode()
 
-            return records
+        if check_metrics:
+            self._check_metrics(reader.metrics)
+        return records
 
     def gen_data(self):
         return [
@@ -469,6 +502,30 @@ def setup(odps, tunnel):
         options.tunnel.block_buffer_size = raw_buffer_size
 
 
+@pytest.fixture
+def config_metrics(request):
+    orig_get_common_header = BaseTableTunnelSession.get_common_headers
+    raw_enable_metrics = options.tunnel.enable_client_metrics
+
+    def patched_get_common_headers(self, *args, **kw):
+        headers = orig_get_common_header(*args, **kw)
+        headers["x-odps-tunnel-version"] = str(_TUNNEL_VERSION_NO_METRICS)
+        return headers
+
+    try:
+        options.tunnel.enable_client_metrics = request.param
+        if not request.param:
+            with mock.patch(
+                "odps.tunnel.tabletunnel.BaseTableTunnelSession.get_common_headers",
+                new=patched_get_common_headers,
+            ):
+                yield request.param
+        else:
+            yield request.param
+    finally:
+        options.tunnel.enable_client_metrics = raw_enable_metrics
+
+
 def test_malicious_request_detection(setup):
     with pytest.raises(AssertionError):
         setup.tunnel.tunnel_rest.get(
@@ -477,13 +534,14 @@ def test_malicious_request_detection(setup):
 
 
 @py_and_c_deco
-def test_upload_and_download_by_raw_tunnel(setup):
-    test_table_name = tn("pyodps_test_raw_tunnel_" + get_code_mode())
+@pytest.mark.parametrize("config_metrics", [False, True], indirect=True)
+def test_upload_and_download_by_raw_tunnel(setup, config_metrics):
+    test_table_name = tn("pyodps_test_raw_tunnel_" + get_test_unique_name(5))
     setup.create_table(test_table_name)
     data = setup.gen_data()
 
-    setup.upload_data(test_table_name, data)
-    records = setup.download_data(test_table_name)
+    setup.upload_data(test_table_name, data, check_metrics=config_metrics)
+    records = setup.download_data(test_table_name, check_metrics=config_metrics)
     assert list(data) == list(records)
 
     setup.delete_table(test_table_name)
@@ -504,16 +562,19 @@ def test_stream_upload_and_download_tunnel(odps, setup):
 
 
 @py_and_c_deco
-def test_buffered_upload_and_download_by_raw_tunnel(setup):
+@pytest.mark.parametrize("config_metrics", [False, True], indirect=True)
+def test_buffered_upload_and_download_by_raw_tunnel(setup, config_metrics):
     table, data = setup.gen_table(size=10)
-    setup.buffered_upload_data(table, data)
-    records = setup.download_data(table)
+    setup.buffered_upload_data(table, data, check_metrics=config_metrics)
+    records = setup.download_data(table, check_metrics=config_metrics)
     setup.assert_reads_data_equal(records, data)
     setup.delete_table(table)
 
     table, data = setup.gen_table(size=10)
-    setup.buffered_upload_data(table, data, buffer_size=1024)
-    records = setup.download_data(table)
+    setup.buffered_upload_data(
+        table, data, buffer_size=1024, check_metrics=config_metrics
+    )
+    records = setup.download_data(table, check_metrics=config_metrics)
     setup.assert_reads_data_equal(records, data)
     setup.delete_table(table)
 
@@ -1448,5 +1509,39 @@ def test_read_write_long_binary(odps_with_long_string):
             writer.write([test_str])
         with table.open_reader() as reader:
             assert next(reader)[0] == test_str
+    finally:
+        table.drop()
+
+
+def test_read_secondary_project_table(config, odps):
+    try:
+        secondary_project = config.get("test", "secondary_project")
+    except ConfigParser.NoOptionError:
+        pytest.skip("secondary_project not configured.")
+
+    table_name = tn("test_secondary_project_table")
+    odps.delete_table(table_name, project=secondary_project, if_exists=True)
+    table = odps.create_table(
+        table_name, "col1 string", project=secondary_project, lifecycle=1
+    )
+    try:
+        with table.open_writer() as writer:
+            writer.write([["test_data"]])
+
+        # method 1: access with project argument
+        table_tunnel = TableTunnel(odps, project=secondary_project)
+        down_sess = table_tunnel.create_download_session(table_name)
+        with down_sess.open_record_reader(0, down_sess.count) as reader:
+            records = list(reader)
+            assert records[0][0] == "test_data"
+
+        # method 2: access with full table name
+        table_tunnel = TableTunnel(odps)
+        down_sess = table_tunnel.create_download_session(
+            secondary_project + "." + table_name
+        )
+        with down_sess.open_record_reader(0, down_sess.count) as reader:
+            records = list(reader)
+            assert records[0][0] == "test_data"
     finally:
         table.drop()

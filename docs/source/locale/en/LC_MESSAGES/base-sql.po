@@ -8,14 +8,14 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2024-08-31 12:41+0800\n"
+"POT-Creation-Date: 2024-11-05 12:21+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.12.1\n"
+"Generated-By: Babel 2.16.0\n"
 
 #: ../../source/base-sql.rst:4
 msgid "SQL"
@@ -23,9 +23,9 @@ msgstr "SQL"
 
 #: ../../source/base-sql.rst:6
 msgid ""
-"PyODPS支持ODPS SQL的查询，并可以读取执行的结果。 ``execute_sql`` / ``"
-"execute_sql_interactive`` / ``run_sql`` / ``run_sql_interactive`` 方法的"
-"返回值是 :ref:`运行实例 <instances>` 。"
+"PyODPS支持ODPS SQL的查询，并可以读取执行的结果。 ``execute_sql`` / "
+"``execute_sql_interactive`` / ``run_sql`` / ``run_sql_interactive`` "
+"方法的返回值是 :ref:`运行实例 <instances>` 。"
 msgstr ""
 "PyODPS supports MaxCompute SQL queries and provides methods to read SQL "
 "results. All ``execute_sql`` , ``execute_sql_interactive`` , ``run_sql`` "
@@ -33,10 +33,9 @@ msgstr ""
 
 #: ../../source/base-sql.rst:11
 msgid ""
-"并非所有在 ODPS Console 中可以执行的命令都是 ODPS 可以接受的 SQL 语句。 "
-"在调用非 DDL / DML 语句时，请使用其他方法，例如 GRANT / REVOKE 等语句请"
-"使用 ``run_security_query`` 方法，PAI 命令请使用 ``run_xflow`` 或 ``"
-"execute_xflow`` 方法。"
+"并非所有在 ODPS Console 中可以执行的命令都是 ODPS 可以接受的 SQL 语句。 在调用非 DDL / DML "
+"语句时，请使用其他方法，例如 GRANT / REVOKE 等语句请使用 ``run_security_query`` 方法，PAI 命令请使用 "
+"``run_xflow`` 或 ``execute_xflow`` 方法。"
 msgstr ""
 "The commands that are executable in the MaxCompute Console may not be "
 "executed as SQL statements in MaxCompute. Use other methods to execute "
@@ -50,9 +49,8 @@ msgstr "Execute SQL statements"
 
 #: ../../source/base-sql.rst:20
 msgid ""
-"你可以使用 ``execute_sql`` 方法以同步方式执行 SQL。调用时，该方法会阻塞"
-"直至 SQL 执行完成，并返回一个 Instance 实例。如果 SQL 执行报错，该方法会"
-"抛出以 ``odps.errors.ODPSError`` 为基类的错误。"
+"你可以使用 ``execute_sql`` 方法以同步方式执行 SQL。调用时，该方法会阻塞直至 SQL 执行完成，并返回一个 Instance "
+"实例。如果 SQL 执行报错，该方法会抛出以 ``odps.errors.ODPSError`` 为基类的错误。"
 msgstr ""
 "You can use ``execute_sql`` to run SQL and wait for finish. The method "
 "will block until execution is finished and returns an instance object. If"
@@ -60,19 +58,16 @@ msgstr ""
 "on ``odps.errors.ODPSError`` class."
 
 #: ../../source/base-sql.rst:23
-msgid ""
-">>> o.execute_sql('select * from dual')  # 同步的方式执行，会阻塞直到SQL"
-"执行完成"
+msgid ">>> o.execute_sql('select * from dual')  # 同步的方式执行，会阻塞直到SQL执行完成"
 msgstr ""
 ">>> o.execute_sql('select * from dual')  # synchronous way, will block "
 "till SQL statement finishes execution\n"
 
 #: ../../source/base-sql.rst:27
 msgid ""
-"你也可以使用非阻塞方式异步执行 SQL。调用时，该方法在将 SQL 提交到 "
-"MaxCompute 后即返回 Instance 实例。你需要使用 ``wait_for_success`` 方法"
-"等待该 SQL 执行完成。同样地，如果 instance 出现错误， ``wait_for_success`"
-"` 会抛出以 ``odps.errors.ODPSError`` 为基类的错误。"
+"你也可以使用非阻塞方式异步执行 SQL。调用时，该方法在将 SQL 提交到 MaxCompute 后即返回 Instance 实例。你需要使用 "
+"``wait_for_success`` 方法等待该 SQL 执行完成。同样地，如果 instance 出现错误， "
+"``wait_for_success`` 会抛出以 ``odps.errors.ODPSError`` 为基类的错误。"
 msgstr ""
 "You can also use non-blocking method to run SQL. The method will submit "
 "your SQL statement to MaxCompute and return the corresponding Instance "
@@ -93,8 +88,8 @@ msgstr ""
 
 #: ../../source/base-sql.rst:37
 msgid ""
-"关于如何操作 run_sql / execute_sql 返回的 Instance 实例，可以参考 :ref:`"
-"运行实例 <instances>` 。"
+"关于如何操作 run_sql / execute_sql 返回的 Instance 实例，可以参考 :ref:`运行实例 <instances>`"
+" 。"
 msgstr ""
 "You can take a look at :ref:`instances <instances>` for more information "
 "on instance objects returned by run_sql or execute_sql method."
@@ -106,9 +101,8 @@ msgstr "Execute SQL with MCQA acceleration"
 #: ../../source/base-sql.rst:41
 msgid ""
 "`MCQA <https://help.aliyun.com/document_detail/180701.html>`_ 是 "
-"MaxCompute 提供的查询加速功能， 支持使用独立资源池对中小规模数据进行加速"
-"。PyODPS 从 0.11.4.1 开始支持以下列方式通过 MCQA 执行 SQL ，同时需要 "
-"MaxCompute 具备 MCQA 的支持。"
+"MaxCompute 提供的查询加速功能， 支持使用独立资源池对中小规模数据进行加速。PyODPS 从 0.11.4.1 开始支持以下列方式通过 "
+"MCQA 执行 SQL ，同时需要 MaxCompute 具备 MCQA 的支持。"
 msgstr ""
 "`MCQA <https://help.aliyun.com/document_detail/180701.html>`_ is the "
 "query acceleration service provided by MaxCompute, which supports "
@@ -119,9 +113,8 @@ msgstr ""
 
 #: ../../source/base-sql.rst:45
 msgid ""
-"你可以使用 ``execute_sql_interactive`` 通过 MCQA 执行 SQL 并返回 MCQA "
-"Instance。如果 MCQA 无法执行相应的 SQL ，会自动回退到传统模式。此时，函数"
-"返回的 Instance 为回退后的 Instance。"
+"你可以使用 ``execute_sql_interactive`` 通过 MCQA 执行 SQL 并返回 MCQA Instance。如果 "
+"MCQA 无法执行相应的 SQL ，会自动回退到传统模式。此时，函数返回的 Instance 为回退后的 Instance。"
 msgstr ""
 "You can use ``execute_sql_interactive`` to execute SQL with MCQA and "
 "return MCQA Instance object. If MCQA does not support your SQL statement,"
@@ -134,9 +127,9 @@ msgstr ""
 
 #: ../../source/base-sql.rst:52
 msgid ""
-"如果不希望回退，可以指定参数 ``fallback=False``。也可以指定为回退策略（或"
-"回退策略的组合，使用逗号分隔的字符串）。 可用的策略名如下。默认策略为 ``"
-"all`` （即 ``generic,unsupported,upgrading,noresource,timeout`` ）。"
+"如果不希望回退，可以指定参数 ``fallback=False``。也可以指定为回退策略（或回退策略的组合，使用逗号分隔的字符串）。 "
+"可用的策略名如下。默认策略为 ``all`` （即 "
+"``generic,unsupported,upgrading,noresource,timeout`` ）。"
 msgstr ""
 "If you don't want the method to fallback automatically, you can specify "
 "``fallback=False``. You can also specify a fallback policy or combination"
@@ -188,10 +181,9 @@ msgstr ""
 
 #: ../../source/base-sql.rst:67
 msgid ""
-"你也可以使用 ``run_sql_interactive`` 通过 MCQA 异步执行 SQL。类似 ``run_"
-"sql``，该方法会在提交任务后即返回 MCQA Instance，你需要自行等待 Instance "
-"完成。需要注意的是，该方法不会自动回退。当执行失败时，你需要自行重试或"
-"执行 ``execute_sql``。"
+"你也可以使用 ``run_sql_interactive`` 通过 MCQA 异步执行 SQL。类似 "
+"``run_sql``，该方法会在提交任务后即返回 MCQA Instance，你需要自行等待 Instance "
+"完成。需要注意的是，该方法不会自动回退。当执行失败时，你需要自行重试或执行 ``execute_sql``。"
 msgstr ""
 "You can also use ``run_sql_interactive`` to run SQL with MCQA. The method"
 " returns MCQA Instance once your SQL is submitted to the cluster, and you"
@@ -201,8 +193,7 @@ msgstr ""
 
 #: ../../source/base-sql.rst:71
 msgid ""
-">>> instance = o.run_sql_interactive('select * from dual')  # 异步的方式"
-"执行\n"
+">>> instance = o.run_sql_interactive('select * from dual')  # 异步的方式执行\n"
 ">>> print(instance.get_logview_address())  # 获取logview地址\n"
 ">>> instance.wait_for_success()  # 阻塞直到完成"
 msgstr ""
@@ -216,9 +207,7 @@ msgid "设置时区"
 msgstr "Set timezone"
 
 #: ../../source/base-sql.rst:81
-msgid ""
-"有时我们希望对于查询出来的时间数据显示为特定时区下的时间，可以通过 ``"
-"options.local_timezone`` 设置客户端的时区。"
+msgid "有时我们希望对于查询出来的时间数据显示为特定时区下的时间，可以通过 ``options.local_timezone`` 设置客户端的时区。"
 msgstr ""
 "Sometimes we want to display the queried time data with a correct "
 "timezone. We can set it via ``options.local_timezone``."
@@ -271,9 +260,8 @@ msgstr ""
 
 #: ../../source/base-sql.rst:112
 msgid ""
-"设置 ``options.local_timezone`` 后，PyODPS 会根据它的值自动设置 ``odps."
-"sql.timezone``。 两者的值不同可能导致服务端和客户端时间不一致，因此不应再"
-"手动设置 ``odps.sql.timezone``。"
+"设置 ``options.local_timezone`` 后，PyODPS 会根据它的值自动设置 ``odps.sql.timezone``。 "
+"两者的值不同可能导致服务端和客户端时间不一致，因此不应再手动设置 ``odps.sql.timezone``。"
 msgstr ""
 "After setting ``options.local_timezone``, PyODPS will set "
 "``odps.sql.timezone`` according to it automatically. The difference of "
@@ -286,9 +274,9 @@ msgstr "Set runtime parameters"
 
 #: ../../source/base-sql.rst:118
 msgid ""
-"有时，我们在运行时，需要设置运行时参数，我们可以通过设置 ``hints`` 参数，"
-"参数类型是 dict。该参数对 ``execute_sql`` / ``execute_sql_interactive`` /"
-" ``run_sql`` / ``run_sql_interactive`` 均有效。"
+"有时，我们在运行时，需要设置运行时参数，我们可以通过设置 ``hints`` 参数，参数类型是 dict。该参数对 ``execute_sql``"
+" / ``execute_sql_interactive`` / ``run_sql`` / ``run_sql_interactive`` "
+"均有效。"
 msgstr ""
 "You can use the ``hints`` parameter to set runtime parameters. The "
 "parameter is a dict type which is supported for ``execute_sql``, "
@@ -305,9 +293,7 @@ msgstr ""
 ">>> o.execute_sql('select * from pyodps_iris', hints=hints)"
 
 #: ../../source/base-sql.rst:126
-msgid ""
-"我们可以对于全局配置设置sql.settings后，每次运行时则都会添加相关的运行时"
-"参数。"
+msgid "我们可以对于全局配置设置sql.settings后，每次运行时则都会添加相关的运行时参数。"
 msgstr ""
 "You can set sql.settings globally. The relevant runtime parameters are "
 "automatically added during each execution."
@@ -334,9 +320,7 @@ msgid "读取 SQL 执行结果"
 msgstr "View SQL results"
 
 #: ../../source/base-sql.rst:142
-msgid ""
-"运行 SQL 的 instance 能够直接执行 ``open_reader`` 的操作，一种情况是SQL"
-"返回了结构化的数据。"
+msgid "运行 SQL 的 instance 能够直接执行 ``open_reader`` 的操作，一种情况是SQL返回了结构化的数据。"
 msgstr ""
 "You can execute the ``open_reader`` method to retrieve SQL execution "
 "results. In the following example, structured data is returned. "
@@ -352,9 +336,7 @@ msgstr ""
 ">>>         # process every record"
 
 #: ../../source/base-sql.rst:150
-msgid ""
-"另一种情况是 SQL 可能执行的比如 ``desc``，这时通过 ``reader.raw`` 属性取"
-"到原始的SQL执行结果。"
+msgid "另一种情况是 SQL 可能执行的比如 ``desc``，这时通过 ``reader.raw`` 属性取到原始的SQL执行结果。"
 msgstr ""
 "When commands such as ``desc`` are executed, you can use the "
 "``reader.raw`` attribute to get the original execution results. "
@@ -367,13 +349,11 @@ msgstr ""
 
 #: ../../source/base-sql.rst:157
 msgid ""
-"如果 `options.tunnel.use_instance_tunnel == True`，在调用 open_reader 时"
-"，PyODPS 会默认调用 Instance Tunnel， 否则会调用旧的 Result 接口。如果你"
-"使用了版本较低的 MaxCompute 服务，或者调用 Instance Tunnel 出现了问题，"
-"PyODPS 会给出警告并自动降级到旧的 Result 接口，可根据警告信息判断导致降级"
-"的原因。如果 Instance Tunnel 的结果不合预期， 请将该选项设为 `False`。在"
-"调用 open_reader 时，也可以使用 ``tunnel`` 参数来指定使用何种结果接口，"
-"例如"
+"如果 `options.tunnel.use_instance_tunnel == True`，在调用 open_reader 时，PyODPS "
+"会默认调用 Instance Tunnel， 否则会调用旧的 Result 接口。如果你使用了版本较低的 MaxCompute 服务，或者调用 "
+"Instance Tunnel 出现了问题，PyODPS 会给出警告并自动降级到旧的 Result 接口，可根据警告信息判断导致降级的原因。如果 "
+"Instance Tunnel 的结果不合预期， 请将该选项设为 `False`。在调用 open_reader 时，也可以使用 "
+"``tunnel`` 参数来指定使用何种结果接口，例如"
 msgstr ""
 "If `options.tunnel.use_instance_tunnel` is set to `True` when open_reader"
 " has been executed, PyODPS calls Instance Tunnel by default. If "
@@ -412,14 +392,12 @@ msgstr ""
 
 #: ../../source/base-sql.rst:173
 msgid ""
-"PyODPS 默认不限制能够从 Instance 读取的数据规模，但 Project Owner 可能在 "
-"MaxCompute Project 上增加保护设置以限制对 Instance 结果的读取，此时只能"
-"使用受限读取模式读取数据，在此模式下可读取的行数受到 Project 配置限制，"
-"通常为 10000 行。如果 PyODPS 检测到读取 Instance 数据被限制，且 ``options"
-".tunnel.limit_instance_tunnel`` 未设置，会自动启用受限读取模式。 如果你的"
-" Project 被保护，想要手动启用受限读取模式，可以为 ``open_reader`` 方法"
-"增加 ``limit=True`` 选项，或者设置 ``options.tunnel.limit_instance_tunnel"
-" = True`` 。"
+"PyODPS 默认不限制能够从 Instance 读取的数据规模，但 Project Owner 可能在 MaxCompute Project "
+"上增加保护设置以限制对 Instance 结果的读取，此时只能使用受限读取模式读取数据，在此模式下可读取的行数受到 Project "
+"配置限制，通常为 10000 行。如果 PyODPS 检测到读取 Instance 数据被限制，且 "
+"``options.tunnel.limit_instance_tunnel`` 未设置，会自动启用受限读取模式。 如果你的 Project "
+"被保护，想要手动启用受限读取模式，可以为 ``open_reader`` 方法增加 ``limit=True`` 选项，或者设置 "
+"``options.tunnel.limit_instance_tunnel = True``\\ 。"
 msgstr ""
 "By default, PyODPS does not limit the size of data that can be read from "
 "an Instance. However, project owners might add protection configuration "
@@ -435,36 +413,36 @@ msgstr ""
 
 #: ../../source/base-sql.rst:179
 msgid ""
-"在部分环境中，例如 DataWorks，``options.tunnel.limit_instance_tunnel`` "
-"可能默认被置为 True。此时，如果需要读取\\ 所有数据，需要为 ``open_reader`"
-"` 增加参数 `tunnel=True, limit=False` 。需要注意的是，如果 Project 本身被"
-"保护，\\ 这两个参数\\ **不能**\\ 解除保护，此时应联系 Project Owner 开放"
-"相应的读权限。"
+"在部分环境中，例如 DataWorks，``options.tunnel.limit_instance_tunnel`` 可能默认被置为 "
+"True。此时，如果需要读取\\ 所有数据，需要为 ``open_reader`` 增加参数 `tunnel=True, limit=False`"
+" 。需要注意的是，如果 Project 本身被保护，\\ 这两个参数\\ **不能**\\ 解除保护，MaxCompute 也\\ "
+"**不提供**\\ 绕开该权限限制读取更多数据的方法。此时应联系 Project Owner 开放相应的读权限。"
 msgstr ""
 "In some environments, for instance, "
 "``options.tunnel.limit_instance_tunnel`` might be set to True for "
 "compatibility. In those environments, if you want to read all data, you "
 "need to add arguments `tunnel=True, limit=False` for ``open_reader`` "
 "method. Note that these two arguments will **NOT** lift read limitation "
-"on your project. If you still meet read limitations, please ask your "
-"project owner to grant read privileges for you."
+"on your project, and MaxCompute does not provide any approach to circumvent"
+" this limitation without granting read priviledges explicitly. If you "
+"still meet read limitations, please ask your project owner to grant read"
+" privileges for you."
 
-#: ../../source/base-sql.rst:183
+#: ../../source/base-sql.rst:184
 msgid ""
-"如果你所使用的 MaxCompute 只能支持旧 Result 接口，同时你需要读取所有数据"
-"，可将 SQL 结果写入另一张表后用读表接口读取 （可能受到 Project 安全设置的"
-"限制）。"
+"如果你所使用的 MaxCompute 只能支持旧 Result 接口，同时你需要读取所有数据，可将 SQL 结果写入另一张表后用读表接口读取 "
+"（可能受到 Project 安全设置的限制）。"
 msgstr ""
 "If the MaxCompute version you are using only supports the old Result "
 "interface, and you need to read all data, you can export the SQL results "
 "to another table and use these methods to read data. This may be limited "
 "by project security settings."
 
-#: ../../source/base-sql.rst:186
+#: ../../source/base-sql.rst:187
 msgid "同时，PyODPS 支持直接将运行结果数据读成 pandas DataFrame。"
 msgstr "PyODPS also supports reading data as pandas DataFrames."
 
-#: ../../source/base-sql.rst:188
+#: ../../source/base-sql.rst:189
 msgid ""
 ">>> # 直接使用 reader 的 to_pandas 方法\n"
 ">>> with o.execute_sql('select * from dual').open_reader(tunnel=True) as "
@@ -478,13 +456,13 @@ msgstr ""
 ">>>     # type of pd_df is pandas DataFrame\n"
 ">>>     pd_df = reader.to_pandas()"
 
-#: ../../source/base-sql.rst:197
+#: ../../source/base-sql.rst:198
 msgid "如果需要使用多核加速读取速度，可以通过 ``n_process`` 指定使用进程数:"
 msgstr ""
 "If you want to accelerate data reading with multiple cores, you can "
 "specify ``n_process`` with number of cores you want to use:"
 
-#: ../../source/base-sql.rst:199
+#: ../../source/base-sql.rst:200
 msgid ""
 ">>> import multiprocessing\n"
 ">>> n_process = multiprocessing.cpu_count()\n"
@@ -500,11 +478,10 @@ msgstr ""
 ">>>     # n_process should be number of processes to use\n"
 ">>>     pd_df = reader.to_pandas(n_process=n_process)"
 
-#: ../../source/base-sql.rst:209
+#: ../../source/base-sql.rst:210
 msgid ""
-"从 2024 年年末开始，MaxCompute 服务将支持离线 SQL 任务 ``open_reader`` "
-"使用与表类似的 Arrow 接口，MCQA 作业暂不支持。在此之前，使用 ``Instance."
-"open_reader(arrow=True)`` 读取数据将报错。"
+"从 2024 年年末开始，MaxCompute 服务将支持离线 SQL 任务 ``open_reader`` 使用与表类似的 Arrow "
+"接口，MCQA 作业暂不支持。在此之前，使用 ``Instance.open_reader(arrow=True)`` 读取数据将报错。"
 msgstr ""
 "It is expected that since late 2024, MaxCompute will support reading "
 "results of offline SQL instances into arrow format with "
@@ -512,13 +489,12 @@ msgstr ""
 "feature by now. Before that time, reading data with "
 "``Instance.open_reader(arrow=True)`` will lead to errors."
 
-#: ../../source/base-sql.rst:212
+#: ../../source/base-sql.rst:213
 msgid ""
-"从 PyODPS 0.12.0 开始，你也可以直接调用 Instance 上的 ``to_pandas`` 方法"
-"直接将数据转换为 pandas。\\ 你可以指定转换为 pandas 的起始行号和行数，若"
-"不指定则读取所有数据。该方法也支持 ``limit`` 参数，具体定义\\ 与 ``open_"
-"reader`` 方法相同。该方法默认会使用 Arrow 格式读取，并转换为 pandas。如果"
-" Arrow 格式不被\\ 支持，将会回退到 Record 接口。"
+"从 PyODPS 0.12.0 开始，你也可以直接调用 Instance 上的 ``to_pandas`` 方法直接将数据转换为 "
+"pandas。\\ 你可以指定转换为 pandas 的起始行号和行数，若不指定则读取所有数据。该方法也支持 ``limit`` 参数，具体定义\\"
+" 与 ``open_reader`` 方法相同。该方法默认会使用 Arrow 格式读取，并转换为 pandas。如果 Arrow 格式不被\\ "
+"支持，将会回退到 Record 接口。"
 msgstr ""
 "Since PyODPS 0.12.0, you can call ``to_pandas`` method on Instance to "
 "read instance results into pandas format. Start row number and row count "
@@ -528,43 +504,40 @@ msgstr ""
 "result into pandas. If arrow format is not supported by service, it will "
 "fall back into record format."
 
-#: ../../source/base-sql.rst:217
+#: ../../source/base-sql.rst:218
 msgid ""
 ">>> inst = o.execute_sql('select * from dual')\n"
 ">>> pd_df = inst.to_pandas(start=10, count=20)"
 msgstr ""
 
-#: ../../source/base-sql.rst:222
+#: ../../source/base-sql.rst:223
 msgid ""
-"与表类似，从 PyODPS 0.12.0 开始，你也可以使用 Instance 上的 ``iter_pandas"
-"`` 方法按多个批次读取 pandas DataFrame，参数与 ``Table.iter_pandas`` 类似"
-"。"
+"与表类似，从 PyODPS 0.12.0 开始，你也可以使用 Instance 上的 ``iter_pandas`` 方法按多个批次读取 "
+"pandas DataFrame，参数与 ``Table.iter_pandas`` 类似。"
 msgstr ""
 "Similar to tables, since PyODPS 0.12.0, you can use ``iter_pandas`` "
 "method of Instance to read pandas DataFrames in multiple batches. The "
 "method share similar arguments with ``Table.iter_pandas``."
 
-#: ../../source/base-sql.rst:225
+#: ../../source/base-sql.rst:226
 msgid ""
 ">>> inst = o.execute_sql('select * from dual')\n"
 ">>> for batch in inst.iter_pandas(start=0, count=1000, batch_size=100):\n"
 ">>>     print(batch)"
 msgstr ""
 
-#: ../../source/base-sql.rst:232
+#: ../../source/base-sql.rst:233
 msgid "设置 alias"
 msgstr "Set alias"
 
-#: ../../source/base-sql.rst:234
-msgid ""
-"有时在运行时，比如某个UDF引用的资源是动态变化的，我们可以alias旧的资源"
-"名到新的资源，这样免去了重新删除并重新创建UDF的麻烦。"
+#: ../../source/base-sql.rst:235
+msgid "有时在运行时，比如某个UDF引用的资源是动态变化的，我们可以alias旧的资源名到新的资源，这样免去了重新删除并重新创建UDF的麻烦。"
 msgstr ""
 "Some resources referenced by a UDF are dynamically changing at runtime. "
 "You can create an alias for the old resource and use it as a new "
 "resource."
 
-#: ../../source/base-sql.rst:236
+#: ../../source/base-sql.rst:237
 msgid ""
 "from odps.models import TableSchema\n"
 "\n"
@@ -636,11 +609,11 @@ msgstr ""
 "reader:\n"
 "    print(reader[0][0])"
 
-#: ../../source/base-sql.rst:272
+#: ../../source/base-sql.rst:273
 msgid "2"
 msgstr ""
 
-#: ../../source/base-sql.rst:276
+#: ../../source/base-sql.rst:277
 msgid ""
 "res2 = o.create_resource('test_alias_res2', 'file', file_obj='2')\n"
 "# 把内容为1的资源alias成内容为2的资源，我们不需要修改UDF或资源\n"
@@ -661,38 +634,35 @@ msgstr ""
 "reader:\n"
 "    print(reader[0][0])"
 
-#: ../../source/base-sql.rst:285
+#: ../../source/base-sql.rst:286
 msgid "3"
 msgstr ""
 
-#: ../../source/base-sql.rst:291
+#: ../../source/base-sql.rst:292
 msgid "在交互式环境执行 SQL"
 msgstr "Execute SQL statements in an interactive environment"
 
-#: ../../source/base-sql.rst:293
+#: ../../source/base-sql.rst:294
 msgid ""
-"在 ipython 和 jupyter 里支持 :ref:`使用 SQL 插件的方式运行 SQL <sqlinter>"
-"`，且支持 :ref:`参数化查询 <sqlparam>`， 详情参阅 :ref:`文档 <sqlinter>`"
-"。"
+"在 ipython 和 jupyter 里支持 :ref:`使用 SQL 插件的方式运行 SQL <sqlinter>`，且支持 "
+":ref:`参数化查询 <sqlparam>`， 详情参阅 :ref:`文档 <sqlinter>`。"
 msgstr ""
 "In ipython and jupyter, you can :ref:`use SQL plugins to execute SQL "
 "statements<sqlinter>`. Besides, :ref:`parameterized query<sqlparam>` is "
 "also supported. For details, see :ref:`Documentation<sqlinter>`."
 
-#: ../../source/base-sql.rst:299
+#: ../../source/base-sql.rst:300
 msgid "设置 biz_id"
 msgstr "Set biz_id"
 
-#: ../../source/base-sql.rst:301
-msgid ""
-"在少数情形下，可能在提交 SQL 时，需要同时提交 biz_id，否则执行会报错。"
-"此时，你可以设置全局 options 里的 biz_id。"
+#: ../../source/base-sql.rst:302
+msgid "在少数情形下，可能在提交 SQL 时，需要同时提交 biz_id，否则执行会报错。此时，你可以设置全局 options 里的 biz_id。"
 msgstr ""
 "In a few cases, it may be necessary to submit biz_id when submitting SQL "
 "statements. Otherwise an error occurs during execution. You can set the "
 "biz_id in options globally."
 
-#: ../../source/base-sql.rst:303
+#: ../../source/base-sql.rst:304
 msgid ""
 "from odps import options\n"
 "\n"

@@ -21,7 +21,7 @@ from .compat import enum, six
 from .config import options
 from .core import ODPS
 from .errors import InstanceTypeNotSupported, NotSupportedError, ODPSError
-from .models.session import PUBLIC_SESSION_NAME
+from .models.session.v1 import PUBLIC_SESSION_NAME
 from .utils import to_str
 
 # PEP 249 module globals

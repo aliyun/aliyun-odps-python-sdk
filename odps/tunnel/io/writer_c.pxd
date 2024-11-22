@@ -61,6 +61,9 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
     cdef Checksum _crccrc_c
     cdef SchemaSnapshot _schema_snapshot
 
+    cdef bint _c_enable_client_metrics  # to avoid conflict with child classes
+    cdef long _c_local_wall_time_ms
+
     cpdef write(self, BaseRecord record)
     cdef int _write_bool(self, bint data) except -1 nogil
     cdef int _write_long(self, int64_t data) except -1 nogil
@@ -73,6 +76,7 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
     cdef _write_interval_day_time(self, object data)
     cdef _write_field(self, object val, int data_type_id, object data_type)
     cdef _write_array(self, object data, object data_type)
+    cdef _write_map(self, object data, object data_type)
     cdef _write_struct(self, object data, object data_type)
     cpdef _write_finish_tags(self)
     cpdef close(self)

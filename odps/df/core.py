@@ -17,7 +17,7 @@
 from ..models import Table
 from ..models.partition import Partition
 from ..compat import six, izip
-from ..types import CompositeMixin
+from ..types import CompositeDataType
 from .expr.utils import get_attrs
 from .expr.expressions import CollectionExpr
 from .types import validate_data_type
@@ -114,7 +114,7 @@ class DataFrame(CollectionExpr):
                         if col_name not in data:
                             raise ValueError('col(%s) does not exist in pd.DataFrame' % col_name)
                         try:
-                            if isinstance(df_type, CompositeMixin):
+                            if isinstance(df_type, CompositeDataType):
                                 data[col_name] = cast_composite_sequence(data[col_name], df_type)
                             else:
                                 pd_type = df_type_to_np_type(df_type)

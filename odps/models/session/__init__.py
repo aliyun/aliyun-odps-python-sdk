@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
 # Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,9 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-class ProtoWireConstants(object):
-    TUNNEL_META_COUNT = 33554430
-    TUNNEL_META_CHECKSUM = 33554431
-    TUNNEL_END_RECORD = 33553408
-    TUNNEL_END_METRICS = 33554176
+from .core import SessionMethods
+from .v1 import FallbackMode, FallbackPolicy, InSessionInstance, SessionInstance

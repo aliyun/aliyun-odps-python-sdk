@@ -599,7 +599,42 @@ class AbstractTableWriter(object):
         self.close()
 
 
-class TableRecordWriter(AbstractTableWriter):
+class ToRecordsMixin(object):
+    def _new_record(self, arg):
+        raise NotImplementedError
+
+    def _to_records(self, *args):
+        def convert_records(arg, sample_rec):
+            if odps_types.is_record(sample_rec):
+                return arg
+            elif isinstance(sample_rec, (list, tuple)):
+                return (self._new_record(vals) for vals in arg)
+            else:
+                return [self._new_record(arg)]
+
+        if len(args) == 0:
+            return
+        if len(args) > 1:
+            args = [args]
+
+        arg = args[0]
+        if odps_types.is_record(arg):
+            return [arg]
+        elif isinstance(arg, (list, tuple)):
+            return convert_records(arg, arg[0])
+        elif isinstance(arg, GeneratorType):
+            try:
+                # peek the first element and then put back
+                next_arg = six.next(arg)
+                chained = itertools.chain((next_arg,), arg)
+                return convert_records(chained, next_arg)
+            except StopIteration:
+                return ()
+        else:
+            raise ValueError("Unsupported record type.")
+
+
+class TableRecordWriter(ToRecordsMixin, AbstractTableWriter):
     def _open_writer(self, block_id, compress):
         if self._use_buffered_writer:
             writer = self._upload_session.open_record_writer(
@@ -616,39 +651,11 @@ class TableRecordWriter(AbstractTableWriter):
             self._blocks_writers[block_id] = writer
         return writer
 
-    def _to_records(self, arg, sample_rec):
-        if odps_types.is_record(sample_rec):
-            return arg
-        elif isinstance(sample_rec, (list, tuple)):
-            return (self._upload_session.new_record(vals) for vals in arg)
-        else:
-            return None
+    def _new_record(self, arg):
+        return self._upload_session.new_record(arg)
 
     def _write_contents(self, writer, *args):
-        if len(args) == 0:
-            return
-        if len(args) > 1:
-            args = [args]
-
-        arg = args[0]
-        if odps_types.is_record(arg):
-            records = [arg]
-        elif isinstance(arg, (list, tuple)):
-            records = self._to_records(arg, arg[0])
-            if records is None:
-                records = [self._upload_session.new_record(arg)]
-        elif isinstance(arg, GeneratorType):
-            try:
-                # peek the first element and then put back
-                next_arg = six.next(arg)
-                chained = itertools.chain((next_arg,), arg)
-                records = self._to_records(chained, next_arg)
-            except StopIteration:
-                records = ()
-        else:
-            raise ValueError("Unsupported record type.")
-
-        for record in records:
+        for record in self._to_records(*args):
             writer.write(record)
 
 
@@ -670,6 +677,64 @@ class TableArrowWriter(AbstractTableWriter):
     def _write_contents(self, writer, *args):
         for arg in args:
             writer.write(arg)
+
+
+class TableUpsertWriter(ToRecordsMixin):
+    def __init__(self, table, upsert_session, commit=True, on_close=None, **_):
+        self._table = table
+        self._upsert_session = upsert_session
+        self._closed = False
+        self._commit = commit
+        self._on_close = on_close
+
+        self._upsert = None
+
+    def _open_upsert(self, compress):
+        self._upsert = self._upsert_session.open_upsert_stream(compress=compress)
+
+    def _new_record(self, arg):
+        return self._upsert_session.new_record(arg)
+
+    def _write(self, *args, **kw):
+        compress = kw.pop("compress", None)
+        delete = kw.pop("delete", False)
+        if not self._upsert:
+            self._open_upsert(compress)
+
+        for record in self._to_records(*args):
+            if delete:
+                self._upsert.delete(record)
+            else:
+                self._upsert.upsert(record)
+
+    def write(self, *args, **kw):
+        compress = kw.pop("compress", None)
+        self._write(*args, compress=compress, delete=False)
+
+    def delete(self, *args, **kw):
+        compress = kw.pop("compress", None)
+        self._write(*args, compress=compress, delete=True)
+
+    def close(self, success=True, commit=True):
+        if not success:
+            self._upsert_session.abort()
+        else:
+            self._upsert.close()
+            if commit and self._commit:
+                self._upsert_session.commit()
+
+        if callable(self._on_close):
+            self._on_close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        # if an error occurs inside the with block, we do not commit
+        if exc_val is not None:
+            self.close(success=False, commit=False)
+            return
+        self.close()
 
 
 class TableIOMethods(object):

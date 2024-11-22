@@ -15,8 +15,9 @@
 import logging
 import sys
 
-from odps.apis.storage_api import *
 from util import *
+
+from odps.apis.storage_api import *
 
 try:
     import pyarrow as pa

@@ -588,7 +588,7 @@ def str_to_bool(s):
     elif s == "false":
         return False
     else:
-        raise ValueError
+        raise ValueError(s)
 
 
 def bool_to_str(s):
@@ -989,17 +989,25 @@ def call_with_retry(func, *args, **kwargs):
     delay = kwargs.pop("delay", options.retry_delay)
     reset_func = kwargs.pop("reset_func", None)
     exc_type = kwargs.pop("exc_type", BaseException)
+    allow_interrupt = kwargs.pop("allow_interrupt", True)
+    no_raise = kwargs.pop("no_raise", False)
 
     start_time = monotonic() if retry_timeout is not None else None
     while True:
         try:
             return func(*args, **kwargs)
-        except exc_type:
+        except exc_type as ex:
             retry_num += 1
             time.sleep(delay)
-            if retry_times is not None and retry_num > retry_times:
+            if allow_interrupt and isinstance(ex, KeyboardInterrupt):
                 raise
-            if retry_timeout is not None and monotonic() - start_time > retry_timeout:
+            if (retry_times is not None and retry_num > retry_times) or (
+                retry_timeout is not None
+                and start_time is not None
+                and monotonic() - start_time > retry_timeout
+            ):
+                if no_raise:
+                    return sys.exc_info()
                 raise
             if callable(reset_func):
                 reset_func()

@@ -16,6 +16,7 @@
 
 import decimal as _builtin_decimal
 import json as _json
+import sys
 import warnings
 from collections import OrderedDict
 from datetime import date as _date
@@ -1072,18 +1073,18 @@ class IntervalYearMonth(OdpsPrimitive):
         return value
 
 
-class CompositeMixin(DataType):
+class CompositeDataType(DataType):
     _singleton = False
 
     @classmethod
     def parse_composite(cls, args):
         raise NotImplementedError
 
-    def validate_composite_values(self, value):
+    def cast_composite_values(self, value):
         raise NotImplementedError
 
 
-class SizeLimitedString(String, CompositeMixin):
+class SizeLimitedString(String, CompositeDataType):
     _singleton = False
     __slots__ = "nullable", "size_limit", "_hash"
     _max_length = 65535
@@ -1135,7 +1136,7 @@ class SizeLimitedString(String, CompositeMixin):
                 "%s() only accept an integer length argument." % cls.__name__.upper()
             )
 
-    def validate_composite_values(self, value):
+    def cast_composite_values(self, value):
         self.validate_value(value)
         return self.cast_value(value, self)
 
@@ -1172,7 +1173,7 @@ class Char(SizeLimitedString):
         )
 
 
-class Decimal(CompositeMixin):
+class Decimal(CompositeDataType):
     __slots__ = "nullable", "precision", "scale", "_hash"
     _type_id = 5
 
@@ -1266,6 +1267,12 @@ class Decimal(CompositeMixin):
     def cast_value(self, value, data_type):
         self._can_cast_or_throw(value, data_type)
 
+        if (
+            self._has_other_decimal_type
+            and not isinstance(value, _decimal.Decimal)
+            and isinstance(value, DECIMAL_TYPES)
+        ):
+            value = _decimal.Decimal(str(value))
         if six.PY3 and isinstance(value, six.binary_type):
             value = value.decode("utf-8")
         return _builtin_decimal.Decimal(value)
@@ -1283,17 +1290,19 @@ class Decimal(CompositeMixin):
                 "%s() only accept integers as arguments." % cls.__name__.upper()
             )
 
-    def validate_composite_values(self, value):
+    def cast_composite_values(self, value):
         if value is None and self.nullable:
             return value
-        if not isinstance(value, _builtin_decimal.Decimal):
+        if type(value) is not _builtin_decimal.Decimal and not isinstance(
+            value, _builtin_decimal.Decimal
+        ):
             value = self.cast_value(value, infer_primitive_data_type(value))
-        self.validate_value(value)
         return value
 
 
-class Array(CompositeMixin):
+class Array(CompositeDataType):
     __slots__ = "nullable", "value_type", "_hash"
+    _type_id = 101
 
     def __init__(self, value_type, nullable=True):
         super(Array, self).__init__(nullable=nullable)
@@ -1337,7 +1346,7 @@ class Array(CompositeMixin):
             )
         return cls(args[0])
 
-    def validate_composite_values(self, value):
+    def cast_composite_values(self, value):
         if value is None and self.nullable:
             return value
         if not isinstance(value, list):
@@ -1346,8 +1355,9 @@ class Array(CompositeMixin):
         return [validate_value(element, element_data_type) for element in value]
 
 
-class Map(CompositeMixin):
-    __slots__ = "nullable", "key_type", "value_type", "_hash"
+class Map(CompositeDataType):
+    __slots__ = "nullable", "key_type", "value_type", "_hash", "_use_ordered_dict"
+    _type_id = 102
 
     def __init__(self, key_type, value_type, nullable=True):
         super(Map, self).__init__(nullable=nullable)
@@ -1355,6 +1365,9 @@ class Map(CompositeMixin):
         value_type = validate_data_type(value_type)
         self.key_type = key_type
         self.value_type = value_type
+        self._use_ordered_dict = options.map_as_ordered_dict
+        if self._use_ordered_dict is None:
+            self._use_ordered_dict = sys.version_info[:2] <= (3, 6)
 
     @property
     def name(self):
@@ -1402,7 +1415,7 @@ class Map(CompositeMixin):
             )
         return cls(*args)
 
-    def validate_composite_values(self, value):
+    def cast_composite_values(self, value):
         if value is None and self.nullable:
             return value
         if not isinstance(value, dict):
@@ -1414,11 +1427,13 @@ class Map(CompositeMixin):
             validate_value(k, key_data_type),
             validate_value(v, value_data_type),
         )
-        return OrderedDict(convert(k, v) for k, v in six.iteritems(value))
+        dict_type = OrderedDict if self._use_ordered_dict else dict
+        return dict_type(convert(k, v) for k, v in six.iteritems(value))
 
 
-class Struct(CompositeMixin):
+class Struct(CompositeDataType):
     __slots__ = "nullable", "field_types", "_hash"
+    _type_id = 103
 
     def __init__(self, field_types, nullable=True):
         super(Struct, self).__init__(nullable=nullable)
@@ -1496,7 +1511,7 @@ class Struct(CompositeMixin):
 
         return cls(conv_type_tuple(a) for a in args)
 
-    def validate_composite_values(self, value):
+    def cast_composite_values(self, value):
         if value is None and self.nullable:
             return value
         if self._struct_as_dict:
@@ -1716,6 +1731,7 @@ _odps_primitive_to_builtin_types = OrderedDict(
         (json, (list, dict, six.string_types, six.integer_types, float)),
     )
 )
+_odps_primitive_clses = set(type(dt) for dt in _odps_primitive_to_builtin_types.keys())
 
 
 integer_types = (tinyint, smallint, int_, bigint)
@@ -1727,26 +1743,30 @@ def infer_primitive_data_type(value):
             return data_type
 
 
-def _patch_pd_types(data_type):
+_pd_type_patched = False
+
+
+def _patch_pd_types():
     if (
         timestamp not in _odps_primitive_to_builtin_types
         or timestamp_ntz not in _odps_primitive_to_builtin_types
         or interval_day_time not in _odps_primitive_to_builtin_types
-    ) and isinstance(data_type, (BaseTimestamp, IntervalDayTime)):
+    ):
         try:
             import pandas as pd
 
-            _odps_primitive_to_builtin_types[timestamp] = pd.Timestamp
-            _odps_primitive_to_builtin_types[timestamp_ntz] = pd.Timestamp
-            _odps_primitive_to_builtin_types[interval_day_time] = pd.Timedelta
+            new_type_map = {
+                timestamp: pd.Timestamp,
+                timestamp_ntz: pd.Timestamp,
+                interval_day_time: pd.Timedelta,
+            }
+            _odps_primitive_to_builtin_types.update(new_type_map)
+            _odps_primitive_clses.update({type(tp) for tp in new_type_map})
         except (ImportError, ValueError):
-            raise ImportError(
-                "To use %s in pyodps, you need to install pandas.",
-                data_type.name.upper(),
-            )
+            pass
 
 
-def _validate_primitive_value(value, data_type):
+def _cast_primitive_value(value, data_type):
     if value is None or type(value) is pd_na_type:
         return None
 
@@ -1772,14 +1792,28 @@ def _validate_primitive_value(value, data_type):
 
 
 def validate_value(value, data_type, max_field_size=None):
-    _patch_pd_types(data_type)
+    global _pd_type_patched
 
-    if data_type in _odps_primitive_to_builtin_types:
-        res = _validate_primitive_value(value, data_type)
-    elif isinstance(data_type, CompositeMixin):
-        res = data_type.validate_composite_values(value)
+    if not _pd_type_patched:
+        _patch_pd_types()
+        _pd_type_patched = True
+
+    if type(data_type) in _odps_primitive_clses:
+        res = _cast_primitive_value(value, data_type)
     else:
-        raise ValueError("Unknown data type: %s" % data_type)
+        if isinstance(data_type, (BaseTimestamp, IntervalDayTime)):
+            raise ImportError(
+                "To use %s in pyodps, you need to install pandas.",
+                data_type.name.upper(),
+            )
+
+        failed = False
+        try:
+            res = data_type.cast_composite_values(value)
+        except AttributeError:
+            failed = True
+        if failed:
+            raise ValueError("Unknown data type: %s" % data_type)
 
     data_type.validate_value(res, max_field_size=max_field_size)
     return res

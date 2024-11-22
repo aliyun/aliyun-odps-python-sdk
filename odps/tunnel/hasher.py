@@ -12,10 +12,10 @@
 
 import calendar
 import ctypes
+import functools
 import struct
 
-from .. import types
-from ..compat import PY27
+from .. import compat, types
 from ..utils import to_binary, to_milliseconds
 
 _int32_struct = struct.Struct("<l")
@@ -23,7 +23,7 @@ _int64_struct = struct.Struct("<q")
 _float_struct = struct.Struct("<f")
 _double_struct = struct.Struct("<d")
 
-_ord_code = ord if PY27 else (lambda x: x)
+_ord_code = ord if compat.PY27 else (lambda x: x)
 
 
 class AbstractHasher(object):
@@ -133,6 +133,64 @@ def _hash_timedelta(hasher, x):
     return hasher.hash_bigint((seconds << 30) | nanos)
 
 
+def _hash_decimal(hasher, x, precision, scale):
+    x = str(x).strip()
+    x_len = len(x)
+    ptr = 0
+    is_negative = False
+    if x_len > 0:
+        if x[ptr] == "-":
+            is_negative = True
+            ptr += 1
+            x_len -= 1
+        elif x[ptr] == "+":
+            is_negative = False
+            ptr += 1
+            x_len -= 1
+    while x_len > 0 and x[ptr] == "0":
+        ptr += 1
+        x_len -= 1
+
+    value_scale = 0
+    found_dot = found_exponent = False
+    for i in range(x_len):
+        c = x[ptr + i]
+        if c.isdigit():
+            if found_dot:
+                value_scale += 1
+        elif c == "." and not found_dot:
+            found_dot = True
+        elif c in ("e", "E") and i + 1 < x_len:
+            found_exponent = True
+            exponent = int(x[ptr + i + 1 :])
+            value_scale -= exponent
+            x_len = ptr + i
+            break
+        else:
+            raise ValueError("Invalid decimal format: " + x)
+    num_without_exp = x[ptr:x_len] if found_exponent else x[ptr:]
+    if found_dot:
+        num_without_exp = num_without_exp.replace(".", "")
+    if not num_without_exp:
+        tmp_result = 0
+    else:
+        tmp_result = compat.long_type(num_without_exp)
+        if value_scale > scale:
+            tmp_result //= 10 ** (value_scale - scale)
+            if num_without_exp[len(num_without_exp) - (value_scale - scale)] >= "5":
+                tmp_result += 1
+        elif value_scale < scale:
+            tmp_result *= 10 ** (scale - value_scale)
+        if is_negative:
+            tmp_result *= -1
+
+    if precision > 18:
+        return hasher.hash_bigint(tmp_result & 0xFFFFFFFFFFFFFFFF) + hasher.hash_bigint(
+            tmp_result >> 64
+        )
+    return hasher.hash_bigint(tmp_result)
+
+
 _type_to_hash_fun = {
     types.tinyint: lambda hasher, x: hasher.hash_bigint(x),
     types.smallint: lambda hasher, x: hasher.hash_bigint(x),
@@ -150,6 +208,19 @@ _type_to_hash_fun = {
 }
 
 
+def _get_hash_func(typ):
+    if typ in _type_to_hash_fun:
+        return _type_to_hash_fun[typ]
+    elif isinstance(typ, (types.Char, types.Varchar)):
+        return _type_to_hash_fun[types.string]
+    elif isinstance(typ, types.Decimal):
+        precision = typ.precision or types.Decimal._max_precision
+        scale = typ.scale or types.Decimal._max_scale
+        return functools.partial(_hash_decimal, precision=precision, scale=scale)
+    else:
+        raise TypeError("Hash for type %s not supported" % typ)
+
+
 class RecordHasher(object):
     def __init__(self, schema, hasher_type, hash_keys):
         self._schema = schema
@@ -159,12 +230,7 @@ class RecordHasher(object):
         self._column_hash_appenders = []
         for col_name in hash_keys:
             col = self._schema.get_column(col_name)
-            if col.type in _type_to_hash_fun:
-                self._column_hash_appenders.append(_type_to_hash_fun[col.type])
-            elif isinstance(col.type, (types.Char, types.Varchar)):
-                self._column_hash_appenders.append(_type_to_hash_fun[types.string])
-            else:
-                raise TypeError("Hash for type %s not supported" % col.type)
+            self._column_hash_appenders.append(_get_hash_func(col.type))
 
     def hash(self, record):
         hash_sum = 0
@@ -178,6 +244,8 @@ class RecordHasher(object):
 
 def hash_value(hasher_type, data_type, value):
     """Simple value hash function for test purpose"""
+    if value is None:
+        return 0
     hasher = get_hasher(hasher_type)
     data_type = types.validate_data_type(data_type)
-    return _type_to_hash_fun[data_type](hasher, value)
+    return _get_hash_func(data_type)(hasher, value)

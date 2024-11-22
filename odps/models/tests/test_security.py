@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import json
-from datetime import datetime
+import time
 
 import pytest
 
@@ -249,7 +249,7 @@ def test_generate_auth_token(odps, project):
         from ...accounts import BearerTokenAccount
 
         account = BearerTokenAccount(token)
-        account._last_modified_time = datetime.now()
+        account._last_refresh_time = time.time()
         new_odps = ODPS(
             project=odps.project,
             endpoint=odps.endpoint,

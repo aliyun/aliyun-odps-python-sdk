@@ -338,6 +338,13 @@ def test_call_with_retry():
     utils.call_with_retry(func, retry_times=3, exc_type=(TypeError, ValueError))
     assert retry_idx_list[0] == 3
 
+    retry_idx_list[0] = 0
+    exc_info = utils.call_with_retry(
+        func, retry_times=1, exc_type=(TypeError, ValueError), no_raise=True
+    )
+    assert isinstance(exc_info[1], ValueError)
+    assert retry_idx_list[0] == 2
+
     delay_func = functools.partial(func, delay=0.5)
     with pytest.raises(ValueError):
         retry_idx_list[0] = 0
@@ -347,3 +354,10 @@ def test_call_with_retry():
     retry_idx_list[0] = 0
     utils.call_with_retry(delay_func, retry_times=None, retry_timeout=2.2)
     assert retry_idx_list[0] == 3
+
+    retry_idx_list[0] = 0
+    exc_info = utils.call_with_retry(
+        delay_func, retry_times=None, retry_timeout=0.7, no_raise=True
+    )
+    assert isinstance(exc_info[1], ValueError)
+    assert retry_idx_list[0] == 2

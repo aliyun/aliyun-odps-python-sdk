@@ -23,9 +23,6 @@ from collections import OrderedDict
 from decimal import Decimal
 from io import BytesIO, IOBase, StringIO
 
-from ...errors import ChecksumError
-from ...types import PartitionSpec
-
 try:
     import numpy as np
 except ImportError:
@@ -45,10 +42,14 @@ except (AttributeError, ImportError):
 
 from ... import compat, types, utils
 from ...config import options
-from ...errors import DatetimeOverflowError
+from ...errors import ChecksumError, DatetimeOverflowError
+from ...lib.monotonic import monotonic
 from ...models import Record
 from ...readers import AbstractRecordReader
+from ...types import PartitionSpec
+from ..base import TunnelMetrics
 from ..checksum import Checksum
+from ..pb import wire_format
 from ..pb.decoder import Decoder
 from ..pb.errors import DecodeError
 from ..wireconstants import ProtoWireConstants
@@ -56,17 +57,19 @@ from .types import odps_schema_to_arrow_schema
 
 try:
     if not options.force_py:
-        from .reader_c import TunnelRecordReader, convert_legacy_decimal_bytes
+        from .reader_c import BaseTunnelRecordReader, convert_legacy_decimal_bytes
     else:
-        TunnelRecordReader = convert_legacy_decimal_bytes = None
+        BaseTunnelRecordReader = convert_legacy_decimal_bytes = None
 except ImportError as e:
     if options.force_c:
         raise e
-    TunnelRecordReader = convert_legacy_decimal_bytes = None
+    BaseTunnelRecordReader = convert_legacy_decimal_bytes = None
 
-if TunnelRecordReader is None:
+MICRO_SEC_PER_SEC = 1000000
 
-    class TunnelRecordReader(AbstractRecordReader):
+if BaseTunnelRecordReader is None:
+
+    class BaseTunnelRecordReader(AbstractRecordReader):
         def __init__(
             self,
             schema,
@@ -85,9 +88,19 @@ if TunnelRecordReader is None:
             else:
                 self._columns = [self._schema[c] for c in columns]
 
+            self._enable_client_metrics = options.tunnel.enable_client_metrics
+            self._server_metrics_string = None
+            self._local_wall_time_ms = 0
+            self._acc_network_time_ms = 0
+            self._injected_error = None
+
             self._curr_cursor = 0
             self._stream_creator = stream_creator
+            self._reader = None
             self._reopen_reader()
+
+            if self._enable_client_metrics:
+                ts = monotonic()
 
             self._read_limit = options.table_read_limit
             self._to_datetime = utils.MillisecondsConverter().from_milliseconds
@@ -100,7 +113,10 @@ if TunnelRecordReader is None:
             )
             self._append_partitions = append_partitions
 
-            self._injected_error = None
+            if self._enable_client_metrics:
+                self._local_wall_time_ms += compat.long_type(
+                    MICRO_SEC_PER_SEC * (monotonic() - ts)
+                )
 
         def _mode(self):
             return "py"
@@ -110,18 +126,36 @@ if TunnelRecordReader is None:
             return self._curr_cursor
 
         @property
-        def schema(self):
-            return self._schema
+        def _network_wall_time_ms(self):
+            return self._reader.network_wall_time_ms + self._acc_network_time_ms
 
         def _inject_error(self, cursor, exc):
             self._injected_error = (cursor, exc)
 
         def _reopen_reader(self):
+            if self._enable_client_metrics:
+                ts = monotonic()
+
+            stream = self._stream_creator(self._curr_cursor)
+            if self._enable_client_metrics:
+                self._acc_network_time_ms += compat.long_type(
+                    MICRO_SEC_PER_SEC * (monotonic() - ts)
+                )
+                if self._reader is not None:
+                    self._acc_network_time_ms += self._reader.network_wall_time_ms
+
             self._last_n_bytes = len(self._reader) if self._curr_cursor != 0 else 0
-            self._reader = Decoder(self._stream_creator(self._curr_cursor))
+            self._reader = Decoder(
+                stream, record_network_time=self._enable_client_metrics
+            )
             self._crc = Checksum()
             self._crccrc = Checksum()
             self._attempt_row_count = 0
+
+            if self._enable_client_metrics:
+                self._local_wall_time_ms += compat.long_type(
+                    MICRO_SEC_PER_SEC * (monotonic() - ts)
+                )
 
         def _read_field(self, data_type):
             if data_type == types.float_:
@@ -268,7 +302,34 @@ if TunnelRecordReader is None:
                 if index == ProtoWireConstants.TUNNEL_META_COUNT:
                     if self._attempt_row_count != self._reader.read_sint64():
                         raise IOError("count does not match")
-                    idx_of_checksum, _ = self._reader.read_field_number_and_wire_type()
+
+                    (
+                        idx_of_checksum,
+                        wire_type,
+                    ) = self._reader.read_field_number_and_wire_type()
+                    if ProtoWireConstants.TUNNEL_META_CHECKSUM != idx_of_checksum:
+                        if wire_type != wire_format.WIRETYPE_LENGTH_DELIMITED:
+                            raise IOError("Invalid stream data.")
+                        self._crc.update_int(idx_of_checksum)
+
+                        self._server_metrics_string = self._reader.read_string()
+                        self._crc.update(self._server_metrics_string)
+
+                        idx_of_checksum = (
+                            self._reader.read_field_number_and_wire_type()[0]
+                        )
+                        if idx_of_checksum != ProtoWireConstants.TUNNEL_END_METRICS:
+                            raise IOError("Invalid stream data.")
+                        checksum = utils.long_to_int(self._crc.getvalue())
+                        self._crc.reset()
+                        if utils.int_to_uint(checksum) != int(
+                            self._reader.read_uint32()
+                        ):
+                            raise ChecksumError("Checksum invalid.")
+
+                        idx_of_checksum = (
+                            self._reader.read_field_number_and_wire_type()[0]
+                        )
                     if ProtoWireConstants.TUNNEL_META_CHECKSUM != idx_of_checksum:
                         raise IOError("Invalid stream data.")
                     if int(self._crccrc.getvalue()) != self._reader.read_uint32():
@@ -300,17 +361,14 @@ if TunnelRecordReader is None:
             return record
 
         def read(self):
-            return utils.call_with_retry(
+            if self._enable_client_metrics:
+                ts = monotonic()
+            result = utils.call_with_retry(
                 self._read_single_record, reset_func=self._reopen_reader
             )
-
-        def __next__(self):
-            record = self.read()
-            if record is None:
-                raise StopIteration
-            return record
-
-        next = __next__
+            if self._enable_client_metrics:
+                self._local_wall_time_ms += int(MICRO_SEC_PER_SEC * (monotonic() - ts))
+            return result
 
         def reads(self):
             return self.__iter__()
@@ -322,15 +380,40 @@ if TunnelRecordReader is None:
         def get_total_bytes(self):
             return self.n_bytes
 
-        def close(self):
-            if hasattr(self._schema, "close"):
-                self._schema.close()
 
-        def __enter__(self):
-            return self
+class TunnelRecordReader(BaseTunnelRecordReader, AbstractRecordReader):
+    def __next__(self):
+        record = self.read()
+        if record is None:
+            raise StopIteration
+        return record
 
-        def __exit__(self, *_):
-            self.close()
+    next = __next__
+
+    @property
+    def schema(self):
+        return self._schema
+
+    @property
+    def metrics(self):
+        if self._server_metrics_string is None:
+            return None
+        return TunnelMetrics.from_server_json(
+            type(self).__name__,
+            self._server_metrics_string,
+            self._local_wall_time_ms,
+            self._network_wall_time_ms,
+        )
+
+    def close(self):
+        if hasattr(self._schema, "close"):
+            self._schema.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        self.close()
 
 
 class ArrowStreamReader(IOBase):

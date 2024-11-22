@@ -178,7 +178,10 @@ class ODPS(object):
         self.region_name = region_name or self._get_region_from_endpoint(self.endpoint)
         self._quota_name = kw.pop("quota_name", None)
         self._schema = schema
-        self.rest = RestClient(
+
+        rest_client_cls = kw.pop("rest_client_cls", None) or RestClient
+        rest_client_kwargs = kw.pop("rest_client_kwargs", {})
+        self.rest = rest_client_cls(
             self.account,
             self.endpoint,
             project,
@@ -187,6 +190,7 @@ class ODPS(object):
             proxy=options.api_proxy,
             region_name=self.region_name,
             tag="ODPS",
+            **rest_client_kwargs
         )
 
         self._tunnel_endpoint = (
@@ -247,7 +251,9 @@ class ODPS(object):
             schema=self.schema,
             seahawks_url=self._seahawks_url,
         )
-        if isinstance(self.account, accounts.AliyunAccount):
+        if utils.str_to_bool(os.environ.get("PYODPS_PICKLE_ACCOUNT") or "false"):
+            params.update(dict(account=self.account))
+        elif isinstance(self.account, accounts.AliyunAccount):
             params.update(
                 dict(
                     access_id=self.account.access_id,
@@ -271,7 +277,8 @@ class ODPS(object):
             )
             state.pop("access_id", None)
             state.pop("secret_access_key", None)
-            self._init(None, None, account=bearer_token_account, **state)
+            state["account"] = bearer_token_account
+            self._init(None, None, **state)
         else:
             self._init(**state)
 
@@ -417,7 +424,7 @@ class ODPS(object):
     def logview_host(self):
         return self._logview_host
 
-    def get_quota(self, name=None):
+    def get_quota(self, name=None, tenant_id=None):
         """
         Get quota by name
 
@@ -427,7 +434,7 @@ class ODPS(object):
             name = name or self.quota_name
         if name is None:
             raise TypeError("Need to provide quota name")
-        return self._quotas[name]
+        return self._quotas.get(name, tenant_id=tenant_id)
 
     def exist_quota(self, name):
         """
@@ -1167,7 +1174,7 @@ class ODPS(object):
             status=status, only_owner=only_owner, quota_index=quota_index
         )
 
-    def get_instance(self, id_, project=None):
+    def get_instance(self, id_, project=None, quota_name=None):
         """
         Get instance by given instance id.
 
@@ -1181,7 +1188,7 @@ class ODPS(object):
         """
 
         project = self.get_project(name=project)
-        return project.instances[id_]
+        return project.instances.get(id_, quota_name=quota_name or self.quota_name)
 
     def exist_instance(self, id_, project=None):
         """
@@ -2412,10 +2419,10 @@ class ODPS(object):
     _get_default_mcqa_session = _wrap_model_func(
         models.SessionMethods._get_default_mcqa_session
     )
-    run_sql_interactive = _wrap_model_func(models.SessionMethods.run_sql_interactive)
     run_sql_interactive_with_fallback = _wrap_model_func(
         models.SessionMethods.run_sql_interactive_with_fallback
     )
+    run_sql_interactive = _wrap_model_func(models.SessionMethods.run_sql_interactive)
     execute_sql_interactive = _wrap_model_func(
         models.SessionMethods.execute_sql_interactive
     )
