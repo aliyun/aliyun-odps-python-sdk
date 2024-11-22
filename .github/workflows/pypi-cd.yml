@@ -77,10 +77,3 @@ jobs:
           echo "repository=$PYPI_REPO"  >> ~/.pypirc
           python -m pip install twine
           python -m twine upload -r pypi --skip-existing wheelhouse/*
-
-      - name: Upload artifacts to github
-        uses: actions/upload-artifact@v4
-        if: ${{ always() }}
-        with:
-          name: wheels
-          path: ./wheelhouse
