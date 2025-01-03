@@ -38,6 +38,14 @@ logger = logging.getLogger(__name__)
 
 
 class InstanceDownloadSession(serializers.JSONSerializableModel):
+    """
+    Tunnel session for downloading data from instance results. Instances of
+    this class should be created by :meth:`InstanceTunnel.create_download_session`.
+
+    You may get the id of the session for reuse by attribute ``id`` of
+    the session object.
+    """
+
     __slots__ = (
         "_client",
         "_instance",
@@ -278,6 +286,17 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
         return reader_cls(self.schema, stream_creator, columns=columns)
 
     def open_record_reader(self, start, count, compress=False, columns=None, **_):
+        """
+        Open a reader to read data as records from the tunnel.
+
+        :param int start: start row index
+        :param int count: number of rows to read
+        :param bool compress: whether to compress data
+        :columns: list of column names to read
+
+        :return: a record reader
+        :rtype: :class:`TunnelRecordReader`
+        """
         return self._open_reader(
             start,
             count,
@@ -287,6 +306,17 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
         )
 
     def open_arrow_reader(self, start, count, compress=False, columns=None, **_):
+        """
+        Open a reader to read data as arrow format from the tunnel.
+
+        :param int start: start row index
+        :param int count: number of rows to read
+        :param bool compress: whether to compress data
+        :columns: list of column names to read
+
+        :return: an arrow reader
+        :rtype: :class:`TunnelArrowReader`
+        """
         return self._open_reader(
             start,
             count,
@@ -298,6 +328,15 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
 
 
 class InstanceTunnel(BaseTunnel):
+    """
+    Instance tunnel API Entry.
+
+    :param odps: ODPS Entry object
+    :param str project: project name
+    :param str endpoint: tunnel endpoint
+    :param str quota_name: name of tunnel quota
+    """
+
     def create_download_session(
         self,
         instance,
@@ -311,6 +350,23 @@ class InstanceTunnel(BaseTunnel):
         tags=None,
         **kw
     ):
+        """
+        Create a download session for instance results.
+
+        :param instance: instance object to read
+        :type instance: str | :class:`odps.models.Instance`
+        :param str download_id: existing download id
+        :param int limit: record limit of the download session
+        :param compress_option: compress option
+        :type compress_option: :class:`odps.tunnel.CompressOption`
+        :param str compress_algo: compress algorithm
+        :param int compress_level: compress level
+        :param str schema: name of schema of the table
+        :param tags: tags of the upload session
+        :type tags: str | list
+
+        :return: :class:`InstanceDownloadSession`
+        """
         if not isinstance(instance, six.string_types):
             instance = instance.id
         instance = Projects(client=self.tunnel_rest)[self._project.name].instances[

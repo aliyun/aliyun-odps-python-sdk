@@ -657,7 +657,12 @@ class RecordReprMixin(object):
 
 class Record(six.with_metaclass(RecordMeta, RecordReprMixin, BaseRecord)):
     """
-    A record generally means the data of a single line in a table.
+    A record generally means the data of a single line in a table. It can be
+    created from a schema, or by :meth:`odps.models.Table.new_record` or by
+    :meth:`odps.tunnel.TableUploadSession.new_record`.
+
+    Hints on getting or setting different types of data can be
+    seen :ref:`here <record-type>`.
 
     :Example:
 

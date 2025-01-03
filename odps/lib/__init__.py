@@ -16,3 +16,5 @@
 
 # make it compatible to imports on PyODPS between 0.11.4 and 0.11.5.
 import requests  # noqa
+
+from .ext_types import Monthdelta

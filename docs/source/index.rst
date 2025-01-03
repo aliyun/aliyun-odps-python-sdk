@@ -86,5 +86,4 @@ MaxCompute，可以使用下面的语句初始化 MaxCompute 入口对象：
    options
    pyodps-pack
    faq
-   mars
    api

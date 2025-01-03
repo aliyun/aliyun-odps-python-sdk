@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -373,7 +373,38 @@ if BaseRecordWriter is None:
 
 class RecordWriter(BaseRecordWriter):
     """
-    This writer uploads the output of serializer asynchronously within a long-lived http connection.
+    Writer object to write data to ODPS with records. Should be created
+    with :meth:`TableUploadSession.open_record_writer` with ``block_id`` specified.
+
+    :Example:
+
+    Here we show an example of writing data to ODPS with two records created in different ways.
+
+    .. code-block:: python
+
+        from odps.tunnel import TableTunnel
+
+        tunnel = TableTunnel(o)
+        upload_session = tunnel.create_upload_session('my_table', partition_spec='pt=test')
+
+        # creates a RecordWriter instance for block 0
+        with upload_session.open_record_writer(0) as writer:
+            record = upload_session.new_record()
+            record[0] = 'test1'
+            record[1] = 'id1'
+            writer.write(record)
+
+            record = upload_session.new_record(['test2', 'id2'])
+            writer.write(record)
+
+        # commit block 0
+        upload_session.commit([0])
+
+    :Note:
+
+    ``RecordWriter`` holds long HTTP connection which might be closed at
+    server end when the duration is over 3 minutes. Please avoid opening
+    ``RecordWriter`` for a long period. Details can be found :ref:`here <tunnel>`.
     """
 
     def __init__(
@@ -409,12 +440,21 @@ class RecordWriter(BaseRecordWriter):
         )
 
     def write(self, record):
+        """
+        Write a record to the tunnel.
+
+        :param record: record to write
+        :type record: :class:`odps.models.Record`
+        """
         if self._req_io._async_err:
             ex_type, ex_value, tb = self._req_io._async_err
             six.reraise(ex_type, ex_value, tb)
         super(RecordWriter, self).write(record)
 
     def close(self):
+        """
+        Close the writer and flush all data to server.
+        """
         if self._enable_client_metrics:
             ts = monotonic()
 
@@ -432,8 +472,34 @@ class RecordWriter(BaseRecordWriter):
 
 class BufferedRecordWriter(BaseRecordWriter):
     """
-    This writer buffers the output of serializer. When the buffer exceeds a fixed-size of limit
-     (default 20 MiB), it uploads the buffered output within one http connection.
+    Writer object to write data to ODPS with records. Should be created
+    with :meth:`TableUploadSession.open_record_writer` without ``block_id``.
+    Results should be submitted with :meth:`TableUploadSession.commit` with
+    returned value from :meth:`get_blocks_written`.
+
+    :Example:
+
+    Here we show an example of writing data to ODPS with two records created in different ways.
+
+    .. code-block:: python
+
+        from odps.tunnel import TableTunnel
+
+        tunnel = TableTunnel(o)
+        upload_session = tunnel.create_upload_session('my_table', partition_spec='pt=test')
+
+        # creates a BufferedRecordWriter instance
+        with upload_session.open_record_writer() as writer:
+            record = upload_session.new_record()
+            record[0] = 'test1'
+            record[1] = 'id1'
+            writer.write(record)
+
+            record = upload_session.new_record(['test2', 'id2'])
+            writer.write(record)
+
+        # commit blocks
+        upload_session.commit(writer.get_blocks_written())
     """
 
     def __init__(
@@ -482,11 +548,20 @@ class BufferedRecordWriter(BaseRecordWriter):
         return self._block_id + 1
 
     def write(self, record):
+        """
+        Write a record to the tunnel.
+
+        :param record: record to write
+        :type record: :class:`odps.models.Record`
+        """
         super(BufferedRecordWriter, self).write(record)
         if 0 < self._buffer_size < self._n_raw_bytes:
             self._flush()
 
     def close(self):
+        """
+        Close the writer and flush all data to server.
+        """
         if self._n_raw_bytes > 0:
             self._flush()
         self.flush_all()
@@ -563,6 +638,10 @@ class BufferedRecordWriter(BaseRecordWriter):
         return self.n_bytes
 
     def get_blocks_written(self):
+        """
+        Get block ids created during writing. Should be provided as the argument to
+        :meth:`TableUploadSession.commit`.
+        """
         return self._blocks_written
 
 
@@ -681,6 +760,9 @@ class BaseArrowWriter(object):
             return pa.Array.from_pandas(pd_col)
 
     def write(self, data):
+        """
+        Write an Arrow RecordBatch, an Arrow Table or a pandas DataFrame.
+        """
         if isinstance(data, pd.DataFrame):
             arrow_data = pa.RecordBatch.from_pandas(data)
         elif isinstance(data, (pa.Table, pa.RecordBatch)):
@@ -750,6 +832,9 @@ class BaseArrowWriter(object):
         self._output.flush()
 
     def close(self):
+        """
+        Closes the writer and flush all data to server.
+        """
         self._finish()
 
     def __enter__(self):
@@ -763,6 +848,37 @@ class BaseArrowWriter(object):
 
 
 class ArrowWriter(BaseArrowWriter):
+    """
+    Writer object to write data to ODPS using Arrow format. Should be created
+    with :meth:`TableUploadSession.open_arrow_writer` with ``block_id`` specified.
+
+    :Example:
+
+    Here we show an example of writing a pandas DataFrame to ODPS.
+
+    .. code-block:: python
+
+        import pandas as pd
+        from odps.tunnel import TableTunnel
+
+        tunnel = TableTunnel(o)
+        upload_session = tunnel.create_upload_session('my_table', partition_spec='pt=test')
+
+        # creates an ArrowWriter instance for block 0
+        with upload_session.open_arrow_writer(0) as writer:
+            df = pd.DataFrame({'col1': ['test1', 'test2'], 'col2': ['id1', 'id2']})
+            writer.write(df)
+
+        # commit block 0
+        upload_session.commit([0])
+
+    :Note:
+
+    ``ArrowWriter`` holds long HTTP connection which might be closed at
+    server end when the duration is over 3 minutes. Please avoid opening
+    ``ArrowWriter`` for a long period. Details can be found :ref:`here <tunnel>`.
+    """
+
     def __init__(self, schema, request_callback, compress_option=None, chunk_size=None):
         self._req_io = RequestsIO(request_callback, chunk_size=chunk_size)
 
@@ -776,6 +892,33 @@ class ArrowWriter(BaseArrowWriter):
 
 
 class BufferedArrowWriter(BaseArrowWriter):
+    """
+    Writer object to write data to ODPS using Arrow format. Should be created
+    with :meth:`TableUploadSession.open_arrow_writer` without ``block_id``.
+    Results should be submitted with :meth:`TableUploadSession.commit` with
+    returned value from :meth:`get_blocks_written`.
+
+    :Example:
+
+    Here we show an example of writing a pandas DataFrame to ODPS.
+
+    .. code-block:: python
+
+        import pandas as pd
+        from odps.tunnel import TableTunnel
+
+        tunnel = TableTunnel(o)
+        upload_session = tunnel.create_upload_session('my_table', partition_spec='pt=test')
+
+        # creates a BufferedArrowWriter instance
+        with upload_session.open_arrow_writer() as writer:
+            df = pd.DataFrame({'col1': ['test1', 'test2'], 'col2': ['id1', 'id2']})
+            writer.write(df)
+
+        # commit blocks
+        upload_session.commit(writer.get_blocks_written())
+    """
+
     def __init__(
         self,
         schema,
@@ -851,10 +994,46 @@ class BufferedArrowWriter(BaseArrowWriter):
         return self.n_bytes
 
     def get_blocks_written(self):
+        """
+        Get block ids created during writing. Should be provided as the argument to
+        :meth:`TableUploadSession.commit`.
+        """
         return self._blocks_written
 
 
 class Upsert(object):
+    """
+    Object to insert or update data into an ODPS upsert table with records. Should be
+    created with :meth:`TableUpsertSession.open_upsert_stream`.
+
+    :Example:
+
+    Here we show an example of inserting, updating and deleting data to an upsert table.
+
+    .. code-block:: python
+
+        from odps.tunnel import TableTunnel
+
+        tunnel = TableTunnel(o)
+        upsert_session = tunnel.create_upsert_session('my_table', partition_spec='pt=test')
+
+        # creates a BufferedRecordWriter instance
+        stream = upsert_session.open_upsert_stream(compress=True)
+        rec = upsert_session.new_record(["0", "v1"])
+        stream.upsert(rec)
+        rec = upsert_session.new_record(["0", "v2"])
+        stream.upsert(rec)
+        rec = upsert_session.new_record(["1", "v1"])
+        stream.upsert(rec)
+        rec = upsert_session.new_record(["2", "v1"])
+        stream.upsert(rec)
+        stream.delete(rec)
+        stream.flush()
+        stream.close()
+
+        upsert_session.commit()
+    """
+
     DEFAULT_MAX_BUFFER_SIZE = 64 * 1024**2
     DEFAULT_SLOT_BUFFER_SIZE = 1024**2
 
@@ -908,12 +1087,27 @@ class Upsert(object):
         return self._total_n_bytes
 
     def upsert(self, record):
+        """
+        Insert or update a record.
+
+        :param record: record to write
+        :type record: :class:`odps.models.Record`
+        """
         return self._write(record, Upsert.Operation.UPSERT)
 
     def delete(self, record):
+        """
+        Delete a record.
+
+        :param record: record to write
+        :type record: :class:`odps.models.Record`
+        """
         return self._write(record, Upsert.Operation.DELETE)
 
     def flush(self, flush_all=True):
+        """
+        Flush all data in buffer to server.
+        """
         if len(self._session.buckets) != len(self._bucket_writers):
             raise TunnelError("session slot map is changed")
         else:
@@ -959,6 +1153,9 @@ class Upsert(object):
                 pool.shutdown()
 
     def close(self):
+        """
+        Close the stream and write all data to server.
+        """
         if self.status == Upsert.Status.NORMAL:
             self.flush()
             self._status = Upsert.Status.CLOSED

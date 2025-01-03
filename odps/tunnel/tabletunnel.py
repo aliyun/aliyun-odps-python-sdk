@@ -117,6 +117,24 @@ class BaseTableTunnelSession(serializers.JSONSerializableModel):
             raise e
 
     def new_record(self, values=None):
+        """
+        Generate a record of the current upload session.
+
+        :param values: the values of this records
+        :type values: list
+        :return: record
+        :rtype: :class:`odps.models.Record`
+
+        :Example:
+
+        >>> session = TableTunnel(o).create_upload_session('test_table')
+        >>> record = session.new_record()
+        >>> record[0] = 'my_name'
+        >>> record[1] = 'my_id'
+        >>> record = session.new_record(['my_name', 'my_id'])
+
+        .. seealso:: :class:`odps.models.Record`
+        """
         return Record(
             schema=self.schema,
             values=values,
@@ -125,6 +143,11 @@ class BaseTableTunnelSession(serializers.JSONSerializableModel):
 
 
 class TableDownloadSession(BaseTableTunnelSession):
+    """
+    Tunnel session for downloading data from tables. Instances of this class
+    should be created by :meth:`TableTunnel.create_download_session`.
+    """
+
     __slots__ = (
         "_client",
         "_table",
@@ -305,6 +328,18 @@ class TableDownloadSession(BaseTableTunnelSession):
     def open_record_reader(
         self, start, count, compress=False, columns=None, append_partitions=True
     ):
+        """
+        Open a reader to read data as records from the tunnel.
+
+        :param int start: start row index
+        :param int count: number of rows to read
+        :param bool compress: whether to compress data
+        :columns: list of column names to read
+        :append_partitions: whether to append partition values as columns
+
+        :return: a record reader
+        :rtype: :class:`TunnelRecordReader`
+        """
         return self._open_reader(
             start,
             count,
@@ -318,6 +353,18 @@ class TableDownloadSession(BaseTableTunnelSession):
     def open_arrow_reader(
         self, start, count, compress=False, columns=None, append_partitions=False
     ):
+        """
+        Open a reader to read data as Arrow format from the tunnel.
+
+        :param int start: start row index
+        :param int count: number of rows to read
+        :param bool compress: whether to compress data
+        :columns: list of column names to read
+        :append_partitions: whether to append partition values as columns
+
+        :return: an Arrow reader
+        :rtype: :class:`TunnelArrowReader`
+        """
         return self._open_reader(
             start,
             count,
@@ -331,6 +378,11 @@ class TableDownloadSession(BaseTableTunnelSession):
 
 
 class TableUploadSession(BaseTableTunnelSession):
+    """
+    Tunnel session for uploading data to tables. Instances of this class
+    should be created by :meth:`TableTunnel.create_upload_session`.
+    """
+
     __slots__ = (
         "_client",
         "_table",
@@ -529,6 +581,17 @@ class TableUploadSession(BaseTableTunnelSession):
         initial_block_id=None,
         block_id_gen=None,
     ):
+        """
+        Open a writer to write data in records to the tunnel.
+
+        :param int block_id: id of the block to write to. If not specified,
+            a :class:`BufferedRecordWriter` will be created.
+        :param int buffer_size: size of the buffer to use for buffered writers.
+        :param bool compress: whether to compress data
+
+        :return: a record writer
+        :rtype: :class:`RecordWriter` or :class:`BufferedRecordWriter`
+        """
         return self._open_writer(
             block_id=block_id,
             compress=compress,
@@ -546,6 +609,17 @@ class TableUploadSession(BaseTableTunnelSession):
         initial_block_id=None,
         block_id_gen=None,
     ):
+        """
+        Open a writer to write data in Arrow format to the tunnel.
+
+        :param int block_id: id of the block to write to. If not specified,
+            a :class:`BufferedArrowWriter` will be created.
+        :param int buffer_size: size of the buffer to use for buffered writers.
+        :param bool compress: whether to compress data
+
+        :return: an Arrow writer
+        :rtype: :class:`ArrowWriter` or :class:`BufferedArrowWriter`
+        """
         return self._open_writer(
             block_id=block_id,
             compress=compress,
@@ -560,6 +634,11 @@ class TableUploadSession(BaseTableTunnelSession):
         return self.blocks
 
     def commit(self, blocks):
+        """
+        Commit written blocks to the tunnel. Can be called only once on a single session.
+
+        :param list blocks: list of block ids to commit
+        """
         if blocks is None:
             raise ValueError("Invalid parameter: blocks.")
         if isinstance(blocks, six.integer_types):
@@ -644,6 +723,11 @@ class Slot(object):
 
 
 class TableStreamUploadSession(BaseTableTunnelSession):
+    """
+    Tunnel session for uploading data in stream method to tables. Instances
+    of this class should be created by :meth:`TableTunnel.create_stream_upload_session`.
+    """
+
     __slots__ = (
         "_client",
         "_table",
@@ -802,6 +886,9 @@ class TableStreamUploadSession(BaseTableTunnelSession):
             self.schema.build_snapshot()
 
     def abort(self):
+        """
+        Abort the upload session.
+        """
         params = self.get_common_params(uploadid=self.id)
 
         slot = next(iter(self.slots))
@@ -851,10 +938,23 @@ class TableStreamUploadSession(BaseTableTunnelSession):
         return writer
 
     def open_record_writer(self, compress=False):
+        """
+        Open a writer to write data in records to the tunnel.
+
+        :param bool compress: whether to compress data
+
+        :return: a record writer
+        :rtype: :class:`RecordWriter`
+        """
         return self._open_writer(compress=compress)
 
 
 class TableUpsertSession(BaseTableTunnelSession):
+    """
+    Tunnel session for inserting or updating data to upsert tables. Instances
+    of this class should be created by :meth:`TableTunnel.create_upsert_session`.
+    """
+
     __slots__ = (
         "_client",
         "_table",
@@ -1022,6 +1122,9 @@ class TableUpsertSession(BaseTableTunnelSession):
         self._init_or_reload(reload=True)
 
     def abort(self):
+        """
+        Abort the current session.
+        """
         params = self.get_common_params(upsertid=self.id)
         headers = self.get_common_headers(content_length=0, tags=self._tags)
         headers["odps-tunnel-routed-server"] = self.slots.buckets[0].server
@@ -1031,6 +1134,14 @@ class TableUpsertSession(BaseTableTunnelSession):
         self.check_tunnel_response(resp)
 
     def open_upsert_stream(self, compress=False):
+        """
+        Open an upsert stream to insert or update data in records to the tunnel.
+
+        :param bool compress: whether to compress data
+
+        :return: an upsert stream
+        :rtype: :class:`Upsert`
+        """
         params = self.get_common_params(upsertid=self.id)
         headers = self.get_common_headers(tags=self._tags)
 
@@ -1064,6 +1175,9 @@ class TableUpsertSession(BaseTableTunnelSession):
         return Upsert(self.schema, upload_block, self, compress_option)
 
     def commit(self, async_=False):
+        """
+        Commit the current session. Can be called only once on a single session.
+        """
         params = self.get_common_params(upsertid=self.id)
         headers = self.get_common_headers(content_length=0, tags=self._tags)
         headers["odps-tunnel-routed-server"] = self.slots.buckets[0].server
@@ -1099,6 +1213,15 @@ class TableUpsertSession(BaseTableTunnelSession):
 
 
 class TableTunnel(BaseTunnel):
+    """
+    Table tunnel API Entry.
+
+    :param odps: ODPS Entry object
+    :param str project: project name
+    :param str endpoint: tunnel endpoint
+    :param str quota_name: name of tunnel quota
+    """
+
     def _get_tunnel_table(self, table, schema=None):
         project_odps = None
         try:
@@ -1144,6 +1267,24 @@ class TableTunnel(BaseTunnel):
         tags=None,
         **kw
     ):
+        """
+        Create a download session for table.
+
+        :param table: table object to read
+        :type table: str | :class:`odps.models.Table`
+        :param partition_spec: partition spec to read
+        :type partition_spec: str | :class:`odps.types.PartitionSpec`
+        :param str download_id: existing download id
+        :param compress_option: compress option
+        :type compress_option: :class:`odps.tunnel.CompressOption`
+        :param str compress_algo: compress algorithm
+        :param int compress_level: compress level
+        :param str schema: name of schema of the table
+        :param tags: tags of the upload session
+        :type tags: str | list
+
+        :return: :class:`TableDownloadSession`
+        """
         table = self._get_tunnel_table(table, schema)
         compress_option = compress_option or self._build_compress_option(
             compress_algo=compress_algo,
@@ -1179,6 +1320,25 @@ class TableTunnel(BaseTunnel):
         overwrite=False,
         tags=None,
     ):
+        """
+        Create an upload session for table.
+
+        :param table: table object to read
+        :type table: str | :class:`odps.models.Table`
+        :param partition_spec: partition spec
+        :type partition_spec: str | :class:`odps.types.PartitionSpec`
+        :param str upload_id: existing upload id
+        :param compress_option: compress option
+        :type compress_option: :class:`odps.tunnel.CompressOption`
+        :param str compress_algo: compress algorithm
+        :param int compress_level: compress level
+        :param str schema: name of schema of the table
+        :param bool overwrite: whether to overwrite the table
+        :param tags: tags of the upload session
+        :type tags: str | list
+
+        :return: :class:`TableUploadSession`
+        """
         table = self._get_tunnel_table(table, schema)
         compress_option = compress_option
         compress_option = compress_option or self._build_compress_option(
@@ -1211,6 +1371,26 @@ class TableTunnel(BaseTunnel):
         tags=None,
         allow_schema_mismatch=True,
     ):
+        """
+        Create a stream upload session for table.
+
+        :param table: table object to read
+        :type table: str | :class:`odps.models.Table`
+        :param partition_spec: partition spec
+        :type partition_spec: str | :class:`odps.types.PartitionSpec`
+        :param str upload_id: existing upload id
+        :param compress_option: compress option
+        :type compress_option: :class:`odps.tunnel.CompressOption`
+        :param str compress_algo: compress algorithm
+        :param int compress_level: compress level
+        :param str schema: name of schema of the table
+        :param str schema_version: schema version of the upload
+        :param tags: tags of the upload session
+        :type tags: str | list
+        :param allow_schema_mismatch: whether to allow table schema to be mismatched
+
+        :return: :class:`TableStreamUploadSession`
+        """
         table = self._get_tunnel_table(table, schema)
         compress_option = compress_option or self._build_compress_option(
             compress_algo=compress_algo,
@@ -1253,6 +1433,25 @@ class TableTunnel(BaseTunnel):
         upsert_id=None,
         tags=None,
     ):
+        """
+        Create an upsert session for table.
+
+        :param table: table object to read
+        :type table: str | :class:`odps.models.Table`
+        :param partition_spec: partition spec
+        :type partition_spec: str | :class:`odps.types.PartitionSpec`
+        :param str upsert_id: existing upsert id
+        :param commit_timeout: timeout for commit
+        :param compress_option: compress option
+        :type compress_option: :class:`odps.tunnel.CompressOption`
+        :param str compress_algo: compress algorithm
+        :param int compress_level: compress level
+        :param str schema: name of schema of the table
+        :param tags: tags of the upload session
+        :type tags: str | list
+
+        :return: :class:`TableUpsertSession`
+        """
         table = self._get_tunnel_table(table, schema)
         compress_option = compress_option or self._build_compress_option(
             compress_algo=compress_algo,
@@ -1287,6 +1486,24 @@ class TableTunnel(BaseTunnel):
         read_all=False,
         tags=None,
     ):
+        """
+        Open a preview reader for table to read initial rows.
+
+        :param table: table object to read
+        :type table: str | :class:`odps.models.Table`
+        :param partition_spec: partition spec to read
+        :type partition_spec: str | :class:`odps.types.PartitionSpec`
+        :param columns: columns to read
+        :param int limit: number of rows to read, 10000 by default
+        :param compress_option: compress option
+        :type compress_option: :class:`odps.tunnel.CompressOption`
+        :param str compress_algo: compress algorithm
+        :param int compress_level: compress level
+        :param str schema: name of schema of the table
+        :param bool arrow: if True, return an Arrow reader, otherwise return a record reader
+        :param tags: tags of the upload session
+        :type tags: str | list
+        """
         if pa is None:
             raise ImportError("Need pyarrow to run open_preview_reader.")
 

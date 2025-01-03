@@ -1,4 +1,4 @@
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ from .config import options
 from .core import ODPS
 from .df import DataFrame, NullScalar, RandomScalar, Scalar
 from .inter import enter, list_rooms, setup, teardown
+from .lib import Monthdelta
 from .utils import show_versions
 from .utils import write_log as log
 

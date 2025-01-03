@@ -184,27 +184,103 @@ PyODPS 0.11.5 及后续版本中，可以为 ``list_tables`` 添加 ``extended=T
 读写数据
 --------
 
+.. _record-type:
+
 行记录 Record
 ~~~~~~~~~~~~~
 
-Record表示表的一行记录，我们在 Table 对象上调用 new_record 就可以创建一个新的 Record。
+:class:`~odps.models.Record` 表示表的一行记录，为 ``Table.open_reader`` / ``Table.open_writer`` 当 ``arrow=False``
+时所使用的数据结构，也用于 ``TableDownloadSession.open_record_reader`` / ``TableUploadSession.open_record_writer`` 。\
+我们在 Table 对象上调用 new_record 就可以创建一个新的 Record。
+
+下面的例子中，假定表结构为
+
+.. code-block::
+
+   odps.Schema {
+     c_int_a                 bigint
+     c_string_a              string
+     c_bool_a                boolean
+     c_datetime_a            datetime
+     c_array_a               array<string>
+     c_map_a                 map<bigint,string>
+     c_struct_a              struct<a:bigint,b:string>
+   }
+
+该表对应 record 的修改和读取示例为
 
 .. code-block:: python
 
+   >>> import datetime
    >>> t = o.get_table('mytable')
-   >>> r = t.new_record(['val0', 'val1'])  # 值的个数必须等于表schema的字段数
-   >>> r2 = t.new_record()  #  也可以不传入值
-   >>> r2[0] = 'val0' # 可以通过偏移设置值
-   >>> r2['field1'] = 'val1'  # 也可以通过字段名设置值
-   >>> r2.field1 = 'val1'  # 通过属性设置值
+   >>> r = t.new_record([1024, 'val1', False, datetime.datetime.now(), None, None])  # 值的个数必须等于表schema的字段数
+   >>> r2 = t.new_record()  # 初始化时也可以不传入值
+   >>> r2[0] = 1024  # 可以通过偏移设置值
+   >>> r2['c_string_a'] = 'val1'  # 也可以通过字段名设置值
+   >>> r2.c_string_a = 'val1'  # 通过属性设置值
+   >>> r2.c_array_a = ['val1', 'val2']  # 设置 array 类型的值
+   >>> r2.c_map_a = {1: 'val1'}  # 设置 map 类型的值
+   >>> r2.c_struct_a = (1, 'val1')  # 使用 tuple 设置 struct 类型的值，当 PyODPS >= 0.11.5
+   >>> r2.c_struct_a = {"a": 1, "b": 'val1'}  # 也可以使用 dict 设置 struct 类型的值
    >>>
    >>> print(record[0])  # 取第0个位置的值
-   >>> print(record['c_double_a'])  # 通过字段取值
-   >>> print(record.c_double_a)  # 通过属性取值
+   >>> print(record['c_string_a'])  # 通过字段取值
+   >>> print(record.c_string_a)  # 通过属性取值
    >>> print(record[0: 3])  # 切片操作
    >>> print(record[0, 2, 3])  # 取多个位置的值
    >>> print(record['c_int_a', 'c_double_a'])  # 通过多个字段取值
 
+MaxCompute 不同数据类型在 Record 中对应 Python 类型的关系如下：
+
+.. csv-table::
+   :header-rows: 1
+
+   "MaxCompute 类型", "Python 类型", "说明"
+   "``tinyint``, ``smallint``, ``int``, ``bigint``", "``int``", ""
+   "``float``, ``double``", "``float``", ""
+   "``string``", "``str``", "见说明1"
+   "``binary``", "``bytes``", ""
+   "``datetime``", "``datetime.datetime``", "见说明2"
+   "``date``", "``datetime.date``", ""
+   "``boolean``", "``bool``", ""
+   "``decimal``", "``decimal.Decimal``", "见说明3"
+   "``map``", "``dict``", ""
+   "``array``", "``list``", ""
+   "``struct``", "``tuple`` / ``namedtuple``", "见说明4"
+   "``timestamp``", "``pandas.Timestamp``", "见说明2，需要安装 pandas"
+   "``timestamp_ntz``", "``pandas.Timestamp``", "结果不受时区影响，需要安装 pandas"
+   "``interval_day_time``", "``pandas.Timedelta``", "需要安装 pandas"
+   "``interval_year_month``", "``odps.Monthdelta``", "见说明5"
+
+对部分类型的说明如下。
+
+1. PyODPS 默认 string 类型对应 Unicode 字符串，在 Python 3 中为 str，在 Python 2 中为
+   unicode。对于部分在 string 中存储 binary 的情形，可能需要设置 ``options.tunnel.string_as_binary = True``
+   以避免可能的编码问题。
+2. PyODPS 默认使用 Local Time 作为时区，如果要使用 UTC 则需要设置 ``options.local_timezone = False``。
+   如果要使用其他时区，需要设置该选项为指定时区，例如 ``Asia/Shanghai``。MaxCompute
+   不会存储时区值，因而在写入数据时，会将该时间转换为 Unix Timestamp 进行存储。
+3. 对于 Python 2，当安装 cdecimal 包时，会使用 ``cdecimal.Decimal``。
+4. 对于 PyODPS \< 0.11.5，MaxCompute struct 对应 Python dict 类型。PyODPS \>= 0.11.5
+   则默认对应 namedtuple 类型。如果要使用旧版行为则需要设置选项 ``options.struct_as_dict = True``。\
+   DataWorks 环境下，为保持历史兼容性，该值默认为 False。为 Record 设置 struct 类型的字段值时，\
+   PyODPS \>= 0.11.5 可同时接受 dict 和 tuple 类型，旧版则只接受 dict 类型。
+5. Monthdelta 可使用年 / 月进行初始化，定义如下：
+
+   .. code-block:: python
+
+      class Monthdelta:
+          def __init__(self, years: int=0, months: int = 0):
+              """使用年/月初始化"""
+          @property
+          def years(self) -> int:
+              """返回年"""
+          @property
+          def months(self) -> int:
+              """返回月"""
+          def total_months(self) -> int:
+              """返回总月数"""
+6. 关于如何设置 ``options.xxx``，请参考文档\ :ref:`配置选项 <options>`。
 
 .. _table_read:
 
@@ -693,7 +769,8 @@ PyODPS提供了 :ref:`DataFrame框架 <df>` ，支持更方便地方式来查询
     :ref:`写 <table_write>` 和 :ref:`读 <table_read>` 接口，可靠性和易用性更高。
     只有在分布式写表等复杂场景下有直接使用 Tunnel 接口的需要。
 
-ODPS Tunnel 是 MaxCompute 的数据通道，用户可以通过 Tunnel 向 MaxCompute 中上传或者下载数据。
+ODPS Tunnel 是 MaxCompute 的数据通道，用户可以通过 Tunnel 向 MaxCompute 中上传或者下载数据。\
+关于 ODPS Tunnel 的详细解释可以参考\ `https://help.aliyun.com/zh/maxcompute/user-guide/overview-of-dts <这篇文档>`_。
 
 上传
 ~~~~~~
@@ -702,8 +779,12 @@ ODPS Tunnel 是 MaxCompute 的数据通道，用户可以通过 Tunnel 向 MaxCo
 直接使用 Tunnel 分块接口上传时，需要首先通过 ``create_upload_session`` 方法使用表名和分区创建
 Upload Session，此后从 Upload Session 创建 Writer。每个 Upload Session 可多次调用
 ``open_record_writer`` 方法创建多个 Writer，每个 Writer 拥有一个 ``block_id``
-对应一个数据块。完成写入后，需要调用 Upload Session 上的 ``commit`` 方法并指定需要提交的数据块列表。\
-如果有某个 ``block_id`` 有数据写入但未包括在 ``commit`` 的参数中，则该数据块不会出现在最终的表中。
+对应一个数据块。写入的数据类型为 :ref:`Record <record-type>` 类型。完成所有写入后，需要调用
+Upload Session 上的 ``commit`` 方法并指定需要提交的数据块列表。如果有某个 ``block_id``
+有数据写入但未包括在 ``commit`` 的参数中，则该数据块不会出现在最终的表中。
+
+对于需要写入数据的情形，\ ``commit`` 调用有且只能有一次，完成 ``commit`` 后 Upload Session
+即完成写入，此后无法再在该 Upload Session 上提交。
 
 .. code-block:: python
 
@@ -726,7 +807,8 @@ Upload Session，此后从 Upload Session 创建 Writer。每个 Upload Session 
        writer.write(record)
 
    # 提交刚才写入的 block 0。多个 block id 需要同时提交
-   # 需要在 with 代码块外 commit，否则数据未写入即 commit，会导致报错
+   # 需要在 with 代码块外 commit，否则数据未写入即 commit，会导致报错并丢失已写入的数据
+   # 对每个 upload_session，commit 只能调用一次
    upload_session.commit([0])
 
 如果你需要在多个进程乃至节点中使用相同的 Upload Session，可以先创建 Upload Session，并获取其 ``id``
@@ -864,7 +946,7 @@ MaxCompute 提供了\ `流式上传接口 <https://help.aliyun.com/zh/maxcompute
 直接使用 Tunnel 接口下载数据时，需要首先使用表名和分区创建 Download Session，此后从 Download Session
 创建 Reader。每个 Download Session 可多次调用 ``open_record_reader`` 方法创建多个 Reader，每个
 Reader 需要指定起始行号以及需要的行数。起始行号从 0 开始，行数可指定为 Session 的 ``count`` 属性，\
-为表或分区的总行数。
+为表或分区的总行数。读取的数据类型为 :ref:`Record <record-type>` 类型。
 
 .. code-block:: python
 
@@ -956,3 +1038,21 @@ Reader 需要指定起始行号以及需要的行数。起始行号从 0 开始�
    with download_session.open_record_reader(0, download_session.count, compress=True) as reader:
        for record in reader:
            # 处理每条记录
+
+提升上传性能
+~~~~~~~~~~~~~
+
+Tunnel 上传性能受到各种因素影响较大。首先，考虑对本地代码的优化，主要有下面的优化点：
+
+1. 减少创建 Upload Session 或者 Download Session 的次数，尽量复用。Tunnel Session 本身创建代价较大，\
+   因而除非必要，一次读取或写入只应当创建一个。
+2. 增加每个 Reader / Writer 读取或者写入的数据量。
+3. 启用数据压缩以减小传输的数据量。
+4. 如果数据源或者需要的数据目标为 pandas，由于 Record 类型本身需要较大的 Python 解释器时间开销，因而建议尽量采用 Arrow
+   接口进行读写。
+5. 如有可能，使用多线程或者 multiprocessing 进行写入。需要注意的是，Python 使用了 GIL，因而如果你写入数据\
+   前的预处理步骤使用了较多纯 Python 代码，那么多线程可能未必提升性能。
+
+此外，写入数据时的网络状况等因素也可能影响上传速度，可能发生共享 Tunnel 服务资源用满或者客户端到 Tunnel
+服务网络链路不稳定等因素。针对这些情形，可以考虑购买独享资源 Tunnel 或者使用阿里云内网进行上传，相关信息可以\
+参考\ `Tunnel 文档 <https://help.aliyun.com/zh/maxcompute/user-guide/overview-of-dts#094b91802f18e>`_。
