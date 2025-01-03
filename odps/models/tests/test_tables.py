@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 import itertools
 import pickle
 import textwrap
+import time
 from collections import OrderedDict
 from datetime import datetime
 
@@ -29,12 +30,13 @@ except (AttributeError, ImportError):
 
 import pytest
 
+from ... import types as odps_types
 from ...compat import six
 from ...config import options
 from ...tests.core import tn
 from ...utils import to_text
 from .. import Column, Partition, Table, TableSchema
-from ..cluster_info import ClusterSortOrder, ClusterType
+from ..cluster_info import ClusterInfo, ClusterSortOrder, ClusterType
 from ..storage_tier import StorageTier
 
 
@@ -245,6 +247,8 @@ def test_create_table_with_chinese_column(odps):
     columns = [
         Column(name="序列", type="bigint", comment="注释"),
         Column(name=u"值", type=u"string", comment=u"注释2"),
+        Column(name=u"值2", type=u"string", comment=u"注释'3"),
+        Column(name=u"值3", type=u"string", comment=u"注释\"4"),
     ]
     partitions = [
         Partition(name="ds", type="string", comment="分区注释"),
@@ -252,13 +256,18 @@ def test_create_table_with_chinese_column(odps):
     ]
     schema = TableSchema(columns=columns, partitions=partitions)
 
-    columns_repr = "[<column 序列, type bigint>, <column 值, type string>]"
+    columns_repr = (
+        "[<column 序列, type bigint>, <column 值, type string>, "
+        "<column 值2, type string>, <column 值3, type string>]"
+    )
     partitions_repr = "[<partition ds, type string>, <partition ds2, type string>]"
     schema_repr = textwrap.dedent(
         """
     odps.Schema {
       序列    bigint      # 注释
       值      string      # 注释2
+      值2     string      # 注释'3
+      值3     string      # 注释"4
     }
     Partitions {
       ds      string      # 分区注释
@@ -271,7 +280,9 @@ def test_create_table_with_chinese_column(odps):
         u"""
     CREATE TABLE `table_name` (
       `序列` BIGINT COMMENT '注释',
-      `值` STRING COMMENT '注释2'
+      `值` STRING COMMENT '注释2',
+      `值2` STRING COMMENT '注释\\'3',
+      `值3` STRING COMMENT '注释\\"4'
     )
     PARTITIONED BY (
       `ds` STRING COMMENT '分区注释',
@@ -282,7 +293,9 @@ def test_create_table_with_chinese_column(odps):
         u"""
     CREATE TABLE `table_name` (
       `序列` BIGINT,
-      `值` STRING
+      `值` STRING,
+      `值2` STRING,
+      `值3` STRING
     )
     PARTITIONED BY (
       `ds` STRING,
@@ -299,6 +312,7 @@ def test_create_table_with_chinese_column(odps):
     odps.delete_table(test_table_name, if_exists=True)
 
     table = odps.create_table(test_table_name, schema)
+    table.reload()
     assert [to_text(col.name) for col in table.table_schema.columns] == [
         to_text(col.name) for col in schema.columns
     ]
@@ -308,12 +322,17 @@ def test_create_table_with_chinese_column(odps):
 
     # test repr with not null columns
     schema[u"序列"].nullable = False
-    columns_repr = "[<column 序列, type bigint, not null>, <column 值, type string>]"
+    columns_repr = (
+        "[<column 序列, type bigint, not null>, <column 值, type string>, "
+        "<column 值2, type string>, <column 值3, type string>]"
+    )
     schema_repr = textwrap.dedent(
         """
     odps.Schema {
       序列    bigint      not null    # 注释
       值      string                  # 注释2
+      值2     string                  # 注释'3
+      值3     string                  # 注释"4
     }
     Partitions {
       ds      string      # 分区注释
@@ -428,6 +447,19 @@ def test_create_clustered_table(odps):
     assert table.cluster_info.bucket_num == 0
     assert "RANGE CLUSTERED BY" in table.get_ddl()
     assert "BUCKETS" not in table.get_ddl()
+
+    table.set_cluster_info(
+        ClusterInfo(cluster_type=ClusterType.RANGE, cluster_cols=["c"])
+    )
+    assert table.cluster_info.cluster_type == ClusterType.RANGE
+    table.reload()
+    assert table.cluster_info.cluster_type == ClusterType.RANGE
+
+    table.set_cluster_info(None)
+    assert table.cluster_info is None
+    table.reload()
+    assert table.cluster_info is None
+
     table.drop()
 
 
@@ -537,3 +569,57 @@ def test_schema_arg_backward_compat(odps):
         getattr(table, "last_modified_time")
 
     table.drop()
+
+
+def test_alter_table_options(odps):
+    table_name = tn("test_alter_table_options")
+    table_name2 = tn("test_alter_table_options2")
+    odps.delete_table(table_name, if_exists=True)
+    odps.delete_table(table_name2, if_exists=True)
+
+    test_table = odps.create_table(table_name, "col1 string, col2 bigint", lifecycle=3)
+
+    last_modify_time = test_table.last_data_modified_time
+    time.sleep(0.1)
+    test_table.touch()
+    assert last_modify_time != test_table.last_data_modified_time
+
+    test_table.set_lifecycle(1)
+    assert 1 == test_table.lifecycle
+    test_table.reload()
+    assert 1 == test_table.lifecycle
+
+    test_table.set_comment("TABLE'COMMENT")
+    assert "TABLE'COMMENT" == test_table.comment
+    test_table.reload()
+    assert "TABLE'COMMENT" == test_table.comment
+
+    test_table.add_columns("col3 double")
+    assert ["col1", "col2", "col3"] == [c.name for c in test_table.table_schema.columns]
+
+    test_table.add_columns(odps_types.Column("col4", "datetime"))
+    assert ["col1", "col2", "col3", "col4"] == [
+        c.name for c in test_table.table_schema.columns
+    ]
+
+    test_table.delete_columns("col4")
+    assert ["col1", "col2", "col3"] == [c.name for c in test_table.table_schema.columns]
+
+    test_table.rename_column("col3", "col3_1")
+    assert ["col1", "col2", "col3_1"] == [
+        c.name for c in test_table.table_schema.columns
+    ]
+
+    test_table.rename_column("col3_1", "col3_2", comment="new'col'comment")
+    assert ["col1", "col2", "col3_2"] == [
+        c.name for c in test_table.table_schema.columns
+    ]
+    assert test_table.table_schema["col3_2"].comment == "new'col'comment"
+
+    test_table.rename(table_name2)
+    assert test_table.name == table_name2
+    assert odps.exist_table(table_name2)
+
+    test_table.set_owner(test_table.owner)
+
+    odps.delete_table(table_name2, if_exists=True)

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -345,9 +345,37 @@ class Partition(LazyLoad):
     def truncate(self, async_=False):
         return self.table.truncate(self.partition_spec, async_=async_)
 
-    @utils.with_wait_argument
-    def set_storage_tier(self, storage_tier, async_=False):
+    def _unload_if_async(self, async_=False, reload=True):
         self._is_extend_info_loaded = False
-        return self.table.set_storage_tier(
-            storage_tier, partition_spec=self.partition_spec, async_=async_
+        if async_:
+            self._loaded = False
+        elif reload:
+            self.reload()
+
+    @utils.with_wait_argument
+    def set_storage_tier(self, storage_tier, async_=False, hints=None):
+        inst = self.table.set_storage_tier(
+            storage_tier, partition_spec=self.partition_spec, async_=async_, hints=hints
         )
+        self._unload_if_async(async_)
+        return inst
+
+    @utils.with_wait_argument
+    def change_partition_spec(self, new_partition_spec, async_=False, hints=None):
+        inst = self.table.change_partition_spec(
+            self.partition_spec,
+            new_partition_spec,
+            async_=async_,
+            hints=hints,
+        )
+        self.spec = types.PartitionSpec(new_partition_spec)
+        self._unload_if_async(async_)
+        return inst
+
+    @utils.with_wait_argument
+    def touch(self, async_=False, hints=None):
+        inst = self.table.touch(
+            partition_spec=self.partition_spec, async_=async_, hints=hints
+        )
+        self._unload_if_async(async_)
+        return inst

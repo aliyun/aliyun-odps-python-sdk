@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -50,6 +50,7 @@ if pa is not None:
         odps_types.date: pa.date32(),
         odps_types.datetime: pa.timestamp("ms"),
         odps_types.timestamp: pa.timestamp("ns"),
+        odps_types.timestamp_ntz: pa.timestamp("ns"),
     }
 else:
     _ARROW_TO_ODPS_TYPE = {}

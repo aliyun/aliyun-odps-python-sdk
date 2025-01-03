@@ -1,4 +1,4 @@
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -157,8 +157,18 @@ def get_config():
             pass
 
         try:
-            oss_access_id = config.get("oss", "access_id")
-            oss_secret_access_key = config.get("oss", "secret_access_key")
+            try:
+                oss_access_id = config.get("oss", "access_id")
+            except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
+                oss_access_id = None
+            oss_access_id = os.environ.get("OSS_ACCESS_ID")
+
+            try:
+                oss_secret_access_key = config.get("oss", "secret_access_key")
+            except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
+                oss_secret_access_key = None
+            oss_secret_access_key = os.environ.get("OSS_SECRET_ACCESS_KEY")
+
             oss_bucket_name = config.get("oss", "bucket_name")
             oss_endpoint = config.get("oss", "endpoint")
 

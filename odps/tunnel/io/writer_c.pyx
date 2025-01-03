@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@ from ..pb.encoder_c cimport CEncoder
 from ... import compat, types, utils
 from ...config import options
 from ...lib.monotonic import monotonic
-from ...src.utils_c cimport CMillisecondsConverter
+from ...src.utils_c cimport CMillisecondsConverter, to_days
 from ..pb.wire_format import WIRETYPE_FIXED32 as PY_WIRETYPE_FIXED32
 from ..pb.wire_format import WIRETYPE_FIXED64 as PY_WIRETYPE_FIXED64
 from ..pb.wire_format import WIRETYPE_LENGTH_DELIMITED as PY_WIRETYPE_LENGTH_DELIMITED
@@ -65,6 +65,9 @@ cdef:
     int64_t DECIMAL_TYPE_ID = types.Decimal._type_id
     int64_t JSON_TYPE_ID = types.Json._type_id
     int64_t TIMESTAMP_NTZ_TYPE_ID = types.timestamp_ntz._type_id
+    int64_t ARRAY_TYPE_ID = types.Array._type_id
+    int64_t MAP_TYPE_ID = types.Map._type_id
+    int64_t STRUCT_TYPE_ID = types.Struct._type_id
 
 import_datetime()
 
@@ -85,6 +88,9 @@ data_type_to_wired_type[TIMESTAMP_TYPE_ID] = WIRETYPE_LENGTH_DELIMITED
 data_type_to_wired_type[INTERVAL_DAY_TIME_TYPE_ID] = WIRETYPE_LENGTH_DELIMITED
 data_type_to_wired_type[JSON_TYPE_ID] = WIRETYPE_LENGTH_DELIMITED
 data_type_to_wired_type[TIMESTAMP_NTZ_TYPE_ID] = WIRETYPE_LENGTH_DELIMITED
+data_type_to_wired_type[ARRAY_TYPE_ID] = WIRETYPE_LENGTH_DELIMITED
+data_type_to_wired_type[MAP_TYPE_ID] = WIRETYPE_LENGTH_DELIMITED
+data_type_to_wired_type[STRUCT_TYPE_ID] = WIRETYPE_LENGTH_DELIMITED
 
 
 cdef class ProtobufRecordWriter:
@@ -159,6 +165,7 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
 
     def __init__(self, object schema, object out, encoding="utf-8"):
         cdef double ts
+        cdef int idx
 
         self._c_enable_client_metrics = options.tunnel.enable_client_metrics
         self._c_local_wall_time_ms = 0
@@ -176,9 +183,6 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
         self._crccrc_c = Checksum()
         self._curr_cursor_c = 0
         self._n_columns = len(self._columns)
-        self._mills_converter = CMillisecondsConverter()
-        self._mills_converter_utc = CMillisecondsConverter(local_tz=False)
-        self._to_days = utils.to_days
 
         super(BaseRecordWriter, self).__init__(out)
 
@@ -186,6 +190,12 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
             self._c_local_wall_time_ms += <long>(
                 MICRO_SEC_PER_SEC * (<double>monotonic() - ts)
             )
+
+        import_datetime()
+
+        self._field_writers = [None] * self._schema_snapshot._col_count
+        for idx, col_type in enumerate(self._schema_snapshot._col_types):
+            self._field_writers[idx] = _build_field_writer(self, col_type)
 
     @property
     def _crc(self):
@@ -238,13 +248,9 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
             if data_type_id >= 0 and data_type_to_wired_type[data_type_id] != -1:
                 self._write_tag(pb_index, data_type_to_wired_type[data_type_id])
             else:
-                data_type = self._schema_snapshot._col_types[i]
-                if isinstance(data_type, (types.Array, types.Map, types.Struct)):
-                    self._write_tag(pb_index, WIRETYPE_LENGTH_DELIMITED)
-                else:
-                    raise IOError("Invalid data type: %s" % data_type)
+                raise IOError("Invalid data type: %s" % data_type)
 
-            self._write_field(val, data_type_id, data_type)
+            (<AbstractFieldWriter>self._field_writers[i]).write(val)
 
         self._refresh_buffer()
 
@@ -259,173 +265,6 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
             self._c_local_wall_time_ms += <long>(
                 MICRO_SEC_PER_SEC * (<double>monotonic() - ts)
             )
-
-    cdef int _write_bool(self, bint data) except -1 nogil:
-        self._crc_c.c_update_bool(data)
-        self._write_raw_bool(data)
-        return 0
-
-    cdef int _write_long(self, int64_t data) except -1 nogil:
-        self._crc_c.c_update_long(data)
-        self._write_raw_long(data)
-        return 0
-
-    cdef int _write_float(self, float data) except -1 nogil:
-        self._crc_c.c_update_float(data)
-        self._write_raw_float(data)
-        return 0
-
-    cdef int _write_double(self, double data) except -1 nogil:
-        self._crc_c.c_update_double(data)
-        self._write_raw_double(data)
-        return 0
-
-    @cython.nonecheck(False)
-    cdef _write_string(self, object data):
-        cdef bytes bdata
-        cdef const char *pbytes
-        cdef int32_t data_size
-
-        if type(data) is bytes:
-            pbytes = data
-            data_size = len(data)
-        elif self._is_utf8 and type(data) is unicode:
-            bdata = (<unicode> data).encode("utf-8")
-            pbytes = bdata
-            data_size = len(bdata)
-        elif isinstance(data, unicode):
-            bdata = data.encode(self._encoding)
-            pbytes = bdata
-            data_size = len(bdata)
-        else:
-            bdata = bytes(data)
-            pbytes = bdata
-            data_size = len(bdata)
-
-        self._crc_c.c_update(pbytes, data_size)
-        self._write_raw_string(pbytes, data_size)
-
-    cdef _write_timestamp_base(self, object data, bint ntz):
-        cdef:
-            object py_datetime = data.to_pydatetime(warn=False)
-            long l_val
-            int nanosecs
-            CMillisecondsConverter converter
-
-        if ntz:
-            converter = self._mills_converter_utc
-        else:
-            converter = self._mills_converter
-
-        l_val = converter.to_milliseconds(py_datetime) // 1000
-        nanosecs = data.microsecond * 1000 + data.nanosecond
-        self._crc_c.c_update_long(l_val)
-        self._write_raw_long(l_val)
-        self._crc_c.c_update_int(nanosecs)
-        self._write_raw_int(nanosecs)
-
-    cdef _write_timestamp(self, object data):
-        return self._write_timestamp_base(data, False)
-
-    cdef _write_timestamp_ntz(self, object data):
-        return self._write_timestamp_base(data, True)
-
-    cdef _write_interval_day_time(self, object data):
-        cdef:
-            long l_val
-            int nanosecs
-
-        l_val = data.days * 24 * 3600 + data.seconds
-        nanosecs = data.microseconds * 1000 + data.nanoseconds
-        self._crc_c.c_update_long(l_val)
-        self._write_raw_long(l_val)
-        self._crc_c.c_update_int(nanosecs)
-        self._write_raw_int(nanosecs)
-
-    cdef _write_field(self, object val, int data_type_id, object data_type):
-        cdef int64_t l_val
-
-        if data_type_id == BIGINT_TYPE_ID:
-            self._write_long(val)
-        elif data_type_id == STRING_TYPE_ID:
-            self._write_string(val)
-        elif data_type_id == DOUBLE_TYPE_ID:
-            self._write_double(val)
-        elif data_type_id == FLOAT_TYPE_ID:
-            self._write_float(val)
-        elif data_type_id == DECIMAL_TYPE_ID:
-            self._write_string(str(val))
-        elif data_type_id == BINARY_TYPE_ID:
-            self._write_string(val)
-        elif data_type_id == BOOL_TYPE_ID:
-            self._write_bool(val)
-        elif data_type_id == DATETIME_TYPE_ID:
-            l_val = self._mills_converter.to_milliseconds(val)
-            self._write_long(l_val)
-        elif data_type_id == DATE_TYPE_ID:
-            self._write_long(self._to_days(val))
-        elif data_type_id == TIMESTAMP_TYPE_ID:
-            self._write_timestamp(val)
-        elif data_type_id == TIMESTAMP_NTZ_TYPE_ID:
-            self._write_timestamp_ntz(val)
-        elif data_type_id == INTERVAL_DAY_TIME_TYPE_ID:
-            self._write_interval_day_time(val)
-        elif data_type_id == INTERVAL_YEAR_MONTH_TYPE_ID:
-            self._write_long(val.total_months())
-        elif data_type_id == JSON_TYPE_ID:
-            self._write_string(json.dumps(val))
-        else:
-            if isinstance(data_type, types.Array):
-                self._write_array(val, data_type.value_type)
-            elif isinstance(data_type, types.Map):
-                self._write_map(val, data_type)
-            elif isinstance(data_type, types.Struct):
-                self._write_struct(val, data_type)
-            else:
-                raise IOError("Invalid data type: %s" % data_type)
-
-    cdef _write_array(self, object data, object data_type):
-        cdef int data_type_id = data_type._type_id
-
-        if type(data) is not list:  # not likely
-            data = list(data)
-        self._write_raw_uint(len(<list>data))
-        for value in <list>data:
-            if value is None:
-                self._write_raw_bool(True)
-            else:
-                self._write_raw_bool(False)
-                self._write_field(value, data_type_id, data_type)
-
-    cdef _write_map(self, object data, object data_type):
-        cdef object keys, values
-
-        if type(data) is dict:
-            keys = (<dict>data).keys()
-            values = (<dict>data).values()
-        else:
-            keys = data.keys()
-            values = data.values()
-        self._write_array(keys, data_type.key_type)
-        self._write_array(values, data_type.value_type)
-
-    cdef _write_struct(self, object data, object data_type):
-        cdef tuple tp_val
-
-        if isinstance(data, dict):
-            vals = [None] * len(data)
-            for idx, key in enumerate(data_type.field_types.keys()):
-                vals[idx] = data[key]
-            tp_val = tuple(vals)
-        else:
-            tp_val = <tuple>data
-
-        for value, field_type in zip(tp_val, data_type.field_types.values()):
-            if value is None:
-                self._write_raw_bool(True)
-            else:
-                self._write_raw_bool(False)
-                self._write_field(value, field_type._type_id, field_type)
 
     @property
     def count(self):
@@ -458,3 +297,332 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
         if exc_val is not None:
             return
         self.close()
+
+
+def _build_field_writer(BaseRecordWriter record_writer, object field_type):
+    cdef int data_type_id = field_type._type_id
+
+    if data_type_id == BIGINT_TYPE_ID:
+        return LongFieldWriter(record_writer)
+    elif data_type_id == STRING_TYPE_ID:
+        return StringFieldWriter(record_writer)
+    elif data_type_id == DOUBLE_TYPE_ID:
+        return DoubleFieldWriter(record_writer)
+    elif data_type_id == FLOAT_TYPE_ID:
+        return FloatFieldWriter(record_writer)
+    elif data_type_id == DECIMAL_TYPE_ID:
+        return DecimalFieldWriter(record_writer)
+    elif data_type_id == BINARY_TYPE_ID:
+        return StringFieldWriter(record_writer)
+    elif data_type_id == BOOL_TYPE_ID:
+        return BoolFieldWriter(record_writer)
+    elif data_type_id == DATETIME_TYPE_ID:
+        return DatetimeFieldWriter(record_writer)
+    elif data_type_id == DATE_TYPE_ID:
+        return DateFieldWriter(record_writer)
+    elif data_type_id == TIMESTAMP_TYPE_ID:
+        return TimestampFieldWriter(record_writer)
+    elif data_type_id == TIMESTAMP_NTZ_TYPE_ID:
+        return TimestampNTZFieldWriter(record_writer)
+    elif data_type_id == INTERVAL_DAY_TIME_TYPE_ID:
+        return IntervalDayTimeFieldWriter(record_writer)
+    elif data_type_id == INTERVAL_YEAR_MONTH_TYPE_ID:
+        return IntervalYearMonthFieldWriter(record_writer)
+    elif data_type_id == JSON_TYPE_ID:
+        return JsonFieldWriter(record_writer)
+    elif data_type_id == ARRAY_TYPE_ID:
+        return ArrayFieldWriter(record_writer, field_type)
+    elif data_type_id == MAP_TYPE_ID:
+        return MapFieldWriter(record_writer, field_type)
+    elif data_type_id == STRUCT_TYPE_ID:
+        return StructFieldWriter(record_writer, field_type)
+    else:
+        raise IOError("Invalid data type: %s" % field_type)
+
+
+cdef class AbstractFieldWriter:
+    cdef BaseRecordWriter _record_writer
+
+    def __init__(self, BaseRecordWriter record_writer):
+        self._record_writer = record_writer
+
+    cdef int write(self, object val) except -1:
+        raise NotImplementedError
+
+
+cdef class BoolFieldWriter(AbstractFieldWriter):
+    cdef int write(self, object val) except -1:
+        cdef bint bval = val
+        self._record_writer._crc_c.c_update_bool(bval)
+        self._record_writer._write_raw_bool(bval)
+        return 0
+
+
+cdef class LongFieldWriter(AbstractFieldWriter):
+    cdef inline int _write(self, int64_t ival) except -1 nogil:
+        self._record_writer._crc_c.c_update_long(ival)
+        self._record_writer._write_raw_long(ival)
+        return 0
+
+    cdef int write(self, object val) except -1:
+        cdef int64_t ival = val
+        return self._write(ival)
+
+
+cdef class FloatFieldWriter(AbstractFieldWriter):
+    cdef int write(self, object val) except -1:
+        cdef float fval = val
+        self._record_writer._crc_c.c_update_float(fval)
+        self._record_writer._write_raw_float(fval)
+        return 0
+
+
+cdef class DoubleFieldWriter(AbstractFieldWriter):
+    cdef int write(self, object val) except -1:
+        cdef double dblval = val
+        self._record_writer._crc_c.c_update_double(dblval)
+        self._record_writer._write_raw_double(dblval)
+        return 0
+
+
+cdef class StringFieldWriter(AbstractFieldWriter):
+    @cython.nonecheck(False)
+    cdef int write(self, object val) except -1:
+        cdef bytes bdata
+        cdef const char *pbytes
+        cdef int32_t data_size
+
+        if type(val) is bytes:
+            pbytes = val
+            data_size = len(<bytes>val)
+        elif self._record_writer._is_utf8 and type(val) is unicode:
+            bdata = (<unicode> val).encode("utf-8")
+            pbytes = bdata
+            data_size = len(bdata)
+        elif isinstance(val, unicode):
+            bdata = val.encode(self._record_writer._encoding)
+            pbytes = bdata
+            data_size = len(bdata)
+        else:
+            bdata = bytes(val)
+            pbytes = bdata
+            data_size = len(bdata)
+
+        self._record_writer._crc_c.c_update(pbytes, data_size)
+        self._record_writer._write_raw_string(pbytes, data_size)
+        return 0
+
+
+cdef class DecimalFieldWriter(AbstractFieldWriter):
+    cdef StringFieldWriter _string_writer
+
+    def __init__(self, BaseRecordWriter record_writer):
+        super(DecimalFieldWriter, self).__init__(record_writer)
+        self._string_writer = StringFieldWriter(record_writer)
+
+    cdef int write(self, object val) except -1:
+        return self._string_writer.write(str(val))
+
+
+cdef class JsonFieldWriter(AbstractFieldWriter):
+    cdef StringFieldWriter _string_writer
+
+    def __init__(self, BaseRecordWriter record_writer):
+        super(JsonFieldWriter, self).__init__(record_writer)
+        self._string_writer = StringFieldWriter(record_writer)
+
+    cdef int write(self, object val) except -1:
+        return self._string_writer.write(json.dumps(val))
+
+
+cdef class DatetimeFieldWriter(AbstractFieldWriter):
+    cdef:
+        LongFieldWriter _long_writer
+        CMillisecondsConverter _mills_converter
+
+    def __init__(self, BaseRecordWriter record_writer):
+        super(DatetimeFieldWriter, self).__init__(record_writer)
+        self._long_writer = LongFieldWriter(record_writer)
+        self._mills_converter = CMillisecondsConverter()
+
+    cdef int write(self, object val) except -1:
+        cdef int64_t l_val = self._mills_converter.to_milliseconds(val)
+        return self._long_writer._write(l_val)
+
+
+cdef class DateFieldWriter(AbstractFieldWriter):
+    cdef:
+        LongFieldWriter _long_writer
+
+    def __init__(self, BaseRecordWriter record_writer):
+        super(DateFieldWriter, self).__init__(record_writer)
+        self._long_writer = LongFieldWriter(record_writer)
+
+    cdef int write(self, object val) except -1:
+        cdef int64_t l_val = to_days(val)
+        return self._long_writer._write(l_val)
+
+
+cdef class BaseTimestampFieldWriter(AbstractFieldWriter):
+    cdef CMillisecondsConverter _mills_converter
+
+    def __init__(self, BaseRecordWriter record_writer):
+        super(BaseTimestampFieldWriter, self).__init__(record_writer)
+        self._mills_converter = self._build_mills_converter()
+
+    def _build_mills_converter(self):
+        raise NotImplementedError
+
+    cdef int _write(self, object val, bint ntz) except -1:
+        cdef:
+            object py_datetime = val.to_pydatetime(warn=False)
+            long l_val
+            int nanosecs
+
+        l_val = self._mills_converter.to_milliseconds(py_datetime) // 1000
+        nanosecs = val.microsecond * 1000 + val.nanosecond
+        self._record_writer._crc_c.c_update_long(l_val)
+        self._record_writer._write_raw_long(l_val)
+        self._record_writer._crc_c.c_update_int(nanosecs)
+        self._record_writer._write_raw_int(nanosecs)
+        return 0
+
+
+cdef class TimestampFieldWriter(BaseTimestampFieldWriter):
+    def _build_mills_converter(self):
+        return CMillisecondsConverter()
+
+    cdef int write(self, object val) except -1:
+        return self._write(val, False)
+
+
+cdef class TimestampNTZFieldWriter(BaseTimestampFieldWriter):
+    def _build_mills_converter(self):
+        return CMillisecondsConverter(local_tz=False)
+
+    cdef int write(self, object val) except -1:
+        return self._write(val, True)
+
+
+cdef class IntervalDayTimeFieldWriter(AbstractFieldWriter):
+    cdef int write(self, object val) except -1:
+        cdef:
+            long l_val
+            int nanosecs
+
+        l_val = val.days * 24 * 3600 + val.seconds
+        nanosecs = val.microseconds * 1000 + val.nanoseconds
+        self._record_writer._crc_c.c_update_long(l_val)
+        self._record_writer._write_raw_long(l_val)
+        self._record_writer._crc_c.c_update_int(nanosecs)
+        self._record_writer._write_raw_int(nanosecs)
+        return 0
+
+
+cdef class IntervalYearMonthFieldWriter(AbstractFieldWriter):
+    cdef LongFieldWriter _long_writer
+
+    def __init__(self, BaseRecordWriter record_writer):
+        super(IntervalYearMonthFieldWriter, self).__init__(record_writer)
+        self._long_writer = LongFieldWriter(record_writer)
+
+    cdef int write(self, object val) except -1:
+        cdef int64_t l_val = val.total_months()
+        return self._long_writer._write(l_val)
+
+
+cdef class ArrayFieldWriter(AbstractFieldWriter):
+    cdef AbstractFieldWriter _element_writer
+
+    def __init__(self, BaseRecordWriter record_writer, object data_type):
+        super(ArrayFieldWriter, self).__init__(record_writer)
+        self._element_writer = _build_field_writer(record_writer, data_type.value_type)
+
+    cdef int write(self, object val) except -1:
+        cdef object elem
+
+        if type(val) is not list:  # not likely
+            val = list(val)
+        self._record_writer._write_raw_uint(len(<list>val))
+        for elem in <list>val:
+            if elem is None:
+                self._record_writer._write_raw_bool(True)
+            else:
+                self._record_writer._write_raw_bool(False)
+                self._element_writer.write(elem)
+        return 0
+
+
+cdef class MapFieldWriter(AbstractFieldWriter):
+    cdef ArrayFieldWriter _keys_writer, _values_writer
+
+    def __init__(self, BaseRecordWriter record_writer, object data_type):
+        super(MapFieldWriter, self).__init__(record_writer)
+        self._keys_writer = ArrayFieldWriter(record_writer, types.Array(data_type.key_type))
+        self._values_writer = ArrayFieldWriter(record_writer, types.Array(data_type.value_type))
+
+    cdef int write(self, object val) except -1:
+        cdef object keys, values
+
+        if type(val) is dict:
+            keys = (<dict>val).keys()
+            values = (<dict>val).values()
+        else:
+            keys = val.keys()
+            values = val.values()
+        self._keys_writer.write(keys)
+        self._values_writer.write(values)
+        return 0
+
+
+cdef class StructFieldWriter(AbstractFieldWriter):
+    cdef:
+        list _field_keys
+        list _field_types
+        list _field_writers
+
+    def __init__(self, BaseRecordWriter record_writer, object data_type):
+        cdef int idx, field_count
+        super(StructFieldWriter, self).__init__(record_writer)
+
+        field_count = len(data_type.field_types)
+        self._field_keys = [None] * field_count
+        self._field_types = [None] * field_count
+        self._field_writers = [None] * field_count
+        for idx, (field_key, field_type) in enumerate(data_type.field_types.items()):
+            self._field_keys[idx] = field_key
+            self._field_types[idx] = field_type
+            self._field_writers[idx] = _build_field_writer(record_writer, field_type)
+
+    cdef int write(self, object val) except -1:
+        cdef:
+            int idx
+            tuple tp_val
+            list list_vals
+            object elem
+
+        if type(val) is tuple:
+            tp_val = <tuple>val
+        elif isinstance(val, tuple):
+            tp_val = tuple(val)
+        elif type(val) is dict:
+            list_vals = [None] * len(<dict>val)
+            for idx, key in enumerate(self._field_keys):
+                list_vals[idx] = (<dict>val)[key]
+            tp_val = tuple(list_vals)
+        elif isinstance(val, dict):
+            list_vals = [None] * len(val)
+            for idx, key in enumerate(self._field_keys):
+                list_vals[idx] = val[key]
+            tp_val = tuple(list_vals)
+        else:
+            raise TypeError("Cannot write %s as struct", type(val))
+
+        for idx, elem in enumerate(tp_val):
+            if elem is None:
+                self._record_writer._write_raw_bool(True)
+            else:
+                self._record_writer._write_raw_bool(False)
+                (<AbstractFieldWriter>self._field_writers[idx]).write(elem)
+
+        return 0

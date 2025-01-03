@@ -30,6 +30,7 @@ PyODPS 提供了一系列的配置选项，可通过 ``odps.options`` 获得，�
    "default_project", "默认 Project", "None"
    "logview_host", "LogView 主机名", "None"
    "logview_hours", "LogView 保持时间（小时）", "24"
+   "use_legacy_logview", "使用旧版 LogView 地址，None 表示自动根据 Endpoint 处理", "None"
    "quota_name", "提交任务时使用的计算 Quota 名称", "None"
    "local_timezone", "使用的时区，None 表示不处理，True 表示本地时区，False 表示 UTC，也可用 pytz 的时区", "None"
    "lifecycle", "所有表生命周期", "None"

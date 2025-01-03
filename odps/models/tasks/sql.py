@@ -1,4 +1,4 @@
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import json
+import os
 import sys
 import warnings
 from collections import OrderedDict
@@ -30,8 +31,9 @@ def collect_sql_settings(value, glob):
     if options.default_task_settings:
         settings = options.default_task_settings
 
-    settings["PYODPS_VERSION"] = __version__
-    settings["PYODPS_PYTHON_VERSION"] = sys.version
+    if utils.str_to_bool(os.environ.get("PYODPS_SUBMIT_CLIENT_VERSIONS") or "true"):
+        settings["PYODPS_VERSION"] = __version__
+        settings["PYODPS_PYTHON_VERSION"] = sys.version
 
     if glob:
         if options.sql.use_odps2_extension:

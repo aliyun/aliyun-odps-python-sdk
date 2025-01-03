@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -766,8 +766,6 @@ def escape_odps_string(src):
         "'": r"\'",
         '"': r"\"",
         "\\": r"\\",
-        ";": r"\;",
-        "Z": r"\Z",
         "\0": r"\0",
     }
     return "".join(trans_dict[ch] if ch in trans_dict else ch for ch in src)
@@ -1185,6 +1183,23 @@ def get_default_logview_endpoint(default_endpoint, odps_endpoint):
         return default_endpoint
     except:
         return default_endpoint
+
+
+def is_job_insight_available(odps_endpoint):
+    try:
+        if odps_endpoint is None:
+            return False
+
+        parsed_host = compat.urlparse(odps_endpoint).hostname
+        if parsed_host is None:
+            return False
+        hashed_host = md5_hexdigest(to_binary(parsed_host))
+        return hashed_host not in _convert_host_hash and (
+            parsed_host.endswith(".aliyun-inc.com")
+            or parsed_host.endswith(".aliyun.com")
+        )
+    except:
+        return False
 
 
 def _import_version_function():

@@ -1,4 +1,4 @@
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from cpython.datetime cimport datetime
-from libc.stdint cimport int64_t
+from cpython.datetime cimport date, datetime
+from libc.stdint cimport int32_t, int64_t
 from libc.time cimport tm
 
 
@@ -29,3 +29,6 @@ cdef class CMillisecondsConverter:
     cdef int _build_tm_struct(self, datetime dt, tm *p_tm) except? -1
     cpdef int64_t to_milliseconds(self, datetime dt) except? -1
     cpdef datetime from_milliseconds(self, int64_t milliseconds)
+
+cdef int32_t to_days(date py_date) except? -1
+cdef to_date(int32_t days)

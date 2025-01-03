@@ -1,4 +1,4 @@
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
 
 import hashlib
 import os
+import random
 
 from .. import compat
 from ..compat import six
@@ -252,6 +253,7 @@ class StreamResourceFile(ResourceFile):
         "_chunk_size",
         "_is_source_exhausted",
         "_source_offset",
+        "_rand_id",
     )
 
     def __init__(self, resource, mode="r", encoding="utf-8", overwrite=None):
@@ -275,6 +277,7 @@ class StreamResourceFile(ResourceFile):
 
         self._is_source_exhausted = False
         self._source_offset = 0
+        self._rand_id = random.randint(0, 999999)
 
     def _rebuild_buffer(self):
         self._buffer, buffer = self._new_buffer(), getattr(self, "_buffer", None)
@@ -282,7 +285,11 @@ class StreamResourceFile(ResourceFile):
         return buffer
 
     def _build_part_resource_name(self):
-        name = "%s.part.tmp.%06d" % (self.resource.name, self._resource_counter)
+        name = "%s.part.tmp.%06d.%06d" % (
+            self.resource.name,
+            self._rand_id,
+            self._resource_counter,
+        )
         self._resource_counter += 1
         return name
 

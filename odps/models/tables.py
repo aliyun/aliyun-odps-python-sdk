@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -90,6 +90,26 @@ class Tables(Iterable):
             for table in tables:
                 yield table
 
+    def _run_table_sql(self, query, task_name=None, hints=None, wait=True):
+        from .tasks import SQLTask
+
+        task = SQLTask(name=task_name, query=query)
+
+        hints = hints or {}
+        hints["odps.sql.submit.mode"] = ""
+        schema_name = self._get_schema_name()
+        if schema_name is not None:
+            hints["odps.sql.allow.namespace.schema"] = "true"
+            hints["odps.namespace.schema"] = "true"
+        if self._parent.project.odps.quota_name:
+            hints["odps.task.wlm.quota"] = self._parent.project.odps.quota_name
+        task.update_sql_settings(hints)
+        instance = self._parent.project.instances.create(task=task)
+
+        if wait:
+            instance.wait_for_success()
+        return instance
+
     @utils.with_wait_argument
     def create(
         self,
@@ -122,25 +142,13 @@ class Tables(Iterable):
             **kw
         )
 
-        from .tasks import SQLTask
-
-        task = SQLTask(name="SQLCreateTableTask", query=sql)
         hints = hints or {}
-        if schema_name is not None:
-            hints["odps.sql.allow.namespace.schema"] = "true"
-            hints["odps.namespace.schema"] = "true"
-        else:
-            hints["odps.namespace.schema"] = "false"
         if storage_tier:
             hints["odps.tiered.storage.enable"] = "true"
-        if self._parent.project.odps.quota_name:
-            hints["odps.task.wlm.quota"] = self._parent.project.odps.quota_name
-        task.update_sql_settings(hints)
-        instance = self._parent.project.instances.create(task=task)
-
+        instance = self._run_table_sql(
+            sql, task_name="SQLCreateTableTask", hints=hints, wait=not async_
+        )
         if not async_:
-            instance.wait_for_success()
-
             return self[table_name]
         else:
             return instance
@@ -190,23 +198,6 @@ class Tables(Iterable):
         )
 
         del self[table_name]  # release table in cache
-
-        from .tasks import SQLTask
-
-        task = SQLTask(name="SQLDropTableTask", query=sql)
-
-        hints = hints or {}
-        hints["odps.sql.submit.mode"] = ""
-        schema_name = self._get_schema_name()
-        if schema_name is not None:
-            hints["odps.sql.allow.namespace.schema"] = "true"
-            hints["odps.namespace.schema"] = "true"
-        if self._parent.project.odps.quota_name:
-            hints["odps.task.wlm.quota"] = self._parent.project.odps.quota_name
-        task.update_sql_settings(hints)
-        instance = self._parent.project.instances.create(task=task)
-
-        if not async_:
-            instance.wait_for_success()
-        else:
-            return instance
+        return self._run_table_sql(
+            sql, task_name="SQLDropTableTask", hints=hints, wait=not async_
+        )

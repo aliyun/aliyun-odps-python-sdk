@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -49,6 +49,7 @@ class VolumeTunnel(BaseTunnel):
         compress_algo=None,
         compress_level=None,
         compress_strategy=None,
+        tags=None,
     ):
         if not isinstance(volume, six.string_types):
             volume = volume.name
@@ -68,6 +69,7 @@ class VolumeTunnel(BaseTunnel):
             download_id=download_id,
             compress_option=compress_option,
             quota_name=self._quota_name,
+            tags=tags,
         )
 
     def create_upload_session(
@@ -79,6 +81,7 @@ class VolumeTunnel(BaseTunnel):
         compress_algo=None,
         compress_level=None,
         compress_strategy=None,
+        tags=None,
     ):
         if not isinstance(volume, six.string_types):
             volume = volume.name
@@ -97,6 +100,7 @@ class VolumeTunnel(BaseTunnel):
             upload_id=upload_id,
             compress_option=compress_option,
             quota_name=self._quota_name,
+            tags=tags,
         )
 
 
@@ -111,6 +115,7 @@ class VolumeFSTunnel(BaseTunnel):
         compress_algo=None,
         compress_level=None,
         compress_strategy=None,
+        tags=None,
     ):
         if not isinstance(volume, six.string_types):
             volume = volume.name
@@ -122,7 +127,7 @@ class VolumeFSTunnel(BaseTunnel):
             file_obj = volume[path]
             length = file_obj.length
 
-        headers = VolumeDownloadSession.get_common_headers()
+        headers = VolumeDownloadSession.get_common_headers(tags=tags)
         headers.update(
             {
                 "Range": "bytes={0}-{1}".format(start, start + length - 1),
@@ -173,12 +178,13 @@ class VolumeFSTunnel(BaseTunnel):
         compress_algo=None,
         compress_level=None,
         compress_strategy=None,
+        tags=None,
     ):
         if not isinstance(volume, six.string_types):
             volume = volume.name
         volume = self._project.volumes[volume]
 
-        headers = VolumeUploadSession.get_common_headers()
+        headers = VolumeUploadSession.get_common_headers(tags=tags)
         headers.update(
             {
                 "Content-Type": "application/octet-stream",
@@ -221,7 +227,7 @@ class VolumeFSTunnel(BaseTunnel):
                 strategy=compress_strategy,
             )
         return VolumeFSWriter(
-            self.tunnel_rest, chunk_upload, volume, path, compress_option
+            self.tunnel_rest, chunk_upload, volume, path, compress_option, tags=tags
         )
 
 
@@ -245,6 +251,7 @@ class VolumeDownloadSession(BaseVolumeTunnelSession):
         "project_name",
         "_compress_option",
         "_quota_name",
+        "_tags",
     )
 
     class Status(Enum):
@@ -283,11 +290,15 @@ class VolumeDownloadSession(BaseVolumeTunnelSession):
         self.partition_spec = partition_spec
         self.file_name = file_name
 
+        self._tags = tags or options.tunnel.tags
+        if isinstance(self._tags, six.string_types):
+            self._tags = self._tags.split(",")
+
         if download_id is None:
-            self._init(tags=tags)
+            self._init()
         else:
             self.id = download_id
-            self.reload(tags=tags)
+            self.reload()
 
         logger.info("Tunnel session created: %r", self)
         if options.tunnel_session_create_callback:
@@ -305,8 +316,8 @@ class VolumeDownloadSession(BaseVolumeTunnelSession):
         )
         return endpoint + "/projects/%s/tunnel/downloads" % self.project_name
 
-    def _init(self, tags=None):
-        headers = self.get_common_headers(content_length=0, tags=tags)
+    def _init(self):
+        headers = self.get_common_headers(content_length=0, tags=self._tags)
         params = dict(
             type="volumefile",
             target="/".join(
@@ -329,8 +340,8 @@ class VolumeDownloadSession(BaseVolumeTunnelSession):
             e = TunnelError.parse(resp)
             raise e
 
-    def reload(self, tags=None):
-        headers = self.get_common_headers(content_length=0, tags=tags)
+    def reload(self):
+        headers = self.get_common_headers(content_length=0, tags=self._tags)
         params = {}
 
         if self.partition_spec is not None and len(self.partition_spec) > 0:
@@ -351,7 +362,8 @@ class VolumeDownloadSession(BaseVolumeTunnelSession):
 
         params = {}
 
-        headers = {"Content-Length": 0, "x-odps-tunnel-version": 4}
+        headers = self.get_common_headers(tags=self._tags)
+        headers.update({"Content-Length": 0, "x-odps-tunnel-version": 4})
         if compress_option.algorithm == io.CompressOption.CompressAlgorithm.ODPS_ZLIB:
             headers["Accept-Encoding"] = "deflate"
         elif compress_option.algorithm != io.CompressOption.CompressAlgorithm.ODPS_RAW:
@@ -572,6 +584,7 @@ class VolumeUploadSession(BaseVolumeTunnelSession):
         "volume_name",
         "partition_spec",
         "_quota_name",
+        "_tags",
     )
 
     class Status(Enum):
@@ -612,11 +625,15 @@ class VolumeUploadSession(BaseVolumeTunnelSession):
         self.volume_name = volume.name
         self.partition_spec = partition_spec
 
+        self._tags = tags or options.tunnel.tags
+        if isinstance(self._tags, six.string_types):
+            self._tags = self._tags.split(",")
+
         if upload_id is None:
-            self._init(tags=tags)
+            self._init()
         else:
             self.id = upload_id
-            self.reload(tags=tags)
+            self.reload()
         self._compress_option = compress_option
 
         logger.info("Tunnel session created: %r", self)
@@ -635,8 +652,8 @@ class VolumeUploadSession(BaseVolumeTunnelSession):
         )
         return endpoint + "/projects/%s/tunnel/uploads" % self.project_name
 
-    def _init(self, tags=None):
-        headers = self.get_common_headers(content_length=0, tags=tags)
+    def _init(self):
+        headers = self.get_common_headers(content_length=0, tags=self._tags)
         params = dict(
             type="volumefile",
             target="/".join([self.project_name, self.volume_name, self.partition_spec])
@@ -653,8 +670,8 @@ class VolumeUploadSession(BaseVolumeTunnelSession):
             e = TunnelError.parse(resp)
             raise e
 
-    def reload(self, tags=None):
-        headers = self.get_common_headers(content_length=0, tags=tags)
+    def reload(self):
+        headers = self.get_common_headers(content_length=0, tags=self._tags)
         params = {}
 
         url = self.resource() + "/" + str(self.id)
@@ -685,7 +702,7 @@ class VolumeUploadSession(BaseVolumeTunnelSession):
 
     def open(self, file_name, compress=False, append=False):
         compress_option = self._compress_option or io.CompressOption()
-        headers = self.get_common_headers()
+        headers = self.get_common_headers(tags=self._tags)
         headers.update(
             {
                 "Content-Type": "test/plain",
@@ -720,7 +737,7 @@ class VolumeUploadSession(BaseVolumeTunnelSession):
             url, data=data, params=params, headers=headers
         )
         option = compress_option if compress else None
-        return VolumeWriter(self._client, chunk_uploader, option)
+        return VolumeWriter(self._client, chunk_uploader, option, tags=self._tags)
 
     def commit(self, files):
         if not files:
@@ -743,7 +760,7 @@ class VolumeUploadSession(BaseVolumeTunnelSession):
         self._complete_upload()
 
     def _complete_upload(self):
-        headers = self.get_common_headers(content_length=0)
+        headers = self.get_common_headers(content_length=0, tags=self._tags)
         params = {}
         if self._quota_name is not None:
             params["quotaName"] = self._quota_name
@@ -760,7 +777,7 @@ class VolumeUploadSession(BaseVolumeTunnelSession):
 class VolumeWriter(object):
     CHUNK_SIZE = 512 * 1024
 
-    def __init__(self, client, uploader, compress_option):
+    def __init__(self, client, uploader, compress_option, tags=None):
         self._client = client
         self._compress_option = compress_option
         self._req_io = io.RequestsIO(uploader, chunk_size=options.chunk_size)
@@ -773,6 +790,10 @@ class VolumeWriter(object):
             self._writer = io.DeflateOutputStream(self._req_io)
         else:
             raise errors.InvalidArgument("Invalid compression algorithm.")
+
+        self._tags = tags or options.tunnel.tags
+        if isinstance(self._tags, six.string_types):
+            self._tags = self._tags.split(",")
 
         self._crc = Checksum(method="crc32")
         self._initialized = False
@@ -843,16 +864,18 @@ class VolumeWriter(object):
 
 
 class VolumeFSWriter(VolumeWriter):
-    def __init__(self, client, uploader, volume, path, compress_option):
+    def __init__(self, client, uploader, volume, path, compress_option, tags=None):
         self._volume = volume
         self._path = path
-        super(VolumeFSWriter, self).__init__(client, uploader, compress_option)
+        super(VolumeFSWriter, self).__init__(
+            client, uploader, compress_option, tags=tags
+        )
 
     def close(self):
         result = super(VolumeFSWriter, self).close()
         if "x-odps-volume-sessionid" not in result.headers:
             raise TunnelError("No session id returned in response.")
-        headers = VolumeUploadSession.get_common_headers()
+        headers = VolumeUploadSession.get_common_headers(tags=self._tags)
         headers.update(
             {
                 "x-odps-volume-fs-path": "/"

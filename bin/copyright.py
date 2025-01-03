@@ -6,6 +6,7 @@
 
 import argparse
 import datetime
+import difflib
 import os.path
 import re
 import subprocess  # nosec
@@ -97,7 +98,8 @@ def main() -> None:
                     else:
                         if not no_git_log:
                             print(
-                                f"No log found with git on '{file_name}' (the next messages will be hidden)."
+                                f"No log found with git on '{file_name}' "
+                                "(the next messages will be hidden)."
                             )
                             no_git_log = True
                     used_year = CURRENT_YEAR
@@ -118,7 +120,7 @@ def main() -> None:
 
         with open(file_name, "r", encoding="utf-8") as file_obj:
             content = file_obj.read()
-            file_success, content = update_file(
+            file_success, new_content = update_file(
                 content,
                 used_year,
                 one_date_re,
@@ -131,9 +133,13 @@ def main() -> None:
             )
         if not file_success:
             success = False
+            file_diff_lines = difflib.unified_diff(
+                content.splitlines(keepends=True), new_content.splitlines(keepends=True)
+            )
+            file_diff = "".join(file_diff_lines)
             with open(file_name, "w", encoding="utf-8") as file_obj:
-                file_obj.write(content)
-            print(f"Fixing copyright in '{file_name}'")
+                file_obj.write(new_content)
+            print(f"Copyright updated in '{file_name}'.\n{file_diff}")
 
     if not success:
         sys.exit(1)

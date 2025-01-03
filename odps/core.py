@@ -1,4 +1,4 @@
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ from .tempobj import clean_stored_objects
 DEFAULT_ENDPOINT = "http://service.odps.aliyun.com/api"
 DEFAULT_REGION_NAME = "cn"
 LOGVIEW_HOST_DEFAULT = "http://logview.aliyun.com"
+JOB_INSIGHT_HOST_DEFAULT = "https://maxcompute.console.aliyun.com"
 
 _ALTER_TABLE_REGEX = re.compile(
     r"^\s*(drop|alter)\s+table\s*(|if\s+exists)\s+(?P<table_name>[^\s;]+)", re.I
@@ -104,6 +105,7 @@ class ODPS(object):
         tunnel_endpoint=None,
         region_name=None,
         quota_name=None,
+        namespace=None,
         **kw
     ):
         # avoid polluted copy sources :(
@@ -116,6 +118,7 @@ class ODPS(object):
         tunnel_endpoint = utils.strip_if_str(tunnel_endpoint)
         region_name = utils.strip_if_str(region_name)
         quota_name = utils.strip_if_str(quota_name)
+        namespace = utils.strip_if_str(namespace)
 
         if isinstance(access_id, accounts.BaseAccount):
             assert (
@@ -134,6 +137,7 @@ class ODPS(object):
             tunnel_endpoint=tunnel_endpoint,
             region_name=region_name,
             quota_name=quota_name,
+            namespace=namespace,
             **kw
         )
         clean_stored_objects(self)
@@ -146,6 +150,7 @@ class ODPS(object):
         endpoint=None,
         schema=None,
         region_name=None,
+        namespace=None,
         **kw
     ):
         self._property_update_callbacks = set()
@@ -176,6 +181,9 @@ class ODPS(object):
             project or options.default_project or os.getenv("ODPS_PROJECT_NAME")
         )
         self.region_name = region_name or self._get_region_from_endpoint(self.endpoint)
+        self.namespace = (
+            namespace or options.default_namespace or os.getenv("ODPS_NAMESPACE")
+        )
         self._quota_name = kw.pop("quota_name", None)
         self._schema = schema
 
@@ -189,6 +197,7 @@ class ODPS(object):
             app_account=self.app_account,
             proxy=options.api_proxy,
             region_name=self.region_name,
+            namespace=self.namespace,
             tag="ODPS",
             **rest_client_kwargs
         )
@@ -204,6 +213,12 @@ class ODPS(object):
             or options.logview_host
             or os.getenv("ODPS_LOGVIEW_HOST")
             or self.get_logview_host()
+        )
+        self._job_insight_host = (
+            JOB_INSIGHT_HOST_DEFAULT
+            if utils.is_job_insight_available(self.endpoint)
+            or options.use_legacy_logview is False
+            else None
         )
 
         self._default_tenant = models.Tenant(client=self.rest)
@@ -283,7 +298,12 @@ class ODPS(object):
             self._init(**state)
 
     def as_account(
-        self, access_id=None, secret_access_key=None, account=None, app_account=None
+        self,
+        access_id=None,
+        secret_access_key=None,
+        account=None,
+        app_account=None,
+        namespace=None,
     ):
         """
         Creates a new ODPS entry object with a new account information
@@ -293,6 +313,7 @@ class ODPS(object):
         :param account: new account object, if `access_id` and `secret_access_key` not supplied
         :param app_account: Application account, instance of `odps.accounts.AppAccount`
             used for dual authentication
+        :param namespace: namespace of the new account to be created
         :return:
         """
         if access_id is not None and secret_access_key is not None:
@@ -308,6 +329,7 @@ class ODPS(object):
             seahawks_url=self._seahawks_url,
             account=account or self.account,
             app_account=app_account or self.app_account,
+            namespace=namespace,
             overwrite_global=False,
         )
         return ODPS(**params)
@@ -339,6 +361,10 @@ class ODPS(object):
             or "false"
         )
         return setting.lower() == "true"
+
+    @property
+    def region_id(self):
+        return self.region_name
 
     @property
     def default_tenant(self):
@@ -423,6 +449,10 @@ class ODPS(object):
     @property
     def logview_host(self):
         return self._logview_host
+
+    @property
+    def job_insight_host(self):
+        return self._job_insight_host
 
     def get_quota(self, name=None, tenant_id=None):
         """
@@ -1455,6 +1485,7 @@ class ODPS(object):
         location=None,
         rolearn=None,
         auto_create_dir=False,
+        accelerate=False,
         **kwargs
     ):
         """
@@ -1466,6 +1497,7 @@ class ODPS(object):
         :param str location: location of OSS dir, should be oss://endpoint/bucket/path
         :param str rolearn: role arn of the account hosting the OSS bucket
         :param bool auto_create_dir: if True, will create directory automatically
+        :param bool accelerate: if True, will accelerate transfer of large volumes
         :return: volume
         :rtype: :class:`odps.models.FSVolume`
 
@@ -1477,6 +1509,7 @@ class ODPS(object):
             location=location,
             rolearn=rolearn,
             auto_create_dir=auto_create_dir,
+            accelerate=accelerate,
             **kwargs
         )
 
@@ -2115,7 +2148,9 @@ class ODPS(object):
         _logview_host_cache[self.endpoint] = logview_host
         return logview_host
 
-    def get_logview_address(self, instance_id, hours=None, project=None):
+    def get_logview_address(
+        self, instance_id, hours=None, project=None, use_legacy=None
+    ):
         """
         Get logview address by given instance id and hours.
 
@@ -2127,7 +2162,7 @@ class ODPS(object):
         """
         hours = hours or options.logview_hours
         inst = self.get_instance(instance_id, project=project)
-        return inst.get_logview_address(hours=hours)
+        return inst.get_logview_address(hours=hours, use_legacy=use_legacy)
 
     def get_project_policy(self, project=None):
         """
@@ -2377,6 +2412,7 @@ class ODPS(object):
         options.tunnel.endpoint = self._tunnel_endpoint
         options.app_account = self.app_account
         options.region_name = self.region_name
+        options.default_namespace = self.namespace
 
     @classmethod
     def from_global(cls):
@@ -2390,6 +2426,7 @@ class ODPS(object):
                 logview_host=options.logview_host,
                 app_account=options.app_account,
                 region_name=options.region_name,
+                namespace=options.default_namespace,
             )
         else:
             return None
@@ -2400,6 +2437,7 @@ class ODPS(object):
             project = os.getenv("ODPS_PROJECT_NAME")
             endpoint = os.environ["ODPS_ENDPOINT"]
             tunnel_endpoint = os.getenv("ODPS_TUNNEL_ENDPOINT")
+            namespace = os.getenv("ODPS_NAMESPACE")
             return cls(
                 None,
                 None,
@@ -2407,6 +2445,7 @@ class ODPS(object):
                 project=project,
                 endpoint=endpoint,
                 tunnel_endpoint=tunnel_endpoint,
+                namespace=namespace,
             )
         except KeyError:
             return None

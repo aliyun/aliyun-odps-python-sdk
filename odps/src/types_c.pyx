@@ -1,4 +1,4 @@
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,17 +13,18 @@
 # limitations under the License.
 
 import sys
-
 from collections import OrderedDict
+
 from cpython.bool cimport PyBool_Check
-from cpython.datetime cimport PyDateTime_Check, import_datetime
+from cpython.datetime cimport PyDate_Check, PyDateTime_Check, import_datetime
 from libc.stdint cimport *
 from libc.string cimport *
 
-from datetime import datetime
+from datetime import date, datetime
 
 from .. import options, types
-from ..compat import DECIMAL_TYPES, decimal as _decimal
+from ..compat import DECIMAL_TYPES
+from ..compat import decimal as _decimal
 
 
 cdef int64_t bigint_min = types.bigint._bounds[0]
@@ -38,6 +39,7 @@ cdef object _decimal_ROUND_HALF_UP = _decimal.ROUND_HALF_UP
 cdef:
     int64_t BOOL_TYPE_ID = types.boolean._type_id
     int64_t DATETIME_TYPE_ID = types.datetime._type_id
+    int64_t DATE_TYPE_ID = types.date._type_id
     int64_t STRING_TYPE_ID = types.string._type_id
     int64_t FLOAT_TYPE_ID = types.float_._type_id
     int64_t DOUBLE_TYPE_ID = types.double._type_id
@@ -129,6 +131,17 @@ cdef class DatetimeValidator(TypeValidator):
         if isinstance(val, (bytes, unicode)):
             return py_strptime(val, "%Y-%m-%d %H:%M:%S")
         raise TypeError("Invalid data type: expect datetime, got %s" % type(val))
+
+
+cdef class DateValidator(TypeValidator):
+    cdef object validate(self, object val, int64_t max_field_size):
+        if PyDate_Check(val):
+            return val
+        if PyDateTime_Check(val):
+            return val.date()
+        if isinstance(val, (bytes, unicode)):
+            return py_strptime(val, "%Y-%m-%d").date()
+        raise TypeError("Invalid data type: expect date, got %s" % type(val))
 
 
 pd_ts = None
@@ -423,6 +436,8 @@ cdef object _build_type_validator(int type_id, object data_type):
             return StringValidator()
     elif type_id == DATETIME_TYPE_ID:
         return DatetimeValidator()
+    elif type_id == DATE_TYPE_ID:
+        return DateValidator()
     elif type_id == BOOL_TYPE_ID:
         return BoolValidator()
     elif type_id == BINARY_TYPE_ID:
@@ -461,6 +476,8 @@ cdef class SchemaSnapshot:
         else:
             self._col_is_partition = [0] * self._col_count
             self._partition_col_count = 0
+
+        import_datetime()
 
         self._col_validators = [None] * self._col_count
         for i in range(self._col_count):

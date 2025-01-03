@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import functools
 import re
 import warnings
 
@@ -72,12 +73,18 @@ class Connection(object):
         session_name=None,
         odps=None,
         hints=None,
+        quota_name=None,
         **kw
     ):
         if isinstance(access_id, ODPS):
             access_id, odps = None, access_id
 
-        self._use_sqa = kw.pop("use_sqa", False) != False
+        use_sqa = kw.pop("use_sqa", False)
+        if use_sqa == "v2":
+            self._sqa_type = "v2"
+        else:
+            self._sqa_type = None if not use_sqa else "v1"
+
         self._fallback_policy = kw.pop("fallback_policy", "")
         self._project_as_schema = kw.pop(
             "project_as_schema", options.sqlalchemy.project_as_schema
@@ -89,6 +96,7 @@ class Connection(object):
                 secret_access_key=secret_access_key,
                 project=project,
                 endpoint=endpoint,
+                quota_name=quota_name,
                 **kw
             )
         else:
@@ -122,7 +130,7 @@ class Connection(object):
         return Cursor(
             self,
             *args,
-            use_sqa=self._use_sqa,
+            sqa_type=self._sqa_type,
             fallback_policy=self._fallback_policy,
             hints=self._hints,
             **kwargs
@@ -150,7 +158,7 @@ class Cursor(object):
         self,
         connection,
         arraysize=default_arraysize,
-        use_sqa=False,
+        sqa_type=None,
         fallback_policy="",
         hints=None,
         **kwargs
@@ -159,7 +167,7 @@ class Cursor(object):
         self._arraysize = arraysize
         self._reset_state()
         self.lastrowid = None
-        self._use_sqa = use_sqa
+        self._sqa_type = sqa_type
         self._fallback_policy = []
         self._hints = hints
         fallback_policies = map(lambda x: x.strip(), fallback_policy.split(","))
@@ -275,7 +283,9 @@ class Cursor(object):
 
         odps = self._connection.odps
         run_sql = odps.execute_sql
-        if self._use_sqa:
+        if self._sqa_type == "v2":
+            run_sql = functools.partial(self._run_sqa_with_fallback, use_mcqa_v2=True)
+        elif self._sqa_type == "v1":
             run_sql = self._run_sqa_with_fallback
         if async_:
             run_sql = odps.run_sql
@@ -302,11 +312,18 @@ class Cursor(object):
     def _run_sqa_with_fallback(self, sql, **kw):
         odps = self._connection.odps
         session_name = self._connection._session_name
+        quota_name = self._connection._odps.quota_name
+        use_v2 = kw.get("use_mcqa_v2", False)
         inst = None
         while True:
             try:
                 if inst is None:
-                    inst = odps.run_sql_interactive(sql, service_name=session_name)
+                    if use_v2:
+                        inst = odps.run_sql_interactive(
+                            sql, quota_name=quota_name, use_mcqa_v2=use_v2
+                        )
+                    else:
+                        inst = odps.run_sql_interactive(sql, service_name=session_name)
                 else:
                     inst.wait_for_success(interval=0.5)
                 rd = inst.open_reader(tunnel=True, limit=False)

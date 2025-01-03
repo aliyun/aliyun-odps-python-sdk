@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -439,6 +439,7 @@ default_options.register_option("endpoint", None)
 default_options.redirect_option("end_point", "endpoint")
 default_options.register_option("default_project", None)
 default_options.register_option("default_schema", None)
+default_options.register_option("default_namespace", None)
 default_options.register_option("app_account", None)
 default_options.register_option("region_name", None)
 default_options.register_option("quota_name", None)
@@ -448,6 +449,9 @@ default_options.register_option("allow_antique_date", False)
 default_options.register_option(
     "user_agent_pattern",
     "$pyodps_version $python_version $os_version $maxframe_version",
+)
+default_options.register_option(
+    "use_legacy_logview", True, validator=any_validator(is_bool, is_null)
 )
 default_options.register_option("logview_host", None)
 default_options.register_option("logview_hours", 24 * 30, validator=is_integer)

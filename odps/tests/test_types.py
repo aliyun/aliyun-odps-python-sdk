@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -57,6 +57,7 @@ def test_nullable_record():
         "decimal",
         "binary",
         "decimal(10, 2)",
+        "date",
         "interval_year_month",
         "json",
         "char(20)",
@@ -99,7 +100,7 @@ def test_record_max_field_size():
 @py_and_c_deco
 def test_record_set_and_get_by_index():
     s = TableSchema.from_lists(
-        ["col%s" % i for i in range(9)],
+        ["col%s" % i for i in range(10)],
         [
             "bigint",
             "double",
@@ -108,6 +109,7 @@ def test_record_set_and_get_by_index():
             "boolean",
             "decimal",
             "json",
+            "date",
             "array<string>",
             "map<string,bigint>",
         ],
@@ -122,32 +124,35 @@ def test_record_set_and_get_by_index():
     r[0] = 1
     r[1] = 1.2
     r[2] = "abc"
-    r[3] = datetime.datetime(2016, 1, 1)
+    r[3] = datetime.datetime(2016, 1, 1, 12, 30, 11)
     r[4] = True
     r[5] = _decimal.Decimal("1.111")
     r[6] = {"root": {"key": "value"}}
-    r[7] = ["a", "b"]
-    r[8] = OrderedDict({"a": 1})
+    r[7] = datetime.date(2016, 1, 1)
+    r[8] = ["a", "b"]
+    r[9] = OrderedDict({"a": 1})
     assert list(r.values) == [
         1,
         1.2,
         "abc",
-        datetime.datetime(2016, 1, 1),
+        datetime.datetime(2016, 1, 1, 12, 30, 11),
         True,
         _decimal.Decimal("1.111"),
         {"root": {"key": "value"}},
+        datetime.date(2016, 1, 1),
         ["a", "b"],
         OrderedDict({"a": 1}),
     ]
     assert 1 == r[0]
     assert 1.2 == r[1]
     assert "abc" == r[2]
-    assert datetime.datetime(2016, 1, 1) == r[3]
+    assert datetime.datetime(2016, 1, 1, 12, 30, 11) == r[3]
     assert r[4] is True
     assert _decimal.Decimal("1.111") == r[5]
     assert {"root": {"key": "value"}} == r[6]
-    assert ["a", "b"] == r[7]
-    assert OrderedDict({"a": 1}) == r[8]
+    assert datetime.date(2016, 1, 1) == r[7]
+    assert ["a", "b"] == r[8]
+    assert OrderedDict({"a": 1}) == r[9]
     assert [1, 1.2] == r[:2]
 
 
@@ -209,6 +214,7 @@ def test_implicit_cast():
     datetime_ = odps_types.Datetime()
     bool = odps_types.Boolean()
     decimal = odps_types.Decimal()
+    date = odps_types.Date()
     string = odps_types.String()
     json = odps_types.Json()
 
@@ -240,6 +246,10 @@ def test_implicit_cast():
 
     assert double.can_implicit_cast(float)
     assert not float.can_implicit_cast(double)
+
+    assert date.can_implicit_cast(datetime_)
+    assert date.can_implicit_cast(string)
+    assert not date.can_implicit_cast(bigint)
 
     assert json.can_implicit_cast(string)
     assert string.can_implicit_cast(json)
@@ -304,8 +314,8 @@ def test_composite_types():
 @py_and_c_deco
 def test_set_with_cast():
     s = TableSchema.from_lists(
-        ["bigint", "double", "string", "datetime", "boolean", "decimal"],
-        ["bigint", "double", "string", "datetime", "boolean", "decimal"],
+        ["bigint", "double", "string", "datetime", "date", "boolean", "decimal"],
+        ["bigint", "double", "string", "datetime", "date", "boolean", "decimal"],
     )
     r = Record(schema=s)
     r["double"] = 1
@@ -316,6 +326,8 @@ def test_set_with_cast():
     assert 1 == r["bigint"]
     r["datetime"] = "2016-01-01 0:0:0"
     assert datetime.datetime(2016, 1, 1) == r["datetime"]
+    r["date"] = "2016-01-01"
+    assert datetime.date(2016, 1, 1) == r["date"]
     r["decimal"] = "13.5641"
     assert _decimal.Decimal("13.5641") == r["decimal"]
 

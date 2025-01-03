@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -40,12 +40,14 @@ try:
 except ImportError:
     pd = None
     np = None
+    pytestmark = pytest.mark.skip("Need pandas to run this test")
 try:
     import pyarrow as pa
 except (ImportError, AttributeError):
     pa = None
     pytestmark = pytest.mark.skip("Need pyarrow to run this test")
 
+from ... import types as odps_types
 from ...config import options
 from ...models import TableSchema
 from ...tests.core import get_test_unique_name, tn
@@ -105,7 +107,11 @@ def setup(odps, tunnel):
         ) as reader:
             pd_data = reader.to_pandas()
         for col_name, dtype in pd_data.dtypes.items():
-            if isinstance(dtype, np.dtype) and np.issubdtype(dtype, np.datetime64):
+            if (
+                isinstance(dtype, np.dtype)
+                and np.issubdtype(dtype, np.datetime64)
+                and download_ss.schema[col_name].type != odps_types.timestamp_ntz
+            ):
                 pd_data[col_name] = pd_data[col_name].dt.tz_localize(_get_tz_str())
         return pd_data
 
@@ -124,13 +130,24 @@ def setup(odps, tunnel):
         data["dt"] = [
             dt.replace(microsecond=dt.microsecond // 1000 * 1000) for dt in data["dt"]
         ]
+        data["ts_ntz"] = [
+            pd.Timestamp.now() + pd.Timedelta(days=idx) for idx in range(4)
+        ] * repeat
         pd_data = pd.DataFrame(data)
 
         return pa.RecordBatch.from_pandas(pd_data)
 
     def create_table(table_name):
-        fields = ["id", "int_num", "float_num", "bool", "date", "dt"]
-        types = ["string", "bigint", "double", "boolean", "date", "datetime"]
+        fields = ["id", "int_num", "float_num", "bool", "date", "dt", "ts_ntz"]
+        types = [
+            "string",
+            "bigint",
+            "double",
+            "boolean",
+            "date",
+            "datetime",
+            "timestamp_ntz",
+        ]
 
         odps.delete_table(table_name, if_exists=True)
         return odps.create_table(
@@ -138,8 +155,16 @@ def setup(odps, tunnel):
         )
 
     def create_partitioned_table(table_name):
-        fields = ["id", "int_num", "float_num", "bool", "date", "dt"]
-        types = ["string", "bigint", "double", "boolean", "date", "datetime"]
+        fields = ["id", "int_num", "float_num", "bool", "date", "dt", "ts_ntz"]
+        types = [
+            "string",
+            "bigint",
+            "double",
+            "boolean",
+            "date",
+            "datetime",
+            "timestamp_ntz",
+        ]
 
         odps.delete_table(table_name, if_exists=True)
         return odps.create_table(

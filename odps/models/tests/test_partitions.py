@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import time
 from datetime import datetime
 
 import mock
@@ -203,3 +204,24 @@ def test_tiered_partition(odps_with_storage_tier):
     part.set_storage_tier("LowFrequency")
     assert part.storage_tier_info.storage_tier == StorageTier.LOWFREQENCY
     table.drop()
+
+
+def test_alter_table_partition_options(odps):
+    test_table_name = tn("pyodps_t_tmp_cond_partition_table")
+    odps.delete_table(test_table_name, if_exists=True)
+    tb = odps.create_table(
+        test_table_name, ("col string", "pt1 string, pt2 string"), lifecycle=3
+    )
+
+    pt = tb.create_partition("pt1=abc,pt2=def")
+    last_modify_time = pt.last_meta_modified_time
+    time.sleep(0.1)
+    pt.touch()
+    assert last_modify_time != pt.last_meta_modified_time
+
+    pt.change_partition_spec("pt1=bcd,pt2=efg")
+    assert str(pt.spec) == "pt1='bcd',pt2='efg'"
+    pt.reload()
+    assert str(pt.spec) == "pt1='bcd',pt2='efg'"
+
+    odps.delete_table(test_table_name, if_exists=True)

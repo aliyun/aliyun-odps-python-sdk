@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -65,6 +65,16 @@ class Column(object):
 
     def __hash__(self):
         return hash((type(self), self.name, self.type, self.comment, self.label))
+
+    def to_sql_clause(self, with_column_comments=True):
+        sio = six.StringIO()
+        sio.write(u"  `%s` %s" % (utils.to_text(self.name), utils.to_text(self.type)))
+        if not self.nullable and not options.sql.ignore_fields_not_null:
+            sio.write(u" NOT NULL")
+        if with_column_comments and self.comment:
+            comment_str = utils.escape_odps_string(utils.to_text(self.comment))
+            sio.write(u" COMMENT '%s'" % comment_str)
+        return sio.getvalue()
 
 
 class Partition(Column):
@@ -891,7 +901,7 @@ class Datetime(OdpsPrimitive):
         if isinstance(other, six.string_types):
             other = validate_data_type(other)
 
-        from_types = (BaseTimestamp, Datetime, String)
+        from_types = (BaseTimestamp, Datetime, Date, String)
         if _date_allow_int_conversion:
             from_types += (Bigint,)
         if isinstance(other, from_types):
@@ -903,6 +913,8 @@ class Datetime(OdpsPrimitive):
 
         if isinstance(data_type, String):
             return _datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
+        elif isinstance(data_type, Date):
+            return _datetime(value.year, value.month, value.day)
         elif isinstance(data_type, BaseTimestamp):
             return value.to_pydatetime()
         elif _date_allow_int_conversion and isinstance(data_type, Bigint):
@@ -929,8 +941,9 @@ class Date(OdpsPrimitive):
         self._can_cast_or_throw(value, data_type)
 
         if isinstance(data_type, String):
-            datetime = _datetime.strptime(value, "%Y-%m-%d")
-            return _date(datetime.year, datetime.month, datetime.day)
+            return _datetime.strptime(value, "%Y-%m-%d").date()
+        elif isinstance(data_type, Datetime):
+            return value.date()
         elif isinstance(data_type, BaseTimestamp):
             return value.to_pydatetime().date()
         elif _date_allow_int_conversion and isinstance(data_type, Bigint):

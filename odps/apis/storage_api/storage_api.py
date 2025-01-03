@@ -1,4 +1,4 @@
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ import logging
 from enum import Enum
 from hashlib import md5
 from io import BytesIO, IOBase
+from typing import List, Union
 
 try:
     import pyarrow as pa
@@ -621,15 +622,20 @@ class StorageApiClient(object):
         table: Table,
         rest_endpoint: str = None,
         quota_name: str = None,
+        tags: Union[None, str, List[str]] = None,
     ):
-        if isinstance(odps, ODPS) and isinstance(table, Table):
-            self._odps = odps
-            self._table = table
-            self._quota_name = quota_name
-            self._rest_endpoint = rest_endpoint
-            self._tunnel_rest = None
-        else:
+        if not isinstance(odps, ODPS) or not isinstance(table, Table):
             raise ValueError("Please input odps configuration")
+
+        self._odps = odps
+        self._table = table
+        self._quota_name = quota_name
+        self._rest_endpoint = rest_endpoint
+        self._tunnel_rest = None
+
+        self._tags = tags or options.tunnel.tags
+        if isinstance(self._tags, str):
+            self._tags = self._tags.split(",")
 
     @property
     def table(self):
@@ -653,14 +659,10 @@ class StorageApiClient(object):
         url = self._table.table_resource(endpoint=endpoint, force_schema=True)
         return "/".join([url] + list(args))
 
-    @staticmethod
-    def _fill_common_headers(raw_headers=None, tags=None):
+    def _fill_common_headers(self, raw_headers=None):
         headers = raw_headers or {}
-        tags = tags or options.tunnel.tags
-        if tags:
-            if isinstance(tags, str):
-                tags = tags.split(",")
-            headers["odps-tunnel-tags"] = ",".join(tags)
+        if self._tags:
+            headers["odps-tunnel-tags"] = ",".join(self._tags)
         return headers
 
     def create_read_session(

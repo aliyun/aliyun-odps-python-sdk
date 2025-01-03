@@ -1,4 +1,4 @@
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -535,6 +535,8 @@ class BearerTokenAccount(TempAccountMixin, BaseAccount):
         url = req.url[len(endpoint) :]
         url_components = urlparse(unquote(url), allow_fragments=False)
         self._build_canonical_str(url_components, req)
+        if self.token is None:
+            raise TypeError("Cannot sign request with None bearer token")
         req.headers["x-odps-bearer-token"] = self.token
         if self._last_refresh_time:
             req.headers["x-pyodps-token-timestamp"] = str(self._last_refresh_time)
@@ -546,7 +548,7 @@ class CredentialProviderAccount(StsAccount):
         self.provider = credential_provider
         super(CredentialProviderAccount, self).__init__(None, None, None)
 
-    def sign_request(self, req, endpoint, region_name=None):
+    def _refresh_credential(self):
         try:
             credential = self.provider.get_credential()
         except:
@@ -555,6 +557,9 @@ class CredentialProviderAccount(StsAccount):
         self.access_id = credential.get_access_key_id()
         self.secret_access_key = credential.get_access_key_secret()
         self.sts_token = credential.get_security_token()
+
+    def sign_request(self, req, endpoint, region_name=None):
+        utils.call_with_retry(self._refresh_credential)
         return super(CredentialProviderAccount, self).sign_request(
             req, endpoint, region_name=region_name
         )

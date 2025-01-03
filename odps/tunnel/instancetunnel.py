@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 import logging
 import sys
+from collections import OrderedDict
 
 import requests
 
@@ -47,6 +48,7 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
         "_session_subquery_id",
         "_quota_name",
         "_timeout",
+        "_tags",
     )
 
     class Status(Enum):
@@ -97,8 +99,12 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
                 "keyword argument must be provided for session instance tunnels."
             )
 
+        self._tags = tags or options.tunnel.tags
+        if isinstance(self._tags, six.string_types):
+            self._tags = self._tags.split(",")
+
         if download_id is None:
-            self._init(tags=tags or options.tunnel.tags)
+            self._init()
         else:
             self.id = download_id
             self.reload()
@@ -109,23 +115,28 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
             options.tunnel_session_create_callback(self)
 
     def __repr__(self):
-        return "<InstanceDownloadSession id=%s project_name=%s instance_id=%s%s>" % (
-            self.id,
-            self._instance.project.name,
-            self._instance.id,
-            " limited" if self._limit_enabled else "",
+        repr_kw = OrderedDict(
+            [
+                ("id", self.id),
+                ("project_name", self._instance.project.name),
+                ("instance_id", self._instance.id),
+                ("subquery_id", self._session_subquery_id if self._sessional else None),
+                ("limited", self._limit_enabled if self._limit_enabled else None),
+            ]
+        )
+        repr_kw = OrderedDict([(k, v) for k, v in repr_kw.items() if v is not None])
+        return "<InstanceDownloadSession %s>" % " ".join(
+            "%s=%s" % (k, v) for k, v in repr_kw.items()
         )
 
-    def _init(self, tags=None):
+    def _init(self):
         params = {}
         headers = {
             "Content-Length": 0,
             "x-odps-tunnel-version": TUNNEL_VERSION,
         }
-        if tags:
-            if isinstance(tags, six.string_types):
-                tags = tags.split(",")
-            headers["odps-tunnel-tags"] = ",".join(tags)
+        if self._tags:
+            headers["odps-tunnel-tags"] = ",".join(self._tags)
         if self._quota_name is not None:
             params["quotaName"] = self._quota_name
 
@@ -165,6 +176,8 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
                 "Content-Length": 0,
                 "x-odps-tunnel-version": TUNNEL_VERSION,
             }
+            if self._tags:
+                headers["odps-tunnel-tags"] = ",".join(self._tags)
             if self._sessional:
                 params["cached"] = ""
                 params["taskname"] = self._session_task_name
@@ -190,6 +203,8 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
         headers = {"x-odps-tunnel-version": TUNNEL_VERSION}
         if self._quota_name is not None:
             params["quotaName"] = self._quota_name
+        if self._tags:
+            headers["odps-tunnel-tags"] = ",".join(self._tags)
         if self._sessional:
             params["cached"] = ""
             params["taskname"] = self._session_task_name

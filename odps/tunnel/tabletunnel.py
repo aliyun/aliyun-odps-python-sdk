@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -131,6 +131,7 @@ class TableDownloadSession(BaseTableTunnelSession):
         "_partition_spec",
         "_compress_option",
         "_quota_name",
+        "_tags",
     )
 
     class Status(Enum):
@@ -173,11 +174,16 @@ class TableDownloadSession(BaseTableTunnelSession):
             async_mode = kw.pop("async_")
         if kw:
             raise TypeError("Cannot accept arguments %s" % ", ".join(kw.keys()))
+
+        self._tags = tags or options.tunnel.tags
+        if isinstance(self._tags, six.string_types):
+            self._tags = self._tags.split(",")
+
         if download_id is None:
-            self._init(async_mode=async_mode, timeout=timeout, tags=tags)
+            self._init(async_mode=async_mode, timeout=timeout)
         else:
             self.id = download_id
-            self.reload(tags=tags)
+            self.reload()
         self._compress_option = compress_option
 
         logger.info("Tunnel session created: %r", self)
@@ -192,9 +198,9 @@ class TableDownloadSession(BaseTableTunnelSession):
             self._partition_spec,
         )
 
-    def _init(self, async_mode, timeout, tags=None):
+    def _init(self, async_mode, timeout):
         params = self.get_common_params(downloads="")
-        headers = self.get_common_headers(content_length=0, tags=tags)
+        headers = self.get_common_headers(content_length=0, tags=self._tags)
         if async_mode:
             params["asyncmode"] = "true"
 
@@ -218,9 +224,9 @@ class TableDownloadSession(BaseTableTunnelSession):
         if self.schema is not None:
             self.schema.build_snapshot()
 
-    def reload(self, tags=None):
+    def reload(self):
         params = self.get_common_params(downloadid=self.id)
-        headers = self.get_common_headers(content_length=0, tags=tags)
+        headers = self.get_common_headers(content_length=0, tags=self._tags)
 
         url = self._table.table_resource()
         resp = self._client.get(url, params=params, headers=headers)
@@ -237,7 +243,7 @@ class TableDownloadSession(BaseTableTunnelSession):
 
         actions = ["data"]
         params = self.get_common_params(downloadid=self.id)
-        headers = self.get_common_headers(content_length=0)
+        headers = self.get_common_headers(content_length=0, tags=self._tags)
         if compress:
             encoding = compress_option.algorithm.get_encoding()
             if encoding:
@@ -332,6 +338,7 @@ class TableUploadSession(BaseTableTunnelSession):
         "_compress_option",
         "_overwrite",
         "_quota_name",
+        "_tags",
     )
 
     class Status(Enum):
@@ -372,11 +379,15 @@ class TableUploadSession(BaseTableTunnelSession):
         self._quota_name = quota_name
         self._overwrite = overwrite
 
+        self._tags = tags or options.tunnel.tags
+        if isinstance(self._tags, six.string_types):
+            self._tags = self._tags.split(",")
+
         if upload_id is None:
-            self._init(tags=tags)
+            self._init()
         else:
             self.id = upload_id
-            self.reload(tags=tags)
+            self.reload()
         self._compress_option = compress_option
 
         logger.info("Tunnel session created: %r", self)
@@ -391,8 +402,8 @@ class TableUploadSession(BaseTableTunnelSession):
             self._partition_spec,
         )
 
-    def _create_or_reload_session(self, tags=None, reload=False):
-        headers = self.get_common_headers(content_length=0, tags=tags)
+    def _create_or_reload_session(self, reload=False):
+        headers = self.get_common_headers(content_length=0, tags=self._tags)
         params = self.get_common_params(reload=reload)
         if not reload and self._overwrite:
             params["overwrite"] = "true"
@@ -421,11 +432,11 @@ class TableUploadSession(BaseTableTunnelSession):
         if self.schema is not None:
             self.schema.build_snapshot()
 
-    def _init(self, tags=None):
-        self._create_or_reload_session(tags=tags, reload=False)
+    def _init(self):
+        self._create_or_reload_session(reload=False)
 
-    def reload(self, tags=None):
-        self._create_or_reload_session(tags=tags, reload=True)
+    def reload(self):
+        self._create_or_reload_session(reload=True)
 
     @classmethod
     def _iter_data_in_batches(cls, data):
@@ -447,7 +458,7 @@ class TableUploadSession(BaseTableTunnelSession):
         compress_option = self._compress_option or CompressOption()
 
         params = self.get_common_params(uploadid=self.id)
-        headers = self.get_common_headers(chunked=True)
+        headers = self.get_common_headers(chunked=True, tags=self._tags)
         if compress:
             # special: rewrite LZ4 to ARROW_LZ4 for arrow tunnels
             if (
@@ -642,6 +653,8 @@ class TableStreamUploadSession(BaseTableTunnelSession):
         "_create_partition",
         "_zorder_columns",
         "_allow_schema_mismatch",
+        "_schema_version_reloader",
+        "_tags",
     )
 
     class Slots(object):
@@ -695,6 +708,7 @@ class TableStreamUploadSession(BaseTableTunnelSession):
         allow_schema_mismatch=True,
         upload_id=None,
         tags=None,
+        schema_version_reloader=None,
     ):
         super(TableStreamUploadSession, self).__init__()
 
@@ -707,12 +721,20 @@ class TableStreamUploadSession(BaseTableTunnelSession):
         self._zorder_columns = zorder_columns
         self._allow_schema_mismatch = allow_schema_mismatch
         self.schema_version = schema_version
+        self._schema_version_reloader = schema_version_reloader
+
+        self._tags = tags or options.tunnel.tags
+        if isinstance(self._tags, six.string_types):
+            self._tags = self._tags.split(",")
 
         if upload_id is None:
-            self._init(tags=tags)
+            if not allow_schema_mismatch and not schema_version:
+                self._init_with_latest_schema()
+            else:
+                self._init()
         else:
             self.id = upload_id
-            self.reload(tags=tags)
+            self.reload()
         self._compress_option = compress_option
 
         logger.info("Tunnel session created: %r", self)
@@ -730,9 +752,9 @@ class TableStreamUploadSession(BaseTableTunnelSession):
             )
         )
 
-    def _init(self, tags=None):
+    def _init(self):
         params = self.get_common_params()
-        headers = self.get_common_headers(content_length=0, tags=tags)
+        headers = self.get_common_headers(content_length=0, tags=self._tags)
 
         if self._create_partition:
             params["create_partition"] = ""
@@ -754,12 +776,21 @@ class TableStreamUploadSession(BaseTableTunnelSession):
         if self.schema is not None:
             self.schema.build_snapshot()
 
+    def _init_with_latest_schema(self):
+        def init_with_table_version():
+            self.schema_version = self._schema_version_reloader()
+            self._init()
+
+        return utils.call_with_retry(
+            init_with_table_version, retry_times=None, exc_type=errors.NoSuchSchema
+        )
+
     def _get_resource(self):
         return self._table.table_resource() + "/streams"
 
-    def reload(self, tags=None):
+    def reload(self):
         params = self.get_common_params(uploadid=self.id)
-        headers = self.get_common_headers(content_length=0, tags=tags)
+        headers = self.get_common_headers(content_length=0, tags=self._tags)
 
         url = self._get_resource()
         resp = self._client.get(url, params=params, headers=headers)
@@ -774,7 +805,7 @@ class TableStreamUploadSession(BaseTableTunnelSession):
         params = self.get_common_params(uploadid=self.id)
 
         slot = next(iter(self.slots))
-        headers = self.get_common_headers(content_length=0)
+        headers = self.get_common_headers(content_length=0, tags=self._tags)
         headers["odps-tunnel-routed-server"] = slot.server
 
         url = self._get_resource()
@@ -792,7 +823,7 @@ class TableStreamUploadSession(BaseTableTunnelSession):
 
         slot = next(iter(self.slots))
 
-        headers = self.get_common_headers(chunked=True)
+        headers = self.get_common_headers(chunked=True, tags=self._tags)
         headers.update(
             {
                 "odps-tunnel-slot-num": str(len(self.slots)),
@@ -833,6 +864,7 @@ class TableUpsertSession(BaseTableTunnelSession):
         "_commit_timeout",
         "_quota_name",
         "_lifecycle",
+        "_tags",
     )
 
     UPSERT_EXTRA_COL_NUM = 5
@@ -906,11 +938,15 @@ class TableUpsertSession(BaseTableTunnelSession):
         self._slot_num = slot_num
         self._commit_timeout = commit_timeout
 
+        self._tags = tags or options.tunnel.tags
+        if isinstance(self._tags, six.string_types):
+            self._tags = self._tags.split(",")
+
         if upsert_id is None:
-            self._init(tags=tags)
+            self._init()
         else:
             self.id = upsert_id
-            self.reload(tags=tags)
+            self.reload()
         self._compress_option = compress_option
 
         logger.info("Upsert session created: %r", self)
@@ -951,9 +987,9 @@ class TableUpsertSession(BaseTableTunnelSession):
         self.schema = self.schema.extend(patch_schema)
         self.schema.build_snapshot()
 
-    def _init_or_reload(self, reload=False, tags=None):
+    def _init_or_reload(self, reload=False):
         params = self.get_common_params()
-        headers = self.get_common_headers(content_length=0, tags=tags)
+        headers = self.get_common_headers(content_length=0, tags=self._tags)
 
         if not reload:
             params["slotnum"] = str(self._slot_num)
@@ -974,20 +1010,20 @@ class TableUpsertSession(BaseTableTunnelSession):
             e = TunnelError.parse(resp)
             raise e
 
-    def _init(self, tags=None):
-        self._init_or_reload(tags=tags)
+    def _init(self):
+        self._init_or_reload()
 
     def new_record(self, values=None):
         if values:
             values = list(values) + [None] * 5
         return super(TableUpsertSession, self).new_record(values)
 
-    def reload(self, init=False, tags=None):
-        self._init_or_reload(reload=True, tags=tags)
+    def reload(self, init=False):
+        self._init_or_reload(reload=True)
 
     def abort(self):
         params = self.get_common_params(upsertid=self.id)
-        headers = self.get_common_headers(content_length=0)
+        headers = self.get_common_headers(content_length=0, tags=self._tags)
         headers["odps-tunnel-routed-server"] = self.slots.buckets[0].server
 
         url = self._get_resource()
@@ -996,7 +1032,7 @@ class TableUpsertSession(BaseTableTunnelSession):
 
     def open_upsert_stream(self, compress=False):
         params = self.get_common_params(upsertid=self.id)
-        headers = self.get_common_headers()
+        headers = self.get_common_headers(tags=self._tags)
 
         compress_option = self._compress_option or CompressOption()
         if not compress:
@@ -1029,7 +1065,7 @@ class TableUpsertSession(BaseTableTunnelSession):
 
     def commit(self, async_=False):
         params = self.get_common_params(upsertid=self.id)
-        headers = self.get_common_headers(content_length=0)
+        headers = self.get_common_headers(content_length=0, tags=self._tags)
         headers["odps-tunnel-routed-server"] = self.slots.buckets[0].server
 
         url = self._get_resource()
@@ -1173,6 +1209,7 @@ class TableTunnel(BaseTunnel):
         schema_version=None,
         upload_id=None,
         tags=None,
+        allow_schema_mismatch=True,
     ):
         table = self._get_tunnel_table(table, schema)
         compress_option = compress_option or self._build_compress_option(
@@ -1180,6 +1217,15 @@ class TableTunnel(BaseTunnel):
             level=compress_level,
             strategy=compress_strategy,
         )
+        version_need_reloaded = [False]
+
+        def schema_version_reloader():
+            src_table = self._project.tables[table.name]
+            if version_need_reloaded[0]:
+                src_table.reload_extend_info()
+            version_need_reloaded[0] = True
+            return src_table.schema_version
+
         return TableStreamUploadSession(
             self.tunnel_rest,
             table,
@@ -1189,6 +1235,8 @@ class TableTunnel(BaseTunnel):
             schema_version=schema_version,
             upload_id=upload_id,
             tags=tags,
+            allow_schema_mismatch=allow_schema_mismatch,
+            schema_version_reloader=schema_version_reloader,
         )
 
     def create_upsert_session(

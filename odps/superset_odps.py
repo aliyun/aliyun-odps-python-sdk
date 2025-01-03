@@ -24,6 +24,16 @@ except ImportError:
             return database.get_sqla_engine_with_context(schema=schema, source=source)
 
         @classmethod
+        def where_latest_partition(  # pylint: disable=too-many-arguments
+            cls,
+            database,
+            table,
+            query,
+            columns=None,
+        ):
+            pass
+
+        @classmethod
         def get_table_names(  # pylint: disable=unused-argument
             cls,
             database,
@@ -57,7 +67,7 @@ except ImportError:
         WEEK_STARTING_SUNDAY = "1969-12-28T00:00:00Z/P1W"
 
 
-from .compat import six
+from .compat import getargspec, six
 from .config import options
 from .df import DataFrame
 from .utils import TEMP_TABLE_PREFIX
@@ -180,7 +190,7 @@ class ODPSEngineSpec(BaseEngineSpec):
             return [odps_entry.project]
 
     @classmethod
-    def where_latest_partition(  # pylint: disable=too-many-arguments
+    def _where_latest_partition(  # pylint: disable=too-many-arguments
         cls,
         table_name,
         schema,
@@ -203,11 +213,29 @@ class ODPSEngineSpec(BaseEngineSpec):
                 query = query.where(Column(col_name) == value)
         return query
 
+    if "schema" in getargspec(BaseEngineSpec.where_latest_partition).args:
+        # superset prior to v4.1.0 uses a legacy call routine
+        where_latest_partition = _where_latest_partition
+    else:
+
+        @classmethod
+        def where_latest_partition(cls, database, table, query, columns=None):
+            return cls._where_latest_partition(
+                table.table, table.schema, database, query, columns
+            )
+
+    @classmethod
+    def select_star(cls, *args, **kw):
+        if "indent" in kw:
+            # suspend indentation to circumvent calls to sqlglot
+            kw["indent"] = False
+        return super(ODPSEngineSpec, cls).select_star(*args, **kw)
+
     @classmethod
     def latest_sub_partition(  # type: ignore
         cls, table_name, schema, database, **kwargs
     ):
-        # TODO: implement`
+        # TODO: implement
         pass
 
     @classmethod
@@ -238,7 +266,7 @@ class ODPSEngineSpec(BaseEngineSpec):
         return funcs
 
     @classmethod
-    def execute(cls, cursor, query, **kwargs):
+    def execute(cls, cursor, query, database=None, **kwargs):
         options.verbose = True
         if not cls.allows_sql_comments:
             query = sql_parse.strip_comments_from_sql(query)

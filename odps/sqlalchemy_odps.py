@@ -1,4 +1,4 @@
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -287,7 +287,8 @@ class ODPSDialect(default.DefaultDialect):
         logview_host = options.logview_host
         endpoint = None
         session_name = None
-        use_sqa = False
+        sqa_type = False
+        quota_name = None
         reuse_odps = False
         project_as_schema = False
         fallback_policy = ""
@@ -302,8 +303,14 @@ class ODPSDialect(default.DefaultDialect):
                 logview_host = query.pop("logview_host", query.pop("logview", None))
             if session_name is None:
                 session_name = query.pop("session", None)
-            if use_sqa is False:
-                use_sqa = query.pop("interactive_mode", "false").lower() != "false"
+            if quota_name is None:
+                quota_name = query.pop("quota_name", None)
+            if sqa_type is False:
+                sqa_type = query.pop("interactive_mode", "false").lower()
+                if sqa_type == "true":
+                    sqa_type = "v1"
+                elif sqa_type == "false":
+                    sqa_type = False
             if reuse_odps is False:
                 reuse_odps = query.pop("reuse_odps", "false").lower() != "false"
             if query.get("project_as_schema", None) is not None:
@@ -328,11 +335,13 @@ class ODPSDialect(default.DefaultDialect):
             "project": project,
             "endpoint": endpoint,
             "session_name": session_name,
-            "use_sqa": use_sqa,
+            "use_sqa": sqa_type,
             "fallback_policy": fallback_policy,
             "project_as_schema": project_as_schema,
             "hints": hints,
         }
+        if quota_name is not None:
+            kwargs["quota_name"] = quota_name
         if access_id is None:
             kwargs.pop("access_id", None)
             kwargs.pop("secret_access_key", None)
