@@ -1,4 +1,4 @@
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from .. import serializers
-from ..compat import Enum
+from ..compat import Enum, six
 
 
 class ClusterType(Enum):
@@ -45,3 +45,20 @@ class ClusterInfo(serializers.JSONSerializableModel):
     def deserial(cls, content, obj=None, **kw):
         res = super(ClusterInfo, cls).deserial(content, obj=obj, **kw)
         return res if res.cluster_type is not None else None
+
+    def to_sql_clause(self):
+        sio = six.StringIO()
+        if self.cluster_type == ClusterType.RANGE:
+            cluster_type_str = u"RANGE "
+        else:
+            cluster_type_str = u""
+        cluster_cols = u", ".join(u"`%s`" % col for col in self.cluster_cols)
+        sio.write("%sCLUSTERED BY (%s)" % (cluster_type_str, cluster_cols))
+        if self.sort_cols:
+            sort_cols = u", ".join(
+                u"`%s` %s" % (c.name, c.order.value) for c in self.sort_cols
+            )
+            sio.write(u" SORTED BY (%s)" % sort_cols)
+        if self.bucket_num:
+            sio.write(" INTO %s BUCKETS" % self.bucket_num)
+        return sio.getvalue()

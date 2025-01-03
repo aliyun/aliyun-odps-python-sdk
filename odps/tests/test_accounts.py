@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import requests
 
 from .. import ODPS, errors, options
 from ..accounts import (
+    AliyunAccount,
     BearerTokenAccount,
     CredentialProviderAccount,
     SignServer,
@@ -317,6 +318,19 @@ def test_auth_expire_reload(odps):
     finally:
         shutil.rmtree(tmp_path)
         os.environ.pop("ODPS_BEARER_TOKEN_FILE", None)
+
+
+def test_rest_none_header_check(odps):
+    old_sign_request = AliyunAccount.sign_request
+
+    def new_sign_request(self, req, *args, **kwargs):
+        req.headers["x-pyodps-fake-header"] = None
+        return old_sign_request(self, req, *args, **kwargs)
+
+    with mock.patch("odps.accounts.AliyunAccount.sign_request", new=new_sign_request):
+        with pytest.raises(TypeError) as ex_info:
+            next(odps.list_tables())
+        assert "x-pyodps-fake-header" in str(ex_info.value)
 
 
 class MockCredentials(object):

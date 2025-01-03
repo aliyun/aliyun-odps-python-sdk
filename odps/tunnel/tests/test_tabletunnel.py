@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -540,21 +540,54 @@ def test_upload_and_download_by_raw_tunnel(setup, config_metrics):
     setup.create_table(test_table_name)
     data = setup.gen_data()
 
-    setup.upload_data(test_table_name, data, check_metrics=config_metrics)
-    records = setup.download_data(test_table_name, check_metrics=config_metrics)
+    setup.upload_data(
+        test_table_name, data, tags="elephant", check_metrics=config_metrics
+    )
+    records = setup.download_data(
+        test_table_name, tags="elephant", check_metrics=config_metrics
+    )
     assert list(data) == list(records)
 
     setup.delete_table(test_table_name)
 
 
 @py_and_c_deco
-def test_stream_upload_and_download_tunnel(odps, setup):
-    test_table_name = tn("pyodps_test_stream_upload_" + get_code_mode())
+@odps2_typed_case
+def test_upload_and_download_wrapped_strings(odps):
+    test_table_name = tn("pyodps_test_wrapped_string_" + get_test_unique_name(5))
+    odps.delete_table(test_table_name, if_exists=True)
+    odps.create_table(test_table_name, "col1 string, col2 binary")
+
+    class U(str if six.PY3 else unicode):  # noqa: F821
+        pass
+
+    class B(bytes if six.PY3 else str):
+        pass
+
+    tunnel = TableTunnel(odps)
+    sess = tunnel.create_upload_session(test_table_name)
+    with sess.open_record_writer(0) as writer:
+        writer.write(sess.new_record([U("a"), B(b"b")]))
+    sess.commit([0])
+
+    sess = tunnel.create_download_session(test_table_name)
+    with sess.open_record_reader(0, 1) as reader:
+        assert [list(r.values) for r in reader] == [["a", b"b"]]
+
+    odps.delete_table(test_table_name, if_exists=True)
+
+
+@py_and_c_deco
+@pytest.mark.parametrize("allow_schema_mismatch", [False, True])
+def test_stream_upload_and_download_tunnel(odps, setup, allow_schema_mismatch):
+    test_table_name = tn("pyodps_test_stream_upload_" + get_test_unique_name(5))
     odps.delete_table(test_table_name, if_exists=True)
     setup.create_table(test_table_name)
     data = setup.gen_data()
 
-    setup.stream_upload_data(test_table_name, data)
+    setup.stream_upload_data(
+        test_table_name, data, allow_schema_mismatch=allow_schema_mismatch
+    )
     records = setup.download_data(test_table_name)
     assert list(data) == list(records)
 

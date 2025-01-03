@@ -49,7 +49,7 @@ try:
             sql_to_mars_dataframe,
         )
         from .legacy.deploy.client import MarsCupidClient, CUPID_APP_NAME, NOTEBOOK_NAME
-except (AttributeError, TypeError):
+except (AttributeError, SyntaxError, TypeError):
     raise ImportError("Mars package broken")
 
 

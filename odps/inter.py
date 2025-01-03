@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -69,6 +69,8 @@ class Room(object):
                 logview_host=None,
                 default_schema=None,
                 region_name=None,
+                quota_name=None,
+                namespace=None,
                 **kwargs
             ):
                 options.loads(kwargs.get("options", {}))
@@ -78,6 +80,8 @@ class Room(object):
                 options.default_project = default_project
                 options.default_schema = default_schema
                 options.region_name = region_name
+                options.quota_name = quota_name
+                options.default_namespace = namespace
                 options.tunnel.endpoint = tunnel_endpoint
                 options.logview_host = logview_host
                 options.seahawks_url = seahawks_url
@@ -99,6 +103,8 @@ class Room(object):
             schema=options.default_schema,
             endpoint=options.endpoint,
             region_name=options.region_name,
+            quota_name=options.quota_name,
+            namespace=options.default_namespace,
             tunnel_endpoint=options.tunnel.endpoint,
             logview_host=options.logview_host,
             seahawks_url=options.seahawks_url,
@@ -201,6 +207,8 @@ def setup(
     tunnel_endpoint=None,
     default_schema=None,
     region_name=None,
+    quota_name=None,
+    namespace=None,
     seahawks_url=None,
     logview_host=None,
     room=DEFAULT_ROOM_NAME,
@@ -224,6 +232,9 @@ def setup(
             "This room(%s) has been configured before, "
             "you can teardown it first" % room
         )
+
+    kwargs["quota_name"] = quota_name
+    kwargs["namespace"] = namespace
 
     obj = (
         access_id,

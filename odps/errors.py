@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -368,6 +368,10 @@ class SchemaModified(ServerDefinedException):
         self.latest_schema_version = response_headers.get(
             "odps-tunnel-latest-schema-version"
         )
+
+
+class NoSuchSchema(ServerDefinedException):
+    pass
 
 
 class RequestTimeTooSkewed(ServerDefinedException):

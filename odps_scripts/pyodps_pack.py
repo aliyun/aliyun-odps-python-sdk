@@ -211,7 +211,7 @@ function build_package_at_staging () {{
   pushd "$WHEELS_PATH/staging" > /dev/null
   for dep_wheel in $(ls *.whl); do
     WHEEL_NAMES="$WHEEL_NAMES $dep_wheel"
-    dep_name="$(echo $dep_wheel | sed -E 's/-/ /g' | awk '{{ print $1"=="$2 }}')"
+    dep_name="$(echo $dep_wheel | sed -r 's/-/ /g' | awk '{{ print $1"=="$2 }}')"
     USER_PACK_NAMES="$USER_PACK_NAMES $dep_name "
     echo "$dep_name" >> "$TEMP_SCRIPT_PATH/requirements-user.txt"
     if [[ -z "$NON_DOCKER_MODE" || "$dep_wheel" == *"-none-"* ]]; then
@@ -227,7 +227,7 @@ function build_package_at_staging () {{
       "$PYBIN/python" -m pip wheel --wheel-dir "$WHEELS_PATH/staging" $PYPI_EXTRA_ARG --find-links "file://$WHEELS_PATH" $WHEEL_NAMES
       cd "$WHEELS_PATH/staging"
       for dep_wheel in $(ls *.whl); do
-        dep_name="$(echo $dep_wheel | sed -E 's/-/ /g' | awk '{{ print $1"=="$2 }}')"
+        dep_name="$(echo $dep_wheel | sed -r 's/-/ /g' | awk '{{ print $1"=="$2 }}')"
         if [[ "$USER_PACK_NAMES" != *"$dep_name"* ]]; then
           echo "$dep_name" >> "$TEMP_SCRIPT_PATH/requirements-dep-wheels.txt"
           if [[ "$dep_wheel" == *"-none-"* ]]; then
@@ -448,6 +448,10 @@ fi
 
 
 class PackException(Exception):
+    pass
+
+
+class PackCommandException(PackException):
     pass
 
 
@@ -892,7 +896,7 @@ def _get_default_image(use_legacy_image=False, arch=None):
 
 def _get_python_abi_version(python_version=None, mcpy27=None, dwpy27=None):
     if python_abi_env and python_version is not None:
-        raise PackException(
+        raise PackCommandException(
             "You should not specify environment variable 'PYABI' and '--python-version' at the same time."
         )
     if python_version is None:
@@ -908,7 +912,7 @@ def _get_python_abi_version(python_version=None, mcpy27=None, dwpy27=None):
             python_abi_version += "m"
     if dwpy27:
         if mcpy27:
-            raise PackException(
+            raise PackCommandException(
                 "You should not specify '--dwpy27' and '--mcpy27' at the same time."
             )
         python_abi_version = _DWPY27_PYABI
@@ -1014,7 +1018,7 @@ def _main(parsed_args):
 
     if parsed_args.pack_env:
         if parsed_args.specifiers:
-            raise PackException(
+            raise PackCommandException(
                 "ERROR: Cannot supply --pack-env with other package specifiers."
             )
         parsed_args.specifiers = _collect_env_packages(
@@ -1029,7 +1033,9 @@ def _main(parsed_args):
         and not parsed_args.package_path
         and not parsed_args.vcs_urls
     ):
-        raise PackException("ERROR: You must give at least one requirement to install.")
+        raise PackCommandException(
+            "ERROR: You must give at least one requirement to install."
+        )
 
     file_cfg = _get_default_pypi_config()
 
@@ -1471,6 +1477,8 @@ def main():
         sys.exit(_main(args) or 0)
     except PackException as ex:
         _print_fail(ex.args[0])
+        if isinstance(ex, PackCommandException):
+            parser.print_help()
         sys.exit(1)
 
 

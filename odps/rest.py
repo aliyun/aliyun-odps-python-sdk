@@ -1,4 +1,4 @@
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -132,6 +132,7 @@ class RestClient(object):
         schema=None,
         user_agent=None,
         region_name=None,
+        namespace=None,
         **kwargs
     ):
         if endpoint.endswith("/"):
@@ -142,6 +143,7 @@ class RestClient(object):
         self._user_agent = user_agent or default_user_agent()
         self.project = project
         self.schema = schema
+        self.namespace = namespace
         self._proxy = kwargs.get("proxy")
         self._app_account = kwargs.get("app_account")
         self._tag = kwargs.get("tag")
@@ -263,6 +265,8 @@ class RestClient(object):
         headers = kwargs.get("headers", {})
         headers = {k: str(v) for k, v in six.iteritems(headers)}
         headers["User-Agent"] = self._user_agent
+        if self.namespace:
+            headers["x-odps-namespace-id"] = self.namespace
         kwargs["headers"] = headers
         params = kwargs.setdefault("params", {})
 
@@ -294,6 +298,12 @@ class RestClient(object):
         if getattr(self, "_app_account", None) is not None:
             self._app_account.sign_request(
                 prepared_req, self._endpoint, region_name=region_name
+            )
+
+        if any(v is None for v in prepared_req.headers.values()):
+            none_headers = [k for k, v in prepared_req.headers.items() if v is None]
+            raise TypeError(
+                "Value of headers %s cannot be None" % ", ".join(none_headers)
             )
 
         try:

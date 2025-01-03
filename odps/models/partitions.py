@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -213,29 +213,15 @@ class Partitions(Iterable):
         else:
             partition_spec = self._get_partition_spec(partition_spec)
 
-        buf = six.StringIO()
-        buf.write("ALTER TABLE %s ADD " % self.parent.full_table_name)
+        part_sql = self.parent._build_partition_spec_sql(partition_spec)
+        action = "ADD%s %s" % (" IF NOT EXISTS" if if_not_exists else "", part_sql)
 
-        if if_not_exists:
-            buf.write("IF NOT EXISTS ")
-
-        buf.write("PARTITION (%s);" % partition_spec)
-
-        from .tasks import SQLTask
-
-        task = SQLTask(name="SQLAddPartitionTask", query=buf.getvalue())
-        hints = hints or {}
-        schema_name = self._get_schema_name()
-        if schema_name is not None:
-            hints["odps.sql.allow.namespace.schema"] = "true"
-            hints["odps.namespace.schema"] = "true"
-        if self.project.odps.quota_name:
-            hints["odps.task.wlm.quota"] = self.project.odps.quota_name
-        task.update_sql_settings(hints)
-        instance = self.project.parent[self._client.project].instances.create(task=task)
+        sql = self.parent._build_alter_table_ddl(action)
+        instance = self.parent.parent._run_table_sql(
+            sql, "SQLAddPartitionTask", hints=hints, wait=not async_
+        )
 
         if not async_:
-            instance.wait_for_success()
             return self[partition_spec]
         else:
             return instance
@@ -247,30 +233,10 @@ class Partitions(Iterable):
         else:
             partition_spec = self._get_partition_spec(partition_spec)
 
-        buf = six.StringIO()
-        buf.write("ALTER TABLE %s DROP " % self.parent.full_table_name)
+        part_sql = self.parent._build_partition_spec_sql(partition_spec)
+        action = "DROP%s %s" % (" IF EXISTS" if if_exists else "", part_sql)
 
-        if if_exists:
-            buf.write("IF EXISTS ")
-
-        buf.write("PARTITION (%s);" % partition_spec)
-
-        from .tasks import SQLTask
-
-        task = SQLTask(name="SQLDropPartitionTask", query=buf.getvalue())
-
-        hints = hints or {}
-        hints["odps.sql.submit.mode"] = ""
-        schema_name = self._get_schema_name()
-        if schema_name is not None:
-            hints["odps.sql.allow.namespace.schema"] = "true"
-            hints["odps.namespace.schema"] = "true"
-        if self.project.odps.quota_name:
-            hints["odps.task.wlm.quota"] = self.project.odps.quota_name
-        task.update_sql_settings(hints)
-        instance = self.project.parent[self._client.project].instances.create(task=task)
-
-        if not async_:
-            instance.wait_for_success()
-        else:
-            return instance
+        sql = self.parent._build_alter_table_ddl(action)
+        return self.parent.parent._run_table_sql(
+            sql, "SQLDropPartitionTask", hints=hints, wait=not async_
+        )

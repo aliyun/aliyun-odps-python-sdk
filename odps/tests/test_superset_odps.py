@@ -104,6 +104,7 @@ def test_execute_sql(odps):
 def test_latest_partition(odps, ss_db_inspector):
     import sqlalchemy as sa
 
+    SSTable = namedtuple("SSTable", "table schema")
     db, inspector = ss_db_inspector
     spec = ODPSEngineSpec()
 
@@ -118,7 +119,7 @@ def test_latest_partition(odps, ss_db_inspector):
 
     try:
         query = spec.where_latest_partition(
-            table_name, None, db, sa_query, columns=ss_cols
+            db, SSTable(table_name, None), sa_query, columns=ss_cols
         )
         # no data, no partition returned
         assert query is None
@@ -127,7 +128,7 @@ def test_latest_partition(odps, ss_db_inspector):
             writer.write([["abcd"]])
 
         query = spec.where_latest_partition(
-            table_name, None, db, sa_query, columns=ss_cols
+            db, SSTable(table_name, None), sa_query, columns=ss_cols
         )
         compiled = query.compile(dialect=inspector.dialect)
         # make sure the latest partition is selected

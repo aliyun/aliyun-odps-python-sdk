@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -38,6 +38,7 @@ from ... import compat, errors, options
 from ... import types as odps_types
 from ... import utils
 from ...compat import six
+from ...core import ODPS
 from ...errors import ODPSError
 from ...tests.core import (
     flaky,
@@ -733,8 +734,27 @@ def test_instance_result_to_result_frame(odps):
 
 
 def test_instance_logview(odps):
-    instance = odps.run_sql("drop table if exists non_exist_table_name")
-    assert isinstance(odps.get_logview_address(instance.id, 12), six.string_types)
+    try:
+        options.use_legacy_logview = None
+        instance = odps.run_sql("drop table if exists non_exist_table_name")
+        addr = odps.get_logview_address(instance.id, 12)
+        assert isinstance(addr, six.string_types)
+        assert "logview" in addr
+    finally:
+        options.use_legacy_logview = True
+
+
+def test_instance_job_insight(odps):
+    try:
+        options.use_legacy_logview = False
+        new_odps = ODPS(
+            account=odps.account, project=odps.project, endpoint=odps.endpoint
+        )
+        instance = odps.run_sql("drop table if exists non_exist_table_name")
+        addr = new_odps.get_logview_address(instance.id, 12)
+        assert "job-insight" in addr
+    finally:
+        options.use_legacy_logview = True
 
 
 @flaky(max_runs=3)

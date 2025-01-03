@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -602,11 +602,13 @@ class InSessionInstance(Instance):
         kw["subquery_id"] = "session_query_%d" % self._subquery_id
         return super(InSessionInstance, self)._get_queueing_info(**kw)
 
-    def get_logview_address(self, hours=None):
+    def get_logview_address(self, hours=None, use_legacy=None):
         self._wait_subquery_id_ready()
         subquery_suffix = "&subQuery=%s" % self.subquery_id
         return (
-            super(InSessionInstance, self).get_logview_address(hours=hours)
+            super(InSessionInstance, self).get_logview_address(
+                hours=hours, use_legacy=use_legacy
+            )
             + subquery_suffix
         )
 

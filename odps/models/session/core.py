@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -122,6 +122,11 @@ class SessionMethods(object):
         pass
 
     @classmethod
+    def _get_mcqa_v2_quota_name(cls, odps, hints=None, quota_name=None):
+        hints = hints or {}
+        return quota_name or hints.get("odps.task.wlm.quota") or odps.quota_name
+
+    @classmethod
     def run_sql_interactive(cls, odps, sql, hints=None, use_mcqa_v2=False, **kwargs):
         """
         Run SQL query in interactive mode (a.k.a MaxCompute QueryAcceleration).
@@ -132,7 +137,9 @@ class SessionMethods(object):
         :return: instance.
         """
         if use_mcqa_v2:
-            quota_name = odps.quota_name or kwargs.pop("quota_name", None)
+            quota_name = cls._get_mcqa_v2_quota_name(
+                odps, hints=hints, quota_name=kwargs.pop("quota_name", None)
+            )
             return McqaV2Methods.run_sql_interactive(
                 odps, sql, hints=hints, quota_name=quota_name, **kwargs
             )
@@ -173,7 +180,9 @@ class SessionMethods(object):
         :return: instance.
         """
         if use_mcqa_v2:
-            quota_name = odps.quota_name or kwargs.pop("quota_name", None)
+            quota_name = cls._get_mcqa_v2_quota_name(
+                odps, hints=hints, quota_name=kwargs.pop("quota_name", None)
+            )
             return McqaV2Methods.execute_sql_interactive(
                 odps, sql, hints=hints, quota_name=quota_name, **kwargs
             )

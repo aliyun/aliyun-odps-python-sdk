@@ -1,4 +1,4 @@
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,6 +20,10 @@ import time
 
 from cpython.datetime cimport (
     PyDateTime_DateTime,
+    date,
+    date_day,
+    date_month,
+    date_year,
     datetime,
     datetime_day,
     datetime_hour,
@@ -35,7 +39,7 @@ from cpython.datetime cimport (
 
 from datetime import datetime
 
-from libc.stdint cimport int64_t
+from libc.stdint cimport int32_t, int64_t
 from libc.time cimport gmtime, localtime, mktime, time_t, tm
 
 try:
@@ -53,6 +57,9 @@ from ..config import options
 
 cdef extern from "timegm.c":
     time_t timegm(tm* t) noexcept nogil
+    int32_t days_from_epoch(int y, int m, int d) noexcept nogil
+    tm* gmtime_safe(time_t* timer, tm* buf) noexcept nogil
+    tm* localtime_safe(time_t* timer, tm* buf) noexcept nogil
 
 cdef bint _is_windows = sys.platform.lower().startswith("win")
 cdef bint _is_py3 = sys.version_info[0] == 3
@@ -189,7 +196,7 @@ cdef class CMillisecondsConverter:
     cpdef datetime from_milliseconds(self, int64_t milliseconds):
         cdef time_t seconds, zero
         cdef int64_t microseconds
-        cdef tm* p_tm
+        cdef tm tm_val
 
         if not self._allow_antique and milliseconds < _antique_mills:
             from ..errors import DatetimeOverflowError
@@ -214,34 +221,53 @@ cdef class CMillisecondsConverter:
             if self._default_tz_local and _is_windows and milliseconds < 0:
                 # special logic for negative timestamp under Windows
                 zero = 0
-                p_tm = localtime(&zero)
+                localtime_safe(&zero, &tm_val)
                 return datetime_new(
-                    p_tm.tm_year + 1900,
-                    p_tm.tm_mon + 1,
-                    p_tm.tm_mday,
-                    p_tm.tm_hour,
-                    p_tm.tm_min,
-                    p_tm.tm_sec,
+                    tm_val.tm_year + 1900,
+                    tm_val.tm_mon + 1,
+                    tm_val.tm_mday,
+                    tm_val.tm_hour,
+                    tm_val.tm_min,
+                    tm_val.tm_sec,
                     microseconds,
                     None,
                 ) + timedelta_new(0, seconds, 0)
 
             if self._default_tz_local:
-                p_tm = localtime(&seconds)
+                localtime_safe(&seconds, &tm_val)
             else:
-                p_tm = gmtime(&seconds)
+                gmtime_safe(&seconds, &tm_val)
 
             return datetime_new(
-                p_tm.tm_year + 1900,
-                p_tm.tm_mon + 1,
-                p_tm.tm_mday,
-                p_tm.tm_hour,
-                p_tm.tm_min,
-                p_tm.tm_sec,
+                tm_val.tm_year + 1900,
+                tm_val.tm_mon + 1,
+                tm_val.tm_mday,
+                tm_val.tm_hour,
+                tm_val.tm_min,
+                tm_val.tm_sec,
                 microseconds,
                 None,
             )
         else:
-            return datetime.utcfromtimestamp(seconds) \
-                .replace(microsecond=microseconds, tzinfo=utc) \
-                .astimezone(self._tz)
+            return datetime.utcfromtimestamp(seconds).replace(
+                microsecond=microseconds, tzinfo=utc
+            ).astimezone(self._tz)
+
+
+cdef int32_t to_days(date py_date) except? -1:
+    return days_from_epoch(
+        date_year(py_date),
+        date_month(py_date),
+        date_day(py_date),
+    )
+
+
+cdef to_date(int32_t days):
+    cdef datetime dt = datetime_new(
+        1970, 1, 1, 0, 0, 0, 0, None
+    ) + timedelta_new(days, 0, 0)
+    return date(
+        datetime_year(dt),
+        datetime_month(dt),
+        datetime_day(dt),
+    )

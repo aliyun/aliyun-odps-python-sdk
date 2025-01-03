@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -194,6 +194,9 @@ class Project(LazyLoad):
     tenant_id = serializers.XMLNodeField("TenantId")
     default_quota_nickname = serializers.XMLNodeField("DefaultQuotaNickname")
     default_quota_region = serializers.XMLNodeField("DefaultQuotaRegion")
+    cluster_role = serializers.XMLNodeField("ClusterRole")
+    job_data_path = serializers.XMLNodeField("JobDataPath")
+    zone_id = serializers.XMLNodeField("ZoneId")
 
     def __init__(self, *args, **kwargs):
         self._tunnel_endpoint = None

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -983,7 +983,7 @@ class Instance(LazyLoad):
     )
 
     @_with_status_api_lock
-    def get_logview_address(self, hours=None):
+    def get_logview_address(self, hours=None, use_legacy=None):
         """
         Get logview address of the instance object by hours.
 
@@ -991,6 +991,32 @@ class Instance(LazyLoad):
         :return: logview address
         :rtype: str
         """
+        if use_legacy is None:
+            use_legacy = options.use_legacy_logview
+        if use_legacy is None and self.project.odps.job_insight_host is not None:
+            use_legacy = False
+        if (
+            self.project.odps.job_insight_host is None
+            or self.project.odps.region_name is None
+        ):
+            use_legacy = True
+        if use_legacy is False:
+            return self._get_job_insight_address()
+        return self._get_legacy_logview_address(hours=hours)
+
+    def _get_job_insight_address(self):
+        return (
+            "%(job_insight_host)s/%(region_id)s/job-insights?h=%(endpoint)s"
+            "&p=%(project_name)s&i=%(instance_id)s"
+        ) % dict(
+            job_insight_host=self.project.odps.job_insight_host,
+            region_id=self.project.odps.region_name,
+            endpoint=self._client.endpoint,
+            project_name=self.project.name,
+            instance_id=self.id,
+        )
+
+    def _get_legacy_logview_address(self, hours=None):
         if (
             self._logview_address is not None
             and monotonic() - self._logview_address_time < 600
@@ -1016,15 +1042,14 @@ class Instance(LazyLoad):
             token = self.project.generate_auth_token(policy, "bearer", hours)
 
         link = (
-            self.project.odps.logview_host
-            + "/logview/?h="
-            + self._client.endpoint
-            + "&p="
-            + project.name
-            + "&i="
-            + self.id
-            + "&token="
-            + token
+            "%(logview_host)s/logview/?h=%(endpoint)s&p=%(project_name)s"
+            "&i=%(instance_id)s&token=%(token)s"
+        ) % dict(
+            logview_host=self.project.odps.logview_host,
+            endpoint=self._client.endpoint,
+            project_name=project.name,
+            instance_id=self.id,
+            token=token,
         )
         self._logview_address = link
         self._logview_address_time = monotonic()

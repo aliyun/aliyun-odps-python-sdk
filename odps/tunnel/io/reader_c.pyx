@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@ cimport cython
 
 import decimal
 import json
+import sys
 import warnings
 from collections import OrderedDict
 
@@ -27,7 +28,7 @@ from libc.string cimport *
 from ...lib.monotonic import monotonic
 
 from ...src.types_c cimport BaseRecord
-from ...src.utils_c cimport CMillisecondsConverter
+from ...src.utils_c cimport CMillisecondsConverter, to_date
 from ..checksum_c cimport Checksum
 from ..pb.decoder_c cimport CDecoder
 
@@ -66,6 +67,9 @@ cdef:
     int64_t DECIMAL_TYPE_ID = types.Decimal._type_id
     int64_t JSON_TYPE_ID = types.Json._type_id
     int64_t TIMESTAMP_NTZ_TYPE_ID = types.timestamp_ntz._type_id
+    int64_t ARRAY_TYPE_ID = types.Array._type_id
+    int64_t MAP_TYPE_ID = types.Map._type_id
+    int64_t STRUCT_TYPE_ID = types.Struct._type_id
 
 cdef:
     object pd_timestamp = None
@@ -104,48 +108,16 @@ cdef class BaseTunnelRecordReader:
         self._reader_schema = types.OdpsSchema(columns=self._columns)
         self._schema_snapshot = self._reader_schema.build_snapshot()
         self._n_columns = len(self._columns)
-        self._overflow_date_as_none = options.tunnel.overflow_date_as_none
-        self._struct_as_dict = options.struct_as_dict
         self._partition_vals = []
         self._append_partitions = append_partitions
 
         partition_spec = PartitionSpec(partition_spec) if partition_spec is not None else None
 
-        self._column_setters.resize(self._n_columns)
+        self._field_readers = [None] * self._schema_snapshot._col_count
+        for idx, col_type in enumerate(self._schema_snapshot._col_types):
+            self._field_readers[idx] = _build_field_reader(self, col_type)
+
         for i in range(self._n_columns):
-            data_type = self._schema_snapshot._col_types[i]
-            if data_type == types.boolean:
-                self._column_setters[i] = self._set_bool
-            elif data_type == types.datetime:
-                self._column_setters[i] = self._set_datetime
-            elif data_type == types.date:
-                self._column_setters[i] = self._set_date
-            elif data_type == types.string:
-                self._column_setters[i] = self._set_string
-            elif data_type == types.float_:
-                self._column_setters[i] = self._set_float
-            elif data_type == types.double:
-                self._column_setters[i] = self._set_double
-            elif data_type in types.integer_types:
-                self._column_setters[i] = self._set_bigint
-            elif data_type == types.binary:
-                self._column_setters[i] = self._set_string
-            elif data_type == types.timestamp:
-                self._column_setters[i] = self._set_timestamp
-            elif data_type == types.timestamp_ntz:
-                self._column_setters[i] = self._set_timestamp_ntz
-            elif data_type == types.interval_day_time:
-                self._column_setters[i] = self._set_interval_day_time
-            elif data_type == types.interval_year_month:
-                self._column_setters[i] = self._set_interval_year_month
-            elif data_type == types.json:
-                self._column_setters[i] = self._set_json
-            elif isinstance(data_type, types.Decimal):
-                self._column_setters[i] = self._set_decimal
-            elif isinstance(data_type, (types.Char, types.Varchar)):
-                self._column_setters[i] = self._set_string
-            else:
-                self._column_setters[i] = NULL
             if partition_spec is not None and self._columns[i].name in partition_spec:
                 self._partition_vals.append((i, partition_spec[self._columns[i].name]))
 
@@ -163,9 +135,6 @@ cdef class BaseTunnelRecordReader:
             ts = monotonic()
 
         self._read_limit = -1 if options.table_read_limit is None else options.table_read_limit
-        self._mills_converter = CMillisecondsConverter()
-        self._mills_converter_utc = CMillisecondsConverter(local_tz=False)
-        self._to_date = utils.to_date
 
         if self._enable_client_metrics:
             self._c_local_wall_time_ms += <long>(
@@ -215,227 +184,8 @@ cdef class BaseTunnelRecordReader:
     def count(self):
         return self._curr_cursor
 
-    cdef object _read_struct(self, object value_type):
-        cdef:
-            list res_list = [None] * len(value_type.field_types)
-            int idx
-        for idx, field_type in enumerate(value_type.field_types.values()):
-            if not self._reader.read_bool():
-                res_list[idx] = self._read_element(field_type._type_id, field_type)
-        if self._struct_as_dict:
-            return OrderedDict(zip(value_type.field_types.keys(), res_list))
-        else:
-            return value_type.namedtuple_type(*res_list)
-
-    cdef object _read_element(self, int data_type_id, object data_type):
-        if data_type_id == FLOAT_TYPE_ID:
-            val = self._read_float()
-        elif data_type_id == BIGINT_TYPE_ID:
-            val = self._read_bigint()
-        elif data_type_id == DOUBLE_TYPE_ID:
-            val = self._read_double()
-        elif data_type_id == STRING_TYPE_ID:
-            val = self._read_string()
-        elif data_type_id == BOOL_TYPE_ID:
-            val = self._read_bool()
-        elif data_type_id == DATETIME_TYPE_ID:
-            val = self._read_datetime()
-        elif data_type_id == BINARY_TYPE_ID:
-            val = self._read_string()
-        elif data_type_id == TIMESTAMP_TYPE_ID:
-            val = self._read_timestamp()
-        elif data_type_id == TIMESTAMP_NTZ_TYPE_ID:
-            val = self._read_timestamp_ntz()
-        elif data_type_id == INTERVAL_DAY_TIME_TYPE_ID:
-            val = self._read_interval_day_time()
-        elif data_type_id == INTERVAL_YEAR_MONTH_TYPE_ID:
-            val = compat.Monthdelta(self._read_bigint())
-        elif data_type_id == JSON_TYPE_ID:
-            val = json.loads(self._read_string())
-        elif data_type_id == DECIMAL_TYPE_ID:
-            val = self._read_string()
-        elif isinstance(data_type, (types.Char, types.Varchar)):
-            val = self._read_string()
-        elif isinstance(data_type, types.Array):
-            val = self._read_array(data_type.value_type)
-        elif isinstance(data_type, types.Map):
-            keys = self._read_array(data_type.key_type)
-            values = self._read_array(data_type.value_type)
-            val = OrderedDict(zip(keys, values))
-        elif isinstance(data_type, types.Struct):
-            val = self._read_struct(data_type)
-        else:
-            raise IOError("Unsupported type %s" % data_type)
-        return val
-
-    cdef list _read_array(self, object value_type):
-        cdef:
-            uint32_t size
-            int value_type_id = value_type._type_id
-            object val
-
-        size = self._reader.read_uint32()
-
-        cdef list res = [None] * size
-        for idx in range(size):
-            if not self._reader.read_bool():
-                res[idx] = self._read_element(value_type_id, value_type)
-        return res
-
-    cdef bytes _read_string(self):
-        cdef bytes val = self._reader.read_string()
-        self._crc.c_update(val, len(val))
-        return val
-
-    cdef float _read_float(self) except? -1.0 nogil:
-        cdef float val = self._reader.read_float()
-        self._crc.c_update_float(val)
-        return val
-
-    cdef double _read_double(self) except? -1.0 nogil:
-        cdef double val = self._reader.read_double()
-        self._crc.c_update_double(val)
-        return val
-
-    cdef bint _read_bool(self) except? False nogil:
-        cdef bint val = self._reader.read_bool()
-        self._crc.c_update_bool(val)
-        return val
-
-    cdef int64_t _read_bigint(self) except? -1 nogil:
-        cdef int64_t val = self._reader.read_sint64()
-        self._crc.c_update_long(val)
-        return val
-
-    cdef object _read_datetime(self):
-        cdef int64_t val = self._reader.read_sint64()
-        self._crc.c_update_long(val)
-        try:
-            return self._mills_converter.from_milliseconds(val)
-        except DatetimeOverflowError:
-            if not self._overflow_date_as_none:
-                raise
-            return None
-
-    cdef object _read_date(self):
-        cdef int64_t val = self._reader.read_sint64()
-        self._crc.c_update_long(val)
-        return self._to_date(val)
-
-    cdef object _read_timestamp_base(self, bint ntz):
-        cdef:
-            int64_t val
-            int32_t nano_secs
-            CMillisecondsConverter converter
-
-        global pd_timestamp, pd_timedelta
-
-        if pd_timestamp is None:
-            import pandas as pd
-            pd_timestamp = pd.Timestamp
-            pd_timedelta = pd.Timedelta
-
-        val = self._reader.read_sint64()
-        self._crc.c_update_long(val)
-        nano_secs = self._reader.read_sint32()
-        self._crc.c_update_int(nano_secs)
-
-        if ntz:
-            converter = self._mills_converter_utc
-        else:
-            converter = self._mills_converter
-
-        try:
-            return (
-                pd_timestamp(converter.from_milliseconds(val * 1000))
-                + pd_timedelta(nanoseconds=nano_secs)
-            )
-        except DatetimeOverflowError:
-            if not self._overflow_date_as_none:
-                raise
-            return None
-
-    cdef object _read_timestamp(self):
-        return self._read_timestamp_base(False)
-
-    cdef object _read_timestamp_ntz(self):
-        return self._read_timestamp_base(True)
-
-    cdef object _read_interval_day_time(self):
-        cdef:
-            int64_t val
-            int32_t nano_secs
-        global pd_timestamp, pd_timedelta
-
-        if pd_timedelta is None:
-            import pandas as pd
-            pd_timestamp = pd.Timestamp
-            pd_timedelta = pd.Timedelta
-        val = self._reader.read_sint64()
-        self._crc.c_update_long(val)
-        nano_secs = self._reader.read_sint32()
-        self._crc.c_update_int(nano_secs)
-        return pd_timedelta(seconds=val, nanoseconds=nano_secs)
-
     cdef int _set_record_list_value(self, list record, int i, object value) except? -1:
         record[i] = self._schema_snapshot.validate_value(i, value, MAX_READ_SIZE_LIMIT)
-        return 0
-
-    cdef int _set_string(self, list record, int i) except? -1:
-        cdef object val = self._read_string()
-        self._set_record_list_value(record, i, val)
-        return 0
-
-    cdef int _set_float(self, list record, int i) except? -1:
-        record[i] = self._read_float()
-        return 0
-
-    cdef int _set_double(self, list record, int i) except? -1:
-        record[i] = self._read_double()
-        return 0
-
-    cdef int _set_bool(self, list record, int i) except? -1:
-        record[i] = self._read_bool()
-        return 0
-
-    cdef int _set_bigint(self, list record, int i) except? -1:
-        record[i] = self._read_bigint()
-        return 0
-
-    cdef int _set_datetime(self, list record, int i) except? -1:
-        record[i] = self._read_datetime()
-        return 0
-
-    cdef int _set_date(self, list record, int i) except? -1:
-        record[i] = self._read_date()
-        return 0
-
-    cdef int _set_decimal(self, list record, int i) except? -1:
-        cdef bytes val = self._reader.read_string()
-        self._crc.c_update(val, len(val))
-        self._set_record_list_value(record, i, val)
-        return 0
-
-    cdef int _set_timestamp(self, list record, int i) except? -1:
-        record[i] = self._read_timestamp()
-        return 0
-
-    cdef int _set_timestamp_ntz(self, list record, int i) except? -1:
-        record[i] = self._read_timestamp_ntz()
-        return 0
-
-    cdef int _set_interval_day_time(self, list record, int i) except? -1:
-        record[i] = self._read_interval_day_time()
-        return 0
-
-    cdef int _set_interval_year_month(self, list record, int i) except? -1:
-        cdef int64_t val = self._read_bigint()
-        self._set_record_list_value(record, i, compat.Monthdelta(val))
-        return 0
-
-    cdef int _set_json(self, list record, int i) except? -1:
-        cdef bytes val = self._read_string()
-        self._set_record_list_value(record, i, json.loads(val))
         return 0
 
     cdef _read(self):
@@ -517,23 +267,7 @@ cdef class BaseTunnelRecordReader:
             self._crc.c_update_int(index)
 
             i = index - 1
-            if self._column_setters[i] != NULL:
-                self._column_setters[i](self, rec_list, i)
-            else:
-                data_type = self._schema_snapshot._col_types[i]
-                if isinstance(data_type, types.Array):
-                    val = self._read_array(data_type.value_type)
-                    rec_list[i] = self._schema_snapshot.validate_value(i, val, MAX_READ_SIZE_LIMIT)
-                elif isinstance(data_type, types.Map):
-                    keys = self._read_array(data_type.key_type)
-                    values = self._read_array(data_type.value_type)
-                    val = OrderedDict(zip(keys, values))
-                    rec_list[i] = self._schema_snapshot.validate_value(i, val, MAX_READ_SIZE_LIMIT)
-                elif isinstance(data_type, types.Struct):
-                    val = self._read_struct(data_type)
-                    rec_list[i] = self._schema_snapshot.validate_value(i, val, MAX_READ_SIZE_LIMIT)
-                else:
-                    raise IOError("Unsupported type %s" % data_type)
+            (<AbstractFieldReader>self._field_readers[i]).read(rec_list, i)
 
         if self._append_partitions:
             for idx, val in self._partition_vals:
@@ -583,6 +317,348 @@ cdef class BaseTunnelRecordReader:
     @cython.cdivision(True)
     def _network_wall_time_ms(self):
         return self._reader._network_wall_time_ns // 1000 + self._c_acc_network_time_ms
+
+
+cdef _build_field_reader(BaseTunnelRecordReader record_reader, object data_type):
+    cdef int data_type_id = data_type._type_id
+
+    import_datetime()
+
+    if data_type_id == FLOAT_TYPE_ID:
+        return FloatFieldReader(record_reader)
+    elif data_type_id == BIGINT_TYPE_ID:
+        return BigintFieldReader(record_reader)
+    elif data_type_id == DOUBLE_TYPE_ID:
+        return DoubleFieldReader(record_reader)
+    elif data_type_id == STRING_TYPE_ID:
+        return StringFieldReader(record_reader)
+    elif data_type_id == BOOL_TYPE_ID:
+        return BoolFieldReader(record_reader)
+    elif data_type_id == DATETIME_TYPE_ID:
+        return DatetimeFieldReader(record_reader)
+    elif data_type_id == BINARY_TYPE_ID:
+        return StringFieldReader(record_reader)
+    elif data_type_id == TIMESTAMP_TYPE_ID:
+        return TimestampFieldReader(record_reader)
+    elif data_type_id == TIMESTAMP_NTZ_TYPE_ID:
+        return TimestampNTZFieldReader(record_reader)
+    elif data_type_id == DATE_TYPE_ID:
+        return DateFieldReader(record_reader)
+    elif data_type_id == INTERVAL_DAY_TIME_TYPE_ID:
+        return IntervalDayTimeFieldReader(record_reader)
+    elif data_type_id == INTERVAL_YEAR_MONTH_TYPE_ID:
+        return IntervalYearMonthFieldReader(record_reader)
+    elif data_type_id == JSON_TYPE_ID:
+        return JsonFieldReader(record_reader)
+    elif data_type_id == DECIMAL_TYPE_ID:
+        return DecimalFieldReader(record_reader)
+    elif data_type_id == ARRAY_TYPE_ID:
+        return ArrayFieldReader(record_reader, data_type)
+    elif data_type_id == MAP_TYPE_ID:
+        return MapFieldReader(record_reader, data_type)
+    elif data_type_id == STRUCT_TYPE_ID:
+        return StructFieldReader(record_reader, data_type)
+    elif isinstance(data_type, (types.Char, types.Varchar)):
+        return StringFieldReader(record_reader)
+    else:
+        raise IOError("Unsupported type %s" % data_type)
+
+
+cdef class AbstractFieldReader:
+    need_validate = None
+
+    cdef BaseTunnelRecordReader _record_reader
+    cdef bint _need_validate
+
+    def __init__(self, BaseTunnelRecordReader record_reader):
+        self._record_reader = record_reader
+        self._need_validate = self.need_validate
+
+    cdef object _read_raw(self):
+        raise NotImplementedError
+
+    cdef inline int read(self, list dest, int idx) except? -1:
+        if not self._need_validate:
+            dest[idx] = self._read_raw()
+        else:
+            self._record_reader._set_record_list_value(
+                dest, idx, self._read_raw()
+            )
+        return 0
+
+
+cdef class BigintFieldReader(AbstractFieldReader):
+    need_validate = False
+
+    cdef object _read_raw(self):
+        cdef int64_t val = self._record_reader._reader.read_sint64()
+        self._record_reader._crc.c_update_long(val)
+        return val
+
+
+cdef class FloatFieldReader(AbstractFieldReader):
+    need_validate = False
+
+    cdef object _read_raw(self):
+        cdef float val = self._record_reader._reader.read_float()
+        self._record_reader._crc.c_update_float(val)
+        return val
+
+
+cdef class DoubleFieldReader(AbstractFieldReader):
+    need_validate = False
+
+    cdef object _read_raw(self):
+        cdef double val = self._record_reader._reader.read_double()
+        self._record_reader._crc.c_update_double(val)
+        return val
+
+
+cdef class BoolFieldReader(AbstractFieldReader):
+    need_validate = False
+
+    cdef object _read_raw(self):
+        cdef bint val = self._record_reader._reader.read_bool()
+        self._record_reader._crc.c_update_bool(val)
+        return val
+
+
+cdef class StringFieldReader(AbstractFieldReader):
+    need_validate = True
+
+    cdef object _read_raw(self):
+        cdef bytes val = self._record_reader._reader.read_string()
+        self._record_reader._crc.c_update(val, len(val))
+        return val
+
+
+cdef class DecimalFieldReader(AbstractFieldReader):
+    need_validate = True
+
+    cdef object _read_raw(self):
+        cdef bytes val = self._record_reader._reader.read_string()
+        self._record_reader._crc.c_update(val, len(val))
+        return val
+
+
+cdef class JsonFieldReader(AbstractFieldReader):
+    need_validate = False
+
+    cdef object _read_raw(self):
+        cdef bytes val = self._record_reader._reader.read_string()
+        self._record_reader._crc.c_update(val, len(val))
+        return json.loads(val)
+
+
+cdef class DatetimeFieldReader(AbstractFieldReader):
+    need_validate = False
+
+    cdef CMillisecondsConverter _mills_converter
+    cdef bint _overflow_date_as_none
+
+    def __init__(self, BaseTunnelRecordReader record_reader):
+        super(DatetimeFieldReader, self).__init__(record_reader)
+        self._mills_converter = CMillisecondsConverter()
+        self._overflow_date_as_none = options.tunnel.overflow_date_as_none
+
+    cdef object _read_raw(self):
+        cdef int64_t val = self._record_reader._reader.read_sint64()
+        self._record_reader._crc.c_update_long(val)
+        try:
+            return self._mills_converter.from_milliseconds(val)
+        except DatetimeOverflowError:
+            if not self._overflow_date_as_none:
+                raise
+            return None
+
+
+cdef class DateFieldReader(AbstractFieldReader):
+    need_validate = False
+
+    cdef object _read_raw(self):
+        cdef int64_t val = self._record_reader._reader.read_sint64()
+        self._record_reader._crc.c_update_long(val)
+        return to_date(val)
+
+
+cdef class BaseTimestampFieldReader(AbstractFieldReader):
+    need_validate = False
+    _ntz = None
+
+    cdef CMillisecondsConverter _mills_converter
+    cdef bint _overflow_date_as_none
+
+    def __init__(self, BaseTunnelRecordReader record_reader):
+        super(BaseTimestampFieldReader, self).__init__(record_reader)
+        self._overflow_date_as_none = options.tunnel.overflow_date_as_none
+        if self._ntz:
+            self._mills_converter = CMillisecondsConverter(local_tz=False)
+        else:
+            self._mills_converter = CMillisecondsConverter()
+
+    cdef object _read_raw(self):
+        cdef:
+            int64_t val
+            int32_t nano_secs
+
+        global pd_timestamp, pd_timedelta
+
+        if pd_timestamp is None:
+            import pandas as pd
+            pd_timestamp = pd.Timestamp
+            pd_timedelta = pd.Timedelta
+
+        val = self._record_reader._reader.read_sint64()
+        self._record_reader._crc.c_update_long(val)
+        nano_secs = self._record_reader._reader.read_sint32()
+        self._record_reader._crc.c_update_int(nano_secs)
+
+        try:
+            return (
+                pd_timestamp(self._mills_converter.from_milliseconds(val * 1000))
+                + pd_timedelta(nanoseconds=nano_secs)
+            )
+        except DatetimeOverflowError:
+            if not self._overflow_date_as_none:
+                raise
+            return None
+
+
+cdef class TimestampFieldReader(BaseTimestampFieldReader):
+    _ntz = False
+
+
+cdef class TimestampNTZFieldReader(BaseTimestampFieldReader):
+    _ntz = True
+
+
+cdef class IntervalDayTimeFieldReader(AbstractFieldReader):
+    need_validate = False
+
+    cdef _read_raw(self):
+        cdef:
+            int64_t val
+            int32_t nano_secs
+
+        global pd_timestamp, pd_timedelta
+
+        if pd_timedelta is None:
+            import pandas as pd
+
+            pd_timestamp = pd.Timestamp
+            pd_timedelta = pd.Timedelta
+
+        val = self._record_reader._reader.read_sint64()
+        self._record_reader._crc.c_update_long(val)
+        nano_secs = self._record_reader._reader.read_sint32()
+        self._record_reader._crc.c_update_int(nano_secs)
+        return pd_timedelta(seconds=val, nanoseconds=nano_secs)
+
+
+cdef class IntervalYearMonthFieldReader(AbstractFieldReader):
+    need_validate = False
+
+    cdef _read_raw(self):
+        cdef int64_t val = self._record_reader._reader.read_sint64()
+        self._record_reader._crc.c_update_long(val)
+        return compat.Monthdelta(val)
+
+
+cdef class ArrayFieldReader(AbstractFieldReader):
+    need_validate = True
+
+    cdef AbstractFieldReader _element_reader
+
+    def __init__(
+        self, BaseTunnelRecordReader record_reader, object data_type
+    ):
+        super(ArrayFieldReader, self).__init__(record_reader)
+        self._element_reader = _build_field_reader(record_reader, data_type.value_type)
+
+    cdef _read_raw(self):
+        cdef:
+            uint32_t idx, size
+            object val
+
+        size = self._record_reader._reader.read_uint32()
+
+        cdef list res = [None] * size
+        for idx in range(size):
+            if not self._record_reader._reader.read_bool():
+                res[idx] = self._element_reader._read_raw()
+        return res
+
+
+cdef class MapFieldReader(AbstractFieldReader):
+    need_validate = True
+
+    cdef AbstractFieldReader _keys_reader, _values_reader
+    cdef bint _use_ordered_dict
+
+    def __init__(
+        self, BaseTunnelRecordReader record_reader, object data_type
+    ):
+        super(MapFieldReader, self).__init__(record_reader)
+        self._keys_reader = ArrayFieldReader(
+            record_reader, types.Array(data_type.key_type)
+        )
+        self._values_reader = ArrayFieldReader(
+            record_reader, types.Array(data_type.value_type)
+        )
+        if options.map_as_ordered_dict is None:
+            self._use_ordered_dict = sys.version_info[:2] <= (3, 6)
+        else:
+            self._use_ordered_dict = options.map_as_ordered_dict
+
+    cdef _read_raw(self):
+        cdef list keys, values
+        keys = self._keys_reader._read_raw()
+        values = self._values_reader._read_raw()
+        if self._use_ordered_dict:
+            return OrderedDict(zip(keys, values))
+        else:
+            return dict(zip(keys, values))
+
+
+cdef class StructFieldReader(AbstractFieldReader):
+    need_validate = True
+
+    cdef:
+        bint _struct_as_dict
+        list _field_readers
+        list _field_keys
+        list _field_types
+        object _nt_type
+
+    def __init__(
+        self, BaseTunnelRecordReader record_reader, object data_type
+    ):
+        cdef int idx, field_count
+        super(StructFieldReader, self).__init__(record_reader)
+
+        self._struct_as_dict = options.struct_as_dict
+        self._nt_type = data_type.namedtuple_type
+
+        field_count = len(data_type.field_types)
+        self._field_keys = [None] * field_count
+        self._field_types = [None] * field_count
+        self._field_readers = [None] * field_count
+        for idx, (field_key, field_type) in enumerate(data_type.field_types.items()):
+            self._field_keys[idx] = field_key
+            self._field_types[idx] = field_type
+            self._field_readers[idx] = _build_field_reader(record_reader, field_type)
+
+    cdef _read_raw(self):
+        cdef:
+            list res_list = [None] * len(self._field_types)
+            int idx
+        for idx, field_type in enumerate(self._field_types):
+            if not self._record_reader._reader.read_bool():
+                res_list[idx] = (<AbstractFieldReader>self._field_readers[idx])._read_raw()
+        if self._struct_as_dict:
+            return OrderedDict(zip(self._field_keys, res_list))
+        else:
+            return self._nt_type(*res_list)
 
 
 cdef int DECIMAL_FRAC_CNT = 2

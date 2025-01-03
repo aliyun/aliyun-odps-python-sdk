@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,7 +20,6 @@ import glob
 import hashlib
 import json
 import os
-import platform
 import stat
 import subprocess
 import sys
@@ -95,7 +94,7 @@ class ExecutionEnv(object):
         self.os = os
         self.sys = sys
         self._g_env = copy.copy(globals())
-        self.is_windows = "windows" in platform.platform().lower()
+        self.is_windows = sys.platform == "win32"
         self.pid = os.getpid()
         self.os_sep = os.sep
         self.executable = sys.executable
@@ -378,7 +377,7 @@ atexit.register(_obj_repos._exec_cleanup_script)
 
 
 def _is_pid_running(pid):
-    if "windows" in platform.platform().lower():
+    if sys.platform == "win32":
         task_lines = (
             os.popen('TASKLIST /FI "PID eq {0}" /NH'.format(pid))
             .read()

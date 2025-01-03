@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ from .. import types as odps_types
 from .. import utils
 from ..compat import Enum, dir2, six
 from ..config import options
-from .cluster_info import ClusterInfo, ClusterType
+from .cluster_info import ClusterInfo
 from .core import JSONRemoteModel, LazyLoad
 from .partitions import Partitions
 from .record import Record
@@ -209,6 +209,7 @@ class Table(LazyLoad):
         "physical_size",
         "file_num",
         "location",
+        "schema_version",
         "storage_handler",
         "resources",
         "serde_properties",
@@ -353,6 +354,7 @@ class Table(LazyLoad):
 
     def _parse_reserved(self):
         if not self.reserved:
+            self.schema_version = None
             self.is_transactional = None
             self.primary_key = None
             self.storage_tier_info = None
@@ -363,6 +365,7 @@ class Table(LazyLoad):
             self.cdc_latest_version = -1
             self.cdc_latest_timestamp = None
             return
+        self.schema_version = self.reserved.get("schema_version")
         is_transactional = self.reserved.get("Transactional")
         self.is_transactional = (
             is_transactional is not None and is_transactional.lower() == "true"
@@ -485,8 +488,6 @@ class Table(LazyLoad):
         view_text=None,
         **kw
     ):
-        from ..utils import escape_odps_string
-
         buf = six.StringIO()
         table_name = utils.to_text(table_name)
         project = utils.to_text(project)
@@ -546,14 +547,14 @@ class Table(LazyLoad):
             _write_primary_key(table_schema)
             buf.write(u"\n)\n")
             if comment:
-                buf.write(u"COMMENT '%s'\n" % escape_odps_string(comment))
+                buf.write(u"COMMENT '%s'\n" % utils.escape_odps_string(comment))
         elif isinstance(table_schema, tuple):
             buf.write(u"(\n")
             buf.write(table_schema[0])
             _write_primary_key(table_schema[0])
             buf.write(u"\n)\n")
             if comment:
-                buf.write(u"COMMENT '%s'\n" % escape_odps_string(comment))
+                buf.write(u"COMMENT '%s'\n" % utils.escape_odps_string(comment))
             buf.write(u"PARTITIONED BY ")
             buf.write(u"(\n")
             buf.write(table_schema[1])
@@ -564,14 +565,7 @@ class Table(LazyLoad):
                 size = len(col_array)
                 buf.write(u"(\n")
                 for idx, column in enumerate(col_array):
-                    buf.write(
-                        u"  `%s` %s"
-                        % (utils.to_text(column.name), utils.to_text(column.type))
-                    )
-                    if not column.nullable and not options.sql.ignore_fields_not_null:
-                        buf.write(u" NOT NULL")
-                    if with_column_comments and column.comment:
-                        buf.write(u" COMMENT '%s'" % utils.to_text(column.comment))
+                    buf.write(column.to_sql_clause(with_column_comments))
                     if idx < size - 1:
                         buf.write(u",\n")
                 if with_pk:
@@ -584,7 +578,10 @@ class Table(LazyLoad):
                 for idx, column in enumerate(col_array):
                     buf.write(u"  `%s`" % (utils.to_text(column.name)))
                     if with_column_comments and column.comment:
-                        buf.write(u" COMMENT '%s'" % utils.to_text(column.comment))
+                        comment_str = utils.escape_odps_string(
+                            utils.to_text(column.comment)
+                        )
+                        buf.write(u" COMMENT '%s'" % comment_str)
                     if idx < size - 1:
                         buf.write(u",\n")
                 buf.write(u"\n)\n")
@@ -595,7 +592,8 @@ class Table(LazyLoad):
                 write_view_columns(table_schema.simple_columns)
 
             if comment:
-                buf.write(u"COMMENT '%s'\n" % comment)
+                comment_str = utils.escape_odps_string(utils.to_text(comment))
+                buf.write(u"COMMENT '%s'\n" % comment_str)
             if table_type == cls.Type.MATERIALIZED_VIEW and not rewrite_enabled:
                 buf.write(u"DISABLE REWRITE\n")
             if table_schema.partitions:
@@ -607,21 +605,7 @@ class Table(LazyLoad):
                     write_view_columns(table_schema.partitions)
 
         if cluster_info is not None:
-            if cluster_info.cluster_type == ClusterType.RANGE:
-                cluster_type_str = u"RANGE "
-            else:
-                cluster_type_str = u""
-            cluster_cols = u", ".join(
-                u"`%s`" % col for col in cluster_info.cluster_cols
-            )
-            buf.write("%sCLUSTERED BY (%s)" % (cluster_type_str, cluster_cols))
-            if cluster_info.sort_cols:
-                sort_cols = u", ".join(
-                    u"`%s` %s" % (c.name, c.order.value) for c in cluster_info.sort_cols
-                )
-                buf.write(u" SORTED BY (%s)" % sort_cols)
-            if cluster_info.bucket_num:
-                buf.write(" INTO %s BUCKETS" % cluster_info.bucket_num)
+            buf.write(cluster_info.to_sql_clause())
             buf.write(u"\n")
 
         if transactional:
@@ -644,17 +628,19 @@ class Table(LazyLoad):
         resources = kw.get("resources")
         if storage_handler or external_stored_as:
             if storage_handler:
-                buf.write("STORED BY '%s'\n" % escape_odps_string(storage_handler))
+                buf.write(
+                    "STORED BY '%s'\n" % utils.escape_odps_string(storage_handler)
+                )
             else:
-                buf.write("STORED AS %s\n" % escape_odps_string(external_stored_as))
+                buf.write("STORED AS %s\n" % external_stored_as)
             if serde_properties:
                 buf.write("WITH SERDEPROPERTIES (\n")
                 for idx, k in enumerate(serde_properties):
                     buf.write(
                         "  '%s' = '%s'"
                         % (
-                            escape_odps_string(k),
-                            escape_odps_string(serde_properties[k]),
+                            utils.escape_odps_string(k),
+                            utils.escape_odps_string(serde_properties[k]),
                         )
                     )
                     if idx + 1 < len(serde_properties):
@@ -662,11 +648,11 @@ class Table(LazyLoad):
                     buf.write("\n")
                 buf.write(")\n")
             if location:
-                buf.write("LOCATION '%s'\n" % location)
+                buf.write("LOCATION '%s'\n" % utils.escape_odps_string(location))
             if resources:
-                buf.write("USING '%s'\n" % resources)
+                buf.write("USING '%s'\n" % utils.escape_odps_string(resources))
         if stored_as:
-            buf.write("STORED AS %s\n" % escape_odps_string(stored_as))
+            buf.write("STORED AS %s\n" % stored_as)
         if not is_view and lifecycle is not None and lifecycle > 0:
             buf.write(u"LIFECYCLE %s\n" % lifecycle)
         if shard_num is not None:
@@ -717,6 +703,40 @@ class Table(LazyLoad):
             view_text=self.view_text,
             rewrite_enabled=self.is_materialized_view_rewrite_enabled,
         )
+
+    def _build_partition_spec_sql(self, partition_spec=None):
+        partition_expr = ""
+        if partition_spec is not None:
+            if not isinstance(partition_spec, (list, tuple)):
+                partition_spec = [partition_spec]
+            partition_spec = [odps_types.PartitionSpec(spec) for spec in partition_spec]
+            partition_expr = " " + ", ".join(
+                "PARTITION (%s)" % spec for spec in partition_spec
+            )
+
+        # as data of partition changed, remove existing download id to avoid TableModified error
+        for part in partition_spec or [None]:
+            if isinstance(part, six.string_types):
+                part = odps_types.PartitionSpec(part)
+            self._download_ids.pop(part, None)
+        return partition_expr
+
+    def _build_alter_table_ddl(self, action=None, partition_spec=None, cmd=u"ALTER"):
+        action = action or ""
+
+        target = u"TABLE"
+        if self.type in (Table.Type.VIRTUAL_VIEW, Table.Type.MATERIALIZED_VIEW):
+            target = u"VIEW"
+
+        partition_expr = self._build_partition_spec_sql(partition_spec)
+        sql = u"%s %s %s%s %s" % (
+            cmd,
+            target,
+            self.full_table_name,
+            partition_expr,
+            action,
+        )
+        return sql.strip()
 
     @utils.survey
     def _head_by_data(self, limit, partition=None, columns=None, timeout=None):
@@ -1212,6 +1232,12 @@ class Table(LazyLoad):
             spec, skip_empty=skip_empty, reverse=reverse
         )
 
+    def _unload_if_async(self, async_=False, reload=True):
+        if async_:
+            self._loaded = False
+        elif reload:
+            self.reload()
+
     @utils.with_wait_argument
     def truncate(self, partition_spec=None, async_=False, hints=None):
         """
@@ -1222,43 +1248,12 @@ class Table(LazyLoad):
         :param async_: run asynchronously if True
         :return: None
         """
-        from .tasks import SQLTask
-
-        partition_expr = ""
-        if partition_spec is not None:
-            if not isinstance(partition_spec, (list, tuple)):
-                partition_spec = [partition_spec]
-            partition_expr = " " + ", ".join(
-                "PARTITION (%s)" % spec for spec in partition_spec
-            )
-
-        # as data of partition changed, remove existing download id to avoid TableModified error
-        for part in partition_spec or [None]:
-            if isinstance(part, six.string_types):
-                part = odps_types.PartitionSpec(part)
-            self._download_ids.pop(part, None)
-
-        task = SQLTask(
-            name="SQLTruncateTableTask",
-            query="TRUNCATE TABLE %s%s;" % (self.full_table_name, partition_expr),
+        sql = self._build_alter_table_ddl(partition_spec=partition_spec, cmd="TRUNCATE")
+        inst = self.parent._run_table_sql(
+            sql, task_name="SQLTruncateTableTask", hints=hints, wait=not async_
         )
-
-        hints = hints or {}
-        hints["odps.sql.submit.mode"] = ""
-        schema_name = self._get_schema_name()
-        if schema_name is not None:
-            hints["odps.sql.allow.namespace.schema"] = "true"
-            hints["odps.namespace.schema"] = "true"
-        if self.project.odps.quota_name:
-            hints["odps.task.wlm.quota"] = self.project.odps.quota_name
-        task.update_sql_settings(hints)
-
-        instance = self.project.parent[self._client.project].instances.create(task=task)
-
-        if not async_:
-            instance.wait_for_success()
-        else:
-            return instance
+        self._unload_if_async()
+        return inst
 
     @utils.with_wait_argument
     def drop(self, async_=False, if_exists=False, hints=None):
@@ -1277,52 +1272,171 @@ class Table(LazyLoad):
         self, storage_tier, partition_spec=None, async_=False, hints=None
     ):
         """
-        Set storage tier of
+        Set storage tier of current table
         """
-        from .tasks import SQLTask
-
-        partition_expr = ""
-        if partition_spec is not None:
-            if not isinstance(partition_spec, (list, tuple)):
-                partition_spec = [partition_spec]
-            partition_expr = " " + ", ".join(
-                "PARTITION (%s)" % spec for spec in partition_spec
-            )
-
-        # as data of partition changed, remove existing download id to avoid TableModified error
-        for part in partition_spec or [None]:
-            if isinstance(part, six.string_types):
-                part = odps_types.PartitionSpec(part)
-            self._download_ids.pop(part, None)
+        self._is_extend_info_loaded = False
 
         if isinstance(storage_tier, six.string_types):
             storage_tier = StorageTier(utils.underline_to_camel(storage_tier).lower())
 
         property_item = "TBLPROPERTIES" if not partition_spec else "PARTITIONPROPERTIES"
-        task = SQLTask(
-            name="SQLSetStorageTierTask",
-            query="ALTER TABLE %s%s SET %s('storagetier'='%s')"
-            % (self.full_table_name, partition_expr, property_item, storage_tier.value),
+        sql = self._build_alter_table_ddl(
+            "SET %s('storagetier'='%s')" % (property_item, storage_tier.value),
+            partition_spec=partition_spec,
         )
 
         hints = hints or {}
-        hints["odps.sql.submit.mode"] = ""
         hints["odps.tiered.storage.enable"] = "true"
-        schema_name = self._get_schema_name()
-        if schema_name is not None:
-            hints["odps.sql.allow.namespace.schema"] = "true"
-            hints["odps.namespace.schema"] = "true"
-        if self.project.odps.quota_name:
-            hints["odps.task.wlm.quota"] = self.project.odps.quota_name
-        task.update_sql_settings(hints)
+        inst = self.parent._run_table_sql(
+            sql, task_name="SQLSetStorageTierTask", hints=hints, wait=not async_
+        )
+        self.storage_tier_info = storage_tier
+        self._unload_if_async(async_=async_, reload=False)
+        return inst
 
-        instance = self.project.parent[self._client.project].instances.create(task=task)
-        self._is_extend_info_loaded = False
+    @utils.with_wait_argument
+    def add_columns(self, columns, if_not_exists=False, async_=False, hints=None):
+        if isinstance(columns, odps_types.Column):
+            columns = [columns]
 
-        if not async_:
-            instance.wait_for_success()
+        action_str = u"ADD COLUMNS" + (
+            u" IF NOT EXISTS (\n" if if_not_exists else u" (\n"
+        )
+        if isinstance(columns, six.string_types):
+            action_str += columns + "\n)"
         else:
-            return instance
+            action_str += (
+                u",\n".join(["  " + col.to_sql_clause() for col in columns]) + u"\n)"
+            )
+        sql = self._build_alter_table_ddl(action_str)
+        inst = self.parent._run_table_sql(
+            sql, task_name="SQLAddColumnsTask", hints=hints, wait=not async_
+        )
+        self._unload_if_async(async_=async_)
+        return inst
+
+    @utils.with_wait_argument
+    def delete_columns(self, columns, async_=False, hints=None):
+        if isinstance(columns, six.string_types):
+            columns = [columns]
+        action_str = u"DROP COLUMNS " + u", ".join(u"`%s`" % c for c in columns)
+        sql = self._build_alter_table_ddl(action_str)
+        inst = self.parent._run_table_sql(
+            sql, task_name="SQLDeleteColumnsTask", hints=hints, wait=not async_
+        )
+        self._unload_if_async(async_=async_)
+        return inst
+
+    @utils.with_wait_argument
+    def rename_column(
+        self, old_column_name, new_column_name, comment=None, async_=False, hints=None
+    ):
+        if comment:
+            old_col = self.table_schema[old_column_name]
+            new_col = odps_types.Column(
+                name=new_column_name,
+                type=old_col.type,
+                comment=comment,
+                label=old_col.label,
+                nullable=old_col.nullable,
+            )
+            action_str = u"CHANGE COLUMN %s %s" % (
+                old_column_name,
+                new_col.to_sql_clause(),
+            )
+        else:
+            action_str = u"CHANGE COLUMN %s RENAME TO %s" % (
+                old_column_name,
+                new_column_name,
+            )
+        sql = self._build_alter_table_ddl(action_str)
+        inst = self.parent._run_table_sql(
+            sql, task_name="SQLRenameColumnsTask", hints=hints, wait=not async_
+        )
+        self._unload_if_async(async_=async_)
+        return inst
+
+    @utils.with_wait_argument
+    def set_lifecycle(self, days, async_=False, hints=None):
+        sql = self._build_alter_table_ddl(u"SET LIFECYCLE %s" % days)
+        inst = self.parent._run_table_sql(
+            sql, task_name="SQLSetLifecycleTask", hints=hints, wait=not async_
+        )
+        self.lifecycle = days
+        self._unload_if_async(async_=async_, reload=False)
+        return inst
+
+    @utils.with_wait_argument
+    def set_owner(self, new_owner, async_=False, hints=None):
+        sql = self._build_alter_table_ddl(
+            u"CHANGEOWNER TO '%s'" % utils.escape_odps_string(new_owner)
+        )
+        inst = self.parent._run_table_sql(
+            sql, task_name="SQLSetOwnerTask", hints=hints, wait=not async_
+        )
+        self.owner = new_owner
+        self._unload_if_async(async_=async_, reload=False)
+        return inst
+
+    @utils.with_wait_argument
+    def set_comment(self, new_comment, async_=False, hints=None):
+        sql = self._build_alter_table_ddl(
+            u"SET COMMENT '%s'" % utils.escape_odps_string(new_comment)
+        )
+        inst = self.parent._run_table_sql(
+            sql, task_name="SQLSetCommentTask", hints=hints, wait=not async_
+        )
+        self.comment = new_comment
+        self._unload_if_async(async_=async_, reload=False)
+        return inst
+
+    @utils.with_wait_argument
+    def set_cluster_info(self, new_cluster_info, async_=False, hints=None):
+        if new_cluster_info is None:
+            action = u"NOT CLUSTERED"
+        else:
+            assert isinstance(new_cluster_info, ClusterInfo)
+            action = new_cluster_info.to_sql_clause()
+        sql = self._build_alter_table_ddl(action)
+        inst = self.parent._run_table_sql(
+            sql, task_name="SQLSetClusterInfoTask", hints=hints, wait=not async_
+        )
+        self.cluster_info = new_cluster_info
+        self._unload_if_async(async_=async_, reload=False)
+        return inst
+
+    @utils.with_wait_argument
+    def rename(self, new_name, async_=False, hints=None):
+        sql = self._build_alter_table_ddl("RENAME TO `%s`" % new_name)
+        inst = self.parent._run_table_sql(
+            sql, task_name="SQLRenameTask", hints=hints, wait=not async_
+        )
+        self.name = new_name
+        del self.parent[self.name]
+        self._unload_if_async(async_=async_)
+        return inst
+
+    @utils.with_wait_argument
+    def change_partition_spec(
+        self, old_partition_spec, new_partition_spec, async_=False, hints=None
+    ):
+        sql = self._build_alter_table_ddl(
+            "RENAME TO %s" % self._build_partition_spec_sql(new_partition_spec),
+            partition_spec=old_partition_spec,
+        )
+        return self.parent._run_table_sql(
+            sql, task_name="SQLChangePartitionSpecTask", hints=hints, wait=not async_
+        )
+
+    @utils.with_wait_argument
+    def touch(self, partition_spec=None, async_=False, hints=None):
+        action = u"TOUCH " + self._build_partition_spec_sql(partition_spec)
+        sql = self._build_alter_table_ddl(action.strip())
+        inst = self.parent._run_table_sql(
+            sql, task_name="SQLTouchTask", hints=hints, wait=not async_
+        )
+        self._unload_if_async(async_=async_)
+        return inst
 
     def _get_max_field_size(self):
         try:

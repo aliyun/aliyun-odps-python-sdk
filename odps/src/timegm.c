@@ -1,7 +1,8 @@
+#include <stdint.h>
 #include <time.h>
 // Algorithm: http://howardhinnant.github.io/date_algorithms.html
 
-int days_from_epoch(int y, int m, int d)
+int32_t days_from_epoch(int y, int m, int d)
 {
     y -= m <= 2;
     int era = y / 400;
@@ -27,7 +28,33 @@ time_t timegm(struct tm const* t)
         year -= years_diff;
         month += 12 * years_diff;
     }
-    int days_since_epoch = days_from_epoch(year, month + 1, t->tm_mday);
+    int32_t days_since_epoch = days_from_epoch(year, month + 1, t->tm_mday);
 
     return 60 * (60 * (24L * days_since_epoch + t->tm_hour) + t->tm_min) + t->tm_sec;
+}
+
+struct tm* gmtime_safe(const time_t* timer, struct tm* buf)
+{
+#if defined(_WIN32)
+    struct tm* ptr;
+    // gmtime is guaranteed as threadsafe in Windows
+    ptr = gmtime(timer);
+    *buf = *ptr;
+    return ptr;
+#else
+    return gmtime_r(timer, buf);
+#endif
+}
+
+struct tm* localtime_safe(const time_t* timer, struct tm* buf)
+{
+#if defined(_WIN32)
+    struct tm* ptr;
+    // localtime is guaranteed as threadsafe in Windows
+    ptr = localtime(timer);
+    *buf = *ptr;
+    return ptr;
+#else
+    return localtime_r(timer, buf);
+#endif
 }

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -290,6 +290,52 @@ def test_basic_query(engine, connection):
 
     settings = json.loads(instance.tasks[0].properties["settings"])
     assert settings["SKYNET_PYODPS_HINT"] == "hint"
+
+
+@pytest.mark.parametrize("mode", ["false", "true", "v1", "v2"])
+def test_interactive_modes(mode, odps, odps_with_mcqa2):
+    from ..tunnel.instancetunnel import InstanceTunnel
+
+    raw_create_download_session = InstanceTunnel.create_download_session
+
+    def _create_download_session_with_check(*args, **kw):
+        res = raw_create_download_session(*args, **kw)
+        if mode == "false":
+            assert not res._sessional
+            assert not res._instance.id.endswith("_mcqa")
+        elif mode in ("true", "v1"):
+            assert res._sessional
+            assert res._session_subquery_id >= 0
+        elif mode == "v2":
+            assert not res._sessional
+            assert res._instance.id.endswith("_mcqa")
+        return res
+
+    url_suffix = "&interactive_mode=" + mode
+    if mode == "v2":
+        odps = odps_with_mcqa2
+        url_suffix += "&quota_name=" + odps.quota_name
+
+    create_one_row(odps)
+
+    engine_url = "odps://{}:{}@{}/?endpoint={}{}".format(
+        odps.account.access_id,
+        odps.account.secret_access_key,
+        odps.project,
+        odps.endpoint,
+        url_suffix,
+    )
+    engine = create_engine(engine_url)
+    connection = engine.connect()
+    with mock.patch(
+        "odps.tunnel.instancetunnel.InstanceTunnel.create_download_session",
+        new=_create_download_session_with_check,
+    ):
+        result = connection.execute(text("SELECT * FROM one_row"))
+        rows = result.fetchall()
+    assert len(rows) == 1
+    assert rows[0].number_of_rows == 1  # number_of_rows is the column name
+    assert len(rows[0]) == 1
 
 
 def test_one_row_complex_null(engine, connection):
