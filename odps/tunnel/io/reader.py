@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -382,6 +382,25 @@ if BaseTunnelRecordReader is None:
 
 
 class TunnelRecordReader(BaseTunnelRecordReader, AbstractRecordReader):
+    """
+    Reader object to read data from ODPS in records. Should be created
+    with :meth:`TableDownloadSession.open_record_reader`.
+
+    :Example:
+
+    .. code-block:: python
+
+        from odps.tunnel import TableTunnel
+
+            tunnel = TableTunnel(o)
+            download_session = tunnel.create_download_session('my_table', partition_spec='pt=test')
+
+            # create a TunnelRecordReader
+            with download_session.open_record_reader(0, download_session.count) as reader:
+                for record in reader:
+                    print(record.values)
+    """
+
     def __next__(self):
         record = self.read()
         if record is None:
@@ -414,6 +433,17 @@ class TunnelRecordReader(BaseTunnelRecordReader, AbstractRecordReader):
 
     def __exit__(self, *_):
         self.close()
+
+
+try:
+    TunnelRecordReader.read.__doc__ = """
+    Read next record.
+
+    :return: A record object
+    :rtype: :class:`~odps.models.Record`
+    """
+except:
+    pass
 
 
 class ArrowStreamReader(IOBase):
@@ -509,6 +539,25 @@ class ArrowStreamReader(IOBase):
 
 
 class TunnelArrowReader(object):
+    """
+    Reader object to read data from ODPS in Arrow format. Should be created
+    with :meth:`TableDownloadSession.open_arrow_reader`.
+
+    :Example:
+
+    .. code-block:: python
+
+        from odps.tunnel import TableTunnel
+
+            tunnel = TableTunnel(o)
+            download_session = tunnel.create_download_session('my_table', partition_spec='pt=test')
+
+            # create a TunnelArrowReader
+            with download_session.open_arrow_reader(0, download_session.count) as reader:
+                for batch in reader:
+                    print(batch.to_pandas())
+    """
+
     def __init__(
         self,
         schema,
@@ -660,6 +709,11 @@ class TunnelArrowReader(object):
         return pa.RecordBatch.from_arrays(batch_cols, names=batch_col_names)
 
     def read_next_batch(self):
+        """
+        Read next Arrow RecordBatch from tunnel.
+
+        :return: Arrow RecordBatch
+        """
         if self._reader is None:
             return None
 
@@ -683,6 +737,11 @@ class TunnelArrowReader(object):
         return batch
 
     def read(self):
+        """
+        Read all data from tunnel and forms an Arrow Table.
+
+        :return: Arrow Table
+        """
         batches = []
         while True:
             batch = self.read_next_batch()
@@ -698,6 +757,9 @@ class TunnelArrowReader(object):
         return self
 
     def __next__(self):
+        """
+        Read next Arrow RecordBatch from tunnel.
+        """
         batch = self.read_next_batch()
         if batch is None:
             raise StopIteration
@@ -734,6 +796,9 @@ class TunnelArrowReader(object):
         return pd.concat(series_list, axis=1)
 
     def to_pandas(self):
+        """
+        Read all data from tunnel and convert to a Pandas DataFrame.
+        """
         import pandas as pd
 
         batches = []

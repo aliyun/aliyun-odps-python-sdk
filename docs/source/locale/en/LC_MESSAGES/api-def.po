@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2024-12-17 10:25+0800\n"
+"POT-Creation-Date: 2024-12-31 16:54+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -19,6 +19,10 @@ msgstr ""
 
 #: ../../source/api-def.rst:4
 msgid "Definitions"
+msgstr ""
+
+#: ../../source/api-def.rst:7
+msgid "ODPS Entry Object"
 msgstr ""
 
 #: odps.core.ODPS:1 of
@@ -103,7 +107,14 @@ msgstr ""
 #: odps.models.table.Table.new_record odps.models.table.Table.open_reader
 #: odps.models.table.Table.open_writer odps.models.table.TableSchema
 #: odps.models.tableio.TableIOMethods.read_table
-#: odps.models.tableio.TableIOMethods.write_table odps.types.Record of
+#: odps.models.tableio.TableIOMethods.write_table
+#: odps.tunnel.io.reader.TunnelArrowReader
+#: odps.tunnel.io.reader.TunnelRecordReader odps.tunnel.io.writer.ArrowWriter
+#: odps.tunnel.io.writer.BufferedArrowWriter
+#: odps.tunnel.io.writer.BufferedRecordWriter
+#: odps.tunnel.io.writer.RecordWriter odps.tunnel.io.writer.Upsert
+#: odps.tunnel.tabletunnel.BaseTableTunnelSession.new_record
+#: odps.tunnel.tabletunnel.TableUpsertSession.new_record odps.types.Record of
 msgid "Example"
 msgstr ""
 
@@ -1159,7 +1170,9 @@ msgstr ""
 msgid "If project name which provided exists or not."
 msgstr ""
 
-#: odps.core.ODPS.exist_project:3 of
+#: odps.core.ODPS.exist_project:3 odps.tunnel.instancetunnel.InstanceTunnel:4
+#: odps.tunnel.tabletunnel.TableTunnel:4
+#: odps.tunnel.volumetunnel.VolumeTunnel:4 of
 msgid "project name"
 msgstr ""
 
@@ -1877,7 +1890,11 @@ msgstr ""
 #: odps.models.partition.Partition.head:8 odps.models.table.Table.head:9
 #: odps.models.table.Table.new_record:6 odps.models.table.Table.new_record:16
 #: odps.models.tableio.TableIOMethods.read_table:28
-#: odps.models.tableio.TableIOMethods.write_table:59 of
+#: odps.models.tableio.TableIOMethods.write_table:59
+#: odps.tunnel.tabletunnel.BaseTableTunnelSession.new_record:6
+#: odps.tunnel.tabletunnel.BaseTableTunnelSession.new_record:16
+#: odps.tunnel.tabletunnel.TableUpsertSession.new_record:6
+#: odps.tunnel.tabletunnel.TableUpsertSession.new_record:16 of
 msgid ":class:`odps.models.Record`"
 msgstr ""
 
@@ -2046,6 +2063,10 @@ msgstr ""
 
 #: odps.models.tableio.TableIOMethods.write_table:48 of
 msgid "Write a dynamic partition."
+msgstr ""
+
+#: ../../source/api-def.rst:14
+msgid "ODPS Model Objects"
 msgstr ""
 
 #: odps.models.project.Project:1 of
@@ -2260,11 +2281,15 @@ msgstr ""
 msgid "Generate a record of the table."
 msgstr ""
 
-#: odps.models.table.Table.new_record:3 of
+#: odps.models.table.Table.new_record:3
+#: odps.tunnel.tabletunnel.BaseTableTunnelSession.new_record:3
+#: odps.tunnel.tabletunnel.TableUpsertSession.new_record:3 of
 msgid "the values of this records"
 msgstr ""
 
-#: odps.models.table.Table.new_record:5 of
+#: odps.models.table.Table.new_record:5
+#: odps.tunnel.tabletunnel.BaseTableTunnelSession.new_record:5
+#: odps.tunnel.tabletunnel.TableUpsertSession.new_record:5 of
 msgid "record"
 msgstr ""
 
@@ -2297,7 +2322,10 @@ msgid "use arrow tunnel to read data"
 msgstr ""
 
 #: odps.models.table.Table.open_reader:10
-#: odps.models.table.Table.open_writer:10 of
+#: odps.models.table.Table.open_writer:10
+#: odps.tunnel.instancetunnel.InstanceTunnel:6
+#: odps.tunnel.tabletunnel.TableTunnel:6
+#: odps.tunnel.volumetunnel.VolumeTunnel:6 of
 msgid "name of tunnel quota"
 msgstr ""
 
@@ -2440,7 +2468,16 @@ msgid "Create a PyODPS DataFrame from this partition."
 msgstr ""
 
 #: odps.types.Record:1 of
-msgid "A record generally means the data of a single line in a table."
+msgid ""
+"A record generally means the data of a single line in a table. It can be "
+"created from a schema, or by :meth:`odps.models.Table.new_record` or by "
+":meth:`odps.tunnel.TableUploadSession.new_record`."
+msgstr ""
+
+#: odps.types.Record:5 of
+msgid ""
+"Hints on getting or setting different types of data can be seen "
+":ref:`here <record-type>`."
 msgstr ""
 
 #: odps.models.instance.Instance:1 of
@@ -2968,5 +3005,700 @@ msgstr ""
 msgid ""
 "Get PMML text of the current model. Note that model file obtained via "
 "this method might be incomplete due to size limitations."
+msgstr ""
+
+#: ../../source/api-def.rst:70
+msgid "ODPS Tunnel"
+msgstr ""
+
+#: odps.tunnel.tabletunnel.TableTunnel:1 of
+msgid "Table tunnel API Entry."
+msgstr ""
+
+#: odps.tunnel.instancetunnel.InstanceTunnel:3
+#: odps.tunnel.tabletunnel.TableTunnel:3
+#: odps.tunnel.volumetunnel.VolumeTunnel:3 of
+msgid "ODPS Entry object"
+msgstr ""
+
+#: odps.tunnel.instancetunnel.InstanceTunnel:5
+#: odps.tunnel.tabletunnel.TableTunnel:5
+#: odps.tunnel.volumetunnel.VolumeTunnel:5 of
+msgid "tunnel endpoint"
+msgstr ""
+
+#: odps.tunnel.tabletunnel.TableTunnel.create_download_session:1 of
+msgid "Create a download session for table."
+msgstr ""
+
+#: odps.tunnel.tabletunnel.TableTunnel.create_download_session:3
+#: odps.tunnel.tabletunnel.TableTunnel.create_stream_upload_session:3
+#: odps.tunnel.tabletunnel.TableTunnel.create_upload_session:3
+#: odps.tunnel.tabletunnel.TableTunnel.create_upsert_session:3 of
+msgid "table object to read"
+msgstr ""
+
+#: odps.tunnel.tabletunnel.TableTunnel.create_download_session:5 of
+msgid "partition spec to read"
+msgstr ""
+
+#: odps.tunnel.instancetunnel.InstanceTunnel.create_download_session:5
+#: odps.tunnel.tabletunnel.TableTunnel.create_download_session:7 of
+msgid "existing download id"
+msgstr ""
+
+#: odps.tunnel.instancetunnel.InstanceTunnel.create_download_session:7
+#: odps.tunnel.tabletunnel.TableTunnel.create_download_session:8
+#: odps.tunnel.tabletunnel.TableTunnel.create_stream_upload_session:8
+#: odps.tunnel.tabletunnel.TableTunnel.create_upload_session:8
+#: odps.tunnel.tabletunnel.TableTunnel.create_upsert_session:9 of
+msgid "compress option"
+msgstr ""
+
+#: odps.tunnel.instancetunnel.InstanceTunnel.create_download_session:9
+#: odps.tunnel.tabletunnel.TableTunnel.create_download_session:10
+#: odps.tunnel.tabletunnel.TableTunnel.create_stream_upload_session:10
+#: odps.tunnel.tabletunnel.TableTunnel.create_upload_session:10
+#: odps.tunnel.tabletunnel.TableTunnel.create_upsert_session:11 of
+msgid "compress algorithm"
+msgstr ""
+
+#: odps.tunnel.instancetunnel.InstanceTunnel.create_download_session:10
+#: odps.tunnel.tabletunnel.TableTunnel.create_download_session:11
+#: odps.tunnel.tabletunnel.TableTunnel.create_stream_upload_session:11
+#: odps.tunnel.tabletunnel.TableTunnel.create_upload_session:11
+#: odps.tunnel.tabletunnel.TableTunnel.create_upsert_session:12 of
+msgid "compress level"
+msgstr ""
+
+#: odps.tunnel.instancetunnel.InstanceTunnel.create_download_session:11
+#: odps.tunnel.tabletunnel.TableTunnel.create_download_session:12
+#: odps.tunnel.tabletunnel.TableTunnel.create_stream_upload_session:12
+#: odps.tunnel.tabletunnel.TableTunnel.create_upload_session:12
+#: odps.tunnel.tabletunnel.TableTunnel.create_upsert_session:13 of
+msgid "name of schema of the table"
+msgstr ""
+
+#: odps.tunnel.instancetunnel.InstanceTunnel.create_download_session:12
+#: odps.tunnel.tabletunnel.TableTunnel.create_download_session:13
+#: odps.tunnel.tabletunnel.TableTunnel.create_stream_upload_session:14
+#: odps.tunnel.tabletunnel.TableTunnel.create_upload_session:14
+#: odps.tunnel.tabletunnel.TableTunnel.create_upsert_session:14 of
+msgid "tags of the upload session"
+msgstr ""
+
+#: odps.tunnel.tabletunnel.TableTunnel.create_download_session:16 of
+msgid ":class:`TableDownloadSession`"
+msgstr ""
+
+#: odps.tunnel.tabletunnel.TableTunnel.create_stream_upload_session:1 of
+msgid "Create a stream upload session for table."
+msgstr ""
+
+#: odps.tunnel.tabletunnel.TableTunnel.create_stream_upload_session:5
+#: odps.tunnel.tabletunnel.TableTunnel.create_upload_session:5
+#: odps.tunnel.tabletunnel.TableTunnel.create_upsert_session:5 of
+msgid "partition spec"
+msgstr ""
+
+#: odps.tunnel.tabletunnel.TableTunnel.create_stream_upload_session:7
+#: odps.tunnel.tabletunnel.TableTunnel.create_upload_session:7 of
+msgid "existing upload id"
+msgstr ""
+
+#: odps.tunnel.tabletunnel.TableTunnel.create_stream_upload_session:13 of
+msgid "schema version of the upload"
+msgstr ""
+
+#: odps.tunnel.tabletunnel.TableTunnel.create_stream_upload_session:16 of
+msgid "whether to allow table schema to be mismatched"
+msgstr ""
+
+#: odps.tunnel.tabletunnel.TableTunnel.create_stream_upload_session:18 of
+msgid ":class:`TableStreamUploadSession`"
+msgstr ""
+
+#: odps.tunnel.tabletunnel.TableTunnel.create_upload_session:1 of
+msgid "Create an upload session for table."
+msgstr ""
+
+#: odps.tunnel.tabletunnel.TableTunnel.create_upload_session:13 of
+msgid "whether to overwrite the table"
+msgstr ""
+
+#: odps.tunnel.tabletunnel.TableTunnel.create_upload_session:17 of
+msgid ":class:`TableUploadSession`"
+msgstr ""
+
+#: odps.tunnel.tabletunnel.TableTunnel.create_upsert_session:1 of
+msgid "Create an upsert session for table."
+msgstr ""
+
+#: odps.tunnel.tabletunnel.TableTunnel.create_upsert_session:7 of
+msgid "existing upsert id"
+msgstr ""
+
+#: odps.tunnel.tabletunnel.TableTunnel.create_upsert_session:8 of
+msgid "timeout for commit"
+msgstr ""
+
+#: odps.tunnel.tabletunnel.TableTunnel.create_upsert_session:17 of
+msgid ":class:`TableUpsertSession`"
+msgstr ""
+
+#: odps.tunnel.tabletunnel.TableDownloadSession:1 of
+msgid ""
+"Tunnel session for downloading data from tables. Instances of this class "
+"should be created by :meth:`TableTunnel.create_download_session`."
+msgstr ""
+
+#: ../../source/api-def.rst:81
+msgid ""
+"ID of the download session which can be passed to "
+":meth:`~odps.tunnel.TableTunnel.create_download_session` for session "
+"reuse."
+msgstr ""
+
+#: ../../source/api-def.rst:86
+msgid "Count of records in the table."
+msgstr ""
+
+#: ../../source/api-def.rst:90
+msgid "Schema of the table."
+msgstr ""
+
+#: odps.tunnel.tabletunnel.TableDownloadSession.open_arrow_reader:1 of
+msgid "Open a reader to read data as Arrow format from the tunnel."
+msgstr ""
+
+#: odps.tunnel.instancetunnel.InstanceDownloadSession.open_arrow_reader:3
+#: odps.tunnel.instancetunnel.InstanceDownloadSession.open_record_reader:3
+#: odps.tunnel.tabletunnel.TableDownloadSession.open_arrow_reader:3
+#: odps.tunnel.tabletunnel.TableDownloadSession.open_record_reader:3 of
+msgid "start row index"
+msgstr ""
+
+#: odps.tunnel.instancetunnel.InstanceDownloadSession.open_arrow_reader:4
+#: odps.tunnel.instancetunnel.InstanceDownloadSession.open_record_reader:4
+#: odps.tunnel.tabletunnel.TableDownloadSession.open_arrow_reader:4
+#: odps.tunnel.tabletunnel.TableDownloadSession.open_record_reader:4 of
+msgid "number of rows to read"
+msgstr ""
+
+#: odps.tunnel.instancetunnel.InstanceDownloadSession.open_arrow_reader:5
+#: odps.tunnel.instancetunnel.InstanceDownloadSession.open_record_reader:5
+#: odps.tunnel.tabletunnel.TableDownloadSession.open_arrow_reader:5
+#: odps.tunnel.tabletunnel.TableDownloadSession.open_record_reader:5
+#: odps.tunnel.tabletunnel.TableStreamUploadSession.open_record_writer:3
+#: odps.tunnel.tabletunnel.TableUploadSession.open_arrow_writer:6
+#: odps.tunnel.tabletunnel.TableUploadSession.open_record_writer:6
+#: odps.tunnel.tabletunnel.TableUpsertSession.open_upsert_stream:3 of
+msgid "whether to compress data"
+msgstr ""
+
+#: odps.tunnel.instancetunnel.InstanceDownloadSession.open_arrow_reader
+#: odps.tunnel.instancetunnel.InstanceDownloadSession.open_record_reader
+#: odps.tunnel.tabletunnel.TableDownloadSession.open_arrow_reader
+#: odps.tunnel.tabletunnel.TableDownloadSession.open_record_reader of
+msgid "columns"
+msgstr ""
+
+#: odps.tunnel.instancetunnel.InstanceDownloadSession.open_arrow_reader:6
+#: odps.tunnel.instancetunnel.InstanceDownloadSession.open_record_reader:6
+#: odps.tunnel.tabletunnel.TableDownloadSession.open_arrow_reader:6
+#: odps.tunnel.tabletunnel.TableDownloadSession.open_record_reader:6 of
+msgid "list of column names to read"
+msgstr ""
+
+#: odps.tunnel.tabletunnel.TableDownloadSession.open_arrow_reader
+#: odps.tunnel.tabletunnel.TableDownloadSession.open_record_reader of
+msgid "append_partitions"
+msgstr ""
+
+#: odps.tunnel.tabletunnel.TableDownloadSession.open_arrow_reader:7
+#: odps.tunnel.tabletunnel.TableDownloadSession.open_record_reader:7 of
+msgid "whether to append partition values as columns"
+msgstr ""
+
+#: odps.tunnel.tabletunnel.TableDownloadSession.open_arrow_reader:9 of
+msgid "an Arrow reader"
+msgstr ""
+
+#: odps.tunnel.instancetunnel.InstanceDownloadSession.open_arrow_reader:9
+#: odps.tunnel.tabletunnel.TableDownloadSession.open_arrow_reader:10 of
+msgid ":class:`TunnelArrowReader`"
+msgstr ""
+
+#: odps.tunnel.instancetunnel.InstanceDownloadSession.open_record_reader:1
+#: odps.tunnel.tabletunnel.TableDownloadSession.open_record_reader:1 of
+msgid "Open a reader to read data as records from the tunnel."
+msgstr ""
+
+#: odps.tunnel.instancetunnel.InstanceDownloadSession.open_record_reader:8
+#: odps.tunnel.tabletunnel.TableDownloadSession.open_record_reader:9 of
+msgid "a record reader"
+msgstr ""
+
+#: odps.tunnel.instancetunnel.InstanceDownloadSession.open_record_reader:9
+#: odps.tunnel.tabletunnel.TableDownloadSession.open_record_reader:10 of
+msgid ":class:`TunnelRecordReader`"
+msgstr ""
+
+#: odps.tunnel.tabletunnel.TableStreamUploadSession:1 of
+msgid ""
+"Tunnel session for uploading data in stream method to tables. Instances "
+"of this class should be created by "
+":meth:`TableTunnel.create_stream_upload_session`."
+msgstr ""
+
+#: ../../source/api-def.rst:99
+msgid ""
+"ID of the stream upload session which can be passed to "
+":meth:`~odps.tunnel.TableTunnel.create_stream_upload_session` for session"
+" reuse."
+msgstr ""
+
+#: odps.tunnel.tabletunnel.TableStreamUploadSession.abort:1 of
+msgid "Abort the upload session."
+msgstr ""
+
+#: odps.tunnel.tabletunnel.BaseTableTunnelSession.new_record:1
+#: odps.tunnel.tabletunnel.TableUpsertSession.new_record:1 of
+msgid "Generate a record of the current upload session."
+msgstr ""
+
+#: odps.tunnel.tabletunnel.TableStreamUploadSession.open_record_writer:1
+#: odps.tunnel.tabletunnel.TableUploadSession.open_record_writer:1 of
+msgid "Open a writer to write data in records to the tunnel."
+msgstr ""
+
+#: odps.tunnel.tabletunnel.TableStreamUploadSession.open_record_writer:5
+#: odps.tunnel.tabletunnel.TableUploadSession.open_record_writer:8 of
+msgid "a record writer"
+msgstr ""
+
+#: odps.tunnel.tabletunnel.TableStreamUploadSession.open_record_writer:6 of
+msgid ":class:`RecordWriter`"
+msgstr ""
+
+#: odps.tunnel.tabletunnel.TableUploadSession:1 of
+msgid ""
+"Tunnel session for uploading data to tables. Instances of this class "
+"should be created by :meth:`TableTunnel.create_upload_session`."
+msgstr ""
+
+#: ../../source/api-def.rst:109
+msgid ""
+"ID of the upload session which can be passed to "
+":meth:`~odps.tunnel.TableTunnel.create_upload_session` for session reuse."
+msgstr ""
+
+#: odps.tunnel.tabletunnel.TableUploadSession.commit:1 of
+msgid ""
+"Commit written blocks to the tunnel. Can be called only once on a single "
+"session."
+msgstr ""
+
+#: odps.tunnel.tabletunnel.TableUploadSession.commit:3 of
+msgid "list of block ids to commit"
+msgstr ""
+
+#: odps.tunnel.tabletunnel.TableUploadSession.open_arrow_writer:1 of
+msgid "Open a writer to write data in Arrow format to the tunnel."
+msgstr ""
+
+#: odps.tunnel.tabletunnel.TableUploadSession.open_arrow_writer:3 of
+msgid ""
+"id of the block to write to. If not specified, a "
+":class:`BufferedArrowWriter` will be created."
+msgstr ""
+
+#: odps.tunnel.tabletunnel.TableUploadSession.open_arrow_writer:5
+#: odps.tunnel.tabletunnel.TableUploadSession.open_record_writer:5 of
+msgid "size of the buffer to use for buffered writers."
+msgstr ""
+
+#: odps.tunnel.tabletunnel.TableUploadSession.open_arrow_writer:8 of
+msgid "an Arrow writer"
+msgstr ""
+
+#: odps.tunnel.tabletunnel.TableUploadSession.open_arrow_writer:9 of
+msgid ":class:`ArrowWriter` or :class:`BufferedArrowWriter`"
+msgstr ""
+
+#: odps.tunnel.tabletunnel.TableUploadSession.open_record_writer:3 of
+msgid ""
+"id of the block to write to. If not specified, a "
+":class:`BufferedRecordWriter` will be created."
+msgstr ""
+
+#: odps.tunnel.tabletunnel.TableUploadSession.open_record_writer:9 of
+msgid ":class:`RecordWriter` or :class:`BufferedRecordWriter`"
+msgstr ""
+
+#: odps.tunnel.tabletunnel.TableUpsertSession:1 of
+msgid ""
+"Tunnel session for inserting or updating data to upsert tables. Instances"
+" of this class should be created by "
+":meth:`TableTunnel.create_upsert_session`."
+msgstr ""
+
+#: ../../source/api-def.rst:119
+msgid ""
+"ID of the upsert session which can be passed to "
+":meth:`~odps.tunnel.TableTunnel.create_upsert_session` for session reuse."
+msgstr ""
+
+#: odps.tunnel.tabletunnel.TableUpsertSession.abort:1 of
+msgid "Abort the current session."
+msgstr ""
+
+#: odps.tunnel.tabletunnel.TableUpsertSession.commit:1 of
+msgid "Commit the current session. Can be called only once on a single session."
+msgstr ""
+
+#: odps.tunnel.tabletunnel.TableUpsertSession.open_upsert_stream:1 of
+msgid "Open an upsert stream to insert or update data in records to the tunnel."
+msgstr ""
+
+#: odps.tunnel.tabletunnel.TableUpsertSession.open_upsert_stream:5 of
+msgid "an upsert stream"
+msgstr ""
+
+#: odps.tunnel.tabletunnel.TableUpsertSession.open_upsert_stream:6 of
+msgid ":class:`Upsert`"
+msgstr ""
+
+#: odps.tunnel.instancetunnel.InstanceTunnel:1 of
+msgid "Instance tunnel API Entry."
+msgstr ""
+
+#: odps.tunnel.instancetunnel.InstanceTunnel.create_download_session:1 of
+msgid "Create a download session for instance results."
+msgstr ""
+
+#: odps.tunnel.instancetunnel.InstanceTunnel.create_download_session:3 of
+msgid "instance object to read"
+msgstr ""
+
+#: odps.tunnel.instancetunnel.InstanceTunnel.create_download_session:6 of
+msgid "record limit of the download session"
+msgstr ""
+
+#: odps.tunnel.instancetunnel.InstanceTunnel.create_download_session:15 of
+msgid ":class:`InstanceDownloadSession`"
+msgstr ""
+
+#: odps.tunnel.instancetunnel.InstanceDownloadSession:1 of
+msgid ""
+"Tunnel session for downloading data from instance results. Instances of "
+"this class should be created by "
+":meth:`InstanceTunnel.create_download_session`."
+msgstr ""
+
+#: odps.tunnel.instancetunnel.InstanceDownloadSession:4 of
+msgid ""
+"You may get the id of the session for reuse by attribute ``id`` of the "
+"session object."
+msgstr ""
+
+#: ../../source/api-def.rst:131
+msgid ""
+"ID of the download session which can be passed to "
+":meth:`~odps.tunnel.InstanceTunnel.create_download_session` for session "
+"reuse."
+msgstr ""
+
+#: ../../source/api-def.rst:136
+msgid "Count of records in the instance result."
+msgstr ""
+
+#: ../../source/api-def.rst:140
+msgid "Schema of the instance result."
+msgstr ""
+
+#: odps.tunnel.instancetunnel.InstanceDownloadSession.open_arrow_reader:1 of
+msgid "Open a reader to read data as arrow format from the tunnel."
+msgstr ""
+
+#: odps.tunnel.instancetunnel.InstanceDownloadSession.open_arrow_reader:8 of
+msgid "an arrow reader"
+msgstr ""
+
+#: odps.tunnel.io.writer.ArrowWriter:1 of
+msgid ""
+"Writer object to write data to ODPS using Arrow format. Should be created"
+" with :meth:`TableUploadSession.open_arrow_writer` with ``block_id`` "
+"specified."
+msgstr ""
+
+#: odps.tunnel.io.writer.ArrowWriter:6
+#: odps.tunnel.io.writer.BufferedArrowWriter:8 of
+msgid "Here we show an example of writing a pandas DataFrame to ODPS."
+msgstr ""
+
+#: odps.tunnel.io.writer.ArrowWriter:8 of
+msgid ""
+"import pandas as pd\n"
+"from odps.tunnel import TableTunnel\n"
+"\n"
+"tunnel = TableTunnel(o)\n"
+"upload_session = tunnel.create_upload_session('my_table', "
+"partition_spec='pt=test')\n"
+"\n"
+"# creates an ArrowWriter instance for block 0\n"
+"with upload_session.open_arrow_writer(0) as writer:\n"
+"    df = pd.DataFrame({'col1': ['test1', 'test2'], 'col2': ['id1', "
+"'id2']})\n"
+"    writer.write(df)\n"
+"\n"
+"# commit block 0\n"
+"upload_session.commit([0])"
+msgstr ""
+
+#: odps.tunnel.io.writer.ArrowWriter odps.tunnel.io.writer.RecordWriter of
+msgid "Note"
+msgstr ""
+
+#: odps.tunnel.io.writer.ArrowWriter:26 of
+msgid ""
+"``ArrowWriter`` holds long HTTP connection which might be closed at "
+"server end when the duration is over 3 minutes. Please avoid opening "
+"``ArrowWriter`` for a long period. Details can be found :ref:`here "
+"<tunnel>`."
+msgstr ""
+
+#: odps.tunnel.io.writer.BaseArrowWriter.close:1
+#: odps.tunnel.io.writer.BufferedArrowWriter.close:1 of
+msgid "Closes the writer and flush all data to server."
+msgstr ""
+
+#: odps.tunnel.io.writer.BaseArrowWriter.write:1
+#: odps.tunnel.io.writer.BufferedArrowWriter.write:1 of
+msgid "Write an Arrow RecordBatch, an Arrow Table or a pandas DataFrame."
+msgstr ""
+
+#: odps.tunnel.io.writer.RecordWriter:1 of
+msgid ""
+"Writer object to write data to ODPS with records. Should be created with "
+":meth:`TableUploadSession.open_record_writer` with ``block_id`` "
+"specified."
+msgstr ""
+
+#: odps.tunnel.io.writer.BufferedRecordWriter:8
+#: odps.tunnel.io.writer.RecordWriter:6 of
+msgid ""
+"Here we show an example of writing data to ODPS with two records created "
+"in different ways."
+msgstr ""
+
+#: odps.tunnel.io.writer.RecordWriter:8 of
+msgid ""
+"from odps.tunnel import TableTunnel\n"
+"\n"
+"tunnel = TableTunnel(o)\n"
+"upload_session = tunnel.create_upload_session('my_table', "
+"partition_spec='pt=test')\n"
+"\n"
+"# creates a RecordWriter instance for block 0\n"
+"with upload_session.open_record_writer(0) as writer:\n"
+"    record = upload_session.new_record()\n"
+"    record[0] = 'test1'\n"
+"    record[1] = 'id1'\n"
+"    writer.write(record)\n"
+"\n"
+"    record = upload_session.new_record(['test2', 'id2'])\n"
+"    writer.write(record)\n"
+"\n"
+"# commit block 0\n"
+"upload_session.commit([0])"
+msgstr ""
+
+#: odps.tunnel.io.writer.RecordWriter:30 of
+msgid ""
+"``RecordWriter`` holds long HTTP connection which might be closed at "
+"server end when the duration is over 3 minutes. Please avoid opening "
+"``RecordWriter`` for a long period. Details can be found :ref:`here "
+"<tunnel>`."
+msgstr ""
+
+#: odps.tunnel.io.writer.BufferedRecordWriter.close:1
+#: odps.tunnel.io.writer.RecordWriter.close:1 of
+msgid "Close the writer and flush all data to server."
+msgstr ""
+
+#: odps.tunnel.io.writer.BufferedRecordWriter.write:1
+#: odps.tunnel.io.writer.RecordWriter.write:1 of
+msgid "Write a record to the tunnel."
+msgstr ""
+
+#: odps.tunnel.io.writer.BufferedRecordWriter.write:3
+#: odps.tunnel.io.writer.RecordWriter.write:3
+#: odps.tunnel.io.writer.Upsert.delete:3 odps.tunnel.io.writer.Upsert.upsert:3
+#: of
+msgid "record to write"
+msgstr ""
+
+#: odps.tunnel.io.writer.BufferedArrowWriter:1 of
+msgid ""
+"Writer object to write data to ODPS using Arrow format. Should be created"
+" with :meth:`TableUploadSession.open_arrow_writer` without ``block_id``. "
+"Results should be submitted with :meth:`TableUploadSession.commit` with "
+"returned value from :meth:`get_blocks_written`."
+msgstr ""
+
+#: odps.tunnel.io.writer.BufferedArrowWriter:10 of
+msgid ""
+"import pandas as pd\n"
+"from odps.tunnel import TableTunnel\n"
+"\n"
+"tunnel = TableTunnel(o)\n"
+"upload_session = tunnel.create_upload_session('my_table', "
+"partition_spec='pt=test')\n"
+"\n"
+"# creates a BufferedArrowWriter instance\n"
+"with upload_session.open_arrow_writer() as writer:\n"
+"    df = pd.DataFrame({'col1': ['test1', 'test2'], 'col2': ['id1', "
+"'id2']})\n"
+"    writer.write(df)\n"
+"\n"
+"# commit blocks\n"
+"upload_session.commit(writer.get_blocks_written())"
+msgstr ""
+
+#: odps.tunnel.io.writer.BufferedArrowWriter.get_blocks_written:1
+#: odps.tunnel.io.writer.BufferedRecordWriter.get_blocks_written:1 of
+msgid ""
+"Get block ids created during writing. Should be provided as the argument "
+"to :meth:`TableUploadSession.commit`."
+msgstr ""
+
+#: odps.tunnel.io.writer.BufferedRecordWriter:1 of
+msgid ""
+"Writer object to write data to ODPS with records. Should be created with "
+":meth:`TableUploadSession.open_record_writer` without ``block_id``. "
+"Results should be submitted with :meth:`TableUploadSession.commit` with "
+"returned value from :meth:`get_blocks_written`."
+msgstr ""
+
+#: odps.tunnel.io.writer.BufferedRecordWriter:10 of
+msgid ""
+"from odps.tunnel import TableTunnel\n"
+"\n"
+"tunnel = TableTunnel(o)\n"
+"upload_session = tunnel.create_upload_session('my_table', "
+"partition_spec='pt=test')\n"
+"\n"
+"# creates a BufferedRecordWriter instance\n"
+"with upload_session.open_record_writer() as writer:\n"
+"    record = upload_session.new_record()\n"
+"    record[0] = 'test1'\n"
+"    record[1] = 'id1'\n"
+"    writer.write(record)\n"
+"\n"
+"    record = upload_session.new_record(['test2', 'id2'])\n"
+"    writer.write(record)\n"
+"\n"
+"# commit blocks\n"
+"upload_session.commit(writer.get_blocks_written())"
+msgstr ""
+
+#: odps.tunnel.io.reader.TunnelArrowReader:1 of
+msgid ""
+"Reader object to read data from ODPS in Arrow format. Should be created "
+"with :meth:`TableDownloadSession.open_arrow_reader`."
+msgstr ""
+
+#: odps.tunnel.io.reader.TunnelArrowReader:6 of
+msgid ""
+"from odps.tunnel import TableTunnel\n"
+"\n"
+"    tunnel = TableTunnel(o)\n"
+"    download_session = tunnel.create_download_session('my_table', "
+"partition_spec='pt=test')\n"
+"\n"
+"    # create a TunnelArrowReader\n"
+"    with download_session.open_arrow_reader(0, download_session.count) as"
+" reader:\n"
+"        for batch in reader:\n"
+"            print(batch.to_pandas())"
+msgstr ""
+
+#: odps.tunnel.io.reader.TunnelRecordReader:1 of
+msgid ""
+"Reader object to read data from ODPS in records. Should be created with "
+":meth:`TableDownloadSession.open_record_reader`."
+msgstr ""
+
+#: odps.tunnel.io.reader.TunnelRecordReader:6 of
+msgid ""
+"from odps.tunnel import TableTunnel\n"
+"\n"
+"    tunnel = TableTunnel(o)\n"
+"    download_session = tunnel.create_download_session('my_table', "
+"partition_spec='pt=test')\n"
+"\n"
+"    # create a TunnelRecordReader\n"
+"    with download_session.open_record_reader(0, download_session.count) "
+"as reader:\n"
+"        for record in reader:\n"
+"            print(record.values)"
+msgstr ""
+
+#: odps.tunnel.io.writer.Upsert:1 of
+msgid ""
+"Object to insert or update data into an ODPS upsert table with records. "
+"Should be created with :meth:`TableUpsertSession.open_upsert_stream`."
+msgstr ""
+
+#: odps.tunnel.io.writer.Upsert:6 of
+msgid ""
+"Here we show an example of inserting, updating and deleting data to an "
+"upsert table."
+msgstr ""
+
+#: odps.tunnel.io.writer.Upsert:8 of
+msgid ""
+"from odps.tunnel import TableTunnel\n"
+"\n"
+"tunnel = TableTunnel(o)\n"
+"upsert_session = tunnel.create_upsert_session('my_table', "
+"partition_spec='pt=test')\n"
+"\n"
+"# creates a BufferedRecordWriter instance\n"
+"stream = upsert_session.open_upsert_stream(compress=True)\n"
+"rec = upsert_session.new_record([\"0\", \"v1\"])\n"
+"stream.upsert(rec)\n"
+"rec = upsert_session.new_record([\"0\", \"v2\"])\n"
+"stream.upsert(rec)\n"
+"rec = upsert_session.new_record([\"1\", \"v1\"])\n"
+"stream.upsert(rec)\n"
+"rec = upsert_session.new_record([\"2\", \"v1\"])\n"
+"stream.upsert(rec)\n"
+"stream.delete(rec)\n"
+"stream.flush()\n"
+"stream.close()\n"
+"\n"
+"upsert_session.commit()"
+msgstr ""
+
+#: odps.tunnel.io.writer.Upsert.close:1 of
+msgid "Close the stream and write all data to server."
+msgstr ""
+
+#: odps.tunnel.io.writer.Upsert.delete:1 of
+msgid "Delete a record."
+msgstr ""
+
+#: odps.tunnel.io.writer.Upsert.flush:1 of
+msgid "Flush all data in buffer to server."
+msgstr ""
+
+#: odps.tunnel.io.writer.Upsert.upsert:1 of
+msgid "Insert or update a record."
+msgstr ""
+
+#: odps.tunnel.volumetunnel.VolumeTunnel:1 of
+msgid "Volume tunnel API Entry."
 msgstr ""
 

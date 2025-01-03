@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,8 +14,24 @@
 # limitations under the License.
 
 from .instancetunnel import InstanceDownloadSession, InstanceTunnel
-from .io import CompressOption
-from .tabletunnel import TableDownloadSession, TableTunnel, TableUploadSession
+from .io import (
+    ArrowWriter,
+    BufferedArrowWriter,
+    BufferedRecordWriter,
+    CompressOption,
+    RecordWriter,
+    TunnelArrowReader,
+    TunnelRecordReader,
+    Upsert,
+)
+from .io.reader import TunnelArrowReader, TunnelRecordReader
+from .tabletunnel import (
+    TableDownloadSession,
+    TableStreamUploadSession,
+    TableTunnel,
+    TableUploadSession,
+    TableUpsertSession,
+)
 from .volumetunnel import (
     VolumeDownloadSession,
     VolumeFSTunnel,

@@ -6,9 +6,10 @@
 制作三方包
 ----------
 PyODPS 自 0.11.3 起提供了 ``pyodps-pack`` 命令行工具，用于制作符合 PyODPS 及 DataWorks PyODPS
-节点标准的三方包，使用方法类似 ``pip`` 命令。你可以使用该工具将所有依赖项目制作成一个 ``.tar.gz``
-压缩包，其中包含所有依照 MaxCompute / DataWorks 环境编译并打包的项目依赖。如果你的项目有自行创建的 Python
-包，也可以使用该工具进行打包。
+节点标准的三方包。该工具在 PyODPS 安装时同步安装，位于 Python bin 路径（Linux / MacOS）或者 Scripts
+路径（Windows）下，可在命令行下调用。该工具使用方法类似 ``pip`` 命令。你可以使用该工具将所有依赖项目\
+制作成一个 ``.tar.gz`` 压缩包，其中包含所有依照 MaxCompute / DataWorks 环境编译并打包的项目依赖。\
+如果你的项目有自行创建的 Python 包，也可以使用该工具进行打包。
 
 准备工作
 ~~~~~~~~

@@ -39,6 +39,15 @@ CHECKSUM_PACKER = ">i" if six.PY2 else ">I"
 
 
 class VolumeTunnel(BaseTunnel):
+    """
+    Volume tunnel API Entry.
+
+    :param odps: ODPS Entry object
+    :param str project: project name
+    :param str endpoint: tunnel endpoint
+    :param str quota_name: name of tunnel quota
+    """
+
     def create_download_session(
         self,
         volume,
