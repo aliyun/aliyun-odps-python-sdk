@@ -1,8 +1,8 @@
 .. _base-index:
 
-==========
-基本操作
-==========
+==============
+基本类型及操作
+==============
 
 PyODPS 提供直接针对 ODPS 对象的基本操作接口，可通过符合 Python 习惯的编程方式操作 ODPS。
 
@@ -11,6 +11,7 @@ PyODPS 提供直接针对 ODPS 对象的基本操作接口，可通过符合 Pyt
 .. toctree::
     :maxdepth: 1
 
+    base-types
     base-projects
     base-tables
     base-sql
@@ -20,5 +21,3 @@ PyODPS 提供直接针对 ODPS 对象的基本操作接口，可通过符合 Pyt
     base-volume-int
     base-schemas
     base-models
-    base-dbapi
-    base-sqlalchemy

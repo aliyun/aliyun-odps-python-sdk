@@ -82,6 +82,7 @@ MaxCompute，可以使用下面的语句初始化 MaxCompute 入口对象：
    platform
    base
    df
+   db
    interactive
    options
    pyodps-pack

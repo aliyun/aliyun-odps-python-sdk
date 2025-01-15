@@ -1,0 +1,1138 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2014-2018, The Alibaba Group Holding Ltd.
+# This file is distributed under the same license as the PyODPS package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyODPS 0.12.3\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-01-15 17:42+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: en\n"
+"Language-Team: en <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.16.0\n"
+
+#: ../../source/api-models.rst:4
+msgid "Model objects"
+msgstr ""
+
+#: odps.models.project.Project:1 of
+msgid "Project is the counterpart of **database** in a RDBMS."
+msgstr ""
+
+#: odps.models.project.Project:3 of
+msgid ""
+"By get an object of Project, users can get the properties like ``name``, "
+"``owner``, ``comment``, ``creation_time``, ``last_modified_time``, and so"
+" on."
+msgstr ""
+
+#: odps.models.project.Project:6 of
+msgid ""
+"These properties will not load from remote ODPS service, unless users try"
+" to get them explicitly. If users want to check the newest status, try "
+"use ``reload`` method."
+msgstr ""
+
+#: odps.models.instance.Instance
+#: odps.models.instance.Instance.Task.TaskProgress
+#: odps.models.instance.Instance.get_task_cost
+#: odps.models.instance.Instance.open_reader
+#: odps.models.partition.Partition.open_reader odps.models.project.Project
+#: odps.models.resource.FileResource.open odps.models.table.Table
+#: odps.models.table.Table.new_record odps.models.table.Table.open_reader
+#: odps.models.table.Table.open_writer of
+msgid "Example"
+msgstr ""
+
+#: odps.models.table.Table:1 of
+msgid ""
+"Table means the same to the RDBMS table, besides, a table can consist of "
+"partitions."
+msgstr ""
+
+#: odps.models.table.Table:3 of
+msgid ""
+"Table's properties are the same to the ones of "
+":class:`odps.models.Project`, which will not load from remote ODPS "
+"service until users try to get them."
+msgstr ""
+
+#: odps.models.table.Table:6 of
+msgid ""
+"In order to write data into table, users should call the ``open_writer`` "
+"method with **with statement**. At the same time, the ``open_reader`` "
+"method is used to provide the ability to read records from a table or its"
+" partition."
+msgstr ""
+
+#: ../../source/api-models.rst:14
+msgid "Name of the table"
+msgstr ""
+
+#: ../../source/api-models.rst:18
+msgid "Comment of the table"
+msgstr ""
+
+#: ../../source/api-models.rst:22
+msgid "Owner of the table"
+msgstr ""
+
+#: ../../source/api-models.rst:26
+msgid "Creation time of the table in local time."
+msgstr ""
+
+#: ../../source/api-models.rst:30
+msgid "Last data modified time of the table in local time."
+msgstr ""
+
+#: ../../source/api-models.rst:34
+msgid "Schema of the table, in :class:`~odps.models.TableSchema` type."
+msgstr ""
+
+#: ../../source/api-models.rst:38
+msgid ""
+"Type of the table, can be managed_table, external_table, view or "
+"materialized_view."
+msgstr ""
+
+#: ../../source/api-models.rst:42
+msgid "Logical size of the table."
+msgstr ""
+
+#: ../../source/api-models.rst:46
+msgid "Lifecycle of the table in days."
+msgstr ""
+
+#: odps.models.table.Table.create_partition:1 of
+msgid "Create a partition within the table."
+msgstr ""
+
+#: ../../source/api-models.rst odps.models.instance.Instance.get_task_cost
+#: odps.models.instance.Instance.open_reader
+#: odps.models.partition.Partition.open_reader
+#: odps.models.resource.FileResource.open odps.models.table.Table.open_reader
+#: odps.models.table.Table.open_writer of
+msgid "Parameters"
+msgstr ""
+
+#: odps.models.table.Table.create_partition:3
+#: odps.models.table.Table.delete_partition:3
+#: odps.models.table.Table.exist_partition:3
+#: odps.models.table.Table.get_partition:3
+#: odps.models.table.Table.iterate_partitions:3 of
+msgid "specification of the partition."
+msgstr ""
+
+#: ../../source/api-models.rst odps.models.instance.Instance.get_task_cost
+#: odps.models.instance.Instance.open_reader
+#: odps.models.partition.Partition.open_reader
+#: odps.models.resource.FileResource.open odps.models.table.Table.open_reader
+#: odps.models.table.Table.open_writer of
+msgid "Returns"
+msgstr ""
+
+#: odps.models.table.Table.create_partition:7
+#: odps.models.table.Table.get_partition:4 of
+msgid "partition object"
+msgstr ""
+
+#: ../../source/api-models.rst odps.models.instance.Instance.get_task_cost of
+msgid "Return type"
+msgstr ""
+
+#: odps.models.table.Table.delete_partition:1 of
+msgid "Delete a partition within the table."
+msgstr ""
+
+#: odps.models.table.Table.drop:1 of
+msgid "Drop this table."
+msgstr ""
+
+#: odps.models.partition.Partition.drop:3 odps.models.table.Table.drop:3
+#: odps.models.table.Table.truncate:5 of
+msgid "run asynchronously if True"
+msgstr ""
+
+#: odps.models.function.Function.drop:3 odps.models.function.Function.update:3
+#: odps.models.instance.Instance.stop:3
+#: odps.models.instance.Instance.wait_for_completion:9
+#: odps.models.instance.Instance.wait_for_success:9
+#: odps.models.partition.Partition.drop:5
+#: odps.models.resource.FileResource.close:3
+#: odps.models.resource.FileResource.flush:4
+#: odps.models.resource.FileResource.seek:5
+#: odps.models.resource.FileResource.truncate:6
+#: odps.models.resource.FileResource.write:4
+#: odps.models.resource.FileResource.writelines:4
+#: odps.models.table.Table.drop:6 odps.models.table.Table.truncate:6 of
+msgid "None"
+msgstr ""
+
+#: odps.models.table.Table.exist_partition:1 of
+msgid "Check if a partition exists within the table."
+msgstr ""
+
+#: odps.models.table.Table.exist_partitions:1 of
+msgid "Check if partitions with provided conditions exist."
+msgstr ""
+
+#: odps.models.table.Table.exist_partitions:3 of
+msgid "prefix of partition"
+msgstr ""
+
+#: odps.models.table.Table.exist_partitions:4 of
+msgid "whether partitions exist"
+msgstr ""
+
+#: odps.models.table.Table.get_ddl:1 of
+msgid "Get DDL SQL statement for the given table."
+msgstr ""
+
+#: odps.models.table.Table.get_ddl:3 of
+msgid "append comment for table and each column"
+msgstr ""
+
+#: odps.models.table.Table.get_ddl:4 of
+msgid "generate `if not exists` code for generated DDL"
+msgstr ""
+
+#: odps.models.table.Table.get_ddl:5 of
+msgid "force generate table DDL if object is a view"
+msgstr ""
+
+#: odps.models.table.Table.get_ddl:6 of
+msgid "DDL statement"
+msgstr ""
+
+#: odps.models.table.Table.get_max_partition:1 of
+msgid "Get partition with maximal values within certain spec."
+msgstr ""
+
+#: odps.models.table.Table.get_max_partition:3 of
+msgid ""
+"parent partitions. if specified, will return partition with maximal value"
+" within specified parent partition"
+msgstr ""
+
+#: odps.models.table.Table.get_max_partition:5 of
+msgid "if True, will skip partitions without data"
+msgstr ""
+
+#: odps.models.table.Table.get_max_partition:6 of
+msgid "if True, will return minimal value"
+msgstr ""
+
+#: odps.models.table.Table.get_max_partition:7 of
+msgid "Partition"
+msgstr ""
+
+#: odps.models.table.Table.get_partition:1 of
+msgid "Get a partition with given specifications."
+msgstr ""
+
+#: odps.models.table.Table.head:1 of
+msgid "Get the head records of a table or its partition."
+msgstr ""
+
+#: odps.models.partition.Partition.head:3 odps.models.table.Table.head:3 of
+msgid "records' size, 10000 at most"
+msgstr ""
+
+#: odps.models.table.Table.head:4 odps.models.table.Table.iter_pandas:3
+#: odps.models.table.Table.open_reader:3 odps.models.table.Table.open_writer:3
+#: odps.models.table.Table.to_pandas:3 of
+msgid "partition of this table"
+msgstr ""
+
+#: odps.models.partition.Partition.head:4 odps.models.table.Table.head:5 of
+msgid "the columns which is subset of the table columns"
+msgstr ""
+
+#: odps.models.partition.Partition.head:5 odps.models.table.Table.head:6 of
+msgid "records"
+msgstr ""
+
+#: odps.models.partition.Partition.head:8 odps.models.table.Table.head:9
+#: odps.models.table.Table.new_record:6 odps.models.table.Table.new_record:16
+#: of
+msgid ":class:`odps.models.Record`"
+msgstr ""
+
+#: odps.models.table.Table.iter_pandas:1 of
+msgid "Iterate table data in blocks as pandas DataFrame"
+msgstr ""
+
+#: odps.models.instance.Instance.iter_pandas:4
+#: odps.models.instance.Instance.to_pandas:4
+#: odps.models.partition.Partition.iter_pandas:3
+#: odps.models.partition.Partition.to_pandas:3
+#: odps.models.table.Table.iter_pandas:4 odps.models.table.Table.open_reader:9
+#: odps.models.table.Table.to_pandas:4 of
+msgid "columns to read"
+msgstr ""
+
+#: odps.models.instance.Instance.iter_pandas:6
+#: odps.models.partition.Partition.iter_pandas:4
+#: odps.models.table.Table.iter_pandas:5 of
+msgid "size of DataFrame batch to read"
+msgstr ""
+
+#: odps.models.instance.Instance.iter_pandas:7
+#: odps.models.instance.Instance.to_pandas:6
+#: odps.models.partition.Partition.iter_pandas:5
+#: odps.models.partition.Partition.to_pandas:4
+#: odps.models.table.Table.iter_pandas:6 odps.models.table.Table.to_pandas:5 of
+msgid "start row index from 0"
+msgstr ""
+
+#: odps.models.instance.Instance.iter_pandas:8
+#: odps.models.instance.Instance.to_pandas:7
+#: odps.models.partition.Partition.iter_pandas:6
+#: odps.models.partition.Partition.to_pandas:5
+#: odps.models.table.Table.iter_pandas:7 odps.models.table.Table.to_pandas:6 of
+msgid "data count to read"
+msgstr ""
+
+#: odps.models.partition.Partition.iter_pandas:8
+#: odps.models.partition.Partition.to_pandas:8
+#: odps.models.table.Table.iter_pandas:8 odps.models.table.Table.open_reader:19
+#: odps.models.table.Table.to_pandas:8 of
+msgid "if True, partition values will be appended to the output"
+msgstr ""
+
+#: odps.models.instance.Instance.iter_pandas:9
+#: odps.models.instance.Instance.to_pandas:9
+#: odps.models.partition.Partition.iter_pandas:7
+#: odps.models.partition.Partition.to_pandas:7
+#: odps.models.table.Table.iter_pandas:10 odps.models.table.Table.to_pandas:10
+#: of
+msgid "name of tunnel quota to use"
+msgstr ""
+
+#: odps.models.table.Table.iterate_partitions:1 of
+msgid "Create an iterable object to iterate over partitions."
+msgstr ""
+
+#: odps.models.table.Table.iterate_partitions:4 of
+msgid "output partitions in reversed order"
+msgstr ""
+
+#: odps.models.table.Table.new_record:1 of
+msgid "Generate a record of the table."
+msgstr ""
+
+#: odps.models.table.Table.new_record:3 of
+msgid "the values of this records"
+msgstr ""
+
+#: odps.models.table.Table.new_record:5 of
+msgid "record"
+msgstr ""
+
+#: odps.models.table.Table.open_reader:1 of
+msgid ""
+"Open the reader to read the entire records from this table or its "
+"partition."
+msgstr ""
+
+#: odps.models.instance.Instance.open_reader:14
+#: odps.models.partition.Partition.open_reader:3
+#: odps.models.table.Table.open_reader:4 odps.models.table.Table.open_writer:5
+#: of
+msgid "the reader will reuse last one, reopen is true means open a new reader."
+msgstr ""
+
+#: odps.models.instance.Instance.open_reader:15
+#: odps.models.partition.Partition.open_reader:5
+#: odps.models.table.Table.open_reader:6 odps.models.table.Table.open_writer:7
+#: of
+msgid "the tunnel service URL"
+msgstr ""
+
+#: odps.models.table.Table.open_reader:7 of
+msgid "use existing download_id to download table contents"
+msgstr ""
+
+#: odps.models.table.Table.open_reader:8 of
+msgid "use arrow tunnel to read data"
+msgstr ""
+
+#: odps.models.table.Table.open_reader:10
+#: odps.models.table.Table.open_writer:10 of
+msgid "name of tunnel quota"
+msgstr ""
+
+#: odps.models.table.Table.open_reader:11 of
+msgid ""
+"enable async mode to create tunnels, can set True if session creation "
+"takes a long time."
+msgstr ""
+
+#: odps.models.instance.Instance.open_reader:16
+#: odps.models.partition.Partition.open_reader:6
+#: odps.models.table.Table.open_reader:13
+#: odps.models.table.Table.open_writer:12 of
+msgid "compression algorithm, level and strategy"
+msgstr ""
+
+#: odps.models.instance.Instance.open_reader:18
+#: odps.models.partition.Partition.open_reader:8
+#: odps.models.table.Table.open_reader:15
+#: odps.models.table.Table.open_writer:14 of
+msgid ""
+"compression algorithm, work when ``compress_option`` is not provided, can"
+" be ``zlib``, ``snappy``"
+msgstr ""
+
+#: odps.models.instance.Instance.open_reader:20
+#: odps.models.instance.Instance.open_reader:21
+#: odps.models.partition.Partition.open_reader:10
+#: odps.models.partition.Partition.open_reader:11
+#: odps.models.table.Table.open_reader:17
+#: odps.models.table.Table.open_reader:18
+#: odps.models.table.Table.open_writer:16
+#: odps.models.table.Table.open_writer:17 of
+msgid "used for ``zlib``, work when ``compress_option`` is not provided"
+msgstr ""
+
+#: odps.models.instance.Instance.open_reader:22
+#: odps.models.partition.Partition.open_reader:12
+#: odps.models.table.Table.open_reader:21 of
+msgid "reader, ``count`` means the full size, ``status`` means the tunnel status"
+msgstr ""
+
+#: odps.models.table.Table.open_writer:1 of
+msgid "Open the writer to write records into this table or its partition."
+msgstr ""
+
+#: odps.models.table.Table.open_writer:4 of
+msgid "block ids to open"
+msgstr ""
+
+#: odps.models.table.Table.open_writer:6 of
+msgid "if true, the partition will be created if not exist"
+msgstr ""
+
+#: odps.models.table.Table.open_writer:8 of
+msgid "use existing upload_id to upload data"
+msgstr ""
+
+#: odps.models.table.Table.open_writer:9 of
+msgid "use arrow tunnel to write data"
+msgstr ""
+
+#: odps.models.table.Table.open_writer:11 of
+msgid "if True, will overwrite existing data"
+msgstr ""
+
+#: odps.models.table.Table.open_writer:18 of
+msgid "writer, status means the tunnel writer status"
+msgstr ""
+
+#: odps.models.table.Table.set_storage_tier:1 of
+msgid "Set storage tier of current table"
+msgstr ""
+
+#: odps.models.table.Table.to_df:1 of
+msgid "Create a PyODPS DataFrame from this table."
+msgstr ""
+
+#: odps.models.partition.Partition.to_df:3 odps.models.table.Table.to_df:3 of
+msgid "DataFrame object"
+msgstr ""
+
+#: odps.models.table.Table.to_pandas:1 of
+msgid "Read table data into pandas DataFrame"
+msgstr ""
+
+#: odps.models.instance.Instance.to_pandas:8
+#: odps.models.partition.Partition.to_pandas:6
+#: odps.models.table.Table.to_pandas:7 of
+msgid "number of processes to accelerate reading"
+msgstr ""
+
+#: odps.models.table.Table.truncate:1 of
+msgid "truncate this table."
+msgstr ""
+
+#: odps.models.table.Table.truncate:3 of
+msgid "partition specs"
+msgstr ""
+
+#: odps.models.partition.Partition:1 of
+msgid ""
+"A partition is a collection of rows in a table whose partition columns "
+"are equal to specific values."
+msgstr ""
+
+#: odps.models.partition.Partition:4 of
+msgid ""
+"In order to write data into partition, users should call the "
+"``open_writer`` method with **with statement**. At the same time, the "
+"``open_reader`` method is used to provide the ability to read records "
+"from a partition. The behavior of these methods are the same as those in "
+"Table class except that there are no 'partition' params."
+msgstr ""
+
+#: odps.models.partition.Partition.drop:1 of
+msgid "Drop this partition."
+msgstr ""
+
+#: odps.models.partition.Partition.head:1 of
+msgid "Get the head records of a partition"
+msgstr ""
+
+#: odps.models.partition.Partition.iter_pandas:1
+#: odps.models.partition.Partition.to_pandas:1 of
+msgid "Read partition data into pandas DataFrame"
+msgstr ""
+
+#: odps.models.partition.Partition.open_reader:1 of
+msgid "Open the reader to read the entire records from this partition."
+msgstr ""
+
+#: odps.models.partition.Partition.to_df:1 of
+msgid "Create a PyODPS DataFrame from this partition."
+msgstr ""
+
+#: odps.models.instance.Instance:1 of
+msgid "Instance means that a ODPS task will sometimes run as an instance."
+msgstr ""
+
+#: odps.models.instance.Instance:3 of
+msgid ""
+"``status`` can reflect the current situation of a instance. "
+"``is_terminated`` method indicates if the instance has finished. "
+"``is_successful`` method indicates if the instance runs successfully. "
+"``wait_for_success`` method will block the main process until the "
+"instance has finished."
+msgstr ""
+
+#: odps.models.instance.Instance:8 of
+msgid "For a SQL instance, we can use open_reader to read the results."
+msgstr ""
+
+#: odps.models.instance.Instance.Task:1 of
+msgid "Task stands for each task inside an instance."
+msgstr ""
+
+#: odps.models.instance.Instance.Task:3 of
+msgid "It has a name, a task type, the start to end time, and a running status."
+msgstr ""
+
+#: odps.models.instance.Instance.Task.TaskProgress:1 of
+msgid "TaskProgress reprents for the progress of a task."
+msgstr ""
+
+#: odps.models.instance.Instance.Task.TaskProgress:3 of
+msgid "A single TaskProgress may consist of several stages."
+msgstr ""
+
+#: odps.models.instance.Instance.get_logview_address:1 of
+msgid "Get logview address of the instance object by hours."
+msgstr ""
+
+#: odps.models.instance.Instance.get_logview_address:4 of
+msgid "logview address"
+msgstr ""
+
+#: odps.models.instance.Instance.get_sql_task_cost:1 of
+msgid ""
+"Get cost information of the sql cost task, including input data size, "
+"number of UDF, Complexity of the sql task."
+msgstr ""
+
+#: odps.models.instance.Instance.get_sql_task_cost:4 of
+msgid ""
+"NOTE that DO NOT use this function directly as it cannot be applied to "
+"instances returned from SQL. Use ``o.execute_sql_cost`` instead."
+msgstr ""
+
+#: odps.models.instance.Instance.get_sql_task_cost:7 of
+msgid "cost info in dict format"
+msgstr ""
+
+#: odps.models.instance.Instance.get_task_cost:1 of
+msgid "Get task cost"
+msgstr ""
+
+#: odps.models.instance.Instance.get_task_cost:3
+#: odps.models.instance.Instance.get_task_info:3
+#: odps.models.instance.Instance.get_task_quota:4
+#: odps.models.instance.Instance.put_task_info:3 of
+msgid "name of the task"
+msgstr ""
+
+#: odps.models.instance.Instance.get_task_cost:4 of
+msgid "task cost"
+msgstr ""
+
+#: odps.models.instance.Instance.get_task_detail:1 of
+msgid "Get task's detail"
+msgstr ""
+
+#: odps.models.instance.Instance.get_task_detail:3
+#: odps.models.instance.Instance.get_task_detail2:3
+#: odps.models.instance.Instance.get_task_result:3
+#: odps.models.instance.Instance.get_task_summary:3 of
+msgid "task name"
+msgstr ""
+
+#: odps.models.instance.Instance.get_task_detail:4
+#: odps.models.instance.Instance.get_task_detail2:4 of
+msgid "the task's detail"
+msgstr ""
+
+#: odps.models.instance.Instance.get_task_detail2:1 of
+msgid "Get task's detail v2"
+msgstr ""
+
+#: odps.models.instance.Instance.get_task_info:1 of
+msgid "Get task related information."
+msgstr ""
+
+#: odps.models.instance.Instance.get_task_info:4
+#: odps.models.instance.Instance.put_task_info:4 of
+msgid "key of the information item"
+msgstr ""
+
+#: odps.models.instance.Instance.get_task_info:5
+#: odps.models.instance.Instance.put_task_info:7 of
+msgid "if True, will raise error when response is empty"
+msgstr ""
+
+#: odps.models.instance.Instance.get_task_info:6 of
+msgid "a string of the task information"
+msgstr ""
+
+#: odps.models.instance.Instance.get_task_names:1 of
+msgid "Get names of all tasks"
+msgstr ""
+
+#: odps.models.instance.Instance.get_task_names:3 of
+msgid "task names"
+msgstr ""
+
+#: odps.models.instance.Instance.get_task_progress:1 of
+msgid "Get task's current progress"
+msgstr ""
+
+#: odps.models.instance.Instance.get_task_progress:3 of
+msgid "task_name"
+msgstr ""
+
+#: odps.models.instance.Instance.get_task_progress:4 of
+msgid "the task's progress"
+msgstr ""
+
+#: odps.models.instance.Instance.get_task_progress:5 of
+msgid ":class:`odps.models.Instance.Task.TaskProgress`"
+msgstr ""
+
+#: odps.models.instance.Instance.get_task_quota:1 of
+msgid ""
+"Get queueing info of the task. Note that time between two calls should "
+"larger than 30 seconds, otherwise empty dict is returned."
+msgstr ""
+
+#: odps.models.instance.Instance.get_task_quota:5 of
+msgid "quota info in dict format"
+msgstr ""
+
+#: odps.models.instance.Instance.get_task_result:1 of
+msgid "Get a single task result."
+msgstr ""
+
+#: odps.models.instance.Instance.get_task_result:4 of
+msgid "task result"
+msgstr ""
+
+#: odps.models.instance.Instance.get_task_results:1 of
+msgid "Get all the task results."
+msgstr ""
+
+#: odps.models.instance.Instance.get_task_results:3 of
+msgid "a dict which key is task name, and value is the task result as string"
+msgstr ""
+
+#: odps.models.instance.Instance.get_task_statuses:1 of
+msgid "Get all tasks' statuses"
+msgstr ""
+
+#: odps.models.instance.Instance.get_task_statuses:3 of
+msgid ""
+"a dict which key is the task name and value is the "
+":class:`odps.models.Instance.Task` object"
+msgstr ""
+
+#: odps.models.instance.Instance.get_task_summary:1 of
+msgid "Get a task's summary, mostly used for MapReduce."
+msgstr ""
+
+#: odps.models.instance.Instance.get_task_summary:4 of
+msgid "summary as a dict parsed from JSON"
+msgstr ""
+
+#: odps.models.instance.Instance.get_task_workers:1 of
+msgid ""
+"Get workers from task :param task_name: task name :param json_obj: json "
+"object parsed from get_task_detail2 :return: list of workers"
+msgstr ""
+
+#: odps.models.instance.Instance.get_task_workers:6 of
+msgid ":class:`odps.models.Worker`"
+msgstr ""
+
+#: odps.models.instance.Instance.get_worker_log:1
+#: odps.models.worker.Worker.get_log:1 of
+msgid "Get logs from worker."
+msgstr ""
+
+#: odps.models.instance.Instance.get_worker_log:3 of
+msgid "id of log, can be retrieved from details."
+msgstr ""
+
+#: odps.models.instance.Instance.get_worker_log:4
+#: odps.models.worker.Worker.get_log:3 of
+msgid ""
+"type of logs. Possible log types contains coreinfo, hs_err_log, jstack, "
+"pstack, stderr, stdout, waterfall_summary"
+msgstr ""
+
+#: odps.models.instance.Instance.get_worker_log:5
+#: odps.models.worker.Worker.get_log:4 of
+msgid "length of the log to retrieve"
+msgstr ""
+
+#: odps.models.instance.Instance.get_worker_log:6
+#: odps.models.worker.Worker.get_log:5 of
+msgid "log content"
+msgstr ""
+
+#: odps.models.instance.Instance.is_running:1 of
+msgid "If this instance is still running."
+msgstr ""
+
+#: odps.models.instance.Instance.is_running:3 of
+msgid "True if still running else False"
+msgstr ""
+
+#: odps.models.instance.Instance.is_successful:1 of
+msgid "If the instance runs successfully."
+msgstr ""
+
+#: odps.models.instance.Instance.is_successful:3 of
+msgid "True if successful else False"
+msgstr ""
+
+#: odps.models.instance.Instance.is_terminated:1 of
+msgid "If this instance has finished or not."
+msgstr ""
+
+#: odps.models.instance.Instance.is_terminated:3 of
+msgid "True if finished else False"
+msgstr ""
+
+#: odps.models.instance.Instance.iter_pandas:1 of
+msgid ""
+"Iterate table data in blocks as pandas DataFrame. The limit argument "
+"follows definition of `open_reader` API."
+msgstr ""
+
+#: odps.models.instance.Instance.iter_pandas:5
+#: odps.models.instance.Instance.open_reader:13
+#: odps.models.instance.Instance.to_pandas:5 of
+msgid "if True, enable the limitation"
+msgstr ""
+
+#: odps.models.instance.Instance.open_reader:1 of
+msgid ""
+"Open the reader to read records from the result of the instance. If "
+"`tunnel` is `True`, instance tunnel will be used. Otherwise conventional "
+"routine will be used. If instance tunnel is not available and `tunnel` is"
+" not specified, the method will fall back to the conventional routine. "
+"Note that the number of records returned is limited unless "
+"`options.limited_instance_tunnel` is set to `True` or `limit=True` is "
+"configured under instance tunnel mode. Otherwise the number of records "
+"returned is always limited."
+msgstr ""
+
+#: odps.models.instance.Instance.open_reader:9 of
+msgid ""
+"if true, use instance tunnel to read from the instance. if false, use "
+"conventional routine. if absent, `options.tunnel.use_instance_tunnel` "
+"will be used and automatic fallback is enabled."
+msgstr ""
+
+#: odps.models.instance.Instance.put_task_info:1 of
+msgid "Put information into a task."
+msgstr ""
+
+#: odps.models.instance.Instance.put_task_info:5 of
+msgid "value of the information item"
+msgstr ""
+
+#: odps.models.instance.Instance.put_task_info:6 of
+msgid "raises if Location header is missing"
+msgstr ""
+
+#: odps.models.instance.Instance.stop:1 of
+msgid "Stop this instance."
+msgstr ""
+
+#: odps.models.instance.Instance.to_pandas:1 of
+msgid ""
+"Read instance data into pandas DataFrame. The limit argument follows "
+"definition of `open_reader` API."
+msgstr ""
+
+#: odps.models.instance.Instance.wait_for_completion:1 of
+msgid "Wait for the instance to complete, and neglect the consequence."
+msgstr ""
+
+#: odps.models.instance.Instance.wait_for_completion:3
+#: odps.models.instance.Instance.wait_for_success:3 of
+msgid "time interval to check"
+msgstr ""
+
+#: odps.models.instance.Instance.wait_for_completion:4
+#: odps.models.instance.Instance.wait_for_success:4 of
+msgid ""
+"if specified, next check interval will be multiplied by 2 till "
+"max_interval is reached."
+msgstr ""
+
+#: odps.models.instance.Instance.wait_for_completion:6
+#: odps.models.instance.Instance.wait_for_success:6 of
+msgid "time"
+msgstr ""
+
+#: odps.models.instance.Instance.wait_for_completion:7
+#: odps.models.instance.Instance.wait_for_success:7 of
+msgid ""
+"whether to block waiting at server side. Note that this option does not "
+"affect client behavior."
+msgstr ""
+
+#: odps.models.instance.Instance.wait_for_success:1 of
+msgid "Wait for instance to complete, and check if the instance is successful."
+msgstr ""
+
+#: odps.models.instance.Instance.wait_for_success of
+msgid "raise"
+msgstr ""
+
+#: odps.models.instance.Instance.wait_for_success:10 of
+msgid ":class:`odps.errors.ODPSError` if the instance failed"
+msgstr ""
+
+#: odps.models.resource.Resource:1 of
+msgid ""
+"Resource is useful when writing UDF or MapReduce. This is an abstract "
+"class."
+msgstr ""
+
+#: odps.models.resource.Resource:3 of
+msgid ""
+"Basically, resource can be either a file resource or a table resource. "
+"File resource can be ``file``, ``py``, ``jar``, ``archive`` in details."
+msgstr ""
+
+#: odps.models.resource.Resource:6 of
+msgid ""
+":class:`odps.models.FileResource`, :class:`odps.models.PyResource`, "
+":class:`odps.models.JarResource`, :class:`odps.models.ArchiveResource`, "
+":class:`odps.models.TableResource`"
+msgstr ""
+
+#: odps.models.resource.FileResource:1 of
+msgid "File resource represents for a file."
+msgstr ""
+
+#: odps.models.resource.FileResource:3 of
+msgid "Use ``open`` method to open this resource as a file-like object."
+msgstr ""
+
+#: odps.models.resource.FileResource.close:1 of
+msgid "Close this file resource."
+msgstr ""
+
+#: odps.models.resource.FileResource.flush:1 of
+msgid ""
+"Commit the change to ODPS if any change happens. Close will do this "
+"automatically."
+msgstr ""
+
+#: odps.models.resource.FileResource.open:1 of
+msgid ""
+"The argument ``mode`` stands for the open mode for this file resource. It"
+" can be binary mode if the 'b' is inside. For instance, 'rb' means "
+"opening the resource as read binary mode while 'r+b' means opening the "
+"resource as read+write binary mode. This is most import when the file is "
+"actually binary such as tar or jpeg file, so be aware of opening this "
+"file as a correct mode."
+msgstr ""
+
+#: odps.models.resource.FileResource.open:8 of
+msgid ""
+"Basically, the text mode can be 'r', 'w', 'a', 'r+', 'w+', 'a+' just like"
+" the builtin python ``open`` method."
+msgstr ""
+
+#: odps.models.resource.FileResource.open:11 of
+msgid "``r`` means read only"
+msgstr ""
+
+#: odps.models.resource.FileResource.open:12 of
+msgid "``w`` means write only, the file will be truncated when opening"
+msgstr ""
+
+#: odps.models.resource.FileResource.open:13 of
+msgid "``a`` means append only"
+msgstr ""
+
+#: odps.models.resource.FileResource.open:14 of
+msgid "``r+`` means read+write without constraint"
+msgstr ""
+
+#: odps.models.resource.FileResource.open:15 of
+msgid "``w+`` will truncate first then opening into read+write"
+msgstr ""
+
+#: odps.models.resource.FileResource.open:16 of
+msgid ""
+"``a+`` can read+write, however the written content can only be appended "
+"to the end"
+msgstr ""
+
+#: odps.models.resource.FileResource.open:18 of
+msgid "the mode of opening file, described as above"
+msgstr ""
+
+#: odps.models.resource.FileResource.open:19 of
+msgid "utf-8 as default"
+msgstr ""
+
+#: odps.models.resource.FileResource.open:20 of
+msgid "open in stream mode"
+msgstr ""
+
+#: odps.models.resource.FileResource.open:21 of
+msgid "if True, will overwrite existing resource. True by default."
+msgstr ""
+
+#: odps.models.resource.FileResource.open:22 of
+msgid "file-like object"
+msgstr ""
+
+#: odps.models.resource.FileResource.read:1 of
+msgid "Read the file resource, read all as default."
+msgstr ""
+
+#: odps.models.resource.FileResource.read:3 of
+msgid "unicode or byte length depends on text mode or binary mode."
+msgstr ""
+
+#: odps.models.resource.FileResource.read:4
+#: odps.models.resource.FileResource.readline:8 of
+msgid "unicode or bytes depends on text mode or binary mode"
+msgstr ""
+
+#: odps.models.resource.FileResource.readline:1 of
+msgid "Read a single line."
+msgstr ""
+
+#: odps.models.resource.FileResource.readline:3 of
+msgid ""
+"If the size argument is present and non-negative, it is a maximum byte "
+"count (including the trailing newline) and an incomplete line may be "
+"returned. When size is not 0, an empty string is returned only when EOF "
+"is encountered immediately"
+msgstr ""
+
+#: odps.models.resource.FileResource.readlines:1 of
+msgid "Read as lines."
+msgstr ""
+
+#: odps.models.resource.FileResource.readlines:3 of
+msgid ""
+"If the optional sizehint argument is present, instead of reading up to "
+"EOF, whole lines totalling approximately sizehint bytes (possibly after "
+"rounding up to an internal buffer size) are read."
+msgstr ""
+
+#: odps.models.resource.FileResource.readlines:6
+#: odps.models.resource.FileResource.writelines:3 of
+msgid "lines"
+msgstr ""
+
+#: odps.models.resource.FileResource.seek:1 of
+msgid "Seek to some place."
+msgstr ""
+
+#: odps.models.resource.FileResource.seek:3 of
+msgid "position to seek"
+msgstr ""
+
+#: odps.models.resource.FileResource.seek:4 of
+msgid "if set to 2, will seek to the end"
+msgstr ""
+
+#: odps.models.resource.FileResource.tell:1 of
+msgid "Tell the current position"
+msgstr ""
+
+#: odps.models.resource.FileResource.tell:3 of
+msgid "current position"
+msgstr ""
+
+#: odps.models.resource.FileResource.truncate:1 of
+msgid "Truncate the file resource's size."
+msgstr ""
+
+#: odps.models.resource.FileResource.truncate:3 of
+msgid ""
+"If the optional size argument is present, the file is truncated to (at "
+"most) that size. The size defaults to the current position."
+msgstr ""
+
+#: odps.models.resource.FileResource.write:1 of
+msgid "Write content into the file resource"
+msgstr ""
+
+#: odps.models.resource.FileResource.write:3 of
+msgid "content to write"
+msgstr ""
+
+#: odps.models.resource.FileResource.writelines:1 of
+msgid "Write lines into the file resource."
+msgstr ""
+
+#: odps.models.resource.PyResource:1 of
+msgid "File resource representing for the .py file."
+msgstr ""
+
+#: odps.models.resource.JarResource:1 of
+msgid "File resource representing for the .jar file."
+msgstr ""
+
+#: odps.models.resource.ArchiveResource:1 of
+msgid ""
+"File resource representing for the compressed file like "
+".zip/.tgz/.tar.gz/.tar/jar"
+msgstr ""
+
+#: odps.models.resource.TableResource:1 of
+msgid "Take a table as a resource."
+msgstr ""
+
+#: odps.models.resource.TableResource.open_reader:1 of
+msgid "Open reader on the table resource"
+msgstr ""
+
+#: odps.models.resource.TableResource.open_writer:1 of
+msgid "Open writer on the table resource"
+msgstr ""
+
+#: odps.models.TableResource.partition:1 of
+msgid "Get the source table partition."
+msgstr ""
+
+#: odps.models.TableResource.partition:3 of
+msgid "the source table partition"
+msgstr ""
+
+#: odps.models.TableResource.table:1 of
+msgid "Get the table object."
+msgstr ""
+
+#: odps.models.TableResource.table:3 of
+msgid "source table"
+msgstr ""
+
+#: odps.models.TableResource.table:4 odps.models.TableResource.table:6 of
+msgid ":class:`odps.models.Table`"
+msgstr ""
+
+#: odps.models.resource.TableResource.update:1 of
+msgid "Update this resource."
+msgstr ""
+
+#: odps.models.resource.TableResource.update:3 of
+msgid "the source table's project"
+msgstr ""
+
+#: odps.models.resource.TableResource.update:4 of
+msgid "the source table's name"
+msgstr ""
+
+#: odps.models.resource.TableResource.update:5 of
+msgid "the source table's partition"
+msgstr ""
+
+#: odps.models.resource.TableResource.update:6 of
+msgid "self"
+msgstr ""
+
+#: odps.models.function.Function:1 of
+msgid "Function can be used in UDF when user writes a SQL."
+msgstr ""
+
+#: odps.models.function.Function.drop:1 of
+msgid "Delete this Function."
+msgstr ""
+
+#: odps.models.Function.resources:1 of
+msgid "Return all the resources which this function refer to."
+msgstr ""
+
+#: odps.models.Function.resources:3 of
+msgid "resources"
+msgstr ""
+
+#: odps.models.Function.resources:6 of
+msgid ":class:`odps.models.Resource`"
+msgstr ""
+
+#: odps.models.function.Function.update:1 of
+msgid "Update this function."
+msgstr ""
+
+#: odps.models.worker.Worker:1 of
+msgid "Worker information class for worker information and log retrieval."
+msgstr ""
+
+#: odps.models.ml.offlinemodel.OfflineModel:1 of
+msgid "Representing an ODPS offline model."
+msgstr ""
+
+#: odps.models.ml.offlinemodel.OfflineModel.copy:1 of
+msgid "Copy current model into a new location."
+msgstr ""
+
+#: odps.models.ml.offlinemodel.OfflineModel.copy:3 of
+msgid "name of the new model"
+msgstr ""
+
+#: odps.models.ml.offlinemodel.OfflineModel.copy:4 of
+msgid "new project name. if absent, original project name will be used"
+msgstr ""
+
+#: odps.models.ml.offlinemodel.OfflineModel.copy:5 of
+msgid "if True, return the copy instance. otherwise return the newly-copied model"
+msgstr ""
+
+#: odps.models.ml.offlinemodel.OfflineModel.get_model:1 of
+msgid ""
+"Get PMML text of the current model. Note that model file obtained via "
+"this method might be incomplete due to size limitations."
+msgstr ""
+

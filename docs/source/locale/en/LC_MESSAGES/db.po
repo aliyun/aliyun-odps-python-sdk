@@ -1,0 +1,36 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2014-2018, The Alibaba Group Holding Ltd.
+# This file is distributed under the same license as the PyODPS package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyODPS 0.12.3\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-01-15 17:52+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: en\n"
+"Language-Team: en <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.16.0\n"
+
+#: ../../source/db.rst:5
+msgid "数据库接口"
+msgstr "Database interfaces"
+
+#: ../../source/db.rst:7
+msgid ""
+"PyODPS 提供了 DBAPI 和 SQLAlchemy 支持，可通过 DBAPI 和 SQLAlchemy 操作 "
+"MaxCompute，\\ 进而与其他第三方包或者环境互操作。下面的文档介绍了如何通过"
+" PyODPS 使用 DBAPI 和 SQLAlchemy 操作 MaxCompute。"
+msgstr ""
+"PyODPS provides DBAPI and SQLAlchemy support, which allows you to operate"
+" MaxCompute through DBAPI and SQLAlchemy. The following document "
+"describes how to use DBAPI and SQLAlchemy to operate MaxCompute with "
+"PyODPS."
+

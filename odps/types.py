@@ -44,6 +44,23 @@ _date_allow_int_conversion = False
 
 
 class Column(object):
+    """
+    Represents a column in a table schema.
+
+    :param str name: column name
+    :param str typo: column type. Can also use `type` as keyword.
+    :param str comment: comment of the column, None by default
+    :param bool nullable: is column nullable, True by default
+
+    :Example:
+
+    >>> col = Column("col1", "bigint")
+    >>> print(col.name)
+    col1
+    >>> print(col.type)
+    bigint
+    """
+
     def __init__(
         self, name=None, typo=None, comment=None, label=None, nullable=True, **kw
     ):
@@ -52,6 +69,8 @@ class Column(object):
             typo if typo is not None else kw.pop("type", None)
         )
         self.comment = comment
+        if label:
+            warnings.warn("label is deprecated.", DeprecationWarning)
         self.label = label
         self.nullable = nullable
         if kw:
@@ -78,6 +97,23 @@ class Column(object):
 
 
 class Partition(Column):
+    """
+    Represents a partition column in a table schema.
+
+    :param str name: column name
+    :param str typo: column type. Can also use `type` as keyword.
+    :param str comment: comment of the column, None by default
+    :param bool nullable: is column nullable, True by default
+
+    :Example:
+
+    >>> col = Partition("col1", "bigint")
+    >>> print(col.name)
+    col1
+    >>> print(col.type)
+    bigint
+    """
+
     def __repr__(self):
         return "<partition {0}, type {1}>".format(
             utils.to_str(self.name), self.type.name.lower()
@@ -379,15 +415,21 @@ class OdpsSchema(Schema):
 
     @property
     def simple_columns(self):
+        """
+        List of columns as a list of :class:`~odps.types.Column`.
+        Partition columns are excluded.
+        """
         return self._columns
 
     @property
     def columns(self):
+        """List of columns and partition columns as a list of :class:`~odps.types.Column`."""
         partitions = self._partitions or []
         return self._columns + partitions
 
     @property
     def partitions(self):
+        """List of partition columns as a list of :class:`~odps.types.Partition`."""
         try:
             return self._partitions
         except AttributeError:
@@ -470,6 +512,20 @@ class OdpsSchema(Schema):
 
     @classmethod
     def from_lists(cls, names, types, partition_names=None, partition_types=None):
+        """
+        Create a schema from lists of column names and types.
+
+        :param names: List of column names.
+        :param types: List of column types.
+        :param partition_names: List of partition names.
+        :param partition_types: List of partition types.
+
+        :Example:
+
+        >>> schema = TableSchema.from_lists(['id', 'name'], ['bigint', 'string'])
+        >>> print(schema.columns)
+        [<column id, type bigint>, <column name, type string>]
+        """
         columns = [Column(name=name, typo=typo) for name, typo in zip(names, types)]
         if partition_names is not None and partition_types is not None:
             partitions = [
@@ -691,7 +747,7 @@ class Record(six.with_metaclass(RecordMeta, RecordReprMixin, BaseRecord)):
 
 class DataType(object):
     """
-    Abstract data type
+    Base class of all data types in MaxCompute.
     """
 
     _singleton = True
@@ -811,21 +867,54 @@ class BaseInteger(OdpsPrimitive):
         return int(value)
 
 
+_primitive_doc_template = """
+Represents {cls_name} type in MaxCompute.
+
+:Note:
+This class may not be used directly. Use its singleton instance (``odps.types.{cls_attr}``) instead.
+{odps2_note}
+"""
+_primitive_odps2_note = """
+Need to set ``options.sql.use_odps2_extension = True`` to enable full functionality.
+"""
+
+
+def _primitive_doc(cls=None, is_odps2=True):
+    def wrapper(cls_internal):
+        cls_name = cls_attr = cls_internal().name
+        if cls_name in ("int", "float"):
+            cls_attr += "_"
+        odps2_note = _primitive_odps2_note if is_odps2 else ""
+        docstr = _primitive_doc_template.format(
+            cls_name=cls_name, cls_attr=cls_attr, odps2_note=odps2_note
+        )
+        cls_internal.__doc__ = docstr
+        return cls_internal
+
+    if cls is None:
+        return wrapper
+    return wrapper(cls)
+
+
+@_primitive_doc
 class Tinyint(BaseInteger):
     _bounds = (-128, 127)
     _store_bytes = 1
 
 
+@_primitive_doc
 class Smallint(BaseInteger):
     _bounds = (-32768, 32767)
     _store_bytes = 2
 
 
+@_primitive_doc
 class Int(BaseInteger):
     _bounds = (-2147483648, 2147483647)
     _store_bytes = 4
 
 
+@_primitive_doc(is_odps2=False)
 class Bigint(BaseInteger):
     _bounds = (-9223372036854775808, 9223372036854775807)
     _store_bytes = 8
@@ -851,16 +940,19 @@ class BaseFloat(OdpsPrimitive):
         return float(value)
 
 
+@_primitive_doc
 class Float(BaseFloat):
     _store_bytes = 4
     _type_id = 6
 
 
+@_primitive_doc(is_odps2=False)
 class Double(BaseFloat):
     _store_bytes = 8
     _type_id = 1
 
 
+@_primitive_doc(is_odps2=False)
 class String(OdpsPrimitive):
     __slots__ = ()
 
@@ -898,6 +990,7 @@ class String(OdpsPrimitive):
         return val
 
 
+@_primitive_doc(is_odps2=False)
 class Datetime(OdpsPrimitive):
     __slots__ = ()
     _type_id = 3
@@ -927,6 +1020,7 @@ class Datetime(OdpsPrimitive):
         return value
 
 
+@_primitive_doc
 class Date(OdpsPrimitive):
     __slots__ = ()
     _type_id = 11
@@ -956,6 +1050,7 @@ class Date(OdpsPrimitive):
         return value
 
 
+@_primitive_doc(is_odps2=False)
 class Boolean(OdpsPrimitive):
     __slots__ = ()
     _type_id = 4
@@ -965,6 +1060,7 @@ class Boolean(OdpsPrimitive):
         return value
 
 
+@_primitive_doc
 class Binary(OdpsPrimitive):
     __slots__ = ()
     _type_id = 7
@@ -1023,10 +1119,12 @@ class BaseTimestamp(OdpsPrimitive):
         return value
 
 
+@_primitive_doc
 class Timestamp(BaseTimestamp):
     _type_id = 8
 
 
+@_primitive_doc
 class TimestampNTZ(BaseTimestamp):
     _type_id = 13
 
@@ -1035,6 +1133,7 @@ class TimestampNTZ(BaseTimestamp):
         return "timestamp_ntz"
 
 
+@_primitive_doc
 class IntervalDayTime(OdpsPrimitive):
     __slots__ = ()
     _type_id = 9
@@ -1067,6 +1166,7 @@ class IntervalDayTime(OdpsPrimitive):
         return value
 
 
+@_primitive_doc
 class IntervalYearMonth(OdpsPrimitive):
     __slots__ = ()
     _type_id = 10
@@ -1160,6 +1260,24 @@ class SizeLimitedString(String, CompositeDataType):
 
 
 class Varchar(SizeLimitedString):
+    """
+    Represents varchar type with size limit in MaxCompute.
+
+    :param int size_limit: The size limit of varchar type.
+
+    :Example:
+
+    >>> varchar_type = Varchar(65535)
+    >>> print(varchar_type)
+    varchar(65535)
+    >>> print(varchar_type.size_limit)
+    65535
+
+    :Note:
+
+    Need to set ``options.sql.use_odps2_extension = True`` to enable full functionality.
+    """
+
     def can_implicit_cast(self, other):
         if isinstance(other, six.string_types):
             other = validate_data_type(other)
@@ -1176,6 +1294,24 @@ class Varchar(SizeLimitedString):
 
 
 class Char(SizeLimitedString):
+    """
+    Represents char type with size limit in MaxCompute.
+
+    :param int size_limit: The size limit of char type.
+
+    :Example:
+
+    >>> char_type = Char(65535)
+    >>> print(char_type)
+    char(65535)
+    >>> print(char_type.size_limit)
+    65535
+
+    :Note:
+
+    Need to set ``options.sql.use_odps2_extension = True`` to enable full functionality.
+    """
+
     def can_implicit_cast(self, other):
         if isinstance(other, six.string_types):
             other = validate_data_type(other)
@@ -1192,6 +1328,26 @@ class Char(SizeLimitedString):
 
 
 class Decimal(CompositeDataType):
+    """
+    Represents decimal type with size limit in MaxCompute.
+
+    :param int precision: The precision (or total digits) of decimal type.
+    :param int scale: The decimal scale (or decimal digits) of decimal type.
+
+    :Example:
+
+    >>> decimal_type = Decimal(18, 6)
+    >>> print(decimal_type)
+    decimal(18, 6)
+    >>> print(decimal_type.precision, decimal_type.scale)
+    18 6
+
+    :Note:
+
+    Need to set ``options.sql.use_odps2_extension = True`` to enable full functionality
+    when you are setting precision or scale.
+    """
+
     __slots__ = "nullable", "precision", "scale", "_hash"
     _type_id = 5
 
@@ -1319,6 +1475,26 @@ class Decimal(CompositeDataType):
 
 
 class Array(CompositeDataType):
+    """
+    Represents array type in MaxCompute.
+
+    :param value_type: type of elements in the array
+
+    :Example:
+
+    >>> from odps import types as odps_types
+    >>>
+    >>> array_type = odps_types.Array(odps_types.bigint)
+    >>> print(array_type)
+    array<bigint>
+    >>> print(array_type.value_type)
+    bigint
+
+    :Note:
+
+    Need to set ``options.sql.use_odps2_extension = True`` to enable full functionality.
+    """
+
     __slots__ = "nullable", "value_type", "_hash"
     _type_id = 101
 
@@ -1374,6 +1550,29 @@ class Array(CompositeDataType):
 
 
 class Map(CompositeDataType):
+    """
+    Represents map type in MaxCompute.
+
+    :param key_type: type of keys in the array
+    :param value_type: type of values in the array
+
+    :Example:
+
+    >>> from odps import types as odps_types
+    >>>
+    >>> map_type = odps_types.Map(odps_types.string, odps_types.Array(odps_types.bigint))
+    >>> print(map_type)
+    map<string, array<bigint>>
+    >>> print(map_type.key_type)
+    string
+    >>> print(map_type.value_type)
+    array<bigint>
+
+    :Note:
+
+    Need to set ``options.sql.use_odps2_extension = True`` to enable full functionality.
+    """
+
     __slots__ = "nullable", "key_type", "value_type", "_hash", "_use_ordered_dict"
     _type_id = 102
 
@@ -1450,6 +1649,29 @@ class Map(CompositeDataType):
 
 
 class Struct(CompositeDataType):
+    """
+    Represents struct type in MaxCompute.
+
+    :param field_types: types of every field, can be a list of (field_name, field_type) tuples
+        or a dict with field names as keys and field types as values.
+
+    :Example:
+
+    >>> from odps import types as odps_types
+    >>>
+    >>> struct_type = odps_types.Struct([("a", "bigint"), ("b", "array<string>")])
+    >>> print(struct_type)
+    struct<`a`:bigint, `b`:array<string>>
+    >>> print(struct_type.field_types)
+    OrderedDict([("a", "bigint"), ("b", "array<string>")])
+    >>> print(struct_type.field_types["b"])
+    array<string>
+
+    :Note:
+
+    Need to set ``options.sql.use_odps2_extension = True`` to enable full functionality.
+    """
+
     __slots__ = "nullable", "field_types", "_hash"
     _type_id = 103
 
@@ -1560,6 +1782,7 @@ class Struct(CompositeDataType):
         )
 
 
+@_primitive_doc
 class Json(DataType):
     _type_id = 12
 
@@ -1701,6 +1924,17 @@ def parse_composite_types(type_str, handlers=None):
 
 
 def validate_data_type(data_type):
+    """
+    Parse data type instance from string in MaxCompute DDL.
+
+    :Example:
+
+    >>> field_type = validate_data_type("array<int>")
+    >>> print(field_type)
+    array<int>
+    >>> print(field_type.value_type)
+    int
+    """
     if isinstance(data_type, DataType):
         return data_type
 
