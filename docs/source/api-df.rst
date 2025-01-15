@@ -1,7 +1,7 @@
-.. _apidf:
+.. _api_df:
 
-DataFrame Reference
-===================
+DataFrame
+=========
 
 .. autoclass:: odps.df.DataFrame
     :members:

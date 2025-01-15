@@ -9,7 +9,7 @@ PyODPS 支持使用 `Python DBAPI <https://peps.python.org/pep-0249/>`_
 兼容的数据库访问接口访问 MaxCompute。
 
 创建连接
--------
+-----------
 可以通过指定 ``access_id``、``access_key``、``project``和``endpoint``
 来建立连接：
 
@@ -26,7 +26,7 @@ PyODPS 支持使用 `Python DBAPI <https://peps.python.org/pep-0249/>`_
     >>> conn = odps.dbapi.connect(o)  # type(o) is ODPS
 
 执行 SQL
--------
+----------
 创建游标并在游标上执行 SQL：
 
 .. code-block:: python
@@ -41,7 +41,7 @@ PyODPS 支持使用 `Python DBAPI <https://peps.python.org/pep-0249/>`_
      ('category', 'string', None, None, None, None, True)]
 
 读取结果
---------
+----------
 使用和标准的 DBAPI 一样使用迭代的方式读取结果：
 
 .. code-block:: python

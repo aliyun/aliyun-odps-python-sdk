@@ -1,0 +1,1665 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2014-2018, The Alibaba Group Holding Ltd.
+# This file is distributed under the same license as the PyODPS package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyODPS 0.12.3\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-01-15 18:55+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: en\n"
+"Language-Team: en <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.16.0\n"
+
+#: ../../source/api-entry.rst:4
+msgid "MaxCompute entry"
+msgstr ""
+
+#: odps.core.ODPS:1 of
+msgid "Main entrance to ODPS."
+msgstr ""
+
+#: odps.core.ODPS:3 of
+msgid ""
+"Convenient operations on ODPS objects are provided. Please refer to `ODPS"
+" docs <https://help.aliyun.com/document_detail/27818.html>`_ for more "
+"details."
+msgstr ""
+
+#: odps.core.ODPS:7 of
+msgid ""
+"Generally, basic operations such as ``list``, ``get``, ``exist``, "
+"``create``, ``delete`` are provided for each ODPS object. Take the "
+"``Table`` as an example."
+msgstr ""
+
+#: odps.core.ODPS:11 of
+msgid ""
+"To create an ODPS instance, access_id and access_key is required, and "
+"should ensure correctness, or ``SignatureNotMatch`` error will throw. If "
+"`tunnel_endpoint` is not set, the tunnel API will route service URL "
+"automatically."
+msgstr ""
+
+#: ../../source/api-entry.rst odps.core.ODPS.execute_sql_cost
+#: odps.core.ODPS.list_volume_files odps.core.ODPS.open_resource
+#: odps.core.ODPS.open_volume_reader odps.core.ODPS.open_volume_writer of
+msgid "Parameters"
+msgstr ""
+
+#: odps.core.ODPS:15 of
+msgid "Aliyun Access ID"
+msgstr ""
+
+#: odps.core.ODPS:16 of
+msgid "Aliyun Access Key"
+msgstr ""
+
+#: odps.core.ODPS:17 of
+msgid "default project name"
+msgstr ""
+
+#: odps.core.ODPS:18 of
+msgid "Rest service URL"
+msgstr ""
+
+#: odps.core.ODPS:19 of
+msgid "Tunnel service URL"
+msgstr ""
+
+#: odps.core.ODPS:20 of
+msgid "Logview host URL"
+msgstr ""
+
+#: odps.core.ODPS:21 odps.core.ODPS.as_account:6 of
+msgid ""
+"Application account, instance of `odps.accounts.AppAccount` used for dual"
+" authentication"
+msgstr ""
+
+#: odps.core.ODPS odps.core.ODPS.create_function odps.core.ODPS.create_resource
+#: odps.core.ODPS.execute_sql odps.core.ODPS.execute_sql_cost
+#: odps.core.ODPS.list_volume_files odps.core.ODPS.open_resource
+#: odps.core.ODPS.open_volume_reader odps.core.ODPS.open_volume_writer
+#: odps.models.tableio.TableIOMethods.read_table
+#: odps.models.tableio.TableIOMethods.write_table of
+msgid "Example"
+msgstr ""
+
+#: odps.core.ODPS.as_account:1 of
+msgid "Creates a new ODPS entry object with a new account information"
+msgstr ""
+
+#: odps.core.ODPS.as_account:3 of
+msgid "Aliyun Access ID of the new account"
+msgstr ""
+
+#: odps.core.ODPS.as_account:4 of
+msgid "Aliyun Access Key of the new account"
+msgstr ""
+
+#: odps.core.ODPS.as_account:5 of
+msgid "new account object, if `access_id` and `secret_access_key` not supplied"
+msgstr ""
+
+#: odps.core.ODPS.as_account:8 of
+msgid "namespace of the new account to be created"
+msgstr ""
+
+#: ../../source/api-entry.rst odps.core.ODPS.execute_sql_cost
+#: odps.core.ODPS.list_volume_files odps.core.ODPS.open_resource of
+msgid "Returns"
+msgstr ""
+
+#: odps.core.ODPS.copy_offline_model:1 of
+msgid "Copy current model into a new location."
+msgstr ""
+
+#: odps.core.ODPS.copy_offline_model:3 of
+msgid "name of the new model"
+msgstr ""
+
+#: odps.core.ODPS.copy_offline_model:4 of
+msgid "new project name. if absent, original project name will be used"
+msgstr ""
+
+#: odps.core.ODPS.copy_offline_model:5 of
+msgid "if True, return the copy instance. otherwise return the newly-copied model"
+msgstr ""
+
+#: odps.core.ODPS.create_external_volume:1 of
+msgid ""
+"Create a file system volume based on external storage (for instance, OSS)"
+" in a project."
+msgstr ""
+
+#: odps.core.ODPS.create_external_volume:3 odps.core.ODPS.create_fs_volume:3
+#: odps.core.ODPS.create_parted_volume:3 odps.core.ODPS.delete_volume:3
+#: odps.core.ODPS.delete_volume_partition:3 odps.core.ODPS.exist_volume:3
+#: odps.core.ODPS.exist_volume_partition:3 odps.core.ODPS.get_volume:3
+#: odps.core.ODPS.get_volume_partition:3 odps.core.ODPS.list_volume_files:4
+#: odps.core.ODPS.list_volume_partitions:3 of
+msgid "volume name"
+msgstr ""
+
+#: odps.core.ODPS.create_external_volume:4 odps.core.ODPS.create_fs_volume:4
+#: odps.core.ODPS.create_function:4 odps.core.ODPS.create_parted_volume:4
+#: odps.core.ODPS.create_resource:13 odps.core.ODPS.create_role:4
+#: odps.core.ODPS.create_schema:4 odps.core.ODPS.create_table:6
+#: odps.core.ODPS.create_user:4 odps.core.ODPS.delete_function:4
+#: odps.core.ODPS.delete_materialized_view:4
+#: odps.core.ODPS.delete_offline_model:5 odps.core.ODPS.delete_resource:4
+#: odps.core.ODPS.delete_role:4 odps.core.ODPS.delete_schema:4
+#: odps.core.ODPS.delete_table:4 odps.core.ODPS.delete_user:4
+#: odps.core.ODPS.delete_view:4 odps.core.ODPS.delete_volume:4
+#: odps.core.ODPS.delete_volume_partition:5 odps.core.ODPS.delete_xflow:4
+#: odps.core.ODPS.execute_security_query:5 odps.core.ODPS.execute_sql:4
+#: odps.core.ODPS.execute_sql_cost:3 odps.core.ODPS.execute_xflow:9
+#: odps.core.ODPS.exist_function:4 odps.core.ODPS.exist_instance:4
+#: odps.core.ODPS.exist_offline_model:4 odps.core.ODPS.exist_resource:6
+#: odps.core.ODPS.exist_role:4 odps.core.ODPS.exist_schema:4
+#: odps.core.ODPS.exist_table:4 odps.core.ODPS.exist_user:4
+#: odps.core.ODPS.exist_volume:4 odps.core.ODPS.exist_volume_partition:5
+#: odps.core.ODPS.exist_xflow:4 odps.core.ODPS.get_function:4
+#: odps.core.ODPS.get_instance:4 odps.core.ODPS.get_logview_address:5
+#: odps.core.ODPS.get_offline_model:4 odps.core.ODPS.get_project:3
+#: odps.core.ODPS.get_project_policy:3 odps.core.ODPS.get_resource:4
+#: odps.core.ODPS.get_role_policy:4 odps.core.ODPS.get_schema:4
+#: odps.core.ODPS.get_security_option:4 odps.core.ODPS.get_security_options:3
+#: odps.core.ODPS.get_table:4 odps.core.ODPS.get_volume:4
+#: odps.core.ODPS.get_volume_partition:5 odps.core.ODPS.get_xflow:4
+#: odps.core.ODPS.get_xflow_results:5 odps.core.ODPS.get_xflow_sub_instances:5
+#: odps.core.ODPS.iter_xflow_sub_instances:6 odps.core.ODPS.list_functions:3
+#: odps.core.ODPS.list_instance_queueing_infos:3
+#: odps.core.ODPS.list_instances:4 odps.core.ODPS.list_offline_models:3
+#: odps.core.ODPS.list_resources:3 odps.core.ODPS.list_role_users:4
+#: odps.core.ODPS.list_roles:3 odps.core.ODPS.list_schemas:3
+#: odps.core.ODPS.list_tables:5 odps.core.ODPS.list_user_roles:4
+#: odps.core.ODPS.list_users:3 odps.core.ODPS.list_volume_files:6
+#: odps.core.ODPS.list_volume_partitions:4 odps.core.ODPS.list_volumes:3
+#: odps.core.ODPS.list_xflows:3 odps.core.ODPS.open_resource:23
+#: odps.core.ODPS.open_volume_reader:7 odps.core.ODPS.open_volume_writer:11
+#: odps.core.ODPS.run_security_query:6 odps.core.ODPS.run_sql:4
+#: odps.core.ODPS.run_xflow:9 odps.core.ODPS.set_project_policy:4
+#: odps.core.ODPS.set_role_policy:5 odps.core.ODPS.stop_instance:4
+#: odps.models.tableio.TableIOMethods.read_table:8
+#: odps.models.tableio.TableIOMethods.write_table:7
+#: odps.models.tasks.merge.MergeTask.run_archive_table:5
+#: odps.models.tasks.merge.MergeTask.run_freeze_command:6
+#: odps.models.tasks.merge.MergeTask.run_merge_files:5 of
+msgid "project name, if not provided, will be the default project"
+msgstr ""
+
+#: odps.core.ODPS.create_external_volume:5 odps.core.ODPS.create_fs_volume:5
+#: odps.core.ODPS.create_function:5 odps.core.ODPS.create_parted_volume:5
+#: odps.core.ODPS.create_resource:14 odps.core.ODPS.create_table:8
+#: odps.core.ODPS.create_volume_directory:6 odps.core.ODPS.delete_function:5
+#: odps.core.ODPS.delete_materialized_view:7 odps.core.ODPS.delete_resource:5
+#: odps.core.ODPS.delete_table:6 odps.core.ODPS.delete_view:6
+#: odps.core.ODPS.delete_volume:5 odps.core.ODPS.delete_volume_file:7
+#: odps.core.ODPS.delete_volume_partition:6
+#: odps.core.ODPS.execute_security_query:6 odps.core.ODPS.exist_function:5
+#: odps.core.ODPS.exist_resource:4 odps.core.ODPS.exist_table:5
+#: odps.core.ODPS.exist_volume:5 odps.core.ODPS.exist_volume_partition:6
+#: odps.core.ODPS.get_function:5 odps.core.ODPS.get_resource:5
+#: odps.core.ODPS.get_schema:3 odps.core.ODPS.get_table:5
+#: odps.core.ODPS.get_volume:5 odps.core.ODPS.get_volume_file:6
+#: odps.core.ODPS.get_volume_partition:6 odps.core.ODPS.list_functions:6
+#: odps.core.ODPS.list_resources:6 odps.core.ODPS.list_tables:8
+#: odps.core.ODPS.list_volume_files:7 odps.core.ODPS.list_volume_partitions:5
+#: odps.core.ODPS.list_volumes:4 odps.core.ODPS.move_volume_file:7
+#: odps.core.ODPS.open_resource:24 odps.core.ODPS.open_volume_reader:8
+#: odps.core.ODPS.open_volume_writer:12 odps.core.ODPS.run_security_query:7
+#: odps.models.tableio.TableIOMethods.read_table:9
+#: odps.models.tableio.TableIOMethods.write_table:8
+#: odps.models.tasks.merge.MergeTask.run_merge_files:6 of
+msgid "schema name, if not provided, will be the default schema"
+msgstr ""
+
+#: odps.core.ODPS.create_external_volume:6 of
+msgid "location of OSS dir, should be oss://endpoint/bucket/path"
+msgstr ""
+
+#: odps.core.ODPS.create_external_volume:7 of
+msgid "role arn of the account hosting the OSS bucket"
+msgstr ""
+
+#: odps.core.ODPS.create_external_volume:8 of
+msgid "if True, will create directory automatically"
+msgstr ""
+
+#: odps.core.ODPS.create_external_volume:9 of
+msgid "if True, will accelerate transfer of large volumes"
+msgstr ""
+
+#: odps.core.ODPS.create_external_volume:10 odps.core.ODPS.create_fs_volume:6
+#: odps.core.ODPS.create_parted_volume:6 of
+msgid "volume"
+msgstr ""
+
+#: ../../source/api-entry.rst odps.core.ODPS.execute_sql_cost
+#: odps.core.ODPS.list_volume_files of
+msgid "Return type"
+msgstr ""
+
+#: odps.core.ODPS.create_external_volume:11
+#: odps.core.ODPS.create_external_volume:13 odps.core.ODPS.create_fs_volume:7
+#: odps.core.ODPS.create_fs_volume:9 of
+msgid ":class:`odps.models.FSVolume`"
+msgstr ""
+
+#: odps.core.ODPS.create_fs_volume:1 of
+msgid "Create a new-fashioned file system volume in a project."
+msgstr ""
+
+#: odps.core.ODPS.create_function:1 of
+msgid "Create a function by given name."
+msgstr ""
+
+#: odps.core.ODPS.create_function:3 odps.core.ODPS.delete_function:3
+#: odps.core.ODPS.exist_function:3 odps.core.ODPS.get_function:3 of
+msgid "function name"
+msgstr ""
+
+#: odps.core.ODPS.create_function:6 of
+msgid "main class"
+msgstr ""
+
+#: odps.core.ODPS.create_function:7 of
+msgid "the resources that function needs to use"
+msgstr ""
+
+#: odps.core.ODPS.create_function:8 of
+msgid "the created function"
+msgstr ""
+
+#: odps.core.ODPS.create_function:9 odps.core.ODPS.create_function:16
+#: odps.core.ODPS.get_function:9 of
+msgid ":class:`odps.models.Function`"
+msgstr ""
+
+#: odps.core.ODPS.create_parted_volume:1 of
+msgid "Create an old-fashioned partitioned volume in a project."
+msgstr ""
+
+#: odps.core.ODPS.create_parted_volume:7 odps.core.ODPS.create_parted_volume:9
+#: of
+msgid ":class:`odps.models.PartedVolume`"
+msgstr ""
+
+#: odps.core.ODPS.create_resource:1 of
+msgid "Create a resource by given name and given type."
+msgstr ""
+
+#: odps.core.ODPS.create_resource:3 of
+msgid ""
+"Currently, the resource type can be ``file``, ``jar``, ``py``, "
+"``archive``, ``table``."
+msgstr ""
+
+#: odps.core.ODPS.create_resource:5 of
+msgid ""
+"The ``file``, ``jar``, ``py``, ``archive`` can be classified into file "
+"resource. To init the file resource, you have to provide another "
+"parameter which is a file-like object."
+msgstr ""
+
+#: odps.core.ODPS.create_resource:8 of
+msgid ""
+"For the table resource, the table name, project name, and partition "
+"should be provided which the partition is optional."
+msgstr ""
+
+#: odps.core.ODPS.create_resource:11 odps.core.ODPS.delete_resource:3
+#: odps.core.ODPS.exist_resource:3 odps.core.ODPS.get_resource:3 of
+msgid "resource name"
+msgstr ""
+
+#: odps.core.ODPS.create_resource:12 of
+msgid ""
+"resource type, now support ``file``, ``jar``, ``py``, ``archive``, "
+"``table``"
+msgstr ""
+
+#: odps.core.ODPS.create_resource:16 of
+msgid "optional arguments, I will illustrate this in the example below."
+msgstr ""
+
+#: odps.core.ODPS.create_resource:17 of
+msgid ""
+"resource depends on the type, if ``file`` will be "
+":class:`odps.models.FileResource` and so on"
+msgstr ""
+
+#: odps.core.ODPS.create_resource:18 of
+msgid ":class:`odps.models.Resource`'s subclasses"
+msgstr ""
+
+#: odps.core.ODPS.create_resource:37 of
+msgid ""
+":class:`odps.models.FileResource`, :class:`odps.models.PyResource`, "
+":class:`odps.models.JarResource`, :class:`odps.models.ArchiveResource`, "
+":class:`odps.models.TableResource`"
+msgstr ""
+
+#: odps.core.ODPS.create_role:1 of
+msgid "Create a role in a project"
+msgstr ""
+
+#: odps.core.ODPS.create_role:3 of
+msgid "name of the role to create"
+msgstr ""
+
+#: odps.core.ODPS.create_role:5 of
+msgid "role object created"
+msgstr ""
+
+#: odps.core.ODPS.create_schema:1 of
+msgid "Create a schema with given name"
+msgstr ""
+
+#: odps.core.ODPS.create_schema:3 odps.core.ODPS.delete_schema:3
+#: odps.core.ODPS.exist_schema:3 of
+msgid "schema name"
+msgstr ""
+
+#: odps.core.ODPS.create_schema:5 odps.core.ODPS.create_table:17
+#: odps.core.ODPS.delete_materialized_view:9 odps.core.ODPS.delete_schema:5
+#: odps.core.ODPS.delete_table:8 odps.core.ODPS.delete_view:8 of
+msgid "if True, will run asynchronously"
+msgstr ""
+
+#: odps.core.ODPS.create_schema:6 of
+msgid "if async_ is True, return instance, otherwise return Schema object."
+msgstr ""
+
+#: odps.core.ODPS.create_table:1 of
+msgid "Create a table by given schema and other optional parameters."
+msgstr ""
+
+#: odps.core.ODPS.create_table:3 odps.core.ODPS.delete_table:3
+#: odps.core.ODPS.exist_table:3 odps.core.ODPS.get_table:3 of
+msgid "table name"
+msgstr ""
+
+#: odps.core.ODPS.create_table:4 of
+msgid ""
+"table schema. Can be an instance of :class:`odps.models.TableSchema` or a"
+" string like 'col1 string, col2 bigint'"
+msgstr ""
+
+#: odps.core.ODPS.create_table:7 of
+msgid "table comment"
+msgstr ""
+
+#: odps.core.ODPS.create_table:9 of
+msgid "will not create if this table already exists, default False"
+msgstr ""
+
+#: odps.core.ODPS.create_table:10 of
+msgid "table's lifecycle. If absent, `options.lifecycle` will be used."
+msgstr ""
+
+#: odps.core.ODPS.create_table:11 of
+msgid "table's shard num"
+msgstr ""
+
+#: odps.core.ODPS.create_table:12 of
+msgid "hub lifecycle"
+msgstr ""
+
+#: odps.core.ODPS.create_table:13 odps.core.ODPS.delete_materialized_view:8
+#: odps.core.ODPS.delete_table:7 odps.core.ODPS.delete_view:7 of
+msgid "hints for the task"
+msgstr ""
+
+#: odps.core.ODPS.create_table:14 of
+msgid "make table transactional"
+msgstr ""
+
+#: odps.core.ODPS.create_table:15 of
+msgid "primary key of the table, only for transactional tables"
+msgstr ""
+
+#: odps.core.ODPS.create_table:16 of
+msgid "storage tier of the table"
+msgstr ""
+
+#: odps.core.ODPS.create_table:18 of
+msgid "the created Table if not async else odps instance"
+msgstr ""
+
+#: odps.core.ODPS.create_table:19 of
+msgid ":class:`odps.models.Table` or :class:`odps.models.Instance`"
+msgstr ""
+
+#: odps.core.ODPS.create_table:21 of
+msgid ":class:`odps.models.Table`, :class:`odps.models.TableSchema`"
+msgstr ""
+
+#: odps.core.ODPS.create_user:1 of
+msgid "Add a user into the project"
+msgstr ""
+
+#: odps.core.ODPS.create_user:3 odps.core.ODPS.delete_user:3
+#: odps.core.ODPS.exist_user:3 odps.core.ODPS.list_user_roles:3 of
+msgid "user name"
+msgstr ""
+
+#: odps.core.ODPS.create_user:5 of
+msgid "user created"
+msgstr ""
+
+#: odps.core.ODPS.create_volume_directory:1 of
+msgid "Create a directory under a file system volume."
+msgstr ""
+
+#: odps.core.ODPS.create_volume_directory:3 odps.core.ODPS.delete_volume_file:3
+#: odps.core.ODPS.get_volume_file:3 of
+msgid "name of the volume."
+msgstr ""
+
+#: odps.core.ODPS.create_volume_directory:4 odps.core.ODPS.delete_volume_file:4
+#: odps.core.ODPS.get_volume_file:4 of
+msgid "path of the directory to be created."
+msgstr ""
+
+#: odps.core.ODPS.create_volume_directory:5 odps.core.ODPS.delete_volume_file:6
+#: odps.core.ODPS.get_volume_file:5 odps.core.ODPS.move_volume_file:6
+#: odps.core.ODPS.set_security_option:5 of
+msgid "project name, if not provided, will be the default project."
+msgstr ""
+
+#: odps.core.ODPS.create_volume_directory:7 odps.core.ODPS.delete_volume_file:8
+#: odps.core.ODPS.get_volume_file:7 odps.core.ODPS.move_volume_file:8 of
+msgid "directory object."
+msgstr ""
+
+#: odps.core.ODPS.delete_function:1 of
+msgid "Delete a function by given name."
+msgstr ""
+
+#: odps.core.ODPS.delete_function:7 odps.core.ODPS.delete_offline_model:6
+#: odps.core.ODPS.delete_resource:7 odps.core.ODPS.delete_volume:8
+#: odps.core.ODPS.delete_xflow:5 odps.core.ODPS.stop_instance:5
+#: odps.models.tableio.TableIOMethods.write_table:21 of
+msgid "None"
+msgstr ""
+
+#: odps.core.ODPS.delete_materialized_view:1 of
+msgid "Delete the materialized view with given name"
+msgstr ""
+
+#: odps.core.ODPS.delete_materialized_view:3 of
+msgid "materialized view name"
+msgstr ""
+
+#: odps.core.ODPS.delete_materialized_view:5 of
+msgid ""
+"will not raise errors when the materialized view does not exist, default "
+"False"
+msgstr ""
+
+#: odps.core.ODPS.delete_materialized_view:10 odps.core.ODPS.delete_table:9
+#: odps.core.ODPS.delete_view:9 of
+msgid "None if not async else odps instance"
+msgstr ""
+
+#: odps.core.ODPS.delete_offline_model:1 of
+msgid "Delete the offline model by given name."
+msgstr ""
+
+#: odps.core.ODPS.delete_offline_model:3 odps.core.ODPS.exist_offline_model:3
+#: of
+msgid "offline model's name"
+msgstr ""
+
+#: odps.core.ODPS.delete_offline_model:4 of
+msgid "will not raise errors when the offline model does not exist, default False"
+msgstr ""
+
+#: odps.core.ODPS.delete_resource:1 of
+msgid "Delete resource by given name."
+msgstr ""
+
+#: odps.core.ODPS.delete_role:1 of
+msgid "Delete a role in a project"
+msgstr ""
+
+#: odps.core.ODPS.delete_role:3 of
+msgid "name of the role to delete"
+msgstr ""
+
+#: odps.core.ODPS.delete_schema:1 of
+msgid "Delete the schema with given name"
+msgstr ""
+
+#: odps.core.ODPS.delete_table:1 of
+msgid "Delete the table with given name"
+msgstr ""
+
+#: odps.core.ODPS.delete_table:5 of
+msgid "will not raise errors when the table does not exist, default False"
+msgstr ""
+
+#: odps.core.ODPS.delete_user:1 of
+msgid "Delete a user from the project"
+msgstr ""
+
+#: odps.core.ODPS.delete_view:1 of
+msgid "Delete the view with given name"
+msgstr ""
+
+#: odps.core.ODPS.delete_view:3 of
+msgid "view name"
+msgstr ""
+
+#: odps.core.ODPS.delete_view:5 of
+msgid "will not raise errors when the view does not exist, default False"
+msgstr ""
+
+#: odps.core.ODPS.delete_volume:1 of
+msgid "Delete volume by given name."
+msgstr ""
+
+#: odps.core.ODPS.delete_volume:6 of
+msgid "if True, directory created by external volume will be deleted"
+msgstr ""
+
+#: odps.core.ODPS.delete_volume:7 of
+msgid "if True, directory deletion should be recursive"
+msgstr ""
+
+#: odps.core.ODPS.delete_volume_file:1 of
+msgid "Delete a file / directory object under a file system volume."
+msgstr ""
+
+#: odps.core.ODPS.delete_volume_file:5 of
+msgid "if True, recursively delete files"
+msgstr ""
+
+#: odps.core.ODPS.delete_volume_partition:1 of
+msgid "Delete partition in a volume by given name"
+msgstr ""
+
+#: odps.core.ODPS.delete_volume_partition:4
+#: odps.core.ODPS.exist_volume_partition:4
+#: odps.core.ODPS.get_volume_partition:4 of
+msgid "partition name"
+msgstr ""
+
+#: odps.core.ODPS.delete_xflow:1 of
+msgid "Delete xflow by given name."
+msgstr ""
+
+#: odps.core.ODPS.delete_xflow:3 odps.core.ODPS.exist_xflow:3
+#: odps.core.ODPS.get_xflow:3 of
+msgid "xflow name"
+msgstr ""
+
+#: odps.models.tasks.merge.MergeTask.run_archive_table:1
+#: odps.models.tasks.merge.MergeTask.run_freeze_command:1 of
+msgid "Execute a task to archive tables and wait for termination."
+msgstr ""
+
+#: odps.models.tasks.merge.MergeTask.run_archive_table:3
+#: odps.models.tasks.merge.MergeTask.run_freeze_command:3 of
+msgid "name of the table to archive"
+msgstr ""
+
+#: odps.models.tasks.merge.MergeTask.run_archive_table:4
+#: odps.models.tasks.merge.MergeTask.run_freeze_command:4 of
+msgid "partition to archive"
+msgstr ""
+
+#: odps.models.tasks.merge.MergeTask.run_archive_table:6
+#: odps.models.tasks.merge.MergeTask.run_freeze_command:7 of
+msgid "settings for table archive task."
+msgstr ""
+
+#: odps.core.ODPS.execute_sql:5 odps.core.ODPS.execute_xflow:12
+#: odps.core.ODPS.run_sql:5 odps.core.ODPS.run_xflow:12
+#: odps.models.tasks.merge.MergeTask.run_archive_table:7
+#: odps.models.tasks.merge.MergeTask.run_freeze_command:8
+#: odps.models.tasks.merge.MergeTask.run_merge_files:8 of
+msgid "instance priority, 9 as default"
+msgstr ""
+
+#: odps.core.ODPS.execute_sql:9 odps.core.ODPS.execute_xflow:14
+#: odps.core.ODPS.run_sql:10 odps.core.ODPS.run_xflow:14
+#: odps.models.tasks.merge.MergeTask.run_archive_table:8
+#: odps.models.tasks.merge.MergeTask.run_freeze_command:9
+#: odps.models.tasks.merge.MergeTask.run_merge_files:11 of
+msgid "instance"
+msgstr ""
+
+#: odps.core.ODPS.execute_sql:10 odps.core.ODPS.execute_sql:23
+#: odps.core.ODPS.execute_xflow:15 odps.core.ODPS.execute_xflow:17
+#: odps.core.ODPS.get_instance:6 odps.core.ODPS.get_instance:9
+#: odps.core.ODPS.run_sql:11 odps.core.ODPS.run_sql:13
+#: odps.core.ODPS.run_xflow:15 odps.core.ODPS.run_xflow:17
+#: odps.models.tasks.merge.MergeTask.run_archive_table:9
+#: odps.models.tasks.merge.MergeTask.run_freeze_command:10
+#: odps.models.tasks.merge.MergeTask.run_merge_files:12 of
+msgid ":class:`odps.models.Instance`"
+msgstr ""
+
+#: odps.models.tasks.merge.MergeTask.run_freeze_command:5 of
+msgid "freeze command to execute, can be freeze or restore"
+msgstr ""
+
+#: odps.models.tasks.merge.MergeTask.run_merge_files:1 of
+msgid "Execute a task to merge multiple files in tables and wait for termination."
+msgstr ""
+
+#: odps.models.tasks.merge.MergeTask.run_merge_files:3 of
+msgid "name of the table to optimize"
+msgstr ""
+
+#: odps.models.tasks.merge.MergeTask.run_merge_files:4 of
+msgid "partition to optimize"
+msgstr ""
+
+#: odps.models.tasks.merge.MergeTask.run_merge_files:7 of
+msgid "settings for merge task."
+msgstr ""
+
+#: odps.core.ODPS.execute_sql:6 odps.core.ODPS.run_sql:6
+#: odps.models.tasks.merge.MergeTask.run_merge_files:9 of
+msgid "cluster to run this instance"
+msgstr ""
+
+#: odps.models.tasks.merge.MergeTask.run_merge_files:10 of
+msgid "compact option for transactional table, can be major or minor."
+msgstr ""
+
+#: odps.core.ODPS.execute_security_query:1 of
+msgid ""
+"Execute a security query to grant / revoke / query privileges and returns"
+" the result string or json value."
+msgstr ""
+
+#: odps.core.ODPS.execute_security_query:4 odps.core.ODPS.run_security_query:5
+#: of
+msgid "query text"
+msgstr ""
+
+#: odps.core.ODPS.execute_security_query:7 odps.core.ODPS.run_security_query:8
+#: of
+msgid "parse json for the output"
+msgstr ""
+
+#: odps.core.ODPS.execute_security_query:8 odps.core.ODPS.run_security_query:9
+#: of
+msgid "result string / json object"
+msgstr ""
+
+#: odps.core.ODPS.execute_sql:1 of
+msgid "Run a given SQL statement and block until the SQL executed successfully."
+msgstr ""
+
+#: odps.core.ODPS.execute_sql:3 odps.core.ODPS.execute_sql_cost:1
+#: odps.core.ODPS.run_sql:3 of
+msgid "SQL statement"
+msgstr ""
+
+#: odps.core.ODPS.execute_sql:7 odps.core.ODPS.execute_sql_cost:4
+#: odps.core.ODPS.run_sql:7 of
+msgid "settings for SQL, e.g. `odps.mapred.map.split.size`"
+msgstr ""
+
+#: odps.core.ODPS.execute_sql:8 odps.core.ODPS.run_sql:9 of
+msgid "name of quota to use for SQL job"
+msgstr ""
+
+#: odps.core.ODPS.execute_sql_cost:6 of
+msgid "cost info in dict format"
+msgstr ""
+
+#: odps.models.session.core.SessionMethods.execute_sql_interactive:1 of
+msgid ""
+"Run SQL query in interactive mode (a.k.a MaxCompute QueryAcceleration). "
+"If query is not supported or fails, and fallback is True, will fallback "
+"to offline mode automatically"
+msgstr ""
+
+#: odps.models.session.core.SessionMethods.execute_sql_interactive:5
+#: odps.models.session.core.SessionMethods.run_sql_interactive:4 of
+msgid "the sql query."
+msgstr ""
+
+#: odps.models.session.core.SessionMethods.execute_sql_interactive:6
+#: odps.models.session.core.SessionMethods.run_sql_interactive:5 of
+msgid "settings for sql query."
+msgstr ""
+
+#: odps.models.session.core.SessionMethods.execute_sql_interactive:7 of
+msgid ""
+"fallback query to non-interactive mode, True by default. Both boolean "
+"type and policy names separated by commas are acceptable."
+msgstr ""
+
+#: odps.models.session.core.SessionMethods.execute_sql_interactive:9 of
+msgid "wait fallback instance to finish, True by default."
+msgstr ""
+
+#: odps.models.session.core.SessionMethods.execute_sql_interactive:10
+#: odps.models.session.core.SessionMethods.run_sql_interactive:6 of
+msgid "instance."
+msgstr ""
+
+#: odps.core.ODPS.execute_xflow:1 of
+msgid ""
+"Run xflow by given name, xflow project, paremeters, block until xflow "
+"executed successfully."
+msgstr ""
+
+#: odps.core.ODPS.execute_xflow:3 odps.core.ODPS.run_xflow:3 of
+msgid "XFlow name"
+msgstr ""
+
+#: odps.core.ODPS.execute_xflow:5 odps.core.ODPS.run_xflow:5 of
+msgid "the project XFlow deploys"
+msgstr ""
+
+#: odps.core.ODPS.execute_xflow:7 odps.core.ODPS.run_xflow:7 of
+msgid "parameters"
+msgstr ""
+
+#: odps.core.ODPS.execute_xflow:10 odps.core.ODPS.run_xflow:10 of
+msgid "execution hints"
+msgstr ""
+
+#: odps.core.ODPS.exist_function:1 of
+msgid "If the function with given name exists or not."
+msgstr ""
+
+#: odps.core.ODPS.exist_function:6 of
+msgid "True if the function exists or False"
+msgstr ""
+
+#: odps.core.ODPS.exist_instance:1 of
+msgid "If the instance with given id exists or not."
+msgstr ""
+
+#: odps.core.ODPS.exist_instance:3 odps.core.ODPS.get_instance:3
+#: odps.core.ODPS.get_logview_address:3 odps.core.ODPS.stop_instance:3 of
+msgid "instance id"
+msgstr ""
+
+#: odps.core.ODPS.exist_instance:5 odps.core.ODPS.exist_project:4
+#: odps.core.ODPS.exist_quota:4 odps.core.ODPS.exist_resource:7
+#: odps.core.ODPS.exist_schema:5 odps.core.ODPS.exist_volume:6
+#: odps.core.ODPS.exist_xflow:5 of
+msgid "True if exists or False"
+msgstr ""
+
+#: odps.core.ODPS.exist_offline_model:1 of
+msgid "If the offline model with given name exists or not."
+msgstr ""
+
+#: odps.core.ODPS.exist_offline_model:5 of
+msgid "True if offline model exists else False"
+msgstr ""
+
+#: odps.core.ODPS.exist_project:1 of
+msgid "If project name which provided exists or not."
+msgstr ""
+
+#: odps.core.ODPS.exist_project:3 of
+msgid "project name"
+msgstr ""
+
+#: odps.core.ODPS.exist_quota:1 of
+msgid "If quota name which provided exists or not."
+msgstr ""
+
+#: odps.core.ODPS.exist_quota:3 of
+msgid "quota name"
+msgstr ""
+
+#: odps.core.ODPS.exist_resource:1 of
+msgid "If the resource with given name exists or not."
+msgstr ""
+
+#: odps.core.ODPS.exist_role:1 of
+msgid "Check if a role exists in a project"
+msgstr ""
+
+#: odps.core.ODPS.exist_role:3 odps.core.ODPS.get_role_policy:3
+#: odps.core.ODPS.list_role_users:3 odps.core.ODPS.set_role_policy:3 of
+msgid "name of the role"
+msgstr ""
+
+#: odps.core.ODPS.exist_schema:1 of
+msgid "If schema name which provided exists or not."
+msgstr ""
+
+#: odps.core.ODPS.exist_table:1 of
+msgid "If the table with given name exists or not."
+msgstr ""
+
+#: odps.core.ODPS.exist_table:7 of
+msgid "True if table exists or False"
+msgstr ""
+
+#: odps.core.ODPS.exist_user:1 of
+msgid "Check if a user exists in the project"
+msgstr ""
+
+#: odps.core.ODPS.exist_volume:1 of
+msgid "If the volume with given name exists or not."
+msgstr ""
+
+#: odps.core.ODPS.exist_volume_partition:1 of
+msgid "If the volume with given name exists in a partition or not."
+msgstr ""
+
+#: odps.core.ODPS.exist_xflow:1 of
+msgid "If the xflow with given name exists or not."
+msgstr ""
+
+#: odps.core.ODPS.get_function:1 of
+msgid "Get the function by given name"
+msgstr ""
+
+#: odps.core.ODPS.get_function:6 of
+msgid "the right function"
+msgstr ""
+
+#: odps.core.ODPS.get_function odps.core.ODPS.get_instance
+#: odps.core.ODPS.get_offline_model odps.core.ODPS.get_project
+#: odps.core.ODPS.get_resource odps.core.ODPS.get_table
+#: odps.core.ODPS.get_xflow of
+msgid "raise"
+msgstr ""
+
+#: odps.core.ODPS.get_function:7 odps.core.ODPS.get_instance:7
+#: odps.core.ODPS.get_offline_model:7 odps.core.ODPS.get_project:8
+#: odps.core.ODPS.get_resource:8 odps.core.ODPS.get_table:8
+#: odps.core.ODPS.get_xflow:7 of
+msgid ":class:`odps.errors.NoSuchObject` if not exists"
+msgstr ""
+
+#: odps.core.ODPS.get_instance:1 of
+msgid "Get instance by given instance id."
+msgstr ""
+
+#: odps.core.ODPS.get_instance:5 of
+msgid "the right instance"
+msgstr ""
+
+#: odps.core.ODPS.get_logview_address:1 of
+msgid "Get logview address by given instance id and hours."
+msgstr ""
+
+#: odps.core.ODPS.get_logview_address:6 of
+msgid "logview address"
+msgstr ""
+
+#: odps.core.ODPS.get_logview_host:1 of
+msgid "Get logview host address. :return: logview host address"
+msgstr ""
+
+#: odps.core.ODPS.get_offline_model:1 of
+msgid "Get offline model by given name"
+msgstr ""
+
+#: odps.core.ODPS.get_offline_model:3 of
+msgid "offline model name"
+msgstr ""
+
+#: odps.core.ODPS.get_offline_model:5 of
+msgid "offline model"
+msgstr ""
+
+#: odps.core.ODPS.get_offline_model:6 of
+msgid ":class:`odps.models.ml.OfflineModel`"
+msgstr ""
+
+#: odps.core.ODPS.get_project:1 of
+msgid "Get project by given name."
+msgstr ""
+
+#: odps.core.ODPS.get_project:4 of
+msgid ""
+"default schema name, if not provided, will be the schema specified in "
+"ODPS object"
+msgstr ""
+
+#: odps.core.ODPS.get_project:6 of
+msgid "the right project"
+msgstr ""
+
+#: odps.core.ODPS.get_project:7 odps.core.ODPS.get_project:10 of
+msgid ":class:`odps.models.Project`"
+msgstr ""
+
+#: odps.core.ODPS.get_project_policy:1 of
+msgid "Get policy of a project"
+msgstr ""
+
+#: odps.core.ODPS.get_project_policy:4 odps.core.ODPS.get_role_policy:5
+#: odps.core.ODPS.set_project_policy:5 of
+msgid "JSON object"
+msgstr ""
+
+#: odps.core.ODPS.get_quota:1 of
+msgid "Get quota by name"
+msgstr ""
+
+#: odps.core.ODPS.get_quota:3 of
+msgid "quota name, if not provided, will be the name in ODPS entry"
+msgstr ""
+
+#: odps.core.ODPS.get_resource:1 of
+msgid "Get a resource by given name"
+msgstr ""
+
+#: odps.core.ODPS.get_resource:6 of
+msgid "the right resource"
+msgstr ""
+
+#: odps.core.ODPS.get_resource:7 odps.core.ODPS.get_resource:10 of
+msgid ":class:`odps.models.Resource`"
+msgstr ""
+
+#: odps.core.ODPS.get_role_policy:1 of
+msgid "Get policy object of a role"
+msgstr ""
+
+#: odps.core.ODPS.get_schema:1 of
+msgid "Get the schema by given name."
+msgstr ""
+
+#: odps.core.ODPS.get_schema:5 of
+msgid "the Schema object"
+msgstr ""
+
+#: odps.core.ODPS.get_security_option:1 of
+msgid "Get one security option of a project"
+msgstr ""
+
+#: odps.core.ODPS.get_security_option:3 odps.core.ODPS.set_security_option:3 of
+msgid ""
+"name of the security option. Please refer to ODPS options for more "
+"details."
+msgstr ""
+
+#: odps.core.ODPS.get_security_option:5 of
+msgid "option value"
+msgstr ""
+
+#: odps.core.ODPS.get_security_options:1 of
+msgid "Get all security options of a project"
+msgstr ""
+
+#: odps.core.ODPS.get_security_options:4 of
+msgid "SecurityConfiguration object"
+msgstr ""
+
+#: odps.core.ODPS.get_table:1 of
+msgid "Get table by given name."
+msgstr ""
+
+#: odps.core.ODPS.get_table:6 of
+msgid "the right table"
+msgstr ""
+
+#: odps.core.ODPS.get_table:7 odps.core.ODPS.get_table:10 of
+msgid ":class:`odps.models.Table`"
+msgstr ""
+
+#: odps.core.ODPS.get_volume:1 of
+msgid "Get volume by given name."
+msgstr ""
+
+#: odps.core.ODPS.get_volume:6 of
+msgid "volume object. Return type depends on the type of the volume."
+msgstr ""
+
+#: odps.core.ODPS.get_volume:7 of
+msgid ":class:`odps.models.Volume`"
+msgstr ""
+
+#: odps.core.ODPS.get_volume_file:1 of
+msgid ""
+"Get a file under a partition of a parted volume, or a file / directory "
+"object under a file system volume."
+msgstr ""
+
+#: odps.core.ODPS.get_volume_partition:1 of
+msgid "Get partition in a parted volume by given name."
+msgstr ""
+
+#: odps.core.ODPS.get_volume_partition:7
+#: odps.core.ODPS.list_volume_partitions:6 of
+msgid "partitions"
+msgstr ""
+
+#: odps.core.ODPS.get_volume_partition:8 of
+msgid ":class:`odps.models.VolumePartition`"
+msgstr ""
+
+#: odps.core.ODPS.get_xflow:1 of
+msgid "Get xflow by given name"
+msgstr ""
+
+#: odps.core.ODPS.get_xflow:5 of
+msgid "xflow"
+msgstr ""
+
+#: odps.core.ODPS.get_xflow:6 odps.core.ODPS.get_xflow:9 of
+msgid ":class:`odps.models.XFlow`"
+msgstr ""
+
+#: odps.core.ODPS.get_xflow_results:1 of
+msgid "The result given the results of xflow"
+msgstr ""
+
+#: odps.core.ODPS.get_xflow_results:3 odps.core.ODPS.get_xflow_sub_instances:3
+#: odps.core.ODPS.iter_xflow_sub_instances:3 of
+msgid "instance of xflow"
+msgstr ""
+
+#: odps.core.ODPS.get_xflow_results:6 of
+msgid "xflow result"
+msgstr ""
+
+#: odps.core.ODPS.get_xflow_sub_instances:1 of
+msgid "The result iterates the sub instance of xflow"
+msgstr ""
+
+#: odps.core.ODPS.get_xflow_sub_instances:6
+#: odps.core.ODPS.iter_xflow_sub_instances:8 of
+msgid "sub instances dictionary"
+msgstr ""
+
+#: odps.core.ODPS.iter_xflow_sub_instances:1 of
+msgid ""
+"The result iterates the sub instance of xflow and will wait till instance"
+" finish"
+msgstr ""
+
+#: odps.core.ODPS.iter_xflow_sub_instances:5 of
+msgid "time interval to check"
+msgstr ""
+
+#: odps.core.ODPS.iter_xflow_sub_instances:7 of
+msgid "check if the instance is successful"
+msgstr ""
+
+#: odps.core.ODPS.list_functions:1 of
+msgid "List all functions of a project."
+msgstr ""
+
+#: odps.core.ODPS.list_functions:4 of
+msgid "the listed functions start with this **prefix**"
+msgstr ""
+
+#: odps.core.ODPS.list_functions:5 odps.core.ODPS.list_resources:5
+#: odps.core.ODPS.list_schemas:5 odps.core.ODPS.list_tables:7 of
+msgid "Aliyun account, the owner which listed tables belong to"
+msgstr ""
+
+#: odps.core.ODPS.list_functions:7 of
+msgid "functions"
+msgstr ""
+
+#: odps.core.ODPS.list_instance_queueing_infos:1 of
+msgid "List instance queueing information."
+msgstr ""
+
+#: odps.core.ODPS.list_instance_queueing_infos:4
+#: odps.core.ODPS.list_instances:9 of
+msgid "including 'Running', 'Suspended', 'Terminated'"
+msgstr ""
+
+#: odps.core.ODPS.list_instance_queueing_infos:5
+#: odps.core.ODPS.list_instances:10 of
+msgid "True will filter the instances created by current user"
+msgstr ""
+
+#: odps.core.ODPS.list_instance_queueing_infos:9 of
+msgid "instance queueing infos"
+msgstr ""
+
+#: odps.core.ODPS.list_instances:1 of
+msgid ""
+"List instances of a project by given optional conditions including start "
+"time, end time, status and if only the owner."
+msgstr ""
+
+#: odps.core.ODPS.list_instances:5 of
+msgid "the start time of filtered instances"
+msgstr ""
+
+#: odps.core.ODPS.list_instances:7 of
+msgid "the end time of filtered instances"
+msgstr ""
+
+#: odps.core.ODPS.list_instances:14 of
+msgid "instances"
+msgstr ""
+
+#: odps.core.ODPS.list_offline_models:1 of
+msgid ""
+"List offline models of project by optional filter conditions including "
+"prefix and owner."
+msgstr ""
+
+#: odps.core.ODPS.list_offline_models:4 of
+msgid "prefix of offline model's name"
+msgstr ""
+
+#: odps.core.ODPS.list_offline_models:5 odps.core.ODPS.list_volumes:5
+#: odps.core.ODPS.list_xflows:4 of
+msgid "Aliyun account"
+msgstr ""
+
+#: odps.core.ODPS.list_offline_models:6 of
+msgid "offline models"
+msgstr ""
+
+#: odps.core.ODPS.list_projects:1 of
+msgid "List projects."
+msgstr ""
+
+#: odps.core.ODPS.list_projects:3 of
+msgid "Aliyun account, the owner which listed projects belong to"
+msgstr ""
+
+#: odps.core.ODPS.list_projects:4 of
+msgid "name of the user who has access to listed projects"
+msgstr ""
+
+#: odps.core.ODPS.list_projects:5 of
+msgid "name of the group listed projects belong to"
+msgstr ""
+
+#: odps.core.ODPS.list_projects:6 of
+msgid "prefix of names of listed projects"
+msgstr ""
+
+#: odps.core.ODPS.list_projects:7 of
+msgid "the maximal size of result set"
+msgstr ""
+
+#: odps.core.ODPS.list_projects:8 of
+msgid "projects in this endpoint."
+msgstr ""
+
+#: odps.core.ODPS.list_quotas:1 of
+msgid "List quotas by region id"
+msgstr ""
+
+#: odps.core.ODPS.list_quotas:3 of
+msgid "Region ID"
+msgstr ""
+
+#: odps.core.ODPS.list_quotas:4 of
+msgid "quotas"
+msgstr ""
+
+#: odps.core.ODPS.list_resources:1 of
+msgid "List all resources of a project."
+msgstr ""
+
+#: odps.core.ODPS.list_resources:4 of
+msgid "the listed resources start with this **prefix**"
+msgstr ""
+
+#: odps.core.ODPS.list_resources:7 of
+msgid "resources"
+msgstr ""
+
+#: odps.core.ODPS.list_role_users:1 of
+msgid "List users who have the specified role."
+msgstr ""
+
+#: odps.core.ODPS.list_role_users:5 odps.core.ODPS.list_users:4 of
+msgid "collection of User objects"
+msgstr ""
+
+#: odps.core.ODPS.list_roles:1 of
+msgid "List all roles in a project"
+msgstr ""
+
+#: odps.core.ODPS.list_roles:4 of
+msgid "collection of role objects"
+msgstr ""
+
+#: odps.core.ODPS.list_schemas:1 of
+msgid "List all schemas of a project."
+msgstr ""
+
+#: odps.core.ODPS.list_schemas:4 of
+msgid "the listed schemas start with this **prefix**"
+msgstr ""
+
+#: odps.core.ODPS.list_schemas:6 of
+msgid "schemas"
+msgstr ""
+
+#: odps.core.ODPS.list_tables:1 of
+msgid ""
+"List all tables of a project. If prefix is provided, the listed tables "
+"will all start with this prefix. If owner is provided, the listed tables "
+"will belong to such owner."
+msgstr ""
+
+#: odps.core.ODPS.list_tables:6 of
+msgid "the listed tables start with this **prefix**"
+msgstr ""
+
+#: odps.core.ODPS.list_tables:9 of
+msgid "type of the table"
+msgstr ""
+
+#: odps.core.ODPS.list_tables:10 of
+msgid "if True, load extended information for table"
+msgstr ""
+
+#: odps.core.ODPS.list_tables:11 of
+msgid "tables in this project, filtered by the optional prefix and owner."
+msgstr ""
+
+#: odps.ml.models._list_tables_model:1 of
+msgid "List all TablesModel in the given project."
+msgstr ""
+
+#: odps.ml.models._list_tables_model:3 of
+msgid "model prefix"
+msgstr ""
+
+#: odps.ml.models._list_tables_model:4 of
+msgid "project name, if you want to look up in another project"
+msgstr ""
+
+#: odps.core.ODPS.list_user_roles:1 of
+msgid "List roles of the specified user"
+msgstr ""
+
+#: odps.core.ODPS.list_user_roles:5 of
+msgid "collection of Role object"
+msgstr ""
+
+#: odps.core.ODPS.list_users:1 of
+msgid "List users in the project"
+msgstr ""
+
+#: odps.core.ODPS.list_volume_files:1 of
+msgid ""
+"List files in a volume. In partitioned volumes, the function returns "
+"files under specified partition. In file system volumes, the function "
+"returns files under specified path."
+msgstr ""
+
+#: odps.core.ODPS.list_volume_files:5 odps.core.ODPS.open_volume_writer:10 of
+msgid "partition name for partitioned volumes, and path for file system volumes."
+msgstr ""
+
+#: odps.core.ODPS.list_volume_files:8 of
+msgid "files"
+msgstr ""
+
+#: odps.core.ODPS.list_volume_partitions:1 of
+msgid "List partitions of a volume."
+msgstr ""
+
+#: odps.core.ODPS.list_volumes:1 of
+msgid "List volumes of a project."
+msgstr ""
+
+#: odps.core.ODPS.list_volumes:6 of
+msgid "volumes"
+msgstr ""
+
+#: odps.core.ODPS.list_xflows:1 of
+msgid "List xflows of a project which can be filtered by the xflow owner."
+msgstr ""
+
+#: odps.core.ODPS.list_xflows:5 of
+msgid "xflows"
+msgstr ""
+
+#: odps.core.ODPS.move_volume_file:1 of
+msgid ""
+"Move a file / directory object under a file system volume to another "
+"location in the same volume."
+msgstr ""
+
+#: odps.core.ODPS.move_volume_file:3 of
+msgid "old path of the volume file."
+msgstr ""
+
+#: odps.core.ODPS.move_volume_file:4 of
+msgid "target path of the moved file."
+msgstr ""
+
+#: odps.core.ODPS.move_volume_file:5 of
+msgid "file replication."
+msgstr ""
+
+#: odps.core.ODPS.open_resource:1 of
+msgid ""
+"Open a file resource as file-like object. This is an elegant and pythonic"
+" way to handle file resource."
+msgstr ""
+
+#: odps.core.ODPS.open_resource:4 of
+msgid ""
+"The argument ``mode`` stands for the open mode for this file resource. It"
+" can be binary mode if the 'b' is inside. For instance, 'rb' means "
+"opening the resource as read binary mode while 'r+b' means opening the "
+"resource as read+write binary mode. This is most import when the file is "
+"actually binary such as tar or jpeg file, so be aware of opening this "
+"file as a correct mode."
+msgstr ""
+
+#: odps.core.ODPS.open_resource:11 of
+msgid ""
+"Basically, the text mode can be 'r', 'w', 'a', 'r+', 'w+', 'a+' just like"
+" the builtin python ``open`` method."
+msgstr ""
+
+#: odps.core.ODPS.open_resource:14 of
+msgid "``r`` means read only"
+msgstr ""
+
+#: odps.core.ODPS.open_resource:15 of
+msgid "``w`` means write only, the file will be truncated when opening"
+msgstr ""
+
+#: odps.core.ODPS.open_resource:16 of
+msgid "``a`` means append only"
+msgstr ""
+
+#: odps.core.ODPS.open_resource:17 of
+msgid "``r+`` means read+write without constraint"
+msgstr ""
+
+#: odps.core.ODPS.open_resource:18 of
+msgid "``w+`` will truncate first then opening into read+write"
+msgstr ""
+
+#: odps.core.ODPS.open_resource:19 of
+msgid ""
+"``a+`` can read+write, however the written content can only be appended "
+"to the end"
+msgstr ""
+
+#: odps.core.ODPS.open_resource:21 of
+msgid "file resource or file resource name"
+msgstr ""
+
+#: odps.core.ODPS.open_resource:25 of
+msgid "the mode of opening file, described as above"
+msgstr ""
+
+#: odps.core.ODPS.open_resource:26 of
+msgid "utf-8 as default"
+msgstr ""
+
+#: odps.core.ODPS.open_resource:27 of
+msgid "resource type, can be \"file\", \"archive\", \"jar\" or \"py\""
+msgstr ""
+
+#: odps.core.ODPS.open_resource:28 of
+msgid "if True, use stream to upload, False by default"
+msgstr ""
+
+#: odps.core.ODPS.open_resource:29 of
+msgid "comment of the resource"
+msgstr ""
+
+#: odps.core.ODPS.open_resource:30 of
+msgid "file-like object"
+msgstr ""
+
+#: odps.core.ODPS.open_volume_reader:1 of
+msgid ""
+"Open a volume file for read. A file-like object will be returned which "
+"can be used to read contents from volume files."
+msgstr ""
+
+#: odps.core.ODPS.open_volume_reader:4 odps.core.ODPS.open_volume_writer:9 of
+msgid "name of the volume"
+msgstr ""
+
+#: odps.core.ODPS.open_volume_reader:5 of
+msgid "name of the partition"
+msgstr ""
+
+#: odps.core.ODPS.open_volume_reader:6 of
+msgid "name of the file"
+msgstr ""
+
+#: odps.core.ODPS.open_volume_reader:9 of
+msgid "start position"
+msgstr ""
+
+#: odps.core.ODPS.open_volume_reader:10 of
+msgid "length limit"
+msgstr ""
+
+#: odps.core.ODPS.open_volume_reader:11 odps.core.ODPS.open_volume_writer:13
+#: odps.models.tableio.TableIOMethods.read_table:13
+#: odps.models.tableio.TableIOMethods.write_table:16 of
+msgid "the compression algorithm, level and strategy"
+msgstr ""
+
+#: odps.core.ODPS.open_volume_writer:1 of
+msgid ""
+"Write data into a volume. This function behaves differently under "
+"different types of volumes."
+msgstr ""
+
+#: odps.core.ODPS.open_volume_writer:3 of
+msgid ""
+"Under partitioned volumes, all files under a partition should be uploaded"
+" in one submission. The method returns a writer object with whose `open` "
+"method you can open a file inside the volume and write to it, or you can "
+"use `write` method to write to specific files."
+msgstr ""
+
+#: odps.core.ODPS.open_volume_writer:7 of
+msgid "Under file system volumes, the method returns a file-like object."
+msgstr ""
+
+#: odps.models.tableio.TableIOMethods.read_table:1 of
+msgid "Read table's records."
+msgstr ""
+
+#: odps.models.tableio.TableIOMethods.read_table:3
+#: odps.models.tableio.TableIOMethods.write_table:3 of
+msgid "table or table name"
+msgstr ""
+
+#: odps.models.tableio.TableIOMethods.read_table:5 of
+msgid "the records' size, if None will read all records from the table"
+msgstr ""
+
+#: odps.models.tableio.TableIOMethods.read_table:6 of
+msgid "the record where read starts with"
+msgstr ""
+
+#: odps.models.tableio.TableIOMethods.read_table:7 of
+msgid "default as 1"
+msgstr ""
+
+#: odps.models.tableio.TableIOMethods.read_table:10 of
+msgid "the partition of this table to read"
+msgstr ""
+
+#: odps.models.tableio.TableIOMethods.read_table:11 of
+msgid "the columns' names which are the parts of table's columns"
+msgstr ""
+
+#: odps.models.tableio.TableIOMethods.read_table:12 of
+msgid "if True, the data will be compressed during downloading"
+msgstr ""
+
+#: odps.models.tableio.TableIOMethods.read_table:15
+#: odps.models.tableio.TableIOMethods.write_table:18 of
+msgid "tunnel service URL"
+msgstr ""
+
+#: odps.models.tableio.TableIOMethods.read_table:16 of
+msgid ""
+"reading the table will reuse the session which opened last time, if set "
+"to True will open a new download session, default as False"
+msgstr ""
+
+#: odps.models.tableio.TableIOMethods.read_table:18 of
+msgid "records"
+msgstr ""
+
+#: odps.models.tableio.TableIOMethods.read_table:28
+#: odps.models.tableio.TableIOMethods.write_table:59 of
+msgid ":class:`odps.models.Record`"
+msgstr ""
+
+#: odps.models.tasks.merge.MergeTask.run_archive_table:1 of
+msgid "Start running a task to archive tables."
+msgstr ""
+
+#: odps.models.tasks.merge.MergeTask.run_freeze_command:1 of
+msgid "Start running a task to freeze or restore tables."
+msgstr ""
+
+#: odps.models.tasks.merge.MergeTask.run_merge_files:1 of
+msgid "Start running a task to merge multiple files in tables."
+msgstr ""
+
+#: odps.core.ODPS.run_security_query:1 of
+msgid ""
+"Run a security query to grant / revoke / query privileges. If the query "
+"is `install package` or `uninstall package`, return a waitable "
+"AuthQueryInstance object, otherwise returns the result string or json "
+"value."
+msgstr ""
+
+#: odps.core.ODPS.run_sql:1 of
+msgid "Run a given SQL statement asynchronously"
+msgstr ""
+
+#: odps.models.session.core.SessionMethods.run_sql_interactive:1 of
+msgid ""
+"Run SQL query in interactive mode (a.k.a MaxCompute QueryAcceleration). "
+"Won't fallback to offline mode automatically if query not supported or "
+"fails"
+msgstr ""
+
+#: odps.core.ODPS.run_xflow:1 of
+msgid "Run xflow by given name, xflow project, paremeters asynchronously."
+msgstr ""
+
+#: odps.ODPS.schema:1 of
+msgid "Get or set default schema name of the ODPS object"
+msgstr ""
+
+#: odps.core.ODPS.set_project_policy:1 of
+msgid "Set policy of a project"
+msgstr ""
+
+#: odps.core.ODPS.set_project_policy:3 of
+msgid "name of policy."
+msgstr ""
+
+#: odps.core.ODPS.set_role_policy:1 of
+msgid "Get policy object of project"
+msgstr ""
+
+#: odps.core.ODPS.set_role_policy:4 of
+msgid "policy string or JSON object"
+msgstr ""
+
+#: odps.core.ODPS.set_security_option:1 of
+msgid "Set a security option of a project"
+msgstr ""
+
+#: odps.core.ODPS.set_security_option:4 of
+msgid "value of security option to be set."
+msgstr ""
+
+#: odps.core.ODPS.stop_instance:1 of
+msgid "Stop the running instance by given instance id."
+msgstr ""
+
+#: odps.ODPS.tunnel_endpoint:1 of
+msgid "Get or set tunnel endpoint of the ODPS object"
+msgstr ""
+
+#: odps.models.tableio.TableIOMethods.write_table:1 of
+msgid "Write records into given table."
+msgstr ""
+
+#: odps.models.tableio.TableIOMethods.write_table:5 of
+msgid ""
+"records / DataFrame, or block ids and records / DataFrame. If given "
+"records or DataFrame only, the block id will be 0 as default."
+msgstr ""
+
+#: odps.models.tableio.TableIOMethods.write_table:9 of
+msgid "the partition of this table to write"
+msgstr ""
+
+#: odps.models.tableio.TableIOMethods.write_table:10 of
+msgid "fields representing partitions"
+msgstr ""
+
+#: odps.models.tableio.TableIOMethods.write_table:11 of
+msgid "if True, will overwrite existing data"
+msgstr ""
+
+#: odps.models.tableio.TableIOMethods.write_table:12 of
+msgid "if true, the table will be created if not exist"
+msgstr ""
+
+#: odps.models.tableio.TableIOMethods.write_table:13 of
+msgid "specify table lifecycle when creating tables"
+msgstr ""
+
+#: odps.models.tableio.TableIOMethods.write_table:14 of
+msgid "if true, the partition will be created if not exist"
+msgstr ""
+
+#: odps.models.tableio.TableIOMethods.write_table:15 of
+msgid "if True, the data will be compressed during uploading"
+msgstr ""
+
+#: odps.models.tableio.TableIOMethods.write_table:19 of
+msgid ""
+"writing the table will reuse the session which opened last time, if set "
+"to True will open a new upload session, default as False"
+msgstr ""
+
+#: odps.models.tableio.TableIOMethods.write_table:25 of
+msgid "Write records into a specified table."
+msgstr ""
+
+#: odps.models.tableio.TableIOMethods.write_table:29 of
+msgid "Write records into multiple blocks."
+msgstr ""
+
+#: odps.models.tableio.TableIOMethods.write_table:33 of
+msgid "Write into a given partition."
+msgstr ""
+
+#: odps.models.tableio.TableIOMethods.write_table:37 of
+msgid "Write a pandas DataFrame."
+msgstr ""
+
+#: odps.models.tableio.TableIOMethods.write_table:48 of
+msgid "Write a dynamic partition."
+msgstr ""
+

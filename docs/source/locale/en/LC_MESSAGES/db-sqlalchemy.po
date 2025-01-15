@@ -15,27 +15,27 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.12.1\n"
+"Generated-By: Babel 2.16.0\n"
 
-#: ../../source/base-sqlalchemy.rst:4
+#: ../../source/db-sqlalchemy.rst:4
 msgid "集成 SQLAlchemy"
 msgstr "Integration of SQLAlchemy"
 
-#: ../../source/base-sqlalchemy.rst:6
+#: ../../source/db-sqlalchemy.rst:6
 msgid "在 PyODPS 0.10.0 中开始支持"
 msgstr "Supported since PyODPS 0.10.0"
 
-#: ../../source/base-sqlalchemy.rst:8
+#: ../../source/db-sqlalchemy.rst:8
 msgid "PyODPS 支持集成 SQLAlchemy，可以使用 SQLAlchemy 查询 MaxCompute 数据。"
 msgstr ""
 "PyODPS supports integration of SQLAlchemy and can use it to query data in"
 " MaxCompute."
 
-#: ../../source/base-sqlalchemy.rst:11
+#: ../../source/db-sqlalchemy.rst:11
 msgid "创建连接"
 msgstr "Create connections"
 
-#: ../../source/base-sqlalchemy.rst:13
+#: ../../source/db-sqlalchemy.rst:13
 msgid ""
 "创建连接可以在连接字符串中指定 ``access_id``、``access_key`` 和 ``project"
 "`` 等。"
@@ -43,7 +43,7 @@ msgstr ""
 "You can create MaxCompute connection by specifying ``access_id``, "
 "``access_key``, ``project`` and other arguments in a connection string."
 
-#: ../../source/base-sqlalchemy.rst:15
+#: ../../source/db-sqlalchemy.rst:15
 #, python-format
 msgid ""
 "import os\n"
@@ -73,11 +73,11 @@ msgstr ""
 ")\n"
 "engine = create_engine(conn_string)"
 
-#: ../../source/base-sqlalchemy.rst:29
+#: ../../source/db-sqlalchemy.rst:29
 msgid "要在连接字符串中指定 ``endpoint``，可以按如下方式："
 msgstr "You can use methods below to specify ``endpoint`` in connection strings:"
 
-#: ../../source/base-sqlalchemy.rst:31
+#: ../../source/db-sqlalchemy.rst:31
 #, python-format
 msgid ""
 "import os\n"
@@ -90,13 +90,13 @@ msgid ""
 "engine = create_engine(conn_string)"
 msgstr ""
 
-#: ../../source/base-sqlalchemy.rst:42
+#: ../../source/db-sqlalchemy.rst:42
 msgid "这里把 ``<access_id>`` 等替换成相应的账号。"
 msgstr ""
 "Replace ``<access_id>`` and other placeholders with real account "
 "information."
 
-#: ../../source/base-sqlalchemy.rst:44
+#: ../../source/db-sqlalchemy.rst:44
 msgid ""
 "对于已有的 ODPS 对象 ``o`` ，调用 ``o.to_global()`` 设为全局账号后，在"
 "连接字符串中就不需要指定了。"
@@ -105,28 +105,28 @@ msgstr ""
 "accounts global, there is no need to specify connection strings in detail"
 " again."
 
-#: ../../source/base-sqlalchemy.rst:46
+#: ../../source/db-sqlalchemy.rst:46
 msgid ""
 "from sqlalchemy import create_engine\n"
 "o.to_global()  # set ODPS object as global one\n"
 "engine = create_engine('odps://')"
 msgstr ""
 
-#: ../../source/base-sqlalchemy.rst:52
+#: ../../source/db-sqlalchemy.rst:52
 msgid "接着创建连接。"
 msgstr "Then connections can be created."
 
-#: ../../source/base-sqlalchemy.rst:54
+#: ../../source/db-sqlalchemy.rst:54
 msgid "conn = engine.connect()"
 msgstr ""
 
-#: ../../source/base-sqlalchemy.rst:58
+#: ../../source/db-sqlalchemy.rst:58
 msgid "如果需要为 SQL 作业配置执行选项，可以使用 PyODPS 提供的 ``options`` 对象："
 msgstr ""
 "If you want to set execution settings for SQL tasks, you may still use "
 "``options`` object provided by PyODPS:"
 
-#: ../../source/base-sqlalchemy.rst:60
+#: ../../source/db-sqlalchemy.rst:60
 #, python-format
 msgid ""
 "import os\n"
@@ -141,11 +141,11 @@ msgid ""
 "engine = create_engine(conn_string)"
 msgstr ""
 
-#: ../../source/base-sqlalchemy.rst:73
+#: ../../source/db-sqlalchemy.rst:73
 msgid "也可以直接配置在连接字符串中："
 msgstr "Settings can also be configured with connection strings:"
 
-#: ../../source/base-sqlalchemy.rst:75
+#: ../../source/db-sqlalchemy.rst:75
 #, python-format
 msgid ""
 "import os\n"
@@ -160,13 +160,13 @@ msgid ""
 "engine = create_engine(conn_string)"
 msgstr ""
 
-#: ../../source/base-sqlalchemy.rst:86
+#: ../../source/db-sqlalchemy.rst:86
 msgid "使用上述方式时，每个 engine 对象都会拥有不同的选项。"
 msgstr ""
 "Note that when configuring with connection strings, different engines may"
 " have different settings."
 
-#: ../../source/base-sqlalchemy.rst:88
+#: ../../source/db-sqlalchemy.rst:88
 msgid ""
 "部分商业智能引擎（例如 Apache Superset）可能会频繁列举 MaxCompute 表等"
 "对象，这可能会带来较大的延迟。\\ 如果你在数据分析过程中对新增的 "
@@ -185,7 +185,7 @@ msgstr ""
 " code below enables caching object names and specifies cache timeout as "
 "1200 seconds."
 
-#: ../../source/base-sqlalchemy.rst:93
+#: ../../source/db-sqlalchemy.rst:93
 #, python-format
 msgid ""
 "import os\n"
@@ -200,11 +200,11 @@ msgid ""
 "engine = create_engine(conn_string)"
 msgstr ""
 
-#: ../../source/base-sqlalchemy.rst:105
+#: ../../source/db-sqlalchemy.rst:105
 msgid "调用 SQLAlchemy 接口"
 msgstr "Using SQLAlchemy interfaces"
 
-#: ../../source/base-sqlalchemy.rst:107
+#: ../../source/db-sqlalchemy.rst:107
 msgid ""
 "创建了连接之后，就可以正常调用 SQLAlchemy 接口。以下对建表、写入数据、"
 "查询分别举例说明。"
@@ -212,11 +212,11 @@ msgstr ""
 "After establishing connections, you can call SQLAlchemy interfaces as "
 "usual. Here are examples for creating, writing data and querying."
 
-#: ../../source/base-sqlalchemy.rst:110
+#: ../../source/db-sqlalchemy.rst:110
 msgid "建表"
 msgstr "Creating tables"
 
-#: ../../source/base-sqlalchemy.rst:112
+#: ../../source/db-sqlalchemy.rst:112
 msgid ""
 "from sqlalchemy import Table, Column, Integer, String, MetaData\n"
 "metadata = MetaData()\n"
@@ -230,21 +230,21 @@ msgid ""
 "metadata.create_all(engine)"
 msgstr ""
 
-#: ../../source/base-sqlalchemy.rst:127
+#: ../../source/db-sqlalchemy.rst:127
 msgid "写入数据"
 msgstr "Writing data"
 
-#: ../../source/base-sqlalchemy.rst:129
+#: ../../source/db-sqlalchemy.rst:129
 msgid ""
 "ins = users.insert().values(id=1, name='jack', fullname='Jack Jones')\n"
 "conn.execute(ins)"
 msgstr ""
 
-#: ../../source/base-sqlalchemy.rst:136
+#: ../../source/db-sqlalchemy.rst:136
 msgid "查询数据"
 msgstr "Querying"
 
-#: ../../source/base-sqlalchemy.rst:138
+#: ../../source/db-sqlalchemy.rst:138
 msgid ""
 ">>> from sqlalchemy.sql import select\n"
 ">>> s = select([users])\n"

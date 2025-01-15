@@ -102,50 +102,18 @@ PyODPS 0.11.5 及后续版本中，可以为 ``list_tables`` 添加 ``extended=T
 
    >>> t = o.get_table('dual', project='other_project')
 
+创建表
+--------
 
-.. _table_schema:
-
-创建表的Schema
----------------
-
-有两种方法来初始化。第一种方式通过表的列、以及可选的分区来初始化。
+可以使用:ref:`表 schema <table_schema>` 来创建表，方法如下：
 
 .. code-block:: python
 
    >>> from odps.models import TableSchema, Column, Partition
-   >>> columns = [Column(name='num', type='bigint', comment='the column'),
-   >>>            Column(name='num2', type='double', comment='the column2')]
-   >>> partitions = [Partition(name='pt', type='string', comment='the partition')]
-   >>> schema = TableSchema(columns=columns, partitions=partitions)
-   >>> schema.columns
-   [<column num, type bigint>,
-    <column num2, type double>,
-    <partition pt, type string>]
-   >>> schema.partitions
-   [<partition pt, type string>]
-   >>> schema.names  # 获取非分区字段的字段名
-   ['num', 'num2']
-   >>> schema.types  # 获取非分区字段的字段类型
-   [bigint, double]
-
-
-第二种方法是使用 ``Schema.from_lists``，这种方法更容易调用，但显然无法直接设置列和分区的注释了。
-
-.. code-block:: python
-
-   >>> schema = TableSchema.from_lists(['num', 'num2'], ['bigint', 'double'], ['pt'], ['string'])
-   >>> schema.columns
-   [<column num, type bigint>,
-    <column num2, type double>,
-    <partition pt, type string>]
-
-创建表
-------
-
-可以使用表 schema 来创建表，方法如下：
-
-.. code-block:: python
-
+   >>>
+   >>> schema = TableSchema.from_lists(
+   >>>    ['num', 'num2', 'arr'], ['bigint', 'double', 'array<int>'], ['pt'], ['string']
+   >>> )
    >>> table = o.create_table('my_new_table', schema)
    >>> table = o.create_table('my_new_table', schema, if_not_exists=True)  # 只有不存在表时才创建
    >>> table = o.create_table('my_new_table', schema, lifecycle=7)  # 设置生命周期
@@ -183,105 +151,6 @@ PyODPS 0.11.5 及后续版本中，可以为 ``list_tables`` 添加 ``extended=T
 
 读写数据
 --------
-
-.. _record-type:
-
-行记录 Record
-~~~~~~~~~~~~~
-
-:class:`~odps.models.Record` 表示表的一行记录，为 ``Table.open_reader`` / ``Table.open_writer`` 当 ``arrow=False``
-时所使用的数据结构，也用于 ``TableDownloadSession.open_record_reader`` / ``TableUploadSession.open_record_writer`` 。\
-我们在 Table 对象上调用 new_record 就可以创建一个新的 Record。
-
-下面的例子中，假定表结构为
-
-.. code-block::
-
-   odps.Schema {
-     c_int_a                 bigint
-     c_string_a              string
-     c_bool_a                boolean
-     c_datetime_a            datetime
-     c_array_a               array<string>
-     c_map_a                 map<bigint,string>
-     c_struct_a              struct<a:bigint,b:string>
-   }
-
-该表对应 record 的修改和读取示例为
-
-.. code-block:: python
-
-   >>> import datetime
-   >>> t = o.get_table('mytable')
-   >>> r = t.new_record([1024, 'val1', False, datetime.datetime.now(), None, None])  # 值的个数必须等于表schema的字段数
-   >>> r2 = t.new_record()  # 初始化时也可以不传入值
-   >>> r2[0] = 1024  # 可以通过偏移设置值
-   >>> r2['c_string_a'] = 'val1'  # 也可以通过字段名设置值
-   >>> r2.c_string_a = 'val1'  # 通过属性设置值
-   >>> r2.c_array_a = ['val1', 'val2']  # 设置 array 类型的值
-   >>> r2.c_map_a = {1: 'val1'}  # 设置 map 类型的值
-   >>> r2.c_struct_a = (1, 'val1')  # 使用 tuple 设置 struct 类型的值，当 PyODPS >= 0.11.5
-   >>> r2.c_struct_a = {"a": 1, "b": 'val1'}  # 也可以使用 dict 设置 struct 类型的值
-   >>>
-   >>> print(record[0])  # 取第0个位置的值
-   >>> print(record['c_string_a'])  # 通过字段取值
-   >>> print(record.c_string_a)  # 通过属性取值
-   >>> print(record[0: 3])  # 切片操作
-   >>> print(record[0, 2, 3])  # 取多个位置的值
-   >>> print(record['c_int_a', 'c_double_a'])  # 通过多个字段取值
-
-MaxCompute 不同数据类型在 Record 中对应 Python 类型的关系如下：
-
-.. csv-table::
-   :header-rows: 1
-
-   "MaxCompute 类型", "Python 类型", "说明"
-   "``tinyint``, ``smallint``, ``int``, ``bigint``", "``int``", ""
-   "``float``, ``double``", "``float``", ""
-   "``string``", "``str``", "见说明1"
-   "``binary``", "``bytes``", ""
-   "``datetime``", "``datetime.datetime``", "见说明2"
-   "``date``", "``datetime.date``", ""
-   "``boolean``", "``bool``", ""
-   "``decimal``", "``decimal.Decimal``", "见说明3"
-   "``map``", "``dict``", ""
-   "``array``", "``list``", ""
-   "``struct``", "``tuple`` / ``namedtuple``", "见说明4"
-   "``timestamp``", "``pandas.Timestamp``", "见说明2，需要安装 pandas"
-   "``timestamp_ntz``", "``pandas.Timestamp``", "结果不受时区影响，需要安装 pandas"
-   "``interval_day_time``", "``pandas.Timedelta``", "需要安装 pandas"
-   "``interval_year_month``", "``odps.Monthdelta``", "见说明5"
-
-对部分类型的说明如下。
-
-1. PyODPS 默认 string 类型对应 Unicode 字符串，在 Python 3 中为 str，在 Python 2 中为
-   unicode。对于部分在 string 中存储 binary 的情形，可能需要设置 ``options.tunnel.string_as_binary = True``
-   以避免可能的编码问题。
-2. PyODPS 默认使用 Local Time 作为时区，如果要使用 UTC 则需要设置 ``options.local_timezone = False``。
-   如果要使用其他时区，需要设置该选项为指定时区，例如 ``Asia/Shanghai``。MaxCompute
-   不会存储时区值，因而在写入数据时，会将该时间转换为 Unix Timestamp 进行存储。
-3. 对于 Python 2，当安装 cdecimal 包时，会使用 ``cdecimal.Decimal``。
-4. 对于 PyODPS \< 0.11.5，MaxCompute struct 对应 Python dict 类型。PyODPS \>= 0.11.5
-   则默认对应 namedtuple 类型。如果要使用旧版行为则需要设置选项 ``options.struct_as_dict = True``。\
-   DataWorks 环境下，为保持历史兼容性，该值默认为 False。为 Record 设置 struct 类型的字段值时，\
-   PyODPS \>= 0.11.5 可同时接受 dict 和 tuple 类型，旧版则只接受 dict 类型。
-5. Monthdelta 可使用年 / 月进行初始化，定义如下：
-
-   .. code-block:: python
-
-      class Monthdelta:
-          def __init__(self, years: int=0, months: int = 0):
-              """使用年/月初始化"""
-          @property
-          def years(self) -> int:
-              """返回年"""
-          @property
-          def months(self) -> int:
-              """返回月"""
-          def total_months(self) -> int:
-              """返回总月数"""
-6. 关于如何设置 ``options.xxx``，请参考文档\ :ref:`配置选项 <options>`。
-
 .. _table_read:
 
 获取表数据

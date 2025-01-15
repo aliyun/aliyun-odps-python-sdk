@@ -8,17 +8,19 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2022-07-25 16:07+0800\n"
+"POT-Creation-Date: 2025-01-15 13:24+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.12.1\n"
+"Generated-By: Babel 2.16.0\n"
 
-#: ../../source/api-df.rst:4
-msgid "DataFrame Reference"
+#: ../../source/api-df.rst:4 odps.df.expr.collections.bfill:5
+#: odps.df.expr.collections.dropna:7 odps.df.expr.collections.ffill:5
+#: odps.df.expr.collections.fillna:7 of
+msgid "DataFrame"
 msgstr ""
 
 #: odps.df.core.DataFrame:1 of
@@ -29,83 +31,21 @@ msgstr ""
 msgid "Users can initial a DataFrame by :class:`odps.models.Table`."
 msgstr ""
 
-#: odps.df.NullScalar odps.df.core.DataFrame
-#: odps.df.core.DataFrame.batch_persist odps.df.expr.collections.append_id
+#: ../../source/api-df.rst odps.df.core.DataFrame.batch_persist
 #: odps.df.expr.collections.apply odps.df.expr.collections.applymap
-#: odps.df.expr.collections.bfill odps.df.expr.collections.distinct
-#: odps.df.expr.collections.dropna odps.df.expr.collections.extract_kv
-#: odps.df.expr.collections.ffill odps.df.expr.collections.fillna
+#: odps.df.expr.collections.distinct odps.df.expr.collections.extract_kv
 #: odps.df.expr.collections.map_reduce odps.df.expr.collections.melt
-#: odps.df.expr.collections.min_max_scale odps.df.expr.collections.pivot
-#: odps.df.expr.collections.pivot_table odps.df.expr.collections.reshuffle
+#: odps.df.expr.collections.pivot odps.df.expr.collections.pivot_table
 #: odps.df.expr.collections.sample odps.df.expr.collections.sort_values
-#: odps.df.expr.collections.split odps.df.expr.collections.std_scale
-#: odps.df.expr.collections.to_kv odps.df.expr.element._between
-#: odps.df.expr.element._cut odps.df.expr.element._fillna
-#: odps.df.expr.element._hash odps.df.expr.element._int_to_datetime
-#: odps.df.expr.element._isin odps.df.expr.element._isnull
-#: odps.df.expr.element._map odps.df.expr.element._notin
-#: odps.df.expr.element._notnull odps.df.expr.element._switch
-#: odps.df.expr.expressions.CollectionExpr.exclude
-#: odps.df.expr.expressions.CollectionExpr.filter
-#: odps.df.expr.expressions.CollectionExpr.filter_parts
-#: odps.df.expr.expressions.CollectionExpr.head
-#: odps.df.expr.expressions.CollectionExpr.limit
-#: odps.df.expr.expressions.CollectionExpr.query
-#: odps.df.expr.expressions.CollectionExpr.select
-#: odps.df.expr.expressions.CollectionExpr.tail
-#: odps.df.expr.expressions.CollectionExpr.to_pandas
-#: odps.df.expr.expressions.Expr.execute odps.df.expr.expressions.Expr.persist
-#: odps.df.expr.expressions.RandomScalar odps.df.expr.expressions.Scalar
-#: odps.df.expr.expressions.SequenceExpr.astype
-#: odps.df.expr.expressions.SequenceExpr.head
-#: odps.df.expr.expressions.SequenceExpr.tail
-#: odps.df.expr.expressions.SequenceExpr.to_pandas
-#: odps.df.expr.expressions._count odps.df.expr.groupby.groupby
-#: odps.df.expr.groupby.value_counts odps.df.expr.merge._drop
+#: odps.df.expr.collections.to_kv odps.df.expr.element._map
+#: odps.df.expr.element._switch odps.df.expr.expressions.Expr.persist
+#: odps.df.expr.expressions.SequenceExpr.astype odps.df.expr.merge._drop
 #: odps.df.expr.merge.concat odps.df.expr.merge.inner_join
 #: odps.df.expr.merge.intersect odps.df.expr.merge.join
 #: odps.df.expr.merge.left_join odps.df.expr.merge.outer_join
 #: odps.df.expr.merge.right_join odps.df.expr.merge.setdiff
-#: odps.df.expr.merge.union odps.df.expr.reduction.all_
-#: odps.df.expr.reduction.any_ odps.df.expr.reduction.cat
-#: odps.df.expr.reduction.count odps.df.expr.reduction.kurtosis
-#: odps.df.expr.reduction.max_ odps.df.expr.reduction.mean
-#: odps.df.expr.reduction.median odps.df.expr.reduction.min_
-#: odps.df.expr.reduction.moment odps.df.expr.reduction.nunique
-#: odps.df.expr.reduction.quantile odps.df.expr.reduction.skew
-#: odps.df.expr.reduction.std odps.df.expr.reduction.sum_
-#: odps.df.expr.reduction.var odps.df.expr.strings._capitalize
-#: odps.df.expr.strings._contains odps.df.expr.strings._endswith
-#: odps.df.expr.strings._extract odps.df.expr.strings._find
-#: odps.df.expr.strings._get odps.df.expr.strings._isalnum
-#: odps.df.expr.strings._isalpha odps.df.expr.strings._isdecimal
-#: odps.df.expr.strings._isdigit odps.df.expr.strings._islower
-#: odps.df.expr.strings._isnumeric odps.df.expr.strings._isspace
-#: odps.df.expr.strings._istitle odps.df.expr.strings._isupper
-#: odps.df.expr.strings._len odps.df.expr.strings._ljust
-#: odps.df.expr.strings._lower odps.df.expr.strings._lstrip
-#: odps.df.expr.strings._pad odps.df.expr.strings._repeat
-#: odps.df.expr.strings._replace odps.df.expr.strings._rfind
-#: odps.df.expr.strings._rjust odps.df.expr.strings._rstrip
-#: odps.df.expr.strings._slice odps.df.expr.strings._split
-#: odps.df.expr.strings._startswith odps.df.expr.strings._strip
-#: odps.df.expr.strings._strptime odps.df.expr.strings._swapcase
-#: odps.df.expr.strings._title odps.df.expr.strings._todict
-#: odps.df.expr.strings._upper odps.df.expr.strings._zfill
-#: odps.df.expr.window.cumcount odps.df.expr.window.cume_dist
-#: odps.df.expr.window.cummax odps.df.expr.window.cummean
-#: odps.df.expr.window.cummedian odps.df.expr.window.cummin
-#: odps.df.expr.window.cumstd odps.df.expr.window.cumsum
-#: odps.df.expr.window.dense_rank odps.df.expr.window.lag
-#: odps.df.expr.window.lead odps.df.expr.window.nth_value
-#: odps.df.expr.window.percent_rank odps.df.expr.window.qcut
-#: odps.df.expr.window.rank odps.df.expr.window.row_number
-#: odps.df.tools.libtools.bloomfilter odps.df.tools.libtools.hll_count
-#: odps.ml.expr.mixin.MLCollectionMixin.label_field
-#: odps.ml.expr.mixin.MLCollectionMixin.roles
-#: odps.ml.expr.mixin.MLCollectionMixin.weight_field
-#: odps.ml.expr.mixin.MLSequenceMixin.role of
+#: odps.df.expr.merge.union odps.df.tools.libtools.bloomfilter
+#: odps.df.tools.libtools.hll_count of
 msgid "Parameters"
 msgstr ""
 
@@ -171,82 +111,21 @@ msgstr ""
 msgid "Clone a same collection. useful for self-join."
 msgstr ""
 
-#: odps.df.NullScalar odps.df.SequenceExpr.dtype odps.df.core.DataFrame.view
-#: odps.df.expr.collections.append_id odps.df.expr.collections.apply
-#: odps.df.expr.collections.applymap odps.df.expr.collections.bfill
-#: odps.df.expr.collections.distinct odps.df.expr.collections.dropna
-#: odps.df.expr.collections.extract_kv odps.df.expr.collections.ffill
-#: odps.df.expr.collections.fillna odps.df.expr.collections.map_reduce
-#: odps.df.expr.collections.melt odps.df.expr.collections.min_max_scale
-#: odps.df.expr.collections.pivot odps.df.expr.collections.pivot_table
-#: odps.df.expr.collections.reshuffle odps.df.expr.collections.sample
-#: odps.df.expr.collections.sort_values odps.df.expr.collections.split
-#: odps.df.expr.collections.std_scale odps.df.expr.collections.to_kv
-#: odps.df.expr.element._between odps.df.expr.element._cut
-#: odps.df.expr.element._fillna odps.df.expr.element._hash
-#: odps.df.expr.element._int_to_datetime odps.df.expr.element._isin
-#: odps.df.expr.element._isnull odps.df.expr.element._map
-#: odps.df.expr.element._notin odps.df.expr.element._notnull
-#: odps.df.expr.element._switch odps.df.expr.expressions.CollectionExpr.exclude
-#: odps.df.expr.expressions.CollectionExpr.filter
-#: odps.df.expr.expressions.CollectionExpr.filter_parts
-#: odps.df.expr.expressions.CollectionExpr.head
-#: odps.df.expr.expressions.CollectionExpr.limit
-#: odps.df.expr.expressions.CollectionExpr.query
-#: odps.df.expr.expressions.CollectionExpr.select
-#: odps.df.expr.expressions.CollectionExpr.tail
-#: odps.df.expr.expressions.CollectionExpr.to_pandas
-#: odps.df.expr.expressions.CollectionExpr.view
-#: odps.df.expr.expressions.Expr.ast odps.df.expr.expressions.Expr.compile
-#: odps.df.expr.expressions.Expr.execute odps.df.expr.expressions.Expr.persist
-#: odps.df.expr.expressions.Expr.verify
-#: odps.df.expr.expressions.SequenceExpr.astype
-#: odps.df.expr.expressions.SequenceExpr.head
-#: odps.df.expr.expressions.SequenceExpr.tail
-#: odps.df.expr.expressions.SequenceExpr.to_pandas
-#: odps.df.expr.expressions._count odps.df.expr.groupby.groupby
-#: odps.df.expr.groupby.value_counts odps.df.expr.merge._drop
+#: ../../source/api-df.rst odps.df.expr.collections.apply
+#: odps.df.expr.collections.applymap odps.df.expr.collections.distinct
+#: odps.df.expr.collections.extract_kv odps.df.expr.collections.map_reduce
+#: odps.df.expr.collections.melt odps.df.expr.collections.pivot
+#: odps.df.expr.collections.pivot_table odps.df.expr.collections.sample
+#: odps.df.expr.collections.sort_values odps.df.expr.collections.to_kv
+#: odps.df.expr.element._map odps.df.expr.element._switch
+#: odps.df.expr.expressions.Expr.persist
+#: odps.df.expr.expressions.SequenceExpr.astype odps.df.expr.merge._drop
 #: odps.df.expr.merge.concat odps.df.expr.merge.inner_join
 #: odps.df.expr.merge.intersect odps.df.expr.merge.join
 #: odps.df.expr.merge.left_join odps.df.expr.merge.outer_join
 #: odps.df.expr.merge.right_join odps.df.expr.merge.setdiff
-#: odps.df.expr.merge.union odps.df.expr.reduction.all_
-#: odps.df.expr.reduction.any_ odps.df.expr.reduction.cat
-#: odps.df.expr.reduction.count odps.df.expr.reduction.kurtosis
-#: odps.df.expr.reduction.max_ odps.df.expr.reduction.mean
-#: odps.df.expr.reduction.median odps.df.expr.reduction.min_
-#: odps.df.expr.reduction.moment odps.df.expr.reduction.nunique
-#: odps.df.expr.reduction.quantile odps.df.expr.reduction.skew
-#: odps.df.expr.reduction.std odps.df.expr.reduction.sum_
-#: odps.df.expr.reduction.var odps.df.expr.strings._capitalize
-#: odps.df.expr.strings._contains odps.df.expr.strings._endswith
-#: odps.df.expr.strings._extract odps.df.expr.strings._find
-#: odps.df.expr.strings._get odps.df.expr.strings._isalnum
-#: odps.df.expr.strings._isalpha odps.df.expr.strings._isdecimal
-#: odps.df.expr.strings._isdigit odps.df.expr.strings._islower
-#: odps.df.expr.strings._isnumeric odps.df.expr.strings._isspace
-#: odps.df.expr.strings._istitle odps.df.expr.strings._isupper
-#: odps.df.expr.strings._len odps.df.expr.strings._ljust
-#: odps.df.expr.strings._lower odps.df.expr.strings._lstrip
-#: odps.df.expr.strings._pad odps.df.expr.strings._repeat
-#: odps.df.expr.strings._replace odps.df.expr.strings._rfind
-#: odps.df.expr.strings._rjust odps.df.expr.strings._rstrip
-#: odps.df.expr.strings._slice odps.df.expr.strings._split
-#: odps.df.expr.strings._startswith odps.df.expr.strings._strip
-#: odps.df.expr.strings._strptime odps.df.expr.strings._swapcase
-#: odps.df.expr.strings._title odps.df.expr.strings._todict
-#: odps.df.expr.strings._upper odps.df.expr.strings._zfill
-#: odps.df.expr.window.cumcount odps.df.expr.window.cume_dist
-#: odps.df.expr.window.cummax odps.df.expr.window.cummean
-#: odps.df.expr.window.cummedian odps.df.expr.window.cummin
-#: odps.df.expr.window.cumstd odps.df.expr.window.cumsum
-#: odps.df.expr.window.dense_rank odps.df.expr.window.lag
-#: odps.df.expr.window.lead odps.df.expr.window.nth_value
-#: odps.df.expr.window.percent_rank odps.df.expr.window.qcut
-#: odps.df.expr.window.rank odps.df.expr.window.row_number
-#: odps.df.tools.libtools.bloomfilter odps.df.tools.libtools.hll_count
-#: odps.ml.expr.mixin.MLCollectionMixin.roles
-#: odps.ml.expr.mixin.MLSequenceMixin.role of
+#: odps.df.expr.merge.union odps.df.tools.libtools.bloomfilter
+#: odps.df.tools.libtools.hll_count of
 msgid "Returns"
 msgstr ""
 
@@ -274,28 +153,12 @@ msgstr ""
 msgid "DataFrame with ID field"
 msgstr ""
 
-#: odps.df.expr.collections.append_id odps.df.expr.collections.extract_kv
-#: odps.df.expr.collections.min_max_scale odps.df.expr.collections.std_scale
+#: ../../source/api-df.rst odps.df.expr.collections.extract_kv
 #: odps.df.expr.collections.to_kv
-#: odps.df.expr.expressions.CollectionExpr.exclude
-#: odps.df.expr.expressions.CollectionExpr.filter
-#: odps.df.expr.expressions.CollectionExpr.filter_parts
-#: odps.df.expr.expressions.CollectionExpr.head
-#: odps.df.expr.expressions.CollectionExpr.query
-#: odps.df.expr.expressions.CollectionExpr.select
-#: odps.df.expr.expressions.CollectionExpr.tail
-#: odps.df.expr.expressions.Expr.ast odps.df.expr.expressions.Expr.compile
-#: odps.df.expr.expressions.Expr.execute odps.df.expr.expressions.Expr.verify
-#: odps.df.expr.expressions.SequenceExpr.head odps.df.expr.groupby.groupby
-#: odps.df.expr.groupby.value_counts
 #: odps.ml.expr.mixin.MLCollectionMixin.continuous
 #: odps.ml.expr.mixin.MLCollectionMixin.discrete
 #: odps.ml.expr.mixin.MLCollectionMixin.erase_key_value
-#: odps.ml.expr.mixin.MLCollectionMixin.exclude_fields
 #: odps.ml.expr.mixin.MLCollectionMixin.key_value
-#: odps.ml.expr.mixin.MLCollectionMixin.label_field
-#: odps.ml.expr.mixin.MLCollectionMixin.select_features
-#: odps.ml.expr.mixin.MLCollectionMixin.weight_field
 #: odps.ml.expr.mixin.MLSequenceMixin.continuous
 #: odps.ml.expr.mixin.MLSequenceMixin.discrete
 #: odps.ml.expr.mixin.MLSequenceMixin.erase_key_value
@@ -398,11 +261,6 @@ msgstr ""
 #: odps.df.expr.collections.bfill:4 odps.df.expr.collections.ffill:4
 #: odps.df.expr.collections.fillna:6 of
 msgid "Labels along other axis to consider."
-msgstr ""
-
-#: odps.df.expr.collections.bfill:5 odps.df.expr.collections.dropna:7
-#: odps.df.expr.collections.ffill:5 odps.df.expr.collections.fillna:7 of
-msgid "DataFrame"
 msgstr ""
 
 #: odps.df.tools.libtools.bloomfilter:1 of
@@ -549,9 +407,9 @@ msgstr ""
 
 #: odps.df.expr.collections.dropna:4 of
 msgid ""
-"can be ‘any’ or ‘all’. If 'any' is specified any NA values are "
-"present, drop that label. If 'all' is specified and all values are NA, "
-"drop that label."
+"can be ‘any’ or ‘all’. If 'any' is specified any NA values are present, "
+"drop that label. If 'all' is specified and all values are NA, drop that "
+"label."
 msgstr ""
 
 #: odps.df.expr.collections.dropna:5 of
@@ -928,10 +786,10 @@ msgstr ""
 #: odps.df.expr.collections.melt:3 of
 msgid ""
 "This function is useful to massage a DataFrame into a format where one or"
-" more columns are identifier variables (id_vars), while all other columns"
-", considered measured variables (value_vars), are “unpivoted” to the "
-"row axis, leaving just two non-identifier columns, ‘variable’ and ‘"
-"value’."
+" more columns are identifier variables (id_vars), while all other "
+"columns, considered measured variables (value_vars), are “unpivoted” to "
+"the row axis, leaving just two non-identifier columns, ‘variable’ and "
+"‘value’."
 msgstr ""
 
 #: odps.df.expr.collections.melt:8 of
@@ -946,8 +804,8 @@ msgstr ""
 
 #: odps.df.expr.collections.melt:10 of
 msgid ""
-"name to use for the ‘variable’ column. If None it uses frame.columns."
-"name or ‘variable’."
+"name to use for the ‘variable’ column. If None it uses frame.columns.name"
+" or ‘variable’."
 msgstr ""
 
 #: odps.df.expr.collections.melt:11 of
@@ -1079,8 +937,8 @@ msgstr ""
 
 #: odps.df.expr.collections.pivot:1 of
 msgid ""
-"Produce ‘pivot’ table based on 3 columns of this DataFrame. Uses unique"
-" values from rows / columns and fills with values."
+"Produce ‘pivot’ table based on 3 columns of this DataFrame. Uses unique "
+"values from rows / columns and fills with values."
 msgstr ""
 
 #: odps.df.expr.collections.pivot:5 of
@@ -1325,8 +1183,10 @@ msgstr ""
 #: odps.df.expr.element._cut:11 odps.df.expr.element._fillna:3
 #: odps.df.expr.element._fillna:5 odps.df.expr.element._int_to_datetime:3
 #: odps.df.expr.element._int_to_datetime:4 odps.df.expr.element._isin:4
+#: odps.df.expr.element._isna:3 odps.df.expr.element._isna:4
 #: odps.df.expr.element._isnull:3 odps.df.expr.element._isnull:4
-#: odps.df.expr.element._notin:4 odps.df.expr.element._notnull:3
+#: odps.df.expr.element._notin:4 odps.df.expr.element._notna:3
+#: odps.df.expr.element._notna:4 odps.df.expr.element._notnull:3
 #: odps.df.expr.element._notnull:4 odps.df.expr.element._switch:6
 #: odps.df.expr.strings._capitalize:4 odps.df.expr.strings._contains:3
 #: odps.df.expr.strings._contains:9 odps.df.expr.strings._endswith:6
@@ -1537,7 +1397,7 @@ msgstr ""
 msgid "`list` object or sequence"
 msgstr ""
 
-#: odps.df.expr.element._isnull:1 of
+#: odps.df.expr.element._isna:1 odps.df.expr.element._isnull:1 of
 msgid ""
 "Return a sequence or scalar according to the input indicating if the "
 "values are null."
@@ -1557,7 +1417,7 @@ msgid ""
 "contained in the passed `values`."
 msgstr ""
 
-#: odps.df.expr.element._notnull:1 of
+#: odps.df.expr.element._notna:1 odps.df.expr.element._notnull:1 of
 msgid ""
 "Return a sequence or scalar according to the input indicating if the "
 "values are not null."
@@ -2174,4 +2034,7 @@ msgstr ""
 #: odps.df.expr.window.cumsum:1 of
 msgid "Calculate cumulative summation of a sequence expression."
 msgstr ""
+
+#~ msgid "DataFrame Reference"
+#~ msgstr ""
 

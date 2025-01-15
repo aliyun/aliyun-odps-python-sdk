@@ -1,0 +1,404 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2014-2018, The Alibaba Group Holding Ltd.
+# This file is distributed under the same license as the PyODPS package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyODPS 0.12.3\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-01-15 17:24+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: en\n"
+"Language-Team: en <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.16.0\n"
+
+#: ../../source/api-types.rst:4
+msgid "Data types"
+msgstr ""
+
+#: odps.types.Boolean:1 of
+msgid "Represents boolean type in MaxCompute."
+msgstr ""
+
+#: odps.types.Array odps.types.Bigint odps.types.Binary odps.types.Boolean
+#: odps.types.Char odps.types.Date odps.types.Datetime odps.types.Decimal
+#: odps.types.Double odps.types.Float odps.types.Int odps.types.Json
+#: odps.types.Map odps.types.Smallint odps.types.String odps.types.Struct
+#: odps.types.Timestamp odps.types.TimestampNTZ odps.types.Tinyint
+#: odps.types.Varchar of
+msgid "Note"
+msgstr ""
+
+#: odps.types.Boolean:4 of
+msgid ""
+"This class may not be used directly. Use its singleton instance "
+"(``odps.types.boolean``) instead."
+msgstr ""
+
+#: odps.types.Tinyint:1 of
+msgid "Represents tinyint type in MaxCompute."
+msgstr ""
+
+#: odps.types.Tinyint:4 of
+msgid ""
+"This class may not be used directly. Use its singleton instance "
+"(``odps.types.tinyint``) instead."
+msgstr ""
+
+#: odps.types.Array:17 odps.types.Binary:6 odps.types.Char:15 odps.types.Date:6
+#: odps.types.Float:6 odps.types.Int:6 odps.types.Json:6 odps.types.Map:20
+#: odps.types.Smallint:6 odps.types.Struct:20 odps.types.Timestamp:6
+#: odps.types.TimestampNTZ:6 odps.types.Tinyint:6 odps.types.Varchar:15 of
+msgid ""
+"Need to set ``options.sql.use_odps2_extension = True`` to enable full "
+"functionality."
+msgstr ""
+
+#: odps.types.Smallint:1 of
+msgid "Represents smallint type in MaxCompute."
+msgstr ""
+
+#: odps.types.Smallint:4 of
+msgid ""
+"This class may not be used directly. Use its singleton instance "
+"(``odps.types.smallint``) instead."
+msgstr ""
+
+#: odps.types.Int:1 of
+msgid "Represents int type in MaxCompute."
+msgstr ""
+
+#: odps.types.Int:4 of
+msgid ""
+"This class may not be used directly. Use its singleton instance "
+"(``odps.types.int_``) instead."
+msgstr ""
+
+#: odps.types.Bigint:1 of
+msgid "Represents bigint type in MaxCompute."
+msgstr ""
+
+#: odps.types.Bigint:4 of
+msgid ""
+"This class may not be used directly. Use its singleton instance "
+"(``odps.types.bigint``) instead."
+msgstr ""
+
+#: odps.types.Decimal:1 of
+msgid "Represents decimal type with size limit in MaxCompute."
+msgstr ""
+
+#: ../../source/api-types.rst odps.types.OdpsSchema.from_lists of
+msgid "Parameters"
+msgstr ""
+
+#: odps.types.Decimal:3 of
+msgid "The precision (or total digits) of decimal type."
+msgstr ""
+
+#: odps.types.Decimal:4 of
+msgid "The decimal scale (or decimal digits) of decimal type."
+msgstr ""
+
+#: ../../source/api-types.rst odps.models.table.TableSchema odps.types.Array
+#: odps.types.Char odps.types.Column odps.types.Decimal odps.types.Map
+#: odps.types.OdpsSchema.from_lists odps.types.Partition odps.types.Record
+#: odps.types.Struct odps.types.Varchar odps.types.validate_data_type of
+msgid "Example"
+msgstr ""
+
+#: odps.types.Decimal:16 of
+msgid ""
+"Need to set ``options.sql.use_odps2_extension = True`` to enable full "
+"functionality when you are setting precision or scale."
+msgstr ""
+
+#: ../../source/api-types.rst:20
+msgid "Precision (or total digits) of the decimal type."
+msgstr ""
+
+#: ../../source/api-types.rst:24
+msgid "Decimal scale (or decimal digits) of the decimal type."
+msgstr ""
+
+#: odps.types.Float:1 of
+msgid "Represents float type in MaxCompute."
+msgstr ""
+
+#: odps.types.Float:4 of
+msgid ""
+"This class may not be used directly. Use its singleton instance "
+"(``odps.types.float_``) instead."
+msgstr ""
+
+#: odps.types.Double:1 of
+msgid "Represents double type in MaxCompute."
+msgstr ""
+
+#: odps.types.Double:4 of
+msgid ""
+"This class may not be used directly. Use its singleton instance "
+"(``odps.types.double``) instead."
+msgstr ""
+
+#: odps.types.Binary:1 of
+msgid "Represents binary type in MaxCompute."
+msgstr ""
+
+#: odps.types.Binary:4 of
+msgid ""
+"This class may not be used directly. Use its singleton instance "
+"(``odps.types.binary``) instead."
+msgstr ""
+
+#: odps.types.Char:1 of
+msgid "Represents char type with size limit in MaxCompute."
+msgstr ""
+
+#: odps.types.Char:3 of
+msgid "The size limit of char type."
+msgstr ""
+
+#: ../../source/api-types.rst:36 ../../source/api-types.rst:44
+msgid "Size limit of the varchar type."
+msgstr ""
+
+#: odps.types.String:1 of
+msgid "Represents string type in MaxCompute."
+msgstr ""
+
+#: odps.types.String:4 of
+msgid ""
+"This class may not be used directly. Use its singleton instance "
+"(``odps.types.string``) instead."
+msgstr ""
+
+#: odps.types.Varchar:1 of
+msgid "Represents varchar type with size limit in MaxCompute."
+msgstr ""
+
+#: odps.types.Varchar:3 of
+msgid "The size limit of varchar type."
+msgstr ""
+
+#: odps.types.Json:1 of
+msgid "Represents json type in MaxCompute."
+msgstr ""
+
+#: odps.types.Json:4 of
+msgid ""
+"This class may not be used directly. Use its singleton instance "
+"(``odps.types.json``) instead."
+msgstr ""
+
+#: odps.types.Date:1 of
+msgid "Represents date type in MaxCompute."
+msgstr ""
+
+#: odps.types.Date:4 of
+msgid ""
+"This class may not be used directly. Use its singleton instance "
+"(``odps.types.date``) instead."
+msgstr ""
+
+#: odps.types.Datetime:1 of
+msgid "Represents datetime type in MaxCompute."
+msgstr ""
+
+#: odps.types.Datetime:4 of
+msgid ""
+"This class may not be used directly. Use its singleton instance "
+"(``odps.types.datetime``) instead."
+msgstr ""
+
+#: odps.types.Timestamp:1 of
+msgid "Represents timestamp type in MaxCompute."
+msgstr ""
+
+#: odps.types.Timestamp:4 of
+msgid ""
+"This class may not be used directly. Use its singleton instance "
+"(``odps.types.timestamp``) instead."
+msgstr ""
+
+#: odps.types.TimestampNTZ:1 of
+msgid "Represents timestamp_ntz type in MaxCompute."
+msgstr ""
+
+#: odps.types.TimestampNTZ:4 of
+msgid ""
+"This class may not be used directly. Use its singleton instance "
+"(``odps.types.timestamp_ntz``) instead."
+msgstr ""
+
+#: odps.types.Array:1 of
+msgid "Represents array type in MaxCompute."
+msgstr ""
+
+#: odps.types.Array:3 of
+msgid "type of elements in the array"
+msgstr ""
+
+#: ../../source/api-types.rst:61
+msgid "Type of elements in the array."
+msgstr ""
+
+#: odps.types.Map:1 of
+msgid "Represents map type in MaxCompute."
+msgstr ""
+
+#: odps.types.Map:3 of
+msgid "type of keys in the array"
+msgstr ""
+
+#: odps.types.Map:4 of
+msgid "type of values in the array"
+msgstr ""
+
+#: ../../source/api-types.rst:68
+msgid "Type of keys in the map."
+msgstr ""
+
+#: ../../source/api-types.rst:72
+msgid "Type of values in the map."
+msgstr ""
+
+#: odps.types.Struct:1 of
+msgid "Represents struct type in MaxCompute."
+msgstr ""
+
+#: odps.types.Struct:3 of
+msgid ""
+"types of every field, can be a list of (field_name, field_type) tuples or"
+" a dict with field names as keys and field types as values."
+msgstr ""
+
+#: ../../source/api-types.rst:79
+msgid "Types of fields in the struct, as an OrderedDict."
+msgstr ""
+
+#: ../../source/api-types.rst:83
+msgid "The example below extracts field types of a struct."
+msgstr ""
+
+#: ../../source/api-types.rst:85
+msgid ""
+"import odps.types as odps_types\n"
+"\n"
+"# obtain field types of the Struct instance\n"
+"struct_type = odps_types.Struct(\n"
+"    {\"a\": odps_types.bigint, \"b\": odps_types.string}\n"
+")\n"
+"for field_name, field_type in struct_type.field_types.items():\n"
+"    print(\"field_name:\", field_name, \"field_type:\", field_type)"
+msgstr ""
+
+#: odps.types.validate_data_type:1 of
+msgid "Parse data type instance from string in MaxCompute DDL."
+msgstr ""
+
+#: odps.types.Column:1 of
+msgid "Represents a column in a table schema."
+msgstr ""
+
+#: odps.types.Column:3 odps.types.Partition:3 of
+msgid "column name"
+msgstr ""
+
+#: odps.types.Column:4 odps.types.Partition:4 of
+msgid "column type. Can also use `type` as keyword."
+msgstr ""
+
+#: odps.types.Column:5 odps.types.Partition:5 of
+msgid "comment of the column, None by default"
+msgstr ""
+
+#: odps.types.Column:6 odps.types.Partition:6 of
+msgid "is column nullable, True by default"
+msgstr ""
+
+#: ../../source/api-types.rst:103 ../../source/api-types.rst:118
+msgid "Name of the column."
+msgstr ""
+
+#: ../../source/api-types.rst:107 ../../source/api-types.rst:122
+msgid "Type of the column."
+msgstr ""
+
+#: ../../source/api-types.rst:111 ../../source/api-types.rst:126
+msgid "True if the column is nullable."
+msgstr ""
+
+#: odps.types.Partition:1 of
+msgid "Represents a partition column in a table schema."
+msgstr ""
+
+#: odps.types.Record:1 of
+msgid ""
+"A record generally means the data of a single line in a table. It can be "
+"created from a schema, or by :meth:`odps.models.Table.new_record` or by "
+":meth:`odps.tunnel.TableUploadSession.new_record`."
+msgstr ""
+
+#: odps.types.Record:5 of
+msgid ""
+"Hints on getting or setting different types of data can be seen "
+":ref:`here <record-type>`."
+msgstr ""
+
+#: odps.models.table.TableSchema:1 of
+msgid ""
+"Schema includes the columns and partitions information of a "
+":class:`odps.models.Table`."
+msgstr ""
+
+#: odps.models.table.TableSchema:3 of
+msgid ""
+"There are two ways to initialize a Schema object, first is to provide "
+"columns and partitions, the second way is to call the class method "
+"``from_lists``. See the examples below:"
+msgstr ""
+
+#: odps.models.TableSchema.columns:1 of
+msgid ""
+"List of columns and partition columns as a list of "
+":class:`~odps.types.Column`."
+msgstr ""
+
+#: odps.models.TableSchema.partitions:1 of
+msgid "List of partition columns as a list of :class:`~odps.types.Partition`."
+msgstr ""
+
+#: odps.models.TableSchema.simple_columns:1 of
+msgid ""
+"List of columns as a list of :class:`~odps.types.Column`. Partition "
+"columns are excluded."
+msgstr ""
+
+#: odps.types.OdpsSchema.from_lists:1 of
+msgid "Create a schema from lists of column names and types."
+msgstr ""
+
+#: odps.types.OdpsSchema.from_lists:3 of
+msgid "List of column names."
+msgstr ""
+
+#: odps.types.OdpsSchema.from_lists:4 of
+msgid "List of column types."
+msgstr ""
+
+#: odps.types.OdpsSchema.from_lists:5 of
+msgid "List of partition names."
+msgstr ""
+
+#: odps.types.OdpsSchema.from_lists:6 of
+msgid "List of partition types."
+msgstr ""
+

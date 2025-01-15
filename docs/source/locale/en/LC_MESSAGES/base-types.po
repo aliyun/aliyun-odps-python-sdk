@@ -1,0 +1,880 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2014-2018, The Alibaba Group Holding Ltd.
+# This file is distributed under the same license as the PyODPS package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyODPS 0.12.3\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-01-15 17:42+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: en\n"
+"Language-Team: en <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.16.0\n"
+
+#: ../../source/base-types.rst:4
+msgid "基本类型"
+msgstr "Basic types"
+
+#: ../../source/base-types.rst:9
+msgid "数据类型"
+msgstr "Data types"
+
+#: ../../source/base-types.rst:11
+msgid ""
+"PyODPS 对 MaxCompute 中的类型支持实现于 ``odps.types`` 包中。所有的"
+"数据类型均表示为 :class:`odps.types.DataType` 类的子类生成的实例。例如，"
+"64位整数类型 ``bigint`` 使用 :class:`odps.types.Bigint` 的实例表示，而32"
+"位整数数组类型 ``array<int>`` 使用 :class:`odps.types.Array` 的实例表示，"
+"且其 ``value_type`` 属性为 :class:`odps.types.Int` 类型。"
+msgstr ""
+"Supports for MaxCompute data types are located in ``odps.types`` "
+"package.All data types are represented as instances of sub-classes of "
+":class:`odps.types.DataType`. For instance, 64 bit integer type is "
+"represented by instance of :class:`odps.types.Bigint`, and array of "
+"32-bit integers, ``array<int>``, is represented by instance of "
+":class:`odps.types.Array` whose ``value_type`` attribute is the instance "
+"of :class:`odps.types.Int`."
+
+#: ../../source/base-types.rst:19
+msgid ""
+"PyODPS 默认不开放对 ``bigint``、\\ ``string``、\\ ``double``、\\ ``"
+"boolean``、\\ ``datetime``、\\ ``decimal`` 类型外其他类型的完整支持。需要"
+"完整使用除这些类型外的其他类型，需要设置选项 ``options.sql.use_odps2_"
+"extension = True``\\ 。关于设置选项可参考\\ :ref:`这份文档 <options>` 。"
+msgstr ""
+"By default, PyODPS does not provide full support for types other than "
+"``bigint``, ``string``, ``double``, ``boolean``, ``datetime`` or "
+"``decimal``. To use full support of these types, you need to set "
+"``options.sql.use_odps2_extension = True`` in your code. Details of "
+"setting options can be found in :ref:`this document <options>`."
+
+#: ../../source/base-types.rst:24
+msgid "通过字符串指定类型实例"
+msgstr "Specify types by strings"
+
+#: ../../source/base-types.rst:26
+msgid ""
+"通常情况下，在 PyODPS 中，你都可以直接用 MaxCompute DDL 中表示类型的"
+"字符串来表示类型，这避免了\\ 了解类型的实现细节。例如，当我们创建一个列"
+"实例，可以直接传入 ``array<int>`` 代表一个32位整数数组，\\ 而不需要关心"
+"使用哪个类去实现："
+msgstr ""
+"In most cases, you can directly use the string representation of the type"
+" in MaxCompute DDL in PyODPS. This avoids knowing the implementation "
+"details of the types. For instance, when creating a column instance, you "
+"can pass ``array<int>`` directly to create a column instance without "
+"knowing which class to use."
+
+#: ../../source/base-types.rst:30
+msgid ""
+">>> import odps.types as odps_types\n"
+">>>\n"
+">>> column = odps_types.Column(\"col\", \"array<int>\")\n"
+">>> print(type(column.type))\n"
+"<class 'odps.types.Array'>\n"
+">>> print(type(column.type.value_type))\n"
+"<class 'odps.types.Int'>"
+msgstr ""
+
+#: ../../source/base-types.rst:40
+msgid ""
+"如果需要，你可以使用 :class:`odps.types.validate_data_type` 函数获取"
+"字符串表示的 MaxCompute 类型实例。"
+msgstr ""
+"You can use the :class:`odps.types.validate_data_type` function to get "
+"type instances from string representations if needed."
+
+#: ../../source/base-types.rst:42
+msgid ""
+">>> from odps.types import validate_data_type\n"
+">>>\n"
+">>> array_type = validate_data_type(\"array<bigint>\")\n"
+">>> print(array_type.value_type)\n"
+"bigint"
+msgstr ""
+
+#: ../../source/base-types.rst:51
+msgid "可定义大小的类型"
+msgstr "Variable-length types"
+
+#: ../../source/base-types.rst:52
+msgid ""
+"MaxCompute 部分类型可定义类型的大小，例如 ``char`` / ``varchar`` 可以定义"
+"最大长度，Decimal 可以定义精度（precision）和小数位数（scale）。定义这些"
+"类型时，可以构造对应类型描述类的实例，例如"
+msgstr ""
+"MaxCompute supports variable-length types such as ``char`` / ``varchar``,"
+" which can define the maximum length of the type, and ``decimal``, which "
+"can define the precision (precision) and decimal digits (scale) of the "
+"type.You can construct type instances of these types by calling the "
+"constructors of corresponding type descriptor class. For instance,"
+
+#: ../../source/base-types.rst:55
+msgid ""
+">>> from odps.types import validate_data_type\n"
+">>>\n"
+">>> # 定义 char / varchar 类型实例，长度为 10\n"
+">>> char_type = validate_data_type('char(10)')\n"
+">>> varchar_type = validate_data_type('varchar(10)')\n"
+">>> # 定义 decimal 类型实例，精度为 10，小数位数为 2\n"
+">>> decimal_type = validate_data_type('decimal(10, 2)')"
+msgstr ""
+">>> from odps.types import validate_data_type\n"
+">>>\n"
+">>> # define char / varchar type instances with size limit 10\n"
+">>> char_type = validate_data_type('char(10)')\n"
+">>> varchar_type = validate_data_type('varchar(10)')\n"
+">>> # define decimal type instance with precision 10 and decimal scale 2\n"
+">>> decimal_type = validate_data_type('decimal(10, 2)')"
+
+#: ../../source/base-types.rst:65
+msgid ""
+"``char`` / ``varchar`` 类型实例的大小可通过 ``size_limit`` 属性获取，而 `"
+"`decimal`` 类型实例的精度和小数位数可通过 ``precision`` 和 ``scale`` 属性"
+"获取。"
+msgstr ""
+"The size limit of ``char`` / ``varchar`` type instances can be obtained "
+"by ``size_limit`` attribute, while the precision and decimal scale of "
+"``decimal`` type instances can be obtained by ``precision`` and ``scale``"
+" attribute."
+
+#: ../../source/base-types.rst:68
+msgid ""
+">>> from odps.types import validate_data_type\n"
+">>>\n"
+">>> # 获取 char / varchar 类型长度\n"
+">>> char_type = validate_data_type('char(10)')\n"
+">>> print(\"size_limit:\", char_type.size_limit)\n"
+"size_limit: 10\n"
+">>> # 获取 decimal 类型精度和小数位数\n"
+">>> decimal_type = validate_data_type('decimal(10, 2)')\n"
+">>> print(\"precision:\", decimal_type.precision, \"scale:\", "
+"decimal_type.scale)\n"
+"precision: 10 scale: 2"
+msgstr ""
+">>> from odps.types import validate_data_type\n"
+">>> \n"
+">>> # get size limtation of char and varchar type\n"
+">>> char_type = validate_data_type('char(10)')\n"
+">>> print(\"size_limit:\", char_type.size_limit)\n"
+"size_limit: 10\n"
+">>> # get precision and decimal scale of decimal type\n"
+">>> decimal_type = validate_data_type('decimal(10, 2)')\n"
+">>> print(\"precision:\", decimal_type.precision, \"scale:\", "
+"decimal_type.scale)\n"
+"precision: 10 scale: 2"
+
+#: ../../source/base-types.rst:82
+msgid "复合类型"
+msgstr "Composite types"
+
+#: ../../source/base-types.rst:83
+msgid ""
+"MaxCompute 支持的复合类型有 Array、Map 和 Struct，可通过构造函数或者类型"
+"字符串获取\\ 对应的类型描述类实例。下面的例子展示了如何创建 Array 和 Map "
+"类型描述实例。"
+msgstr ""
+"Composite types supported by MaxCompute are Array, Map and Struct. You "
+"can get the type description instance through the corresponding class "
+"constructor or type function. The following examples show how to create "
+"array and map type description instances."
+
+#: ../../source/base-types.rst:86
+msgid ""
+">>> import odps.types as odps_types\n"
+">>>\n"
+">>> # 创建值类型为 bigint 的 Array 类型描述实例\n"
+">>> array_type = odps_types.Array(odps_types.bigint)\n"
+">>> # 创建关键字类型为 string，值类型为 array<bigint> 的 Map 类型描述实例"
+"\n"
+">>> map_type = odps_types.Map(odps_types.string, "
+"odps_types.Array(odps_types.bigint))"
+msgstr ""
+">>> import odps.types as odps_types\n"
+">>> \n"
+">>> # create an array type descriptor with value type as bigint\n"
+">>> array_type = odps_types.Array(odps_types.bigint)\n"
+">>> # create a map type descriptor with key type as string and value type"
+" as array<bigint>\n"
+">>> map_type = odps_types.Map(odps_types.string, "
+"odps_types.Array(odps_types.bigint))"
+
+#: ../../source/base-types.rst:95 ../../source/base-types.rst:141
+msgid "使用字符串生成相同的类型："
+msgstr "Use a type string to create the same type instance:"
+
+#: ../../source/base-types.rst:97
+msgid ""
+">>> from odps.types import validate_data_type\n"
+">>>\n"
+">>> # 创建值类型为 bigint 的 Array 类型描述实例\n"
+">>> array_type = validate_data_type(\"array<bigint>\")\n"
+">>> # 创建关键字类型为 string，值类型为 array<bigint> 的 Map 类型描述实例"
+"\n"
+">>> map_type = validate_data_type(\"map<string, array<bigint>>\")"
+msgstr ""
+">>> from odps.types import validate_data_type\n"
+">>> \n"
+">>> # create an array type descriptor with value type as bigint\n"
+">>> array_type = validate_data_type(\"array<bigint>\")\n"
+">>> # create a map type descriptor with key type as string and value type"
+" as array<bigint>\n"
+">>> map_type = validate_data_type(\"map<string, array<bigint>>\")"
+
+#: ../../source/base-types.rst:106
+msgid ""
+":class:`~odps.types.Array` 类型描述实例的元素类型可通过 ``value_type`` "
+"属性获取。\\ :class:`~odps.types.Map` 类型描述实例的关键字类型可通过 ``"
+"key_type`` 属性获取，\\ 而值类型可通过 ``value_type`` 属性获取。"
+msgstr ""
+"Value type of :class:`~odps.types.Array` can be accessed by "
+"``value_type`` attribute. Keytype and value type of "
+":class:`~odps.types.Map` can be accessed by ``key_type`` and "
+"``value_type`` attribute respectively."
+
+#: ../../source/base-types.rst:110
+msgid ""
+">>> from odps.types import validate_data_type\n"
+">>>\n"
+">>> # 获取 Array 类型元素类型\n"
+">>> array_type = validate_data_type(\"array<bigint>\")\n"
+">>> print(\"value_type:\", array_type.value_type)\n"
+"value_type: bigint\n"
+">>> # 获取 Map 类型关键字类型和值类型\n"
+">>> map_type = validate_data_type(\"map<string, array<bigint>>\")\n"
+">>> print(\"key_type:\", map_type.key_type, \"value_type:\", "
+"map_type.value_type)\n"
+"key_type: string value_type: array<bigint>"
+msgstr ""
+">>> from odps.types import validate_data_type\n"
+">>>\n"
+">>> # get value type of an array instance\n"
+">>> array_type = validate_data_type(\"array<bigint>\")\n"
+">>> print(\"value_type:\", array_type.value_type)\n"
+"value_type: bigint\n"
+">>> # get key and value type of a map instance\n"
+">>> map_type = validate_data_type(\"map<string, array<bigint>>\")\n"
+">>> print(\"key_type:\", map_type.key_type, \"value_type:\", "
+"map_type.value_type)\n"
+"key_type: string value_type: array<bigint>"
+
+#: ../../source/base-types.rst:123
+msgid ""
+"你可以通过 ``dict[str, Type]`` 或者 ``list[tuple[str, Type]]`` 创建 "
+"Struct 类型描述实例。\\ 对于 ``dict`` 类型，需要注意在 Python 3.6 及之前"
+"版本，Python 不保证 ``dict`` 的顺序，这可能导致\\ 定义的字段类型与预期"
+"不符。下面的例子展示了如何创建 Struct 类型描述实例。"
+msgstr ""
+"You can create Struct type instance with ``dict[str, Type]`` or "
+"``list[tuple[str, Type]]``. For dictionariess, note that in Python 3.6 "
+"and earlier versions, Python does not guarantee the order of dictionary "
+"keys, which may cause the field types defined to be inconsistent with "
+"expectation. The following example shows how to create Struct type "
+"instance."
+
+#: ../../source/base-types.rst:127
+msgid ""
+">>> import odps.types as odps_types\n"
+">>>\n"
+">>> # 通过 tuple 列表创建一个 Struct 类型描述实例，其中包含两个字段，\n"
+">>> # 分别名为 a 和 b，类型分别为 bigint 和 string\n"
+">>> struct_type = odps_types.Struct(\n"
+">>>     [(\"a\", odps_types.bigint), (\"b\", odps_types.string)]\n"
+">>> )\n"
+">>> # 通过 dict 创建一个相同的 Struct 类型描述实例\n"
+">>> struct_type = odps_types.Struct(\n"
+">>>     {\"a\": odps_types.bigint, \"b\": odps_types.string}\n"
+">>> )"
+msgstr ""
+">>> import odps.types as odps_types\n"
+">>>\n"
+">>> # create a Struct instance with a list of tuples, containing two "
+"fields\n"
+">>> # a and b, whose types are bigint and string\n"
+">>> struct_type = odps_types.Struct(\n"
+">>>     [(\"a\", odps_types.bigint), (\"b\", odps_types.string)]\n"
+">>> )\n"
+">>> # create a Struct instance sane as the instance above with a dict\n"
+">>> struct_type = odps_types.Struct(\n"
+">>>     {\"a\": odps_types.bigint, \"b\": odps_types.string}\n"
+">>> )"
+
+#: ../../source/base-types.rst:143
+msgid ""
+">>> from odps.types import validate_data_type\n"
+">>>\n"
+">>> struct_type = validate_data_type(\"struct<a:bigint, b:string>\")"
+msgstr ""
+
+#: ../../source/base-types.rst:149
+msgid ""
+":class:`~odps.types.Struct` 类型描述实例的各个字段类型可通过 ``field_"
+"types`` 属性获取，\\ 该属性为一个由字段名和字段类型组成的 ``OrderedDict``"
+" 实例。"
+msgstr ""
+"Field types of :class:`~odps.types.Struct` instance can be accessed by "
+"``field_types`` attribute, which is an ``OrderedDict`` instance with "
+"field names and types."
+
+#: ../../source/base-types.rst:152
+msgid ""
+">>> from odps.types import validate_data_type\n"
+">>>\n"
+">>> # 获取 Struct 类型各个字段类型\n"
+">>> struct_type = validate_data_type(\"struct<a:bigint, b:string>\")\n"
+">>> for field_name, field_type in struct_type.field_types.items():\n"
+">>>     print(\"field_name:\", field_name, \"field_type:\", field_type)\n"
+"field_name: a field_type: bigint\n"
+"field_name: b field_type: string"
+msgstr ""
+">>> from odps.types import validate_data_type\n"
+">>>\n"
+">>> # obtain field types of the Struct instance\n"
+">>> struct_type = validate_data_type(\"struct<a:bigint, b:string>\")\n"
+">>> for field_name, field_type in struct_type.field_types.items():\n"
+">>>     print(\"field_name:\", field_name, \"field_type:\", field_type)\n"
+"field_name: a field_type: bigint\n"
+"field_name: b field_type: string"
+
+#: ../../source/base-types.rst:166
+msgid "表结构及相关类"
+msgstr "Table schema and related classes"
+
+#: ../../source/base-types.rst:170
+msgid ""
+"本章节中的代码对 PyODPS 0.11.3 及后续版本有效。对早于 0.11.3 版本的 "
+"PyODPS，请使用 ``odps.models.Schema`` 代替 ``odps.models.TableSchema``。"
+msgstr ""
+"Code in this section is only guaranteed to work under PyODPS 0.11.3 and "
+"later versions. For PyODPS earlier than 0.11.3, please replace class "
+"``odps.models.Schema`` with ``odps.models.TableSchema``."
+
+#: ../../source/base-types.rst:173
+msgid ""
+":class:`~odps.models.TableSchema` 类型用于表示表的结构，其中包含字段名称"
+"和类型。你可以使用表的列以及\\ （可选的）分区来初始化。"
+msgstr ""
+":class:`~odps.models.TableSchema` represents the schema of a table "
+"containing field names and types. You can initialize a TableSchema "
+"instance in two ways. First, you can use columns or combination of "
+"columns and partitions columns to initialize the table."
+
+#: ../../source/base-types.rst:176
+msgid ""
+">>> from odps.models import TableSchema, Column, Partition\n"
+">>>\n"
+">>> columns = [\n"
+">>>     Column(name='num', type='bigint', comment='the column'),\n"
+">>>     Column(name='num2', type='double', comment='the column2'),\n"
+">>>     Column(name='arr', type='array<int>', comment='the column3'),\n"
+">>> ]\n"
+">>> partitions = [Partition(name='pt', type='string', comment='the "
+"partition')]\n"
+">>> schema = TableSchema(columns=columns, partitions=partitions)\n"
+">>> print(schema)\n"
+"odps.Schema {\n"
+"  num     bigint      # the column\n"
+"  num2    double      # the column2\n"
+"  arr     array<int>  # the column3\n"
+"}\n"
+"Partitions {\n"
+"  pt      string      # the partition\n"
+"}"
+msgstr ""
+">>> from odps.models import TableSchema, Column, Partition\n"
+">>> columns = [Column(name='num', type='bigint', comment='the column'),\n"
+">>>            Column(name='num2', type='double', comment='the column2')]"
+"\n"
+">>> partitions = [Partition(name='pt', type='string', comment='the "
+"partition')]\n"
+">>> schema = TableSchema(columns=columns, partitions=partitions)\n"
+">>> print(schema)\n"
+"odps.Schema {\n"
+"  num     bigint      # the column\n"
+"  num2    double      # the column2\n"
+"  arr     array<int>  # the column3\n"
+"}\n"
+"Partitions {\n"
+"  pt      string      # the partition\n"
+"}"
+
+#: ../../source/base-types.rst:197
+msgid ""
+"第二种方法是使用 ``TableSchema.from_lists`` 方法。这种方法更容易调用，但"
+"无法直接设置列和分区的注释。"
+msgstr ""
+"Second, you can use ``Schema.from_lists`` to initialize the table. This "
+"method is easier, but you cannot directly set the comments of the columns"
+" and the partitions."
+
+#: ../../source/base-types.rst:199
+msgid ""
+">>> from odps.models import TableSchema, Column, Partition\n"
+">>>\n"
+">>> schema = TableSchema.from_lists(\n"
+">>>    ['num', 'num2', 'arr'], ['bigint', 'double', 'array<int>'], "
+"['pt'], ['string']\n"
+">>> )\n"
+">>> print(schema)\n"
+"odps.Schema {\n"
+"  num     bigint\n"
+"  num2    double\n"
+"  arr     array<int>\n"
+"}\n"
+"Partitions {\n"
+"  pt      string\n"
+"}"
+msgstr ""
+
+#: ../../source/base-types.rst:216
+msgid ""
+"你可以从 ``TableSchema`` 实例中获取表的一般字段和分区字段。\\ ``simple_"
+"columns`` 和 ``partitions`` 属性分别指代一般列和分区列，而 ``columns`` "
+"属性则指代所有字段。这三个属性的返回值均为 :class:`~odps.types.Column` 或"
+" :class:`~odps.types.Partition` 类型组成的列表。你也可以通过 ``names`` 和"
+" ``types`` 属性分别获取非分区字段的名称和类型。"
+msgstr ""
+"You can get non-partition columns and partition columns in "
+"``TableSchema``. ``simple_columns`` and ``partitions`` properties provide"
+" the list of  non-partition columns and partitions respectively. You can "
+"also get all columns by ``columns`` property. The return values of "
+"``columns``, ``simple_columns`` and ``partitions`` are lists of "
+":class:`~odps.types.Column` or :class:`~odps.types.Partition` instances. "
+"You can also get names and types of non-partition columns by ``names`` "
+"and ``types`` property respectively."
+
+#: ../../source/base-types.rst:220
+msgid ""
+">>> from odps.models import TableSchema, Column, Partition\n"
+">>>\n"
+">>> schema = TableSchema.from_lists(\n"
+">>>    ['num', 'num2', 'arr'], ['bigint', 'double', 'array<int>'], "
+"['pt'], ['string']\n"
+">>> )\n"
+">>> print(schema.columns)  # 类型为 Column 的列表\n"
+"[<column num, type bigint>,\n"
+" <column num2, type double>,\n"
+" <column arr, type array<int>>,\n"
+" <partition pt, type string>]\n"
+">>> print(schema.simple_columns)  # 类型为 Column 的列表\n"
+"[<column num, type bigint>,\n"
+" <column num2, type double>,\n"
+" <column arr, type array<int>>]\n"
+">>> print(schema.partitions)  # 类型为 Partition 的列表\n"
+"[<partition pt, type string>]\n"
+">>> print(schema.simple_columns[-1].type.value_type)  # 获取最后一列数组"
+"的值类型\n"
+"int\n"
+">>> print(schema.names)  # 获取非分区字段的字段名\n"
+"['num', 'num2']\n"
+">>> print(schema.types)  # 获取非分区字段的字段类型\n"
+"[bigint, double]"
+msgstr ""
+">>> from odps.models import TableSchema, Column, Partition\n"
+">>>\n"
+">>> schema = TableSchema.from_lists(\n"
+">>>    ['num', 'num2', 'arr'], ['bigint', 'double', 'array<int>'], "
+"['pt'], ['string']\n"
+">>> )\n"
+">>> print(schema.columns)  # list of Column type\n"
+"[<column num, type bigint>,\n"
+" <column num2, type double>,\n"
+" <column arr, type array<int>>,\n"
+" <partition pt, type string>]\n"
+">>> print(schema.simple_columns)  # list of Column type\n"
+"[<column num, type bigint>,\n"
+" <column num2, type double>,\n"
+" <column arr, type array<int>>]\n"
+">>> print(schema.partitions)  # list of Partition type\n"
+"[<partition pt, type string>]\n"
+">>> print(schema.simple_columns[-1].type.value_type)  # value type of the"
+" last array column\n"
+"int\n"
+">>> print(schema.names)  # get column name of none-partition columns\n"
+"['num', 'num2']\n"
+">>> print(schema.types)  # get column type of none-partition columns\n"
+"[bigint, double]"
+
+#: ../../source/base-types.rst:245
+msgid ""
+"在使用 ``TableSchema`` 时，:class:`~odps.types.Column` 和 :class:`~odps."
+"types.Partition` 类型分别用于表示\\ 表的字段和分区。你可以通过字段名和"
+"类型创建 ``Column`` 实例，也可以同时指定列注释以及字段是否可以为空。你也"
+"可以通过相应\\ 的字段获取字段的名称、类型等属性，其中类型为:ref:`数据类型"
+" <data_types>`中的类型实例。"
+msgstr ""
+"When using ``TableSchema``, :class:`~odps.types.Column` and "
+":class:`~odps.types.Partition` are used to represent columns and "
+"partitions of a table. You can create a Column instance with column name "
+"and type, and optionally specify the column comment and nullable flag. "
+"You can also retrieve column name, type, etc. from a Column instance with"
+" corresponding fields, where types are defined in :ref:`data types "
+"<data_types>` chapter. "
+
+#: ../../source/base-types.rst:249
+msgid ""
+">>> from odps.models import Column\n"
+">>>\n"
+">>> col = Column(name='num_col', type='array<int>', comment='comment of "
+"the col', nullable=False)\n"
+">>> print(col)\n"
+"<column num_col, type array<int>, not null>\n"
+">>> print(col.name)\n"
+"num_col\n"
+">>> print(col.type)\n"
+"array<int>\n"
+">>> print(col.type.value_type)\n"
+"int\n"
+">>> print(col.comment)\n"
+"comment of the col\n"
+">>> print(col.nullable)\n"
+"False"
+msgstr ""
+
+#: ../../source/base-types.rst:267
+msgid ""
+"相比 ``Column`` 类型，\\ ``Partition`` 类型仅仅是类名有差异，此处不再介绍"
+"。"
+msgstr ""
+"As ``Partition`` is just a derived class with name difference, we do not "
+"introduce it here."
+
+#: ../../source/base-types.rst:272
+msgid "行记录（Record）"
+msgstr "Records"
+
+#: ../../source/base-types.rst:273
+msgid ""
+":class:`~odps.models.Record` 类型表示表的一行记录，为 ``Table.open_reader"
+"`` / ``Table.open_writer`` 当 ``arrow=False`` 时所使用的数据结构，也用于 "
+"``TableDownloadSession.open_record_reader`` / ``TableUploadSession.open_"
+"record_writer`` 。\\ 我们在 Table 对象上调用 new_record 就可以创建一个新"
+"的 Record。"
+msgstr ""
+"A :class:`~odps.models.Record` is a row record in a table. Record data "
+"structure is used in APIs like ``Table.open_reader`` or "
+"``Table.open_writer`` when ``arrow=False``. It is also used in "
+"``TableDownloadSession.open_record_reader`` or "
+"``TableUploadSession.open_record_writer``. You can use new_record method "
+"of a table object to create a new record."
+
+#: ../../source/base-types.rst:277
+msgid "下面的例子中，假定表结构为"
+msgstr "Assuming that the table schema for the example below is"
+
+#: ../../source/base-types.rst:279
+msgid ""
+"odps.Schema {\n"
+"  c_int_a                 bigint\n"
+"  c_string_a              string\n"
+"  c_bool_a                boolean\n"
+"  c_datetime_a            datetime\n"
+"  c_array_a               array<string>\n"
+"  c_map_a                 map<bigint,string>\n"
+"  c_struct_a              struct<a:bigint,b:string>\n"
+"}"
+msgstr ""
+
+#: ../../source/base-types.rst:291
+msgid "该表对应 record 的修改和读取示例为"
+msgstr "Reading or writing operations on the record of the table are as follows:"
+
+#: ../../source/base-types.rst:293
+msgid ""
+">>> import datetime\n"
+">>> t = o.get_table('mytable')\n"
+">>> r = t.new_record([1024, 'val1', False, datetime.datetime.now(), None,"
+" None])  # 值的个数必须等于表schema的字段数\n"
+">>> r2 = t.new_record()  # 初始化时也可以不传入值\n"
+">>> r2[0] = 1024  # 可以通过偏移设置值\n"
+">>> r2['c_string_a'] = 'val1'  # 也可以通过字段名设置值\n"
+">>> r2.c_string_a = 'val1'  # 通过属性设置值\n"
+">>> r2.c_array_a = ['val1', 'val2']  # 设置 array 类型的值\n"
+">>> r2.c_map_a = {1: 'val1'}  # 设置 map 类型的值\n"
+">>> r2.c_struct_a = (1, 'val1')  # 使用 tuple 设置 struct 类型的值，当 "
+"PyODPS >= 0.11.5\n"
+">>> r2.c_struct_a = {\"a\": 1, \"b\": 'val1'}  # 也可以使用 dict 设置 "
+"struct 类型的值\n"
+">>>\n"
+">>> print(record[0])  # 取第0个位置的值\n"
+">>> print(record['c_string_a'])  # 通过字段取值\n"
+">>> print(record.c_string_a)  # 通过属性取值\n"
+">>> print(record[0: 3])  # 切片操作\n"
+">>> print(record[0, 2, 3])  # 取多个位置的值\n"
+">>> print(record['c_int_a', 'c_double_a'])  # 通过多个字段取值"
+msgstr ""
+">>> t = o.get_table('mytable')\n"
+">>> r = t.new_record([1024, 'val1', False, datetime.datetime.now(), None,"
+" None])  # the number of values must be the same with the number of "
+"columns in the schema\n"
+">>> r2 = t.new_record()  # initializing without values is also acceptable"
+"\n"
+">>> r2[0] = 1024  # values can be set via column indices\n"
+">>> r2['c_string_a'] = 'val1'  # values can also be set via column names\n"
+">>> r2.c_string_a = 'val1'  # values can also be set via attributes\n"
+">>> r2.c_array_a = ['val1', 'val2']  # set value of fields with array "
+"type\n"
+">>> r2.c_map_a = {1: 'val1'}  # set value of fields with map type\n"
+">>> r2.c_struct_a = (1, 'val1')  # set value of fields with struct type "
+"with Python tuples when PyODPS >= 0.11.5\n"
+">>> r2.c_struct_a = {\"a\": 1, \"b\": 'val1'}  # Python dicts can also be"
+" used to set fields of struct type\n"
+">>>\n"
+">>> print(record[0])  # get the value of Column 0\n"
+">>> print(record['c_string_a'])  # get value via column name\n"
+">>> print(record.c_string_a)  # get value via attributes\n"
+">>> print(record[0: 3])  # slice over the column\n"
+">>> print(record[0, 2, 3])  # get multiple values via indices\n"
+">>> print(record['c_int_a', 'c_double_a'])  # get multiple values via "
+"column names"
+
+#: ../../source/base-types.rst:314
+msgid "MaxCompute 不同数据类型在 Record 中对应 Python 类型的关系如下："
+msgstr ""
+"Relation between MaxCompute data types and Python types in Records are "
+"listed as follows."
+
+#: ../../source/base-types.rst:1
+msgid "MaxCompute 类型"
+msgstr "MaxCompute Type"
+
+#: ../../source/base-types.rst:1
+msgid "Python 类型"
+msgstr "Python Type"
+
+#: ../../source/base-types.rst:1
+msgid "说明"
+msgstr "Comments"
+
+#: ../../source/base-types.rst:1
+msgid "``tinyint``, ``smallint``, ``int``, ``bigint``"
+msgstr ""
+
+#: ../../source/base-types.rst:1
+msgid "``int``"
+msgstr ""
+
+#: ../../source/base-types.rst:1
+msgid "``float``, ``double``"
+msgstr ""
+
+#: ../../source/base-types.rst:1
+msgid "``float``"
+msgstr ""
+
+#: ../../source/base-types.rst:1
+msgid "``string``"
+msgstr ""
+
+#: ../../source/base-types.rst:1
+msgid "``str``"
+msgstr ""
+
+#: ../../source/base-types.rst:1
+msgid "见说明1"
+msgstr "See Note 1"
+
+#: ../../source/base-types.rst:1
+msgid "``binary``"
+msgstr ""
+
+#: ../../source/base-types.rst:1
+msgid "``bytes``"
+msgstr ""
+
+#: ../../source/base-types.rst:1
+msgid "``datetime``"
+msgstr ""
+
+#: ../../source/base-types.rst:1
+msgid "``datetime.datetime``"
+msgstr ""
+
+#: ../../source/base-types.rst:1
+msgid "见说明2"
+msgstr "See Note 2"
+
+#: ../../source/base-types.rst:1
+msgid "``date``"
+msgstr ""
+
+#: ../../source/base-types.rst:1
+msgid "``datetime.date``"
+msgstr ""
+
+#: ../../source/base-types.rst:1
+msgid "``boolean``"
+msgstr ""
+
+#: ../../source/base-types.rst:1
+msgid "``bool``"
+msgstr ""
+
+#: ../../source/base-types.rst:1
+msgid "``decimal``"
+msgstr ""
+
+#: ../../source/base-types.rst:1
+msgid "``decimal.Decimal``"
+msgstr ""
+
+#: ../../source/base-types.rst:1
+msgid "见说明3"
+msgstr "See Note 3"
+
+#: ../../source/base-types.rst:1
+msgid "``map``"
+msgstr ""
+
+#: ../../source/base-types.rst:1
+msgid "``dict``"
+msgstr ""
+
+#: ../../source/base-types.rst:1
+msgid "``array``"
+msgstr ""
+
+#: ../../source/base-types.rst:1
+msgid "``list``"
+msgstr ""
+
+#: ../../source/base-types.rst:1
+msgid "``struct``"
+msgstr ""
+
+#: ../../source/base-types.rst:1
+msgid "``tuple`` / ``namedtuple``"
+msgstr ""
+
+#: ../../source/base-types.rst:1
+msgid "见说明4"
+msgstr "See Note 4"
+
+#: ../../source/base-types.rst:1
+msgid "``timestamp``"
+msgstr ""
+
+#: ../../source/base-types.rst:1
+msgid "``pandas.Timestamp``"
+msgstr ""
+
+#: ../../source/base-types.rst:1
+msgid "见说明2，需要安装 pandas"
+msgstr "See Note 2. Pandas is needed."
+
+#: ../../source/base-types.rst:1
+msgid "``timestamp_ntz``"
+msgstr ""
+
+#: ../../source/base-types.rst:1
+msgid "结果不受时区影响，需要安装 pandas"
+msgstr "Results not affected by time zone, Pandas is needed."
+
+#: ../../source/base-types.rst:1
+msgid "``interval_day_time``"
+msgstr ""
+
+#: ../../source/base-types.rst:1
+msgid "``pandas.Timedelta``"
+msgstr ""
+
+#: ../../source/base-types.rst:1
+msgid "需要安装 pandas"
+msgstr "Pandas is needed."
+
+#: ../../source/base-types.rst:1
+msgid "``interval_year_month``"
+msgstr ""
+
+#: ../../source/base-types.rst:1
+msgid "``odps.Monthdelta``"
+msgstr ""
+
+#: ../../source/base-types.rst:1
+msgid "见说明5"
+msgstr "See Note 5"
+
+#: ../../source/base-types.rst:336
+msgid "对部分类型的说明如下。"
+msgstr "Comments for some types are listed as follows."
+
+#: ../../source/base-types.rst:338
+msgid ""
+"PyODPS 默认 string 类型对应 Unicode 字符串，在 Python 3 中为 str，在 "
+"Python 2 中为 unicode。对于部分在 string 中存储 binary 的情形，可能需要"
+"设置 ``options.tunnel.string_as_binary = True`` 以避免可能的编码问题。"
+msgstr ""
+"PyODPS reads MaxCompute strings as Python unicode strings, as str type in"
+" Python 3 and unicode type in Python 2. If you store binary data in "
+"string fields, you may have to set ``options.tunnel.string_as_binary = "
+"True`` to avoid encoding issues."
+
+#: ../../source/base-types.rst:341
+msgid ""
+"PyODPS 默认使用 Local Time 作为时区，如果要使用 UTC 则需要设置 ``options."
+"local_timezone = False``。 如果要使用其他时区，需要设置该选项为指定时区，"
+"例如 ``Asia/Shanghai``。MaxCompute 不会存储时区值，因而在写入数据时，会将"
+"该时间转换为 Unix Timestamp 进行存储。"
+msgstr ""
+"PyODPS uses local time as default time zone. If you want to use UTC "
+"instead, you need to configure ``options.local_timezone = False``. If you"
+" want to use other time zones, you need to configure "
+"``options.local_timezone`` as your  expected time zone, for instance, "
+"``Asia/Shanghai``. Note that MaxCompute does not store time zone values, "
+"so time values will be converted to Unix Timestamp before storing."
+
+#: ../../source/base-types.rst:344
+msgid "对于 Python 2，当安装 cdecimal 包时，会使用 ``cdecimal.Decimal``。"
+msgstr ""
+"For Python 2, PyODPS will use ``cdecimal.Decimal`` when cdecimal package "
+"is installed."
+
+#: ../../source/base-types.rst:345
+msgid ""
+"对于 PyODPS \\< 0.11.5，MaxCompute struct 对应 Python dict 类型。PyODPS "
+"\\>= 0.11.5 则默认对应 namedtuple 类型。如果要使用旧版行为则需要设置选项 "
+"``options.struct_as_dict = True``。\\ DataWorks 环境下，为保持历史兼容性"
+"，该值默认为 False。为 Record 设置 struct 类型的字段值时，\\ PyODPS \\>= "
+"0.11.5 可同时接受 dict 和 tuple 类型，旧版则只接受 dict 类型。"
+msgstr ""
+"PyODPS prior to 0.11.5 reads MaxCompute struct as Python dict type, while"
+" PyODPS >= 0.11.5 reads MaxCompute struct as namedtuple type by default. "
+"If you want to switch to the old behavior, you need to configure "
+"``options.struct_as_dict = True``. In DataWorks, the default value of "
+"this option is False to keep compatibility with legacy code. When setting"
+" struct values of records, PyODPS >= 0.11.5 accepts both dict and tuple "
+"types, while the older version accepts only dict type."
+
+#: ../../source/base-types.rst:349
+msgid "Monthdelta 可使用年 / 月进行初始化，使用示例如下："
+msgstr ""
+"Monthdelta can be initialized with years and months. Example of using "
+"Monthdelta class is shown below."
+
+#: ../../source/base-types.rst:351
+msgid ""
+">>> from odps import Monthdelta\n"
+">>>\n"
+">>> md = Monthdelta(years=1, months=2)\n"
+">>> print(md.years)\n"
+"1\n"
+">>> print(md.months)\n"
+"1\n"
+">>> print(md.total_months)\n"
+"14"
+msgstr ""
+
+#: ../../source/base-types.rst:363
+msgid "关于如何设置 ``options.xxx``，请参考文档\\ :ref:`配置选项 <options>`。"
+msgstr ""
+"For details about how to configure ``options.xxx``, please take a look at"
+" :ref:`configuration documentation <options>`."
+
