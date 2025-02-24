@@ -47,15 +47,17 @@ def setup(odps):
                 data.append(record)
 
             if nullable_field is not None:
-                j = schema._name_indexes[nullable_field]
+                j = schema._name_indexes[nullable_field.lower()]
                 for i, l in enumerate(data):
                     if i % 2 == 0:
                         data[i][j] = None
         return data
 
     datatypes = lambda *types: [validate_data_type(t) for t in types]
-    pd_schema = TableSchema.from_lists(['name', 'category', 'id', 'fid', 'isMale', 'scale', 'birth'],
-                               datatypes('string', 'string', 'int64', 'float64', 'boolean', 'decimal', 'datetime'))
+    pd_schema = TableSchema.from_lists(
+        ['name', 'category', 'id', 'fid', 'isMale', 'scale', 'birth'],
+        datatypes('string', 'string', 'int64', 'float64', 'boolean', 'decimal', 'datetime')
+    )
     schema = df_schema_to_odps_schema(pd_schema)
 
     import pandas as pd

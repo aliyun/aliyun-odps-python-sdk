@@ -63,9 +63,15 @@ except ImportError:
     pytz = None
 
 try:
-    from odps.src.utils_c import CMillisecondsConverter
+    from .src.utils_c import (
+        CMillisecondsConverter,
+        to_binary,
+        to_lower_str,
+        to_str,
+        to_text,
+    )
 except ImportError:
-    CMillisecondsConverter = None
+    CMillisecondsConverter = to_str = to_text = to_binary = to_lower_str = None
 
 TEMP_TABLE_PREFIX = "tmp_pyodps_"
 if six.PY3:  # make flake8 happy
@@ -502,34 +508,39 @@ def strptime_with_tz(dt, format="%Y-%m-%d %H:%M:%S"):
         return naive_dt.replace(tzinfo=FixedOffset(offset))
 
 
-def to_binary(text, encoding="utf-8"):
-    if text is None:
-        return text
-    if isinstance(text, six.text_type):
-        return text.encode(encoding)
-    elif isinstance(text, (six.binary_type, bytearray)):
-        return bytes(text)
-    else:
-        return str(text).encode(encoding) if six.PY3 else str(text)
+if to_binary is None or to_text is None or to_str is None or to_lower_str is None:
 
+    def to_binary(text, encoding="utf-8"):
+        if text is None:
+            return text
+        if isinstance(text, six.text_type):
+            return text.encode(encoding)
+        elif isinstance(text, (six.binary_type, bytearray)):
+            return bytes(text)
+        else:
+            return str(text).encode(encoding) if six.PY3 else str(text)
 
-def to_text(binary, encoding="utf-8"):
-    if binary is None:
-        return binary
-    if isinstance(binary, (six.binary_type, bytearray)):
-        return binary.decode(encoding)
-    elif isinstance(binary, six.text_type):
-        return binary
-    else:
-        return str(binary) if six.PY3 else str(binary).decode(encoding)
+    def to_text(binary, encoding="utf-8"):
+        if binary is None:
+            return binary
+        if isinstance(binary, (six.binary_type, bytearray)):
+            return binary.decode(encoding)
+        elif isinstance(binary, six.text_type):
+            return binary
+        else:
+            return str(binary) if six.PY3 else str(binary).decode(encoding)
 
+    def to_str(text, encoding="utf-8"):
+        return (
+            to_text(text, encoding=encoding)
+            if six.PY3
+            else to_binary(text, encoding=encoding)
+        )
 
-def to_str(text, encoding="utf-8"):
-    return (
-        to_text(text, encoding=encoding)
-        if six.PY3
-        else to_binary(text, encoding=encoding)
-    )
+    def to_lower_str(s, encoding="utf-8"):
+        if s is None:
+            return None
+        return to_str(s, encoding).lower()
 
 
 def get_zone_from_name(tzname):

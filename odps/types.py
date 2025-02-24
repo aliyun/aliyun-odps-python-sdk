@@ -212,10 +212,11 @@ class Schema(object):
         self.names = names
         self.types = [validate_data_type(t) for t in types]
 
-        self._name_indexes = {n: i for i, n in enumerate(self.names)}
+        lower_names = [utils.to_lower_str(n) for n in self.names]
+        self._name_indexes = {n: i for i, n in enumerate(lower_names)}
 
         if len(self._name_indexes) < len(self.names):
-            duplicates = [n for n in self._name_indexes if self.names.count(n) > 1]
+            duplicates = [n for n in self._name_indexes if lower_names.count(n) > 1]
             raise ValueError("Duplicate column names: %s" % ", ".join(duplicates))
 
         self._snapshot = None
@@ -227,7 +228,7 @@ class Schema(object):
         return len(self.names)
 
     def __contains__(self, name):
-        return utils.to_str(name) in self._name_indexes
+        return utils.to_lower_str(name) in self._name_indexes
 
     def _repr(self):
         buf = six.StringIO()
@@ -247,7 +248,7 @@ class Schema(object):
         return self.names == other.names and self.types == self.types
 
     def get_type(self, name):
-        return self.types[self._name_indexes[utils.to_str(name)]]
+        return self.types[self._name_indexes[utils.to_lower_str(name)]]
 
     def append(self, name, typo):
         names = self.names + [name]
@@ -328,12 +329,12 @@ class OdpsSchema(Schema):
             else:
                 raise IndexError("Index out of range")
         elif isinstance(item, six.string_types):
-            item = utils.to_str(item)
-            if item in self._name_indexes:
-                idx = self._name_indexes[item]
+            lower_item = utils.to_lower_str(item)
+            if lower_item in self._name_indexes:
+                idx = self._name_indexes[lower_item]
                 return self[idx]
             elif item in self._partition_schema:
-                idx = self._partition_schema._name_indexes[item]
+                idx = self._partition_schema._name_indexes[lower_item]
                 n_columns = len(self._name_indexes)
                 return self[n_columns + idx]
             else:
@@ -444,13 +445,13 @@ class OdpsSchema(Schema):
         return self._partitions
 
     def get_column(self, name):
-        index = self._name_indexes.get(utils.to_str(name))
+        index = self._name_indexes.get(utils.to_lower_str(name))
         if index is None:
             raise ValueError("Column %s does not exists" % name)
         return self._columns[index]
 
     def get_partition(self, name):
-        index = self._partition_schema._name_indexes.get(utils.to_str(name))
+        index = self._partition_schema._name_indexes.get(utils.to_lower_str(name))
         if index is None:
             raise ValueError("Partition %s does not exists" % name)
         return self._partitions[index]
@@ -460,12 +461,13 @@ class OdpsSchema(Schema):
             name = name.name
         except AttributeError:
             pass
-        return name in self._partition_schema._name_indexes
+        return utils.to_lower_str(name) in self._partition_schema._name_indexes
 
     def get_type(self, name):
-        if name in self._name_indexes:
+        lower_name = utils.to_lower_str(name)
+        if lower_name in self._name_indexes:
             return super(OdpsSchema, self).get_type(name)
-        elif name in self._partition_schema:
+        elif lower_name in self._partition_schema:
             return self._partition_schema.get_type(name)
         raise ValueError("Column does not exist: %s" % name)
 
@@ -585,7 +587,9 @@ class BaseRecord(object):
     def __init__(self, columns=None, schema=None, values=None, max_field_size=None):
         if columns is not None:
             self._columns = columns
-            self._name_indexes = {col.name: i for i, col in enumerate(self._columns)}
+            self._name_indexes = {
+                col.name.lower(): i for i, col in enumerate(self._columns)
+            }
         else:
             self._columns = schema.columns
             self._name_indexes = schema._name_indexes
@@ -653,18 +657,18 @@ class BaseRecord(object):
             object.__setattr__(self, key, value)
 
     def get_by_name(self, name):
-        i = self._name_indexes[name]
+        i = self._name_indexes[utils.to_lower_str(name)]
         return self._values[i]
 
     def set_by_name(self, name, value):
-        i = self._name_indexes[name]
+        i = self._name_indexes[utils.to_lower_str(name)]
         self._set(i, value)
 
     def __len__(self):
         return len(self._columns)
 
     def __contains__(self, item):
-        return item in self._name_indexes
+        return utils.to_lower_str(item) in self._name_indexes
 
     def __iter__(self):
         for i, col in enumerate(self._columns):
@@ -1356,29 +1360,26 @@ class Decimal(CompositeDataType):
 
     _has_other_decimal_type = len(DECIMAL_TYPES) > 1
 
-    _max_precision = 54
-    _max_scale = 18
-    _decimal_ctx = _decimal.Context(prec=_max_precision)
+    _default_precision = 54
+    _default_scale = 18
+    _decimal_ctx = _decimal.Context(prec=_default_precision)
 
     def __init__(self, precision=None, scale=None, nullable=True):
         super(Decimal, self).__init__(nullable=nullable)
-        if precision and precision > self._max_precision:
-            raise ValueError(
-                "InvalidData: Precision(%d) is larger than %d."
-                % (precision, self._max_precision)
-            )
-        if scale and scale > self._max_scale:
-            raise ValueError(
-                "InvalidData: Scale(%d) is larger than %d." % (scale, self._max_scale)
-            )
         if precision is None and scale is not None:
             raise ValueError(
                 "InvalidData: Scale should be provided along with precision."
             )
+        if precision is not None and precision < 1:
+            raise ValueError("InvalidData: Decimal precision < 1")
+        if precision is not None and scale is not None and scale > precision:
+            raise ValueError(
+                "InvalidData: Decimal precision must be larger than or equal to scale"
+            )
         self.precision = precision
         self.scale = scale
         self._scale_decimal = _decimal.Decimal(
-            "1e%d" % -(scale if scale is not None else self._max_scale)
+            "1e%d" % -(scale if scale is not None else self._default_scale)
         )
 
     @property
@@ -1427,9 +1428,9 @@ class Decimal(CompositeDataType):
             val = _decimal.Decimal(str(val))
 
         precision = (
-            self.precision if self.precision is not None else self._max_precision
+            self.precision if self.precision is not None else self._default_precision
         )
-        scale = self.scale if self.scale is not None else self._max_scale
+        scale = self.scale if self.scale is not None else self._default_scale
         scaled_val = val.quantize(
             self._scale_decimal, _decimal.ROUND_HALF_UP, self._decimal_ctx
         )

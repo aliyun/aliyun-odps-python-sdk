@@ -216,8 +216,8 @@ def _get_hash_func(typ):
     elif isinstance(typ, (types.Char, types.Varchar)):
         return _type_to_hash_fun[types.string]
     elif isinstance(typ, types.Decimal):
-        precision = typ.precision or types.Decimal._max_precision
-        scale = typ.scale or types.Decimal._max_scale
+        precision = typ.precision or types.Decimal._default_precision
+        scale = typ.scale or types.Decimal._default_scale
         return functools.partial(_hash_decimal, precision=precision, scale=scale)
     else:
         raise TypeError("Hash for type %s not supported" % typ)

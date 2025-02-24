@@ -69,7 +69,7 @@ def setup(odps):
                 data.append(record)
 
             if nullable_field is not None:
-                j = schema._name_indexes[nullable_field]
+                j = schema._name_indexes[nullable_field.lower()]
                 for i, l in enumerate(data):
                     if i % 2 == 0:
                         data[i][j] = None

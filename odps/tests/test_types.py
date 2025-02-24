@@ -39,7 +39,9 @@ def _reloader():
     TableSchema, Record = models.TableSchema, models.Record
 
 
-py_and_c_deco = py_and_c(["odps.models.record", "odps.models"], reloader=_reloader)
+py_and_c_deco = py_and_c(
+    ["odps.models.record", "odps.models", "odps.utils"], reloader=_reloader
+)
 
 
 @py_and_c_deco
@@ -204,6 +206,16 @@ def test_record_set_and_get_by_name():
     assert OrderedDict({"a": 1}) == r["col8"]
 
 
+@py_and_c_deco
+def test_record_set_and_get_ignore_cases():
+    s = TableSchema.from_lists(["COL1", "col2"], ["bigint", "double"])
+    r = Record(schema=s)
+    r["col1"] = 1
+    r["COL2"] = 2.0
+    assert 1 == r["Col1"]
+    assert 2.0 == r["Col2"]
+
+
 def test_implicit_cast():
     tinyint = odps_types.Tinyint()
     smallint = odps_types.Smallint()
@@ -358,15 +370,46 @@ def test_record_set_field():
 
 
 @py_and_c_deco
+def test_record_multi_fields():
+    s = TableSchema.from_lists(["col1", "col2"], ["string", "bigint"])
+    r = Record(values=[1, 2], schema=s)
+
+    assert r["col1", "col2"] == ["1", 2]
+
+    pytest.raises(KeyError, lambda: r["col3"])
+    pytest.raises(KeyError, lambda: r["col3"])
+
+
+@py_and_c_deco
 def test_duplicate_names():
-    pytest.raises(
-        ValueError,
-        lambda: TableSchema.from_lists(["col1", "col1"], ["string", "string"]),
-    )
+    with pytest.raises(ValueError):
+        TableSchema.from_lists(["col1", "col1"], ["string", "string"])
+    with pytest.raises(ValueError):
+        TableSchema.from_lists(["COL1", "col1"], ["string", "string"])
+
     try:
         TableSchema.from_lists(["col1", "col1"], ["string", "string"])
     except ValueError as e:
         assert "col1" in str(e)
+
+
+@py_and_c_deco
+def test_schema_cases():
+    schema = TableSchema.from_lists(
+        ["col1", "COL2"], ["bigint", "double"], ["pt1", "PT2"], ["string", "string"]
+    )
+    assert schema.get_column("COL1").name == "col1"
+    assert schema.get_column("col2").name == "COL2"
+    assert schema.get_partition("PT1").name == "pt1"
+    assert schema.get_partition("pt2").name == "PT2"
+    assert schema.get_type("COL1").name == "bigint"
+    assert schema.get_type("col2").name == "double"
+    assert schema.get_type("PT1").name == "string"
+    assert schema.get_type("pt2").name == "string"
+    assert not schema.is_partition("COL1")
+    assert not schema.is_partition("col2")
+    assert schema.is_partition("PT1")
+    assert schema.is_partition("pt2")
 
 
 @py_and_c_deco
@@ -383,21 +426,10 @@ def test_chinese_schema():
 
 
 @py_and_c_deco
-def test_record_multi_fields():
-    s = TableSchema.from_lists(["col1", "col2"], ["string", "bigint"])
-    r = Record(values=[1, 2], schema=s)
-
-    assert r["col1", "col2"] == ["1", 2]
-
-    pytest.raises(KeyError, lambda: r["col3"])
-    pytest.raises(KeyError, lambda: r["col3"])
-
-
-@py_and_c_deco
 def test_bizarre_repr():
-    s = TableSchema.from_lists(['逗比 " \t'], ["string"], ["正常"], ["bigint"])
+    s = TableSchema.from_lists(['不正常 " \t'], ["string"], ["正常"], ["bigint"])
     s_repr = repr(s)
-    assert '"逗比 \\" \\t"' in s_repr
+    assert '"不正常 \\" \\t"' in s_repr
     assert '"正常"' not in s_repr
 
 
@@ -484,8 +516,6 @@ def test_validate_struct():
 
 
 def test_validate_decimal():
-    with pytest.raises(ValueError):
-        odps_types.Decimal(1024)
     with pytest.raises(ValueError):
         odps_types.Decimal(32, 60)
     with pytest.raises(ValueError):

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -930,7 +930,6 @@ class TableIOMethods(object):
         :param bool create_table: if true, the table will be created if not exist
         :param int lifecycle: specify table lifecycle when creating tables
         :param bool create_partition: if true, the partition will be created if not exist
-        :param bool compress: if True, the data will be compressed during uploading
         :param compress_option: the compression algorithm, level and strategy
         :type compress_option: :class:`odps.tunnel.CompressOption`
         :param str endpoint:  tunnel service URL

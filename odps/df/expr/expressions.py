@@ -29,7 +29,7 @@ from .. import types
 from ...compat import reduce, isvalidattr, dir2, lkeys, six, futures, Iterable
 from ...config import options
 from ...errors import NoSuchObject, DependencyNotInstalledError
-from ...utils import TEMP_TABLE_PREFIX, to_binary, deprecated, survey
+from ...utils import TEMP_TABLE_PREFIX, to_binary, to_lower_str, deprecated, survey
 from ...models import TableSchema
 
 
@@ -662,7 +662,7 @@ class CollectionExpr(Expr):
             pass
 
         try:
-            if attr in object.__getattribute__(self, '_schema')._name_indexes:
+            if to_lower_str(attr) in object.__getattribute__(self, '_schema')._name_indexes:
                 cls_attr = getattr(type(self), attr, None)
                 if cls_attr is None or inspect.ismethod(cls_attr) or inspect.isfunction(cls_attr):
                     return self[attr]
@@ -1045,7 +1045,7 @@ class CollectionExpr(Expr):
 
             return obj
         except AttributeError as e:
-            if attr in object.__getattribute__(self, '_schema')._name_indexes:
+            if to_lower_str(attr) in object.__getattribute__(self, '_schema')._name_indexes:
                 return self[attr]
 
             raise e
@@ -2064,7 +2064,7 @@ class ProjectCollectionExpr(CollectionExpr):
                                 stop_cond=lambda x: isinstance(x, Column)):
             if isinstance(n, Column) and (n.input is self or n.input._proxy is self):
                 source_name = n.source_name
-                idx = self._schema._name_indexes[source_name]
+                idx = self._schema._name_indexes[to_lower_str(source_name)]
                 field = self._fields[idx]
                 if field.name != n.name:
                     field = field.rename(n.name)

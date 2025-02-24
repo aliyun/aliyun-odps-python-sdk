@@ -29,6 +29,7 @@ from ...expr.merge import UnionCollectionExpr
 from ...utils import traverse_until_source
 from .utils import change_input, copy_sequence
 from ....compat import reduce
+from ....utils import to_lower_str
 
 
 class PredicatePushdown(Backend):
@@ -216,7 +217,7 @@ class PredicatePushdown(Backend):
 
     def _push_down_through_projection(self, predicate, expr, projection):
         def get_project_field(n, col):
-            field = projection._fields[projection.schema._name_indexes[col]]
+            field = projection._fields[projection.schema._name_indexes[to_lower_str(col)]]
             return copy_sequence(field, projection.input, self._dag)
         if isinstance(predicate, Column) and predicate.input is expr.input:
             # filter on column
