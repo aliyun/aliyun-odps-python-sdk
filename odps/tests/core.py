@@ -158,16 +158,22 @@ def get_config():
 
         try:
             try:
-                oss_access_id = config.get("oss", "access_id")
+                oss_access_id = os.getenv("OSS_ACCESS_ID") or config.get(
+                    "oss", "access_id"
+                )
             except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
                 oss_access_id = None
-            oss_access_id = os.environ.get("OSS_ACCESS_ID")
+            oss_access_id = oss_access_id or config.odps.account.access_id
 
             try:
-                oss_secret_access_key = config.get("oss", "secret_access_key")
+                oss_secret_access_key = os.getenv(
+                    "OSS_SECRET_ACCESS_KEY"
+                ) or config.get("oss", "secret_access_key")
             except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
                 oss_secret_access_key = None
-            oss_secret_access_key = os.environ.get("OSS_SECRET_ACCESS_KEY")
+            oss_secret_access_key = (
+                oss_secret_access_key or config.odps.account.secret_access_key
+            )
 
             oss_bucket_name = config.get("oss", "bucket_name")
             oss_endpoint = config.get("oss", "endpoint")

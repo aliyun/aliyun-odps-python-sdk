@@ -343,6 +343,9 @@ class Partition(LazyLoad):
 
     @utils.with_wait_argument
     def truncate(self, async_=False):
+        """
+        Truncate current partition.
+        """
         return self.table.truncate(self.partition_spec, async_=async_)
 
     def _unload_if_async(self, async_=False, reload=True):
@@ -354,6 +357,9 @@ class Partition(LazyLoad):
 
     @utils.with_wait_argument
     def set_storage_tier(self, storage_tier, async_=False, hints=None):
+        """
+        Set storage tier of current partition.
+        """
         inst = self.table.set_storage_tier(
             storage_tier, partition_spec=self.partition_spec, async_=async_, hints=hints
         )
@@ -362,6 +368,11 @@ class Partition(LazyLoad):
 
     @utils.with_wait_argument
     def change_partition_spec(self, new_partition_spec, async_=False, hints=None):
+        """
+        Change partition spec of current partition.
+
+        :param new_partition_spec: new partition spec
+        """
         inst = self.table.change_partition_spec(
             self.partition_spec,
             new_partition_spec,
@@ -374,6 +385,9 @@ class Partition(LazyLoad):
 
     @utils.with_wait_argument
     def touch(self, async_=False, hints=None):
+        """
+        Update the last modified time of the partition.
+        """
         inst = self.table.touch(
             partition_spec=self.partition_spec, async_=async_, hints=hints
         )

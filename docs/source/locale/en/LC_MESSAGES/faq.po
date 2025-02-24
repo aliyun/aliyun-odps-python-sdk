@@ -8,14 +8,14 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2024-07-28 10:50+0800\n"
+"POT-Creation-Date: 2025-01-24 16:57+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.12.1\n"
+"Generated-By: Babel 2.16.0\n"
 
 #: ../../source/faq.rst:5
 msgid "常见问题"
@@ -168,6 +168,176 @@ msgstr ""
 "table, and use :ref:`table.open_reader <table_open_reader>` to read data."
 
 #: ../../source/faq.rst:68
+msgid "执行 SQL 很慢，如何排查？"
+msgstr "How can I diagnose the cause when SQL execution is slow?"
+
+#: ../../source/faq.rst:69
+msgid ""
+"PyODPS 提交 SQL 任务前，并没有进行重度操作。因此，绝大多数情形下，导致"
+"提交任务变慢的原因与 PyODPS 没有关系。 你可以考虑排查下面的原因。"
+msgstr ""
+"PyODPS does not perform heavy operation before submitting a SQL task. "
+"Hence in most of the cases, the reason tasks are becoming slow is not "
+"related to PyODPS itself. You can consider investigating the issue in "
+"aspects below."
+
+#: ../../source/faq.rst:72
+msgid "提交任务经过的代理服务器或者网络链路是否存在延迟；"
+msgstr "If the proxy server or network chain has long latency."
+
+#: ../../source/faq.rst:73
+msgid "服务端是否存在任务排队延迟等情况；"
+msgstr "If the task is queued or delayed at the server end."
+
+#: ../../source/faq.rst:74
+msgid ""
+"如果执行 SQL 的过程包括了拉取数据，是否数据规模过大或者数据分片过多导致"
+"拉取数据缓慢；"
+msgstr ""
+"If your code includes data downloading, whether the data size is too "
+"large or the data is split into too many chunks."
+
+#: ../../source/faq.rst:75
+msgid ""
+"如果是 DataWorks 作业，确认是否存在提交的任务（\\ ``run_sql`` / ``execute"
+"_sql``）没有输出 Logview，尤其当 PyODPS \\< 0.11.6 时。"
+msgstr ""
+"If your cude is executed with DataWorks, make sure that if there are "
+"tasks submitted with ``run_sql`` or ``execute_sql`` but without printted "
+"logview addresses expecially when PyODPS \\< 0.11.6."
+
+#: ../../source/faq.rst:77
+msgid ""
+"如果你需要确认提交任务变慢是否由本地环境造成，可以尝试开启调试日志。"
+"PyODPS 将会把每个请求及返回都打印出来，可以根据\\ 请求和返回的日志确定"
+"延迟发生的位置。"
+msgstr ""
+"If you need to check whether the delay is caused by your local "
+"environment, you can enable debug logs. PyODPS will log all requests and "
+"responses. You can use the logs to determine where the delay occurs."
+
+#: ../../source/faq.rst:80
+#, python-format
+msgid ""
+"import datetime\n"
+"import logging\n"
+"from odps import ODPS\n"
+"\n"
+"logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s -"
+" %(levelname)s - %(message)s')\n"
+"o = ODPS(...)  #  此处填入账号，如果环境已提供 MaxCompute Entry 则忽略\n"
+"# 打印本地时间以确定本地操作发起的时间\n"
+"print(\"Check time:\", datetime.datetime.now())\n"
+"# 提交任务\n"
+"inst = o.run_sql(\"select * from your_table\")"
+msgstr ""
+"import datetime\n"
+"import logging\n"
+"from odps import ODPS\n"
+"\n"
+"logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s -"
+" %(levelname)s - %(message)s')\n"
+"o = ODPS(...)  #  fill your account here. skip if MaxCompute Entry is "
+"already provided by the environment.\n"
+"# print local time to determine the initial time of operation\n"
+"print(\"Check time:\", datetime.datetime.now())\n"
+"# submit job\n"
+"inst = o.run_sql(\"select * from your_table\")"
+
+#: ../../source/faq.rst:94
+msgid "此时，你的标准输出应当输出的内容应当形似"
+msgstr "Your standard output should look like"
+
+#: ../../source/faq.rst:96
+msgid ""
+"Check time: 2025-01-24 15:34:21.531330\n"
+"2025-01-24 15:34:21,532 - odps.rest - DEBUG - Start request.\n"
+"2025-01-24 15:34:21,532 - odps.rest - DEBUG - POST: "
+"http://service.<region>.maxcompute.aliyun.com/api/projects/<project>/instances"
+"\n"
+"2025-01-24 15:34:21,532 - odps.rest - DEBUG - data: b'<?xml "
+"version=\"1.0\" encoding=\"utf-8\"?>\\n<Instance>\\n  <Job>\\n    "
+"<Priority>9</Priority>\\n    <Tasks>\\n      <SQL>\\n        ....\n"
+"2025-01-24 15:34:21,532 - odps.rest - DEBUG - headers: {'Content-Type': "
+"'application/xml'}\n"
+"2025-01-24 15:34:21,533 - odps.rest - DEBUG - request url + params "
+"/api/projects/<project>/instances?curr_project=<project>\n"
+"2025-01-24 15:34:21,533 - odps.accounts - DEBUG - headers before signing:"
+" {'Content-Type': 'application/xml', 'User-Agent': 'pyodps/0.12.2 "
+"CPython/3.7.12', 'Content-Length': '736'}\n"
+"2025-01-24 15:34:21,533 - odps.accounts - DEBUG - headers to sign: "
+"OrderedDict([('content-md5', ''), ('content-type', 'application/xml'), "
+"('date', 'Fri, 24 Jan 2025 07:34:21 GMT')])\n"
+"2025-01-24 15:34:21,533 - odps.accounts - DEBUG - canonical string: POST\n"
+"\n"
+"application/xml\n"
+"Fri, 24 Jan 2025 07:34:21 GMT\n"
+"/projects/maxframe_ci_cd/instances?curr_project=maxframe_ci_cd\n"
+"2025-01-24 15:34:21,533 - odps.accounts - DEBUG - headers after signing: "
+"{'Content-Type': 'application/xml', 'User-Agent': 'pyodps/0.12.2 "
+"CPython/3.7.12', 'Content-Length': '736', ....\n"
+"2025-01-24 15:34:21,533 - urllib3.connectionpool - DEBUG - Resetting "
+"dropped connection: service.<region>.maxcompute.aliyun.com\n"
+"2025-01-24 15:34:22,027 - urllib3.connectionpool - DEBUG - "
+"http://service.<region>.maxcompute.aliyun.com:80 \"POST "
+"/api/projects/<project>/instances?curr_project=<project> HTTP/1.1\" 201 0"
+"\n"
+"2025-01-24 15:34:22,027 - odps.rest - DEBUG - response.status_code 201\n"
+"2025-01-24 15:34:22,027 - odps.rest - DEBUG - response.headers:\n"
+"{'Server': '<Server>', 'Date': 'Fri, 24 Jan 2025 07:34:22 GMT', 'Content-"
+"Type': 'text/plain;charset=utf-8', 'Content-Length': '0', 'Connection': "
+"'close', 'Location': ....\n"
+"2025-01-24 15:34:22,027 - odps.rest - DEBUG - response.content: b''"
+msgstr ""
+
+#: ../../source/faq.rst:119
+msgid ""
+"从上面的输出中，可以知道代码启动任务的时间（2025-01-24 15:34:21,531）、"
+"请求发起时间（2025-01-24 15:34:21,533）以及\\ 服务端返回的时间（2025-01-"
+"24 15:34:22,027）获知各个阶段的时间开销。"
+msgstr ""
+"From the output above, you can know that the code starts execution at "
+"2025-01-24 15:34:21.531, request is sent at 2025-01-24 15:34:21.533, and "
+"the server returns at 2025-01-24 15:34:22.027."
+
+#: ../../source/faq.rst:122
+msgid ""
+"如果你需要确认执行变慢是否是由拉取数据造成，可以先尝试将提交执行与拉取"
+"数据拆开，也就是说，使用 ``run_sql`` 提交任务，\\ 并使用 ``instance.wait_"
+"for_success`` 等待任务结束，再使用 ``instance.open_reader`` 读取数据。"
+"也就是说，\\ 将"
+msgstr ""
+"If you need to check whether the delay is caused by data downloading, you"
+" can try spliting the code of SQL execution and data downloading. That "
+"is, use ``run_sql`` to submit the SQL task, and use "
+"``instance.wait_for_success`` to wait for the task to finish, and then "
+"use ``instance.open_reader`` to read the data. That is, change"
+
+#: ../../source/faq.rst:126
+msgid ""
+"with o.execute_sql('select * from your_table').open_reader() as reader:\n"
+"    for row in reader:\n"
+"        print(row)"
+msgstr ""
+
+#: ../../source/faq.rst:132
+msgid "改写为"
+msgstr "into"
+
+#: ../../source/faq.rst:134
+msgid ""
+"inst = o.run_sql('select * from your_table')\n"
+"inst.wait_for_success()\n"
+"with inst.open_reader() as reader:\n"
+"    for row in reader:\n"
+"        print(row)"
+msgstr ""
+
+#: ../../source/faq.rst:142
+msgid "然后再确认各语句造成的延迟。"
+msgstr "and then check the latency of every statement above."
+
+#: ../../source/faq.rst:145
 msgid ""
 "上传 pandas DataFrame 到 ODPS 时报错：ODPSError: ODPS entrance should be "
 "provided"
@@ -176,40 +346,40 @@ msgstr ""
 "ODPSError: ODPS entrance should be provided. How can I deal with this "
 "error?"
 
-#: ../../source/faq.rst:69
+#: ../../source/faq.rst:146
 msgid "原因是没有找到全局的ODPS入口，有三个方法："
 msgstr ""
 "You need to set the ODPS object to global in one of the three following "
 "ways:"
 
-#: ../../source/faq.rst:71
+#: ../../source/faq.rst:148
 #, python-format
 msgid "使用 :ref:`room 机制 <cl>` ，``%enter`` 的时候，会配置全局入口"
 msgstr ""
 "When using :ref:`room mechanism <cl>` , ``%enter`` , configure the global"
 " ODPS object."
 
-#: ../../source/faq.rst:72
+#: ../../source/faq.rst:149
 msgid "对odps入口调用 ``to_global`` 方法"
 msgstr "Call the ``to_global`` method when using the ODPS object."
 
-#: ../../source/faq.rst:73
+#: ../../source/faq.rst:150
 msgid "使用odps参数，``DataFrame(pd_df).persist('your_table', odps=odps)``"
 msgstr ""
 "Use the MaxCompute parameter ``DataFrame(pd_df).persist('your_table', "
 "odps=odps)``."
 
-#: ../../source/faq.rst:76
+#: ../../source/faq.rst:153
 msgid "在 DataFrame 中如何使用 max_pt ？"
 msgstr "How can I use max_pt in DataFrame?"
 
-#: ../../source/faq.rst:77
+#: ../../source/faq.rst:154
 msgid "使用 ``odps.df.func`` 模块来调用 ODPS 内建函数"
 msgstr ""
 "Use the ``odps.df.func`` module to call the built-in functions of "
 "MaxCompute."
 
-#: ../../source/faq.rst:79
+#: ../../source/faq.rst:156
 msgid ""
 "from odps.df import func\n"
 "df = o.get_table('your_table').to_df()\n"
@@ -220,20 +390,20 @@ msgstr ""
 "df[df.ds == func.max_pt('your_project.your_table')]  # ds is a partition "
 "column"
 
-#: ../../source/faq.rst:86
+#: ../../source/faq.rst:163
 msgid "通过 DataFrame 写表时报 table lifecycle is not specified in mandatory mode"
 msgstr ""
 "Error \"table lifecycle is not specified in mandatory mode\" occurred "
 "when persisting DataFrame to table"
 
-#: ../../source/faq.rst:87
+#: ../../source/faq.rst:164
 msgid "Project 要求对每张表设置 lifecycle，因而需要在每次执行时设置"
 msgstr ""
 "Your project requires that every table should be created with a "
 "lifecycle. Thus you should run the code below every time you run your own"
 " code."
 
-#: ../../source/faq.rst:89
+#: ../../source/faq.rst:166
 msgid ""
 "from odps import options\n"
 "options.lifecycle = 7  # 或者你期望的 lifecycle 整数值，单位为天"
@@ -241,7 +411,7 @@ msgstr ""
 "from odps import options\n"
 "options.lifecycle = 7  # or your expected lifecycle in days"
 
-#: ../../source/faq.rst:95
+#: ../../source/faq.rst:172
 msgid ""
 "执行 SQL 时报 Please add put { \"odps.sql.submit.mode\" : \"script\"} for"
 " multi-statement query in settings"
@@ -249,7 +419,7 @@ msgstr ""
 "Error \"Please add put { \"odps.sql.submit.mode\" : \"script\"} for "
 "multi-statement query in settings\" occurred when executing SQL scripts"
 
-#: ../../source/faq.rst:96
+#: ../../source/faq.rst:173
 msgid "请参考 :ref:`SQL设置运行参数 <sql_hints>` 。"
 msgstr ""
 "Please read :ref:`set runtime parameters <sql_hints>` for more "
@@ -259,7 +429,7 @@ msgstr ""
 msgid "如何遍历 PyODPS DataFrame 中的每行数据"
 msgstr "How to enumerate rows in PyODPS DataFrame"
 
-#: ../../source/faq.rst:101
+#: ../../source/faq.rst:178
 msgid ""
 "PyODPS DataFrame 不支持遍历每行数据。这样设计的原因是由于 PyODPS "
 "DataFrame 面向大规模数据设计，在这种场景下， 数据遍历是非常低效的做法。"
@@ -286,7 +456,7 @@ msgstr ""
 "Why memory usage after calling to_pandas is significantly larger than the"
 " size of the table?"
 
-#: ../../source/faq.rst:110
+#: ../../source/faq.rst:187
 msgid ""
 "有两个原因可能导致这个现象发生。首先，MaxCompute 在存储数据时会对数据进行"
 "压缩，你看到的表大小应当是压缩后的大小。 其次，Python 中的值存在额外的"
@@ -301,7 +471,7 @@ msgstr ""
 "even if the string is empty. You may get the size by calling "
 "``sys.getsizeof(\"\")``."
 
-#: ../../source/faq.rst:114
+#: ../../source/faq.rst:191
 msgid ""
 "需要注意的是，使用 Pandas 的 ``info`` 或者 ``memory_usage`` 方法获得的 "
 "Pandas DataFrame 内存使用可能是不准确的，因为这些方法默认不计算 string "
@@ -317,8 +487,7 @@ msgstr ""
 "might be used. Details can be seen `in this Pandas document "
 "<https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.memory_usage.html>`_."
 
-#: ../../source/faq.rst:119
-#, fuzzy
+#: ../../source/faq.rst:196
 msgid ""
 "为减小读取数据时的内存开销，可以考虑使用 Arrow 格式，具体可以参考 :ref:`"
 "这里 <table_read>`。"

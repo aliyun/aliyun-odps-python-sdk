@@ -228,6 +228,7 @@ setup_options = dict(
         ],
         "superset.db_engine_specs": [
             "odps = odps.superset_odps:ODPSEngineSpec",
+            "maxcompute = odps.superset_odps:ODPSEngineSpec",
         ],
         "console_scripts": [
             "pyou = odps_scripts.pyou:main",

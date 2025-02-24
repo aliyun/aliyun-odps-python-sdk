@@ -27,7 +27,7 @@ from ..lib.monotonic import monotonic
 from ..models import Projects, Record, TableSchema
 from ..types import Column
 from .base import TUNNEL_VERSION, BaseTunnel
-from .errors import TunnelError, TunnelWriteTimeout
+from .errors import TunnelError, TunnelReadTimeout, TunnelWriteTimeout
 from .io.reader import ArrowRecordReader, TunnelArrowReader, TunnelRecordReader
 from .io.stream import CompressOption, get_decompress_stream
 from .io.writer import (
@@ -228,6 +228,7 @@ class TableDownloadSession(BaseTableTunnelSession):
             params["asyncmode"] = "true"
 
         url = self._table.table_resource()
+        ts = monotonic()
         try:
             resp = self._client.post(
                 url, {}, params=params, headers=headers, timeout=timeout
@@ -241,6 +242,16 @@ class TableDownloadSession(BaseTableTunnelSession):
         delay_time = 0.1
         self.parse(resp, obj=self)
         while self.status == self.Status.Initiating:
+            if timeout and monotonic() - ts > timeout:
+                try:
+                    raise TunnelReadTimeout(
+                        "Waiting for tunnel ready timed out. id=%s, table=%s"
+                        % (self.id, self._table.name)
+                    )
+                except TunnelReadTimeout:
+                    if callable(options.tunnel_session_create_timeout_callback):
+                        options.tunnel_session_create_timeout_callback(*sys.exc_info())
+                    raise
             time.sleep(delay_time)
             delay_time = min(delay_time * 2, 5)
             self.reload()

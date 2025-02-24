@@ -8,9 +8,6 @@ exclude: "^benchmarks/.*
 *|^misc/.*
 *|^odps/mars_extension/.*
 *|^odps/df/.*
-*|^odps/internal/ml/.*
-*|^odps/internal/static/.*
-*|^odps/internal/xlib/.*
 *|^odps/lib/.*
 *|^odps/ml/.*
 *|^odps/static/.*"
@@ -58,7 +55,7 @@ repos:
   # Check that the copyright is configured
   - id: copyright-check
     name: copyright-check
-    entry: python bin/copyright.py
+    entry: python bin/copyright.py --required
     language: python
     files: 'odps/.*'
     exclude: '^odps/lib/.*|^odps/tunnel/pb/.*\.py$'

@@ -64,6 +64,83 @@ Project 上的安全策略禁止读取表中的数据，此时，如果想使用
 
 使用 ``create table as select ...`` 把SQL的结果保存成表，再使用 :ref:`table.open_reader <table_open_reader>` 来读取。
 
+.. rubric:: 执行 SQL 很慢，如何排查？
+
+PyODPS 提交 SQL 任务前，并没有进行重度操作。因此，绝大多数情形下，导致提交任务变慢的原因与 PyODPS 没有关系。
+你可以考虑排查下面的原因。
+
+1. 提交任务经过的代理服务器或者网络链路是否存在延迟；
+2. 服务端是否存在任务排队延迟等情况；
+3. 如果执行 SQL 的过程包括了拉取数据，是否数据规模过大或者数据分片过多导致拉取数据缓慢；
+4. 如果是 DataWorks 作业，确认是否存在提交的任务（\ ``run_sql`` / ``execute_sql``）没有输出 Logview，尤其当 PyODPS \< 0.11.6 时。
+
+如果你需要确认提交任务变慢是否由本地环境造成，可以尝试开启调试日志。PyODPS 将会把每个请求及返回都打印出来，可以根据\
+请求和返回的日志确定延迟发生的位置。
+
+.. code-block:: python
+
+    import datetime
+    import logging
+    from odps import ODPS
+
+    logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    o = ODPS(...)  #  此处填入账号，如果环境已提供 MaxCompute Entry 则忽略
+    # 打印本地时间以确定本地操作发起的时间
+    print("Check time:", datetime.datetime.now())
+    # 提交任务
+    inst = o.run_sql("select * from your_table")
+
+
+此时，你的标准输出应当输出的内容应当形似
+
+.. code-block:: text
+
+    Check time: 2025-01-24 15:34:21.531330
+    2025-01-24 15:34:21,532 - odps.rest - DEBUG - Start request.
+    2025-01-24 15:34:21,532 - odps.rest - DEBUG - POST: http://service.<region>.maxcompute.aliyun.com/api/projects/<project>/instances
+    2025-01-24 15:34:21,532 - odps.rest - DEBUG - data: b'<?xml version="1.0" encoding="utf-8"?>\n<Instance>\n  <Job>\n    <Priority>9</Priority>\n    <Tasks>\n      <SQL>\n        ....
+    2025-01-24 15:34:21,532 - odps.rest - DEBUG - headers: {'Content-Type': 'application/xml'}
+    2025-01-24 15:34:21,533 - odps.rest - DEBUG - request url + params /api/projects/<project>/instances?curr_project=<project>
+    2025-01-24 15:34:21,533 - odps.accounts - DEBUG - headers before signing: {'Content-Type': 'application/xml', 'User-Agent': 'pyodps/0.12.2 CPython/3.7.12', 'Content-Length': '736'}
+    2025-01-24 15:34:21,533 - odps.accounts - DEBUG - headers to sign: OrderedDict([('content-md5', ''), ('content-type', 'application/xml'), ('date', 'Fri, 24 Jan 2025 07:34:21 GMT')])
+    2025-01-24 15:34:21,533 - odps.accounts - DEBUG - canonical string: POST
+
+    application/xml
+    Fri, 24 Jan 2025 07:34:21 GMT
+    /projects/maxframe_ci_cd/instances?curr_project=maxframe_ci_cd
+    2025-01-24 15:34:21,533 - odps.accounts - DEBUG - headers after signing: {'Content-Type': 'application/xml', 'User-Agent': 'pyodps/0.12.2 CPython/3.7.12', 'Content-Length': '736', ....
+    2025-01-24 15:34:21,533 - urllib3.connectionpool - DEBUG - Resetting dropped connection: service.<region>.maxcompute.aliyun.com
+    2025-01-24 15:34:22,027 - urllib3.connectionpool - DEBUG - http://service.<region>.maxcompute.aliyun.com:80 "POST /api/projects/<project>/instances?curr_project=<project> HTTP/1.1" 201 0
+    2025-01-24 15:34:22,027 - odps.rest - DEBUG - response.status_code 201
+    2025-01-24 15:34:22,027 - odps.rest - DEBUG - response.headers:
+    {'Server': '<Server>', 'Date': 'Fri, 24 Jan 2025 07:34:22 GMT', 'Content-Type': 'text/plain;charset=utf-8', 'Content-Length': '0', 'Connection': 'close', 'Location': ....
+    2025-01-24 15:34:22,027 - odps.rest - DEBUG - response.content: b''
+
+从上面的输出中，可以知道代码启动任务的时间（2025-01-24 15:34:21,531）、请求发起时间（2025-01-24 15:34:21,533）以及\
+服务端返回的时间（2025-01-24 15:34:22,027）获知各个阶段的时间开销。
+
+如果你需要确认执行变慢是否是由拉取数据造成，可以先尝试将提交执行与拉取数据拆开，也就是说，使用 ``run_sql`` 提交任务，\
+并使用 ``instance.wait_for_success`` 等待任务结束，再使用 ``instance.open_reader`` 读取数据。也就是说，\
+将
+
+.. code-block:: python
+
+    with o.execute_sql('select * from your_table').open_reader() as reader:
+        for row in reader:
+            print(row)
+
+改写为
+
+.. code-block:: python
+
+    inst = o.run_sql('select * from your_table')
+    inst.wait_for_success()
+    with inst.open_reader() as reader:
+        for row in reader:
+            print(row)
+
+然后再确认各语句造成的延迟。
+
 .. rubric:: 上传 pandas DataFrame 到 ODPS 时报错：ODPSError: ODPS entrance should be provided
 
 原因是没有找到全局的ODPS入口，有三个方法：
