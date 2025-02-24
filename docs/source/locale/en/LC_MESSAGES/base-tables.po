@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2024-12-31 16:42+0800\n"
+"POT-Creation-Date: 2025-01-15 17:24+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -1870,18 +1870,19 @@ msgstr ""
 "        # process every record"
 
 #: ../../source/base-tables.rst:1043
-msgid "提升上传性能"
-msgstr "Improve upload performance"
+msgid "提升上传和下载性能"
+msgstr "Improve upload and download performance"
 
 #: ../../source/base-tables.rst:1045
 msgid ""
-"Tunnel 上传性能受到各种因素影响较大。首先，考虑对本地代码的优化，主要有"
-"下面的优化点："
+"Tunnel 上传和下载性能受到各种因素影响较大。首先，考虑对本地代码的优化，"
+"主要有下面的优化点："
 msgstr ""
-"Performance of tunnel upload can be affected by various factors. First, "
-"you may consider optimizing your local code, which includes:"
+"Performance of tunnel upload and download can be affected by various "
+"factors. First, you may consider optimizing your local code, which "
+"includes:"
 
-#: ../../source/base-tables.rst:1047
+#: ../../source/base-tables.rst:929
 msgid ""
 "减少创建 Upload Session 或者 Download Session 的次数，尽量复用。Tunnel "
 "Session 本身创建代价较大，\\ 因而除非必要，一次读取或写入只应当创建一个。"
@@ -1890,15 +1891,15 @@ msgstr ""
 "of tunnel session creation is high, so unless necessary, only one upload "
 "session should be created for each read or write."
 
-#: ../../source/base-tables.rst:1049
+#: ../../source/base-tables.rst:931
 msgid "增加每个 Reader / Writer 读取或者写入的数据量。"
 msgstr "Increase the amount of data read or written by readers or writers."
 
-#: ../../source/base-tables.rst:1050
+#: ../../source/base-tables.rst:932
 msgid "启用数据压缩以减小传输的数据量。"
 msgstr "Compress data to reduce the amount of data to transfer."
 
-#: ../../source/base-tables.rst:1051
+#: ../../source/base-tables.rst:933
 msgid ""
 "如果数据源或者需要的数据目标为 pandas，由于 Record 类型本身需要较大的 "
 "Python 解释器时间开销，因而建议尽量采用 Arrow 接口进行读写。"
@@ -1907,30 +1908,30 @@ msgstr ""
 " overhead in Python interpreter, it is recommended to use Arrow interface"
 " for pandas data if possible."
 
-#: ../../source/base-tables.rst:922
+#: ../../source/base-tables.rst:935
 msgid ""
-"如有可能，使用多线程或者 multiprocessing 进行写入。需要注意的是，Python "
-"使用了 GIL，因而如果你写入数据\\ 前的预处理步骤使用了较多纯 Python 代码，"
+"如有可能，使用多线程或者 multiprocessing 进行读写。需要注意的是，Python "
+"使用了 GIL，因而如果你读写数据\\ 前的预处理步骤使用了较多纯 Python 代码，"
 "那么多线程可能未必提升性能。"
 msgstr ""
-"Use multi-threading or multiprocessing for writing if possible. Note "
-"that Python uses GIL, so if you use a lot of pure Python code to do data "
-"preprocessing before writing, multi-threading may not improve performance"
-" much."
+"Use multi-threading or multiprocessing for reading or writing if "
+"possible. Note that Python uses GIL, so if you use a lot of pure Python "
+"code to do data preprocessing before reading or writing, multi-threading "
+"may not improve performance much."
 
-#: ../../source/base-tables.rst:925
+#: ../../source/base-tables.rst:938
 msgid ""
-"此外，写入数据时的网络状况等因素也可能影响上传速度，可能发生共享 Tunnel "
-"服务资源用满或者客户端到 Tunnel 服务网络链路不稳定等因素。针对这些情形，"
-"可以考虑购买独享资源 Tunnel 或者使用阿里云内网进行上传，相关信息可以\\ "
-"参考\\ `Tunnel 文档 <https://help.aliyun.com/zh/maxcompute/user-guide/"
+"此外，读写数据时的网络状况等因素也可能影响上传和下载速度，可能发生共享 "
+"Tunnel 服务资源用满或者客户端到 Tunnel 服务网络链路不稳定等因素。针对这些"
+"情形，可以考虑购买独享资源 Tunnel 或者使用阿里云内网，相关信息可以\\ 参考"
+"\\ `Tunnel 文档 <https://help.aliyun.com/zh/maxcompute/user-guide/"
 "overview-of-dts#094b91802f18e>`_。"
 msgstr ""
-"In addition, factors such as network conditions when writing data may "
-"also affect upload speed, and Tunnel service resources may be exhausted "
-"or network instability may occur. For these cases, you may consider "
-"purchasing exclusive Tunnel resources or uploading data in Alibaba Cloud "
-"intranet. More information can be found in `Tunnel Documentation "
-"<https://help.aliyun.com/zh/maxcompute/user-guide/overview-of-"
-"dts#094b91802f18e>`_."
+"In addition, factors such as network conditions when reading or writing "
+"data may also affect upload or download speed, and Tunnel service "
+"resources may be exhausted or network instability may occur. For these "
+"cases, you may consider purchasing exclusive Tunnel resources or "
+"uploading data in Alibaba Cloud intranet. More information can be found "
+"in `Tunnel Documentation <https://help.aliyun.com/zh/maxcompute/user-"
+"guide/overview-of-dts#094b91802f18e>`_."
 

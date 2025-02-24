@@ -16,6 +16,7 @@
 
 from __future__ import print_function
 
+import json
 import math
 import random
 import sys
@@ -48,6 +49,7 @@ from ... import options, types
 from ...compat import DECIMAL_TYPES, ConfigParser, Decimal, Monthdelta, Version
 from ...errors import DatetimeOverflowError, throw_if_parsable
 from ...models import Record, TableSchema
+from ...rest import RestClient
 from ...tests.core import (
     approx_list,
     flaky,
@@ -59,9 +61,9 @@ from ...tests.core import (
     pyarrow_case,
     tn,
 )
-from ...utils import get_zone_name, to_text
+from ...utils import get_zone_name, to_binary, to_text
 from .. import TableTunnel
-from ..errors import TunnelWriteTimeout
+from ..errors import TunnelReadTimeout, TunnelWriteTimeout
 from ..tabletunnel import BaseTableTunnelSession
 
 _TUNNEL_VERSION_NO_METRICS = 5
@@ -1224,6 +1226,8 @@ def test_antique_datetime(odps):
 
 @py_and_c_deco
 def test_tunnel_read_with_retry(odps, setup):
+    # must be imported here as odps.tunnel.tabletunnel will
+    # be reloaded by the decorator
     from ..tabletunnel import TableDownloadSession
 
     test_table_name = tn("pyodps_t_tmp_tunnel_read_with_retry_" + get_code_mode())
@@ -1576,5 +1580,35 @@ def test_read_secondary_project_table(config, odps):
         with down_sess.open_record_reader(0, down_sess.count) as reader:
             records = list(reader)
             assert records[0][0] == "test_data"
+    finally:
+        table.drop()
+
+
+def test_async_mode_timeout(odps):
+    table_name = tn("test_async_mode_timeout_table")
+    odps.delete_table(table_name, if_exists=True)
+    table = odps.create_table(table_name, "col1 string", lifecycle=1)
+
+    old_request = RestClient.request
+
+    def new_request(self, *args, **kw):
+        headers = kw.get("headers") or {}
+        resp = old_request(self, *args, **kw)
+        if "x-odps-tunnel-version" not in headers or (
+            "downloads" not in resp.url and "downloadid" not in resp.url
+        ):
+            return resp
+        assert "asyncmode=true" in resp.url or "downloads=" not in resp.url
+        parsed = json.loads(resp.content)
+        parsed["Status"] = "initiating"
+        resp._content = to_binary(json.dumps(parsed))
+        return resp
+
+    try:
+        with mock.patch("odps.rest.RestClient.request", new=new_request), pytest.raises(
+            TunnelReadTimeout
+        ):
+            table_tunnel = TableTunnel(odps)
+            table_tunnel.create_download_session(table, timeout=10)
     finally:
         table.drop()

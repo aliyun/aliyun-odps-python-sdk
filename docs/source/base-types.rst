@@ -120,7 +120,7 @@ MaxCompute 支持的复合类型有 Array、Map 和 Struct，可通过构造函�
     >>> print("key_type:", map_type.key_type, "value_type:", map_type.value_type)
     key_type: string value_type: array<bigint>
 
-你可以通过 ``dict[str, Type]`` 或者 ``list[tuple[str, Type]]`` 创建 Struct 类型描述实例。\
+你可以通过 ``dict[str, DataType]`` 或者 ``list[tuple[str, DataType]]`` 创建 Struct 类型描述实例。\
 对于 ``dict`` 类型，需要注意在 Python 3.6 及之前版本，Python 不保证 ``dict`` 的顺序，这可能导致\
 定义的字段类型与预期不符。下面的例子展示了如何创建 Struct 类型描述实例。
 

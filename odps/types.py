@@ -888,7 +888,10 @@ def _primitive_doc(cls=None, is_odps2=True):
         docstr = _primitive_doc_template.format(
             cls_name=cls_name, cls_attr=cls_attr, odps2_note=odps2_note
         )
-        cls_internal.__doc__ = docstr
+        try:
+            cls_internal.__doc__ = docstr
+        except AttributeError:
+            pass
         return cls_internal
 
     if cls is None:

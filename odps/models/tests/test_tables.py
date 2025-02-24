@@ -167,6 +167,11 @@ def test_create_table_ddl(odps):
     ddl = table.get_ddl(if_not_exists=True)
     assert "NOT EXISTS" in ddl
 
+    # make sure ddl works
+    odps.delete_table(test_table_name, if_exists=True)
+    odps.execute_sql(ddl)
+    assert odps.exist_table(test_table_name)
+
     ddl = Table.gen_create_table_sql(
         "test_external_table",
         schema,
@@ -192,6 +197,38 @@ def test_create_table_ddl(odps):
       'name1' = 'value1',
       'name2' = 'value2'
     )
+    LOCATION 'oss://mock_endpoint/mock_bucket/mock_path/'
+    """
+        ).strip()
+    )
+
+    ddl = Table.gen_create_table_sql(
+        "test_external_table",
+        schema,
+        comment="TEST_COMMENT",
+        row_format_serde="org.apache.hadoop.hive.serde2.OpenCSVSerde",
+        stored_as="textfile",
+        serde_properties=OrderedDict([("name1", "value1"), ("name2", "value2")]),
+        location="oss://mock_endpoint/mock_bucket/mock_path/",
+    )
+    assert (
+        ddl
+        == textwrap.dedent(
+            """
+    CREATE EXTERNAL TABLE `test_external_table` (
+      `id` BIGINT,
+      `name` STRING
+    )
+    COMMENT 'TEST_COMMENT'
+    PARTITIONED BY (
+      `ds` STRING
+    )
+    ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
+    WITH SERDEPROPERTIES (
+      'name1' = 'value1',
+      'name2' = 'value2'
+    )
+    STORED AS textfile
     LOCATION 'oss://mock_endpoint/mock_bucket/mock_path/'
     """
         ).strip()

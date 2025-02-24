@@ -1,3 +1,17 @@
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import contextlib
 import logging
 import sys
@@ -67,12 +81,15 @@ except ImportError:
         WEEK_STARTING_SUNDAY = "1969-12-28T00:00:00Z/P1W"
 
 
-from .compat import getargspec, six
+from .compat import getargspec, getfullargspec, six
 from .config import options
 from .df import DataFrame
 from .utils import TEMP_TABLE_PREFIX
 
 logger = logging.getLogger(__name__)
+
+if getfullargspec is None:
+    getfullargspec = getargspec
 
 _builtin_funcs = set(
     """
@@ -121,6 +138,7 @@ WM_CONCAT YEAR ZIP_WITH
 
 class ODPSEngineSpec(BaseEngineSpec):
     engine = "odps"
+    engine_aliases = {"maxcompute"}
     engine_name = "ODPS"
 
     # pylint: disable=line-too-long
@@ -213,7 +231,7 @@ class ODPSEngineSpec(BaseEngineSpec):
                 query = query.where(Column(col_name) == value)
         return query
 
-    if "schema" in getargspec(BaseEngineSpec.where_latest_partition).args:
+    if "schema" in getfullargspec(BaseEngineSpec.where_latest_partition).args:
         # superset prior to v4.1.0 uses a legacy call routine
         where_latest_partition = _where_latest_partition
     else:

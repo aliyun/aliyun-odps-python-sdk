@@ -213,6 +213,10 @@ class Table(LazyLoad):
         "storage_handler",
         "resources",
         "serde_properties",
+        "serde_info",
+        "input_format",
+        "output_format",
+        "stored_as",
         "reserved",
         "is_transactional",
         "primary_key",
@@ -364,6 +368,10 @@ class Table(LazyLoad):
             self.cdc_record_num = -1
             self.cdc_latest_version = -1
             self.cdc_latest_timestamp = None
+            self.serde_info = None
+            self.input_format = None
+            self.output_format = None
+            self.stored_as = None
             return
         self.schema_version = self.reserved.get("schema_version")
         is_transactional = self.reserved.get("Transactional")
@@ -384,6 +392,10 @@ class Table(LazyLoad):
             self.cdc_latest_timestamp = datetime.fromtimestamp(
                 int(self.reserved["cdc_latest_timestamp"])
             )
+        self.serde_info = self.reserved.get("SerDeInfo")
+        self.input_format = self.reserved.get("InputFormat")
+        self.output_format = self.reserved.get("OutputFormat")
+        self.stored_as = self.reserved.get("StoredAs")
 
     def reload_extend_info(self):
         params = {}
@@ -464,10 +476,6 @@ class Table(LazyLoad):
 
         return buf.getvalue()
 
-    @property
-    def stored_as(self):
-        return (self.reserved or dict()).get("StoredAs")
-
     @classmethod
     def gen_create_table_sql(
         cls,
@@ -500,9 +508,12 @@ class Table(LazyLoad):
             [primary_key] if isinstance(primary_key, six.string_types) else primary_key
         )
 
-        stored_as = kw.get("stored_as")
-        external_stored_as = kw.get("external_stored_as")
+        stored_as = kw.get("stored_as") or kw.get("external_stored_as")
         storage_handler = kw.get("storage_handler")
+        location = kw.get("location")
+        row_format_serde = kw.get("row_format_serde")
+        input_format = kw.get("input_format")
+        output_format = kw.get("output_format")
         table_properties = kw.get("table_properties") or {}
         cluster_info = kw.get("cluster_info")
 
@@ -516,9 +527,7 @@ class Table(LazyLoad):
         elif table_type == cls.Type.MATERIALIZED_VIEW:
             type_str = u"MATERIALIZED VIEW"
         else:
-            type_str = (
-                u"EXTERNAL TABLE" if storage_handler or external_stored_as else u"TABLE"
-            )
+            type_str = u"EXTERNAL TABLE" if location else u"TABLE"
 
         buf.write(u"CREATE %s " % type_str)
         if if_not_exists:
@@ -624,35 +633,42 @@ class Table(LazyLoad):
             buf.write(u"\n)\n")
 
         serde_properties = kw.get("serde_properties")
-        location = kw.get("location")
         resources = kw.get("resources")
-        if storage_handler or external_stored_as:
+        if location or stored_as:
             if storage_handler:
                 buf.write(
-                    "STORED BY '%s'\n" % utils.escape_odps_string(storage_handler)
+                    u"STORED BY '%s'\n" % utils.escape_odps_string(storage_handler)
                 )
-            else:
-                buf.write("STORED AS %s\n" % external_stored_as)
+            elif row_format_serde:
+                buf.write(
+                    u"ROW FORMAT SERDE '%s'\n"
+                    % utils.escape_odps_string(row_format_serde)
+                )
             if serde_properties:
-                buf.write("WITH SERDEPROPERTIES (\n")
+                buf.write(u"WITH SERDEPROPERTIES (\n")
                 for idx, k in enumerate(serde_properties):
                     buf.write(
-                        "  '%s' = '%s'"
+                        u"  '%s' = '%s'"
                         % (
                             utils.escape_odps_string(k),
                             utils.escape_odps_string(serde_properties[k]),
                         )
                     )
                     if idx + 1 < len(serde_properties):
-                        buf.write(",")
-                    buf.write("\n")
-                buf.write(")\n")
+                        buf.write(u",")
+                    buf.write(u"\n")
+                buf.write(u")\n")
+            if stored_as or input_format or output_format:
+                if not stored_as:
+                    stored_as = u"\nINPUTFORMAT '%s'\nOUTPUTFORMAT '%s'" % (
+                        utils.escape_odps_string(input_format),
+                        utils.escape_odps_string(output_format),
+                    )
+                buf.write(u"STORED AS %s\n" % stored_as)
             if location:
-                buf.write("LOCATION '%s'\n" % utils.escape_odps_string(location))
+                buf.write(u"LOCATION '%s'\n" % utils.escape_odps_string(location))
             if resources:
-                buf.write("USING '%s'\n" % utils.escape_odps_string(resources))
-        if stored_as:
-            buf.write("STORED AS %s\n" % stored_as)
+                buf.write(u"USING '%s'\n" % utils.escape_odps_string(resources))
         if not is_view and lifecycle is not None and lifecycle > 0:
             buf.write(u"LIFECYCLE %s\n" % lifecycle)
         if shard_num is not None:
@@ -682,6 +698,25 @@ class Table(LazyLoad):
             else None
         )
         table_type = self.type if not force_table_ddl else self.Type.MANAGED_TABLE
+        if self.stored_as and self.stored_as.lower() not in ("cfile", "unknown"):
+            stored_as = self.stored_as
+            row_format_serde = None
+            input_format = output_format = None
+        else:
+            # use system-designated serde to simplify ddl
+            stored_as = None
+            row_format_serde = (self.serde_info or {}).get("serializationLib")
+            input_format = self.input_format
+            output_format = self.output_format
+
+        # ignore default serde
+        if not self.location and (row_format_serde, input_format, output_format) == (
+            "com.aliyun.apsara.serde.CFileSerDe",
+            "com.aliyun.apsara.format.CFileInputFormat",
+            "com.aliyun.apsara.format.CFileOutputFormat",
+        ):
+            row_format_serde = input_format = output_format = None
+
         return self.gen_create_table_sql(
             self.name,
             self.table_schema,
@@ -693,6 +728,10 @@ class Table(LazyLoad):
             project=self.project.name,
             storage_handler=self.storage_handler,
             serde_properties=self.serde_properties,
+            stored_as=stored_as,
+            row_format_serde=row_format_serde,
+            input_format=input_format,
+            output_format=output_format,
             location=self.location,
             resources=self.resources,
             table_type=table_type,
@@ -1272,7 +1311,7 @@ class Table(LazyLoad):
         self, storage_tier, partition_spec=None, async_=False, hints=None
     ):
         """
-        Set storage tier of current table
+        Set storage tier of current table or specific partition.
         """
         self._is_extend_info_loaded = False
 
@@ -1296,6 +1335,21 @@ class Table(LazyLoad):
 
     @utils.with_wait_argument
     def add_columns(self, columns, if_not_exists=False, async_=False, hints=None):
+        """
+        Add columns to the table.
+
+        :param columns: columns to add, can be a list of :class:`~odps.types.Column`
+            or a string of column definitions
+        :param if_not_exists: if True, will not raise exception when column exists
+
+        :Example:
+
+        >>> table = odps.create_table('test_table', schema=TableSchema.from_lists(['name', 'id'], ['sring', 'string']))
+        >>> # add column by Column instance
+        >>> table.add_columns([Column('id2', 'string')])
+        >>> # add column by a string of column definitions
+        >>> table.add_columns("fid double, fid2 double")
+        """
         if isinstance(columns, odps_types.Column):
             columns = [columns]
 
@@ -1317,6 +1371,11 @@ class Table(LazyLoad):
 
     @utils.with_wait_argument
     def delete_columns(self, columns, async_=False, hints=None):
+        """
+        Delete columns from the table.
+
+        :param columns: columns to delete, can be a list of column names
+        """
         if isinstance(columns, six.string_types):
             columns = [columns]
         action_str = u"DROP COLUMNS " + u", ".join(u"`%s`" % c for c in columns)
@@ -1331,6 +1390,13 @@ class Table(LazyLoad):
     def rename_column(
         self, old_column_name, new_column_name, comment=None, async_=False, hints=None
     ):
+        """
+        Rename a column in the table.
+
+        :param old_column_name: old column name
+        :param new_column_name: new column name
+        :param comment: new column comment, optional
+        """
         if comment:
             old_col = self.table_schema[old_column_name]
             new_col = odps_types.Column(
@@ -1358,6 +1424,11 @@ class Table(LazyLoad):
 
     @utils.with_wait_argument
     def set_lifecycle(self, days, async_=False, hints=None):
+        """
+        Set lifecycle of current table.
+
+        :param days: lifecycle in days
+        """
         sql = self._build_alter_table_ddl(u"SET LIFECYCLE %s" % days)
         inst = self.parent._run_table_sql(
             sql, task_name="SQLSetLifecycleTask", hints=hints, wait=not async_
@@ -1368,6 +1439,11 @@ class Table(LazyLoad):
 
     @utils.with_wait_argument
     def set_owner(self, new_owner, async_=False, hints=None):
+        """
+        Set owner of current table.
+
+        :param new_owner: account of the new owner
+        """
         sql = self._build_alter_table_ddl(
             u"CHANGEOWNER TO '%s'" % utils.escape_odps_string(new_owner)
         )
@@ -1380,6 +1456,11 @@ class Table(LazyLoad):
 
     @utils.with_wait_argument
     def set_comment(self, new_comment, async_=False, hints=None):
+        """
+        Set comment of current table.
+
+        :param new_comment: new comment
+        """
         sql = self._build_alter_table_ddl(
             u"SET COMMENT '%s'" % utils.escape_odps_string(new_comment)
         )
@@ -1392,6 +1473,9 @@ class Table(LazyLoad):
 
     @utils.with_wait_argument
     def set_cluster_info(self, new_cluster_info, async_=False, hints=None):
+        """
+        Set cluster info of current table.
+        """
         if new_cluster_info is None:
             action = u"NOT CLUSTERED"
         else:
@@ -1407,6 +1491,11 @@ class Table(LazyLoad):
 
     @utils.with_wait_argument
     def rename(self, new_name, async_=False, hints=None):
+        """
+        Rename the table.
+
+        :param new_name: new table name
+        """
         sql = self._build_alter_table_ddl("RENAME TO `%s`" % new_name)
         inst = self.parent._run_table_sql(
             sql, task_name="SQLRenameTask", hints=hints, wait=not async_
@@ -1420,6 +1509,12 @@ class Table(LazyLoad):
     def change_partition_spec(
         self, old_partition_spec, new_partition_spec, async_=False, hints=None
     ):
+        """
+        Change partition spec of specified partition of the table.
+
+        :param old_partition_spec: old partition spec
+        :param new_partition_spec: new partition spec
+        """
         sql = self._build_alter_table_ddl(
             "RENAME TO %s" % self._build_partition_spec_sql(new_partition_spec),
             partition_spec=old_partition_spec,
@@ -1430,6 +1525,11 @@ class Table(LazyLoad):
 
     @utils.with_wait_argument
     def touch(self, partition_spec=None, async_=False, hints=None):
+        """
+        Update the last modified time of the table or specified partition.
+
+        :param partition_spec: partition spec, optional
+        """
         action = u"TOUCH " + self._build_partition_spec_sql(partition_spec)
         sql = self._build_alter_table_ddl(action.strip())
         inst = self.parent._run_table_sql(

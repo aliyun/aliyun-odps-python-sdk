@@ -220,8 +220,9 @@ class TableBatchScanResponse(serializers.JSONSerializableModel):
 
 
 class SessionRequest(object):
-    def __init__(self, session_id):
+    def __init__(self, session_id, refresh=False):
         self.session_id = session_id
+        self.refresh = refresh
 
 
 class TableBatchWriteRequest(serializers.JSONSerializableModel):
@@ -721,6 +722,8 @@ class StorageApiClient(object):
         params = {"session_type": "batch_read"}
         if self._quota_name:
             params["quotaName"] = self._quota_name
+        if request.refresh:
+            params["session_refresh"] = "true"
 
         res = self.tunnel_rest.get(url, params=params, headers=headers)
 

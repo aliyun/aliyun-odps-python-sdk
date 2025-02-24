@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.12.3\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-01-15 17:42+0800\n"
+"POT-Creation-Date: 2025-02-17 13:45+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: en\n"
@@ -47,8 +47,8 @@ msgstr ""
 #: odps.models.instance.Instance.open_reader
 #: odps.models.partition.Partition.open_reader odps.models.project.Project
 #: odps.models.resource.FileResource.open odps.models.table.Table
-#: odps.models.table.Table.new_record odps.models.table.Table.open_reader
-#: odps.models.table.Table.open_writer of
+#: odps.models.table.Table.add_columns odps.models.table.Table.new_record
+#: odps.models.table.Table.open_reader odps.models.table.Table.open_writer of
 msgid "Example"
 msgstr ""
 
@@ -111,16 +111,43 @@ msgstr ""
 msgid "Lifecycle of the table in days."
 msgstr ""
 
-#: odps.models.table.Table.create_partition:1 of
-msgid "Create a partition within the table."
+#: odps.models.table.Table.add_columns:1 of
+msgid "Add columns to the table."
 msgstr ""
 
 #: ../../source/api-models.rst odps.models.instance.Instance.get_task_cost
 #: odps.models.instance.Instance.open_reader
 #: odps.models.partition.Partition.open_reader
-#: odps.models.resource.FileResource.open odps.models.table.Table.open_reader
-#: odps.models.table.Table.open_writer of
+#: odps.models.resource.FileResource.open odps.models.table.Table.add_columns
+#: odps.models.table.Table.open_reader odps.models.table.Table.open_writer of
 msgid "Parameters"
+msgstr ""
+
+#: odps.models.table.Table.add_columns:3 of
+msgid ""
+"columns to add, can be a list of :class:`~odps.types.Column` or a string "
+"of column definitions"
+msgstr ""
+
+#: odps.models.table.Table.add_columns:5 of
+msgid "if True, will not raise exception when column exists"
+msgstr ""
+
+#: odps.models.table.Table.change_partition_spec:1 of
+msgid "Change partition spec of specified partition of the table."
+msgstr ""
+
+#: odps.models.table.Table.change_partition_spec:3 of
+msgid "old partition spec"
+msgstr ""
+
+#: odps.models.partition.Partition.change_partition_spec:3
+#: odps.models.table.Table.change_partition_spec:4 of
+msgid "new partition spec"
+msgstr ""
+
+#: odps.models.table.Table.create_partition:1 of
+msgid "Create a partition within the table."
 msgstr ""
 
 #: odps.models.table.Table.create_partition:3
@@ -146,6 +173,14 @@ msgstr ""
 
 #: ../../source/api-models.rst odps.models.instance.Instance.get_task_cost of
 msgid "Return type"
+msgstr ""
+
+#: odps.models.table.Table.delete_columns:1 of
+msgid "Delete columns from the table."
+msgstr ""
+
+#: odps.models.table.Table.delete_columns:3 of
+msgid "columns to delete, can be a list of column names"
 msgstr ""
 
 #: odps.models.table.Table.delete_partition:1 of
@@ -437,8 +472,60 @@ msgstr ""
 msgid "writer, status means the tunnel writer status"
 msgstr ""
 
+#: odps.models.table.Table.rename:1 of
+msgid "Rename the table."
+msgstr ""
+
+#: odps.models.table.Table.rename:3 of
+msgid "new table name"
+msgstr ""
+
+#: odps.models.table.Table.rename_column:1 of
+msgid "Rename a column in the table."
+msgstr ""
+
+#: odps.models.table.Table.rename_column:3 of
+msgid "old column name"
+msgstr ""
+
+#: odps.models.table.Table.rename_column:4 of
+msgid "new column name"
+msgstr ""
+
+#: odps.models.table.Table.rename_column:5 of
+msgid "new column comment, optional"
+msgstr ""
+
+#: odps.models.table.Table.set_cluster_info:1 of
+msgid "Set cluster info of current table."
+msgstr ""
+
+#: odps.models.table.Table.set_comment:1 of
+msgid "Set comment of current table."
+msgstr ""
+
+#: odps.models.table.Table.set_comment:3 of
+msgid "new comment"
+msgstr ""
+
+#: odps.models.table.Table.set_lifecycle:1 of
+msgid "Set lifecycle of current table."
+msgstr ""
+
+#: odps.models.table.Table.set_lifecycle:3 of
+msgid "lifecycle in days"
+msgstr ""
+
+#: odps.models.table.Table.set_owner:1 of
+msgid "Set owner of current table."
+msgstr ""
+
+#: odps.models.table.Table.set_owner:3 of
+msgid "account of the new owner"
+msgstr ""
+
 #: odps.models.table.Table.set_storage_tier:1 of
-msgid "Set storage tier of current table"
+msgid "Set storage tier of current table or specific partition."
 msgstr ""
 
 #: odps.models.table.Table.to_df:1 of
@@ -457,6 +544,14 @@ msgstr ""
 #: odps.models.partition.Partition.to_pandas:6
 #: odps.models.table.Table.to_pandas:7 of
 msgid "number of processes to accelerate reading"
+msgstr ""
+
+#: odps.models.table.Table.touch:1 of
+msgid "Update the last modified time of the table or specified partition."
+msgstr ""
+
+#: odps.models.table.Table.touch:3 of
+msgid "partition spec, optional"
 msgstr ""
 
 #: odps.models.table.Table.truncate:1 of
@@ -482,6 +577,10 @@ msgid ""
 "Table class except that there are no 'partition' params."
 msgstr ""
 
+#: odps.models.partition.Partition.change_partition_spec:1 of
+msgid "Change partition spec of current partition."
+msgstr ""
+
 #: odps.models.partition.Partition.drop:1 of
 msgid "Drop this partition."
 msgstr ""
@@ -499,8 +598,20 @@ msgstr ""
 msgid "Open the reader to read the entire records from this partition."
 msgstr ""
 
+#: odps.models.partition.Partition.set_storage_tier:1 of
+msgid "Set storage tier of current partition."
+msgstr ""
+
 #: odps.models.partition.Partition.to_df:1 of
 msgid "Create a PyODPS DataFrame from this partition."
+msgstr ""
+
+#: odps.models.partition.Partition.touch:1 of
+msgid "Update the last modified time of the partition."
+msgstr ""
+
+#: odps.models.partition.Partition.truncate:1 of
+msgid "Truncate current partition."
 msgstr ""
 
 #: odps.models.instance.Instance:1 of

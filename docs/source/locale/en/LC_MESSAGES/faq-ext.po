@@ -47,7 +47,7 @@ msgstr ""
 
 #: ../../source/faq-ext.rst:-1
 msgid "如何手动指定 Tunnel Endpoint"
-msgstr ""
+msgstr "How to specify tunnel endpoint manually"
 
 #: ../../source/faq-ext.rst:14
 msgid ""

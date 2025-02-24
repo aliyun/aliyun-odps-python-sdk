@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.12.3\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-01-15 18:55+0800\n"
+"POT-Creation-Date: 2025-02-11 13:38+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: en\n"
@@ -51,7 +51,8 @@ msgstr ""
 
 #: ../../source/api-entry.rst odps.core.ODPS.execute_sql_cost
 #: odps.core.ODPS.list_volume_files odps.core.ODPS.open_resource
-#: odps.core.ODPS.open_volume_reader odps.core.ODPS.open_volume_writer of
+#: odps.core.ODPS.open_volume_reader odps.core.ODPS.open_volume_writer
+#: odps.internal.core.InternalODPSMixin.execute_kube_task of
 msgid "Parameters"
 msgstr ""
 
@@ -89,6 +90,7 @@ msgstr ""
 #: odps.core.ODPS.execute_sql odps.core.ODPS.execute_sql_cost
 #: odps.core.ODPS.list_volume_files odps.core.ODPS.open_resource
 #: odps.core.ODPS.open_volume_reader odps.core.ODPS.open_volume_writer
+#: odps.internal.core.InternalODPSMixin.execute_kube_task
 #: odps.models.tableio.TableIOMethods.read_table
 #: odps.models.tableio.TableIOMethods.write_table of
 msgid "Example"
@@ -115,7 +117,8 @@ msgid "namespace of the new account to be created"
 msgstr ""
 
 #: ../../source/api-entry.rst odps.core.ODPS.execute_sql_cost
-#: odps.core.ODPS.list_volume_files odps.core.ODPS.open_resource of
+#: odps.core.ODPS.list_volume_files odps.core.ODPS.open_resource
+#: odps.internal.core.InternalODPSMixin.execute_kube_task of
 msgid "Returns"
 msgstr ""
 
@@ -190,6 +193,14 @@ msgstr ""
 #: odps.core.ODPS.run_security_query:6 odps.core.ODPS.run_sql:4
 #: odps.core.ODPS.run_xflow:9 odps.core.ODPS.set_project_policy:4
 #: odps.core.ODPS.set_role_policy:5 odps.core.ODPS.stop_instance:4
+#: odps.internal.core.InternalODPSMixin.execute_kube_task:4
+#: odps.internal.core.InternalODPSMixin.execute_ps:7
+#: odps.internal.core.InternalODPSMixin.execute_ps_extract_model:11
+#: odps.internal.core.InternalODPSMixin.execute_ps_train:20
+#: odps.internal.core.InternalODPSMixin.run_kube_task:4
+#: odps.internal.core.InternalODPSMixin.run_ps:7
+#: odps.internal.core.InternalODPSMixin.run_ps_extract_model:11
+#: odps.internal.core.InternalODPSMixin.run_ps_train:20
 #: odps.models.tableio.TableIOMethods.read_table:8
 #: odps.models.tableio.TableIOMethods.write_table:7
 #: odps.models.tasks.merge.MergeTask.run_archive_table:5
@@ -246,7 +257,8 @@ msgid "volume"
 msgstr ""
 
 #: ../../source/api-entry.rst odps.core.ODPS.execute_sql_cost
-#: odps.core.ODPS.list_volume_files of
+#: odps.core.ODPS.list_volume_files
+#: odps.internal.core.InternalODPSMixin.execute_kube_task of
 msgid "Return type"
 msgstr ""
 
@@ -627,6 +639,14 @@ msgstr ""
 
 #: odps.core.ODPS.execute_sql:5 odps.core.ODPS.execute_xflow:12
 #: odps.core.ODPS.run_sql:5 odps.core.ODPS.run_xflow:12
+#: odps.internal.core.InternalODPSMixin.execute_kube_task:6
+#: odps.internal.core.InternalODPSMixin.execute_ps:9
+#: odps.internal.core.InternalODPSMixin.execute_ps_extract_model:13
+#: odps.internal.core.InternalODPSMixin.execute_ps_train:22
+#: odps.internal.core.InternalODPSMixin.run_kube_task:6
+#: odps.internal.core.InternalODPSMixin.run_ps:9
+#: odps.internal.core.InternalODPSMixin.run_ps_extract_model:13
+#: odps.internal.core.InternalODPSMixin.run_ps_train:22
 #: odps.models.tasks.merge.MergeTask.run_archive_table:7
 #: odps.models.tasks.merge.MergeTask.run_freeze_command:8
 #: odps.models.tasks.merge.MergeTask.run_merge_files:8 of
@@ -635,6 +655,14 @@ msgstr ""
 
 #: odps.core.ODPS.execute_sql:9 odps.core.ODPS.execute_xflow:14
 #: odps.core.ODPS.run_sql:10 odps.core.ODPS.run_xflow:14
+#: odps.internal.core.InternalODPSMixin.execute_kube_task:8
+#: odps.internal.core.InternalODPSMixin.execute_ps:10
+#: odps.internal.core.InternalODPSMixin.execute_ps_extract_model:14
+#: odps.internal.core.InternalODPSMixin.execute_ps_train:24
+#: odps.internal.core.InternalODPSMixin.run_kube_task:8
+#: odps.internal.core.InternalODPSMixin.run_ps:10
+#: odps.internal.core.InternalODPSMixin.run_ps_extract_model:14
+#: odps.internal.core.InternalODPSMixin.run_ps_train:24
 #: odps.models.tasks.merge.MergeTask.run_archive_table:8
 #: odps.models.tasks.merge.MergeTask.run_freeze_command:9
 #: odps.models.tasks.merge.MergeTask.run_merge_files:11 of
@@ -646,6 +674,14 @@ msgstr ""
 #: odps.core.ODPS.get_instance:6 odps.core.ODPS.get_instance:9
 #: odps.core.ODPS.run_sql:11 odps.core.ODPS.run_sql:13
 #: odps.core.ODPS.run_xflow:15 odps.core.ODPS.run_xflow:17
+#: odps.internal.core.InternalODPSMixin.execute_kube_task:9
+#: odps.internal.core.InternalODPSMixin.execute_ps:11
+#: odps.internal.core.InternalODPSMixin.execute_ps_extract_model:15
+#: odps.internal.core.InternalODPSMixin.execute_ps_train:25
+#: odps.internal.core.InternalODPSMixin.run_kube_task:9
+#: odps.internal.core.InternalODPSMixin.run_ps:11
+#: odps.internal.core.InternalODPSMixin.run_ps_extract_model:15
+#: odps.internal.core.InternalODPSMixin.run_ps_train:25
 #: odps.models.tasks.merge.MergeTask.run_archive_table:9
 #: odps.models.tasks.merge.MergeTask.run_freeze_command:10
 #: odps.models.tasks.merge.MergeTask.run_merge_files:12 of
@@ -654,6 +690,25 @@ msgstr ""
 
 #: odps.models.tasks.merge.MergeTask.run_freeze_command:5 of
 msgid "freeze command to execute, can be freeze or restore"
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_kube_task:1 of
+msgid "Submit the kube task contains yaml file to odps cluster."
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_kube_task:3 of
+msgid "yaml string or json object."
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_kube_task:5
+#: odps.internal.core.InternalODPSMixin.run_kube_task:5
+#: odps.models.tasks.merge.MergeTask.run_merge_files:7 of
+msgid "settings for merge task."
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_kube_task:7
+#: odps.internal.core.InternalODPSMixin.run_kube_task:7 of
+msgid "task name."
 msgstr ""
 
 #: odps.models.tasks.merge.MergeTask.run_merge_files:1 of
@@ -668,10 +723,6 @@ msgstr ""
 msgid "partition to optimize"
 msgstr ""
 
-#: odps.models.tasks.merge.MergeTask.run_merge_files:7 of
-msgid "settings for merge task."
-msgstr ""
-
 #: odps.core.ODPS.execute_sql:6 odps.core.ODPS.run_sql:6
 #: odps.models.tasks.merge.MergeTask.run_merge_files:9 of
 msgid "cluster to run this instance"
@@ -679,6 +730,159 @@ msgstr ""
 
 #: odps.models.tasks.merge.MergeTask.run_merge_files:10 of
 msgid "compact option for transactional table, can be major or minor."
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_ps:1 of
+msgid "Execute an parameter server (PS) task and wait for termination."
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_ps:3
+#: odps.internal.core.InternalODPSMixin.execute_ps_extract_model:3
+#: odps.internal.core.InternalODPSMixin.execute_ps_train:3
+#: odps.internal.core.InternalODPSMixin.run_ps:3
+#: odps.internal.core.InternalODPSMixin.run_ps_extract_model:3
+#: odps.internal.core.InternalODPSMixin.run_ps_train:3 of
+msgid ""
+"Note that this function is EXPERIMENTAL and we provide neither examples "
+"nor support on this function."
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_ps:6
+#: odps.internal.core.InternalODPSMixin.run_ps:6 of
+msgid "PS task configuration, should be a dict or serialized json string"
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_ps:8
+#: odps.internal.core.InternalODPSMixin.execute_ps_extract_model:12
+#: odps.internal.core.InternalODPSMixin.execute_ps_train:21
+#: odps.internal.core.InternalODPSMixin.run_ps:8
+#: odps.internal.core.InternalODPSMixin.run_ps_extract_model:12
+#: odps.internal.core.InternalODPSMixin.run_ps_train:21 of
+msgid "settings for ps task."
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_ps_extract_model:1 of
+msgid ""
+"Execute an parameter server (PS) model extraction task and return "
+"instance object."
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_ps_extract_model:6
+#: odps.internal.core.InternalODPSMixin.run_ps_extract_model:6 of
+msgid "the input checkpoint path (not including step subdir)."
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_ps_extract_model:7
+#: odps.internal.core.InternalODPSMixin.run_ps_extract_model:7 of
+msgid "the output table for model (table should exist)."
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_ps_extract_model:8
+#: odps.internal.core.InternalODPSMixin.run_ps_extract_model:8 of
+msgid "checkpoint step to extract (step should exist under checkpoint path)."
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_ps_extract_model:9
+#: odps.internal.core.InternalODPSMixin.run_ps_extract_model:9 of
+msgid "vector name to extract, i.e. param."
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_ps_extract_model:10
+#: odps.internal.core.InternalODPSMixin.run_ps_extract_model:10 of
+msgid "worker number, default 20. (optional)"
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_ps_train:1 of
+msgid "Execute an parameter server (PS) training task and wait for termination."
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_ps_train:6
+#: odps.internal.core.InternalODPSMixin.run_ps_train:6 of
+msgid "the training algorithm"
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_ps_train:7
+#: odps.internal.core.InternalODPSMixin.run_ps_train:7 of
+msgid "the input table for features and labels"
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_ps_train:8
+#: odps.internal.core.InternalODPSMixin.run_ps_train:8 of
+msgid "the output table for model"
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_ps_train:9
+#: odps.internal.core.InternalODPSMixin.run_ps_train:9 of
+msgid "feature size (optinal, must be positive integer)"
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_ps_train:10
+#: odps.internal.core.InternalODPSMixin.run_ps_train:10 of
+msgid "whether to perform serialized train (optional, default False)"
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_ps_train:11
+#: odps.internal.core.InternalODPSMixin.run_ps_train:11 of
+msgid ""
+"the termination algorithm, currently only DeltaTermination and "
+"IterationTermination"
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_ps_train:12
+#: odps.internal.core.InternalODPSMixin.run_ps_train:12 of
+msgid ""
+"the tolerance used in algorithm, must be a float number (optional, "
+"default 1.0E-6)"
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_ps_train:13
+#: odps.internal.core.InternalODPSMixin.run_ps_train:13 of
+msgid ""
+"the iteration number used in IterationTermination, must be a positive "
+"integer. (required when using IterateTermination)"
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_ps_train:14
+#: odps.internal.core.InternalODPSMixin.run_ps_train:14 of
+msgid ""
+"the history steps used in OWL_QN, must be a positive integer. (optional, "
+"default 10)"
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_ps_train:15
+#: odps.internal.core.InternalODPSMixin.run_ps_train:15 of
+msgid "package name (optional)"
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_ps_train:16
+#: odps.internal.core.InternalODPSMixin.run_ps_train:16 of
+msgid ""
+"vector names in server, split by comma, e.g. \"grad, param, hessian\". "
+"(optional)"
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_ps_train:17
+#: odps.internal.core.InternalODPSMixin.run_ps_train:17 of
+msgid ""
+"the validation table for model evaluation during training process "
+"(optional)"
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_ps_train:18
+#: odps.internal.core.InternalODPSMixin.run_ps_train:18 of
+msgid "checkpoint directory name, used in job recovery (optional)"
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_ps_train:19
+#: odps.internal.core.InternalODPSMixin.run_ps_train:19 of
+msgid ""
+"extra configurations from a dictionary, can be applied to keys which "
+"cannot be represented as Python kwargs. (optional)"
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_ps_train:23
+#: odps.internal.core.InternalODPSMixin.run_ps_train:23 of
+msgid "extra configurations to be passed into the parameter server"
 msgstr ""
 
 #: odps.core.ODPS.execute_security_query:1 of
@@ -1536,8 +1740,32 @@ msgstr ""
 msgid "Start running a task to freeze or restore tables."
 msgstr ""
 
+#: odps.internal.core.InternalODPSMixin.run_kube_task:1 of
+msgid "Start running the kube_task based on the yaml file."
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.run_kube_task:3 of
+msgid "specs of kubernetes objects"
+msgstr ""
+
 #: odps.models.tasks.merge.MergeTask.run_merge_files:1 of
 msgid "Start running a task to merge multiple files in tables."
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.run_ps:1 of
+msgid "Start running an parameter server (PS) task and return instance object."
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.run_ps_extract_model:1 of
+msgid ""
+"Start running an parameter server (PS) model extraction task and return "
+"instance object."
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.run_ps_train:1 of
+msgid ""
+"Start running an parameter server (PS) training task and return instance "
+"object."
 msgstr ""
 
 #: odps.core.ODPS.run_security_query:1 of
