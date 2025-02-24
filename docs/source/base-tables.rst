@@ -908,6 +908,19 @@ Reader 需要指定起始行号以及需要的行数。起始行号从 0 开始�
        for record in reader:
            # 处理每条记录
 
+自 PyODPS 0.12.3 起，你可以通过全局配置指定当前 Python 进程中使用的压缩选项，示例如下：
+
+.. code-block:: python
+
+   from odps import options
+
+   # 启用压缩（默认为 zlib / deflate 编码）
+   options.tunnel.compress.enabled = True
+   # 设置压缩算法
+   options.tunnel.compress.algo = "zstd"
+
+此后在所有后续数据读写操作中，都会启用压缩。更多压缩选项可以参考\ :ref:`配置选项 <options_tunnel>`。
+
 提升上传和下载性能
 ~~~~~~~~~~~~~~~~~~~
 

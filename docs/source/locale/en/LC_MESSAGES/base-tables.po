@@ -1869,11 +1869,44 @@ msgstr ""
 "    for record in reader:\n"
 "        # process every record"
 
-#: ../../source/base-tables.rst:1043
+#: ../../source/base-tables.rst:911
+msgid ""
+"自 PyODPS 0.12.3 起，你可以通过全局配置指定当前 Python 进程中使用的压缩"
+"选项，示例如下："
+msgstr ""
+"Since PyODPS 0.12.3, you may specify compress options used in current "
+"Python process by setting global options as follows."
+
+#: ../../source/base-tables.rst:913
+msgid ""
+"from odps import options\n"
+"\n"
+"# 启用压缩（默认为 zlib / deflate 编码）\n"
+"options.tunnel.compress.enabled = True\n"
+"# 设置压缩算法\n"
+"options.tunnel.compress.algo = \"zstd\""
+msgstr ""
+"from odps import options\n"
+"\n"
+"# enable compression (default to zlib / deflate)\n"
+"options.tunnel.compress.enabled = True\n"
+"# set compression algorithm\n"
+"options.tunnel.compress.algo = \"zstd\""
+
+#: ../../source/base-tables.rst:922
+msgid ""
+"此后在所有后续数据读写操作中，都会启用压缩。更多压缩选项可以参考\\ :ref:`"
+"配置选项 <options_tunnel>`。"
+msgstr ""
+"After that, compression will be enabled for all subsequent data read or "
+"write operations. For more details, please refer to :ref:`Options "
+"<options_tunnel>`."
+
+#: ../../source/base-tables.rst:925
 msgid "提升上传和下载性能"
 msgstr "Improve upload and download performance"
 
-#: ../../source/base-tables.rst:1045
+#: ../../source/base-tables.rst:927
 msgid ""
 "Tunnel 上传和下载性能受到各种因素影响较大。首先，考虑对本地代码的优化，"
 "主要有下面的优化点："

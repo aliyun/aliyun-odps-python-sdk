@@ -271,3 +271,41 @@ cdef to_date(int32_t days):
         datetime_month(dt),
         datetime_day(dt),
     )
+
+
+cpdef inline str to_str(s, encoding="utf-8"):
+    return <str>to_text(s, encoding) if _is_py3 else <str>to_binary(s, encoding)
+
+
+cpdef inline bytes to_binary(s, encoding="utf-8"):
+    if type(s) is bytes:
+        return <bytes>s
+    elif isinstance(s, unicode):
+        # call s.encode("utf-8") will utilize PyUnicode_AsUTF8String directly
+        return (<unicode>s).encode(encoding) if encoding != "utf-8" else (<unicode>s).encode("utf-8")
+    elif isinstance(s, bytes):
+        return bytes(s)
+    elif s is None:
+        return None
+    else:
+        return str(s).encode(encoding) if _is_py3 else bytes(s)
+
+
+cpdef inline unicode to_text(s, encoding="utf-8"):
+    if type(s) is unicode:
+        return <unicode>s
+    elif isinstance(s, bytes):
+        # call s.decode("utf-8") will utilize PyUnicode_DecodeUTF8 directly
+        return (<bytes>s).decode(encoding) if encoding != "utf-8" else (<bytes>s).decode("utf-8")
+    elif isinstance(s, unicode):
+        return unicode(s)
+    elif s is None:
+        return None
+    else:
+        return str(s) if _is_py3 else str(s).decode(encoding)
+
+
+cpdef str to_lower_str(s, encoding="utf-8"):
+    if s is None:
+        return None
+    return to_str(s, encoding).lower()

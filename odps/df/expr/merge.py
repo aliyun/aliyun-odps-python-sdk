@@ -18,6 +18,7 @@ import inspect
 
 from ...compat import six, reduce
 from ...models import TableSchema
+from ...utils import to_lower_str
 from ..utils import to_collection
 from .arithmetic import Equal
 from .core import Node, ExprDictionary
@@ -244,9 +245,9 @@ class JoinCollectionExpr(CollectionExpr):
 
         for col in self._lhs.schema.columns:
             name = col.name
-            if col.name in self._rhs.schema._name_indexes:
+            if to_lower_str(col.name) in self._rhs.schema._name_indexes:
                 self._column_conflict = True
-            if col.name in self._rhs.schema._name_indexes and \
+            if to_lower_str(col.name) in self._rhs.schema._name_indexes and \
                     col.name not in non_suffixes_fields:
                 name = '%s%s' % (col.name, self._left_suffix)
                 self._renamed_columns[col.name] = (name,)
@@ -256,9 +257,9 @@ class JoinCollectionExpr(CollectionExpr):
             self._column_origins[name] = 0, col.name
         for col in self._rhs.schema.columns:
             name = col.name
-            if col.name in self._lhs.schema._name_indexes:
+            if to_lower_str(col.name) in self._lhs.schema._name_indexes:
                 self._column_conflict = True
-            if col.name in self._lhs.schema._name_indexes and \
+            if to_lower_str(col.name) in self._lhs.schema._name_indexes and \
                     col.name not in non_suffixes_fields:
                 name = '%s%s' % (col.name, self._right_suffix)
                 self._renamed_columns[col.name] = \
@@ -625,7 +626,7 @@ def join(left, right, on=None, how='inner', suffixes=('_x', '_y'), mapjoin=False
 
     if on is None:
         if not mapjoin:
-            on = [name for name in left.schema.names if name in right.schema._name_indexes]
+            on = [name for name in left.schema.names if to_lower_str(name) in right.schema._name_indexes]
         if not on and len(left.schema) == 1 and len(right.schema) == 1:
             on = [(left.schema.names[0], right.schema.names[0])]
 

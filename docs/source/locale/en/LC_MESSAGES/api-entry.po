@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.12.3\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-02-11 13:38+0800\n"
+"POT-Creation-Date: 2025-01-15 17:24+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: en\n"
@@ -502,7 +502,7 @@ msgstr ""
 #: odps.core.ODPS.delete_function:7 odps.core.ODPS.delete_offline_model:6
 #: odps.core.ODPS.delete_resource:7 odps.core.ODPS.delete_volume:8
 #: odps.core.ODPS.delete_xflow:5 odps.core.ODPS.stop_instance:5
-#: odps.models.tableio.TableIOMethods.write_table:21 of
+#: odps.models.tableio.TableIOMethods.write_table:20 of
 msgid "None"
 msgstr ""
 
@@ -1657,7 +1657,7 @@ msgstr ""
 
 #: odps.core.ODPS.open_volume_reader:11 odps.core.ODPS.open_volume_writer:13
 #: odps.models.tableio.TableIOMethods.read_table:13
-#: odps.models.tableio.TableIOMethods.write_table:16 of
+#: odps.models.tableio.TableIOMethods.write_table:15 of
 msgid "the compression algorithm, level and strategy"
 msgstr ""
 
@@ -1713,7 +1713,7 @@ msgid "if True, the data will be compressed during downloading"
 msgstr ""
 
 #: odps.models.tableio.TableIOMethods.read_table:15
-#: odps.models.tableio.TableIOMethods.write_table:18 of
+#: odps.models.tableio.TableIOMethods.write_table:17 of
 msgid "tunnel service URL"
 msgstr ""
 
@@ -1728,7 +1728,7 @@ msgid "records"
 msgstr ""
 
 #: odps.models.tableio.TableIOMethods.read_table:28
-#: odps.models.tableio.TableIOMethods.write_table:59 of
+#: odps.models.tableio.TableIOMethods.write_table:58 of
 msgid ":class:`odps.models.Record`"
 msgstr ""
 
@@ -1861,33 +1861,29 @@ msgstr ""
 msgid "if true, the partition will be created if not exist"
 msgstr ""
 
-#: odps.models.tableio.TableIOMethods.write_table:15 of
-msgid "if True, the data will be compressed during uploading"
-msgstr ""
-
-#: odps.models.tableio.TableIOMethods.write_table:19 of
+#: odps.models.tableio.TableIOMethods.write_table:18 of
 msgid ""
 "writing the table will reuse the session which opened last time, if set "
 "to True will open a new upload session, default as False"
 msgstr ""
 
-#: odps.models.tableio.TableIOMethods.write_table:25 of
+#: odps.models.tableio.TableIOMethods.write_table:24 of
 msgid "Write records into a specified table."
 msgstr ""
 
-#: odps.models.tableio.TableIOMethods.write_table:29 of
+#: odps.models.tableio.TableIOMethods.write_table:28 of
 msgid "Write records into multiple blocks."
 msgstr ""
 
-#: odps.models.tableio.TableIOMethods.write_table:33 of
+#: odps.models.tableio.TableIOMethods.write_table:32 of
 msgid "Write into a given partition."
 msgstr ""
 
-#: odps.models.tableio.TableIOMethods.write_table:37 of
+#: odps.models.tableio.TableIOMethods.write_table:36 of
 msgid "Write a pandas DataFrame."
 msgstr ""
 
-#: odps.models.tableio.TableIOMethods.write_table:48 of
+#: odps.models.tableio.TableIOMethods.write_table:47 of
 msgid "Write a dynamic partition."
 msgstr ""
 

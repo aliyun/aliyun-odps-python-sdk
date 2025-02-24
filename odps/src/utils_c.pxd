@@ -32,3 +32,8 @@ cdef class CMillisecondsConverter:
 
 cdef int32_t to_days(date py_date) except? -1
 cdef to_date(int32_t days)
+
+cpdef inline str to_str(s, encoding=*)
+cpdef inline bytes to_binary(s, encoding=*)
+cpdef inline unicode to_text(s, encoding=*)
+cpdef str to_lower_str(s, encoding=*)

@@ -364,11 +364,11 @@ cdef class RecordHasher:
             elif type_id == DECIMAL_TYPE_ID:
                 precision = (
                     self._schema_snapshot._col_types[i].precision
-                    or types.Decimal._max_precision
+                    or types.Decimal._default_precision
                 )
                 scale = (
                     self._schema_snapshot._col_types[i].scale
-                    or types.Decimal._max_scale
+                    or types.Decimal._default_scale
                 )
                 self._idx_to_hash_fun[i] = DecimalFieldHasher(
                     self._hasher, precision, scale

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -295,6 +295,7 @@ class CompressOption(object):
     def __init__(
         self, compress_algo=CompressAlgorithm.ODPS_ZLIB, level=None, strategy=None
     ):
+        compress_algo = compress_algo or self.CompressAlgorithm.ODPS_ZLIB
         if isinstance(compress_algo, CompressOption.CompressAlgorithm):
             self.algorithm = compress_algo
         else:

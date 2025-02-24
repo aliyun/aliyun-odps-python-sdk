@@ -25,6 +25,7 @@ from datetime import date, datetime
 from .. import options, types
 from ..compat import DECIMAL_TYPES
 from ..compat import decimal as _decimal
+from .utils_c cimport to_lower_str
 
 
 cdef int64_t bigint_min = types.bigint._bounds[0]
@@ -202,8 +203,8 @@ cdef class DecimalValidator(TypeValidator):
     cdef object _decimal_ctx, _scale_decimal
 
     def __init__(self, dec_type):
-        self.precision = dec_type.precision or dec_type._max_precision
-        self.scale = dec_type.scale or dec_type._max_scale
+        self.precision = dec_type.precision or dec_type._default_precision
+        self.scale = dec_type.scale or dec_type._default_scale
         self._scale_decimal = dec_type._scale_decimal
         self._decimal_ctx = dec_type._decimal_ctx
 
@@ -505,7 +506,7 @@ cdef class BaseRecord:
         if columns is not None:
             self._c_columns = columns
             self._c_name_indexes = {
-                col.name: i for i, col in enumerate(self._c_columns)
+                col.name.lower(): i for i, col in enumerate(self._c_columns)
             }
         else:
             self._c_columns = (
@@ -566,11 +567,13 @@ cdef class BaseRecord:
             )
 
     cpdef object get_by_name(self, object name):
-        cdef int idx = self._c_name_indexes[name]
+        cdef object lower_name = to_lower_str(name)
+        cdef int idx = self._c_name_indexes[lower_name]
         return self._c_values[idx]
 
     cpdef set_by_name(self, object name, object value):
-        cdef int idx = self._c_name_indexes[name]
+        cdef object lower_name = to_lower_str(name)
+        cdef int idx = self._c_name_indexes[lower_name]
         self._set(idx, value)
 
     cpdef _set(self, int i, object value):
@@ -630,18 +633,16 @@ cdef class BaseRecord:
             self._set(key, value)
 
     def __getattr__(self, item):
-        if item == "_name_indexes":
-            return self._c_name_indexes
-        if item in self._c_name_indexes:
-            i = self._c_name_indexes[item]
+        lower_name = to_lower_str(item)
+        if lower_name in self._c_name_indexes:
+            i = self._c_name_indexes[lower_name]
             return self._c_values[i]
         return object.__getattribute__(self, item)
 
     def __setattr__(self, key, value):
         cdef int i
         if key in self._c_name_indexes:
-            i = self._c_name_indexes[key]
-            self._set(i, value)
+            self.set_by_name(key, value)
         else:
             object.__setattr__(self, key, value)
 
@@ -649,7 +650,7 @@ cdef class BaseRecord:
         return len(self._c_columns)
 
     def __contains__(self, item):
-        return item in self._c_name_indexes
+        return to_lower_str(item) in self._c_name_indexes
 
     def __iter__(self):
         cdef int i

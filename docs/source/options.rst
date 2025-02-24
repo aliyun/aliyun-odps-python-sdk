@@ -54,6 +54,8 @@ PyODPS 提供了一系列的配置选项，可通过 ``odps.options`` 获得，�
    "sql.use_odps2_extension", "启用 MaxCompute 2.0 语言扩展", "None"
    "sql.enable_schema", "在任何情形下启用 MaxCompute Schema", "None"
 
+.. _options_tunnel:
+
 数据上传/下载配置
 ==================
 
@@ -66,6 +68,10 @@ PyODPS 提供了一系列的配置选项，可通过 ``odps.options`` 获得，�
    "tunnel.limit_instance_tunnel", "是否限制 Instance Tunnel 获取结果的条数", "None"
    "tunnel.string_as_binary", "在 string 类型中使用 bytes 而非 unicode", "False"
    "tunnel.quota_name", "配置 Tunnel Quota 的名称", "False"
+   "tunnel.compress.enabled", "配置 Tunnel 启用压缩", "False"
+   "tunnel.compress.algo", "设置 Tunnel 压缩算法，默认为 Deflate", "None"
+   "tunnel.compress.level", "设置 Tunnel 压缩级别，仅对支持的算法有效", "1"
+   "tunnel.compress.strategy", "设置 Tunnel 压缩策略，仅对 Deflate 有效", "0"
    "tunnel.block_buffer_size", "配置缓存 Block Writer 的缓存大小", "20 * 1024 ** 2"
    "tunnel.tags", "配置使用 Tunnel 所需的标签", "None"
 

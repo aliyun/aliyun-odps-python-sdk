@@ -999,7 +999,7 @@ def test_decimal2(odps):
 
     table = odps.create_table(
         table_name,
-        "col1 int, col2 decimal(6,2), " "col3 decimal(10), col4 decimal(10,3)",
+        "col1 int, col2 decimal(6,2), col3 decimal(10), col4 decimal(10,3)",
         lifecycle=1,
     )
     assert table.table_schema.types[0] == types.int_

@@ -331,6 +331,7 @@ MaxCompute 不同数据类型在 Record 中对应 Python 类型的关系如下�
    "``timestamp``", "``pandas.Timestamp``", "见说明2，需要安装 pandas"
    "``timestamp_ntz``", "``pandas.Timestamp``", "结果不受时区影响，需要安装 pandas"
    "``interval_day_time``", "``pandas.Timedelta``", "需要安装 pandas"
+   "``interval_year_month``", "``odps.Monthdelta``", "见说明5"
 
 对部分类型的说明如下。
 
@@ -345,4 +346,18 @@ MaxCompute 不同数据类型在 Record 中对应 Python 类型的关系如下�
    则默认对应 namedtuple 类型。如果要使用旧版行为则需要设置选项 ``options.struct_as_dict = True``。\
    DataWorks 环境下，为保持历史兼容性，该值默认为 False。为 Record 设置 struct 类型的字段值时，\
    PyODPS \>= 0.11.5 可同时接受 dict 和 tuple 类型，旧版则只接受 dict 类型。
-5. 关于如何设置 ``options.xxx``，请参考文档\ :ref:`配置选项 <options>`。
+5. Monthdelta 可使用年 / 月进行初始化，使用示例如下：
+
+   .. code-block:: python
+
+        >>> from odps import Monthdelta
+        >>>
+        >>> md = Monthdelta(years=1, months=2)
+        >>> print(md.years)
+        1
+        >>> print(md.months)
+        1
+        >>> print(md.total_months)
+        14
+
+6. 关于如何设置 ``options.xxx``，请参考文档\ :ref:`配置选项 <options>`。

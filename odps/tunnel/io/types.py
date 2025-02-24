@@ -71,8 +71,8 @@ def odps_type_to_arrow_type(odps_type):
                 odps_type_to_arrow_type(odps_type.value_type),
             )
         elif isinstance(odps_type, types.Decimal):
-            precision = odps_type.precision or types.Decimal._max_precision
-            scale = odps_type.scale or types.Decimal._max_scale
+            precision = odps_type.precision or types.Decimal._default_precision
+            scale = odps_type.scale or types.Decimal._default_scale
             if odps_type.precision is None and not hasattr(pa, "decimal256"):
                 # need to be less than minimal allowed digits of pa.decimal128
                 precision = min(precision, 38)
@@ -115,8 +115,8 @@ def arrow_type_to_odps_type(arrow_type):
                 arrow_type_to_odps_type(arrow_type.item_type),
             )
         elif isinstance(arrow_type, (pa.Decimal128Type, pa.Decimal256Type)):
-            precision = arrow_type.precision or types.Decimal._max_precision
-            scale = arrow_type.scale or types.Decimal._max_scale
+            precision = arrow_type.precision or types.Decimal._default_precision
+            scale = arrow_type.scale or types.Decimal._default_scale
             col_type = types.Decimal(precision, scale)
         elif isinstance(arrow_type, pa.StructType):
             fields = [
