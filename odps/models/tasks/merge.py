@@ -1,4 +1,4 @@
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -156,6 +156,7 @@ class MergeTask(Task):
         project=None,
         priority=None,
         running_cluster=None,
+        unique_identifier_id=None,
         create_callback=None,
     ):
         priority = priority if priority is not None else options.priority
@@ -167,6 +168,7 @@ class MergeTask(Task):
             task=task,
             running_cluster=running_cluster,
             priority=priority,
+            unique_identifier_id=unique_identifier_id,
             create_callback=create_callback,
         )
 
@@ -185,6 +187,7 @@ class MergeTask(Task):
         force_mode=None,
         recent_hours=None,
         quota_name=None,
+        unique_identifier_id=None,
         create_callback=None,
         **kwargs
     ):
@@ -199,6 +202,7 @@ class MergeTask(Task):
         :param priority: instance priority, 9 as default
         :param running_cluster: cluster to run this instance
         :param compact_type: compact option for transactional table, can be major or minor.
+        :param str unique_identifier_id: unique instance ID
         :return: instance
         :rtype: :class:`odps.models.Instance`
         """
@@ -253,6 +257,7 @@ class MergeTask(Task):
             project=project,
             priority=priority,
             running_cluster=running_cluster,
+            unique_identifier_id=unique_identifier_id,
             create_callback=create_callback,
         )
 
@@ -275,6 +280,7 @@ class MergeTask(Task):
         priority=None,
         running_cluster=None,
         quota_name=None,
+        unique_identifier_id=None,
         create_callback=None,
     ):
         """
@@ -285,6 +291,7 @@ class MergeTask(Task):
         :param project: project name, if not provided, will be the default project
         :param hints: settings for table archive task.
         :param priority: instance priority, 9 as default
+        :param str unique_identifier_id: unique instance ID
         :return: instance
         :rtype: :class:`odps.models.Instance`
         """
@@ -305,6 +312,7 @@ class MergeTask(Task):
             project=project,
             priority=priority,
             running_cluster=running_cluster,
+            unique_identifier_id=unique_identifier_id,
             create_callback=create_callback,
         )
 
@@ -328,6 +336,7 @@ class MergeTask(Task):
         priority=None,
         running_cluster=None,
         quota_name=None,
+        unique_identifier_id=None,
         create_callback=None,
     ):
         """
@@ -339,6 +348,7 @@ class MergeTask(Task):
         :param project: project name, if not provided, will be the default project
         :param hints: settings for table archive task.
         :param priority: instance priority, 9 as default
+        :param str unique_identifier_id: unique instance ID
         :return: instance
         :rtype: :class:`odps.models.Instance`
         """
@@ -363,6 +373,7 @@ class MergeTask(Task):
             project=project,
             priority=priority,
             running_cluster=running_cluster,
+            unique_identifier_id=unique_identifier_id,
             create_callback=create_callback,
         )
 
@@ -383,6 +394,7 @@ class MergeTask(Task):
         priority=None,
         running_cluster=None,
         hints=None,
+        unique_identifier_id=None,
         quota_name=None,
         create_callback=None,
     ):
@@ -403,6 +415,7 @@ class MergeTask(Task):
                         "running_cluster": running_cluster,
                         "priority": priority,
                         "quota_name": quota_name,
+                        "unique_identifier_id": unique_identifier_id,
                         "create_callback": create_callback,
                     }
                 )

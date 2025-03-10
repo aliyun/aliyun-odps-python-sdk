@@ -190,7 +190,7 @@ def hmac_sha1(secret, data):
 
 
 def md5_hexdigest(data):
-    return md5(data).hexdigest()
+    return md5(to_binary(data)).hexdigest()
 
 
 def rshift(val, n):
@@ -591,7 +591,7 @@ def is_namedtuple(obj):
 
 
 def str_to_bool(s):
-    if isinstance(s, bool):
+    if isinstance(s, bool) or s is None:
         return s
     s = s.lower().strip()
     if s == "true":
@@ -780,6 +780,29 @@ def escape_odps_string(src):
         "\0": r"\0",
     }
     return "".join(trans_dict[ch] if ch in trans_dict else ch for ch in src)
+
+
+def to_odps_scalar(s):
+    try:
+        from pandas import Timestamp as pd_Timestamp
+    except ImportError:
+        pd_Timestamp = type("DummyType", (object,), {})
+
+    if s is None or (isinstance(s, float) and math.isnan(s)):
+        return "NULL"
+    if isinstance(s, six.string_types):
+        return "'%s'" % escape_odps_string(s)
+    elif isinstance(s, (datetime, pd_Timestamp)):
+        microsec = s.microsecond
+        nanosec = getattr(s, "nanosecond", 0)
+        if microsec or nanosec:
+            s = s.strftime("%Y-%m-%d %H:%M:%S.%f") + ("%03d" % nanosec)
+            out_type = "TIMESTAMP"
+        else:
+            s = s.strftime("%Y-%m-%d %H:%M:%S")
+            out_type = "DATETIME"
+        return "CAST('%s' AS %s)" % (escape_odps_string(s), out_type)
+    return str(s)
 
 
 def replace_sql_parameters(sql, ns):

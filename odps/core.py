@@ -877,6 +877,9 @@ class ODPS(object):
 
     read_table = _wrap_model_func(models.TableIOMethods.read_table)
     write_table = _wrap_model_func(models.TableIOMethods.write_table)
+    write_sql_result_to_table = _wrap_model_func(
+        models.TableIOMethods.write_sql_result_to_table
+    )
 
     def list_resources(self, project=None, prefix=None, owner=None, schema=None):
         """
@@ -1255,6 +1258,7 @@ class ODPS(object):
         running_cluster=None,
         hints=None,
         quota_name=None,
+        unique_identifier_id=None,
         **kwargs
     ):
         """
@@ -1266,6 +1270,7 @@ class ODPS(object):
         :param str running_cluster: cluster to run this instance
         :param dict hints: settings for SQL, e.g. `odps.mapred.map.split.size`
         :param str quota_name: name of quota to use for SQL job
+        :param str unique_identifier_id: unique instance ID
         :return: instance
         :rtype: :class:`odps.models.Instance`
 
@@ -1290,6 +1295,7 @@ class ODPS(object):
             project=project,
             priority=priority,
             running_cluster=running_cluster,
+            unique_identifier_id=unique_identifier_id,
             hints=hints,
             quota_name=quota_name,
             **kwargs
@@ -1308,6 +1314,7 @@ class ODPS(object):
         aliases=None,
         default_schema=None,
         quota_name=None,
+        unique_identifier_id=None,
         **kwargs
     ):
         """
@@ -1320,6 +1327,7 @@ class ODPS(object):
         :param dict hints: settings for SQL, e.g. `odps.mapred.map.split.size`
         :param dict aliases:
         :param str quota_name: name of quota to use for SQL job
+        :param str unique_identifier_id: unique instance ID
         :return: instance
         :rtype: :class:`odps.models.Instance`
 
@@ -1344,6 +1352,7 @@ class ODPS(object):
             priority=priority,
             running_cluster=running_cluster,
             hints=hints,
+            unique_identifier_id=unique_identifier_id,
             quota_name=quota_name,
             create_callback=on_instance_create,
         )
@@ -1381,6 +1390,7 @@ class ODPS(object):
                 task=task,
                 priority=priority,
                 running_cluster=running_cluster,
+                unique_identifier_id=unique_identifier_id,
                 create_callback=on_instance_create,
             )
         except errors.ParseError as ex:

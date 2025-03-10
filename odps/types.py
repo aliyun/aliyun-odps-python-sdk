@@ -62,7 +62,14 @@ class Column(object):
     """
 
     def __init__(
-        self, name=None, typo=None, comment=None, label=None, nullable=True, **kw
+        self,
+        name=None,
+        typo=None,
+        comment=None,
+        label=None,
+        nullable=True,
+        generate_expression=None,
+        **kw
     ):
         self.name = utils.to_str(name)
         self.type = validate_data_type(
@@ -73,6 +80,7 @@ class Column(object):
             warnings.warn("label is deprecated.", DeprecationWarning)
         self.label = label
         self.nullable = nullable
+        self.generate_expression = generate_expression
         if kw:
             raise TypeError("Arguments not supported for Column: %s" % list(kw))
 
@@ -86,10 +94,21 @@ class Column(object):
         return hash((type(self), self.name, self.type, self.comment, self.label))
 
     def to_sql_clause(self, with_column_comments=True):
+        from .expressions import parse as parse_expression
+
         sio = six.StringIO()
-        sio.write(u"  `%s` %s" % (utils.to_text(self.name), utils.to_text(self.type)))
-        if not self.nullable and not options.sql.ignore_fields_not_null:
-            sio.write(u" NOT NULL")
+        if self.generate_expression:
+            try:
+                expr = parse_expression(self.generate_expression)
+            except (SyntaxError, ValueError):
+                expr = self.generate_expression
+            sio.write(u"  %s AS `%s`" % (utils.to_text(expr), self.name))
+        else:
+            sio.write(
+                u"  `%s` %s" % (utils.to_text(self.name), utils.to_text(self.type))
+            )
+            if not self.nullable and not options.sql.ignore_fields_not_null:
+                sio.write(u" NOT NULL")
         if with_column_comments and self.comment:
             comment_str = utils.escape_odps_string(utils.to_text(self.comment))
             sio.write(u" COMMENT '%s'" % comment_str)

@@ -252,6 +252,25 @@ def test_upload_and_download_by_raw_tunnel(odps, setup):
     assert "not contain" in str(err_info.value)
 
 
+def test_upload_and_download_with_column_cases(odps, tunnel):
+    test_table_name = tn("pyodps_test_arrow_tunnel_column_cases")
+    odps.delete_table(test_table_name, if_exists=True)
+    tb = odps.create_table(test_table_name, "a double, b double, c double")
+
+    data = pd.DataFrame(np.random.rand(100, 3), columns=list("ABC"))
+
+    upload_ss = tunnel.create_upload_session(tb)
+    writer = upload_ss.open_arrow_writer()
+    writer.write(data)
+    writer.close()
+    upload_ss.commit(writer.get_blocks_written())
+
+    download_ss = tunnel.create_download_session(tb)
+    reader = download_ss.open_arrow_reader(0, download_ss.count)
+    data.columns = list("abc")
+    pd.testing.assert_frame_equal(reader.to_pandas(), data)
+
+
 def test_buffered_upload_and_download_by_raw_tunnel(odps, setup):
     from ..tabletunnel import TableUploadSession
 

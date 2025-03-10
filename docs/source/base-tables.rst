@@ -422,7 +422,7 @@ open_writer 创建的 Writer 对象通过 multiprocessing 标准库传递到需�
    >>> # 如果表 test_table 不存在，将会自动创建
    >>> o.write_table('test_table', df, partition='pt=test', create_table=True, create_partition=True)
 
-从 PyODPS 0.12.0 开始，``write_table`` 方法也支持动态分区，可通过 ``partitions`` 参数传入需要作为分区的列名，\
+从 PyODPS 0.12.0 开始，``write_table`` 方法也支持动态分区，可通过 ``partition_cols`` 参数传入需要作为分区的列名，\
 并指定 ``create_partition=True``，相应的分区将会自动创建。
 
 .. code-block:: python
@@ -435,7 +435,7 @@ open_writer 创建的 Writer 对象通过 multiprocessing 标准库传递到需�
    >>>     [444, '中文', False, 'p2']
    >>> ], columns=['num_col', 'str_col', 'bool_col', 'pt'])
    >>> # 如果分区 pt=p1 或 pt=p2 不存在，将会自动创建。
-   >>> o.write_table('test_part_table', df, partitions=['pt'], create_partition=True)
+   >>> o.write_table('test_part_table', df, partition_cols=['pt'], create_partition=True)
 
 压缩选项
 ~~~~~~~~

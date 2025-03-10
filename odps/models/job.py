@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,7 +21,15 @@ from .tasks import Task
 
 class Job(XMLRemoteModel):
     # define __slots__ to keep the property sequence when serializing into a xml
-    __slots__ = "name", "comment", "priority", "running_cluster", "tasks", "run_mode"
+    __slots__ = (
+        "name",
+        "comment",
+        "priority",
+        "running_cluster",
+        "unique_identifier_id",
+        "tasks",
+        "run_mode",
+    )
 
     _root = "Job"
 
@@ -38,6 +46,7 @@ class Job(XMLRemoteModel):
         "Priority", parse_callback=int, serialize_callback=int, default=9
     )
     running_cluster = serializers.XMLNodeField("RunningCluster")
+    unique_identifier_id = serializers.XMLNodeField("Guid")
     run_mode = serializers.XMLNodeField("DAG", "RunMode", default="Sequence")
     tasks = serializers.XMLNodesReferencesField(Task, "Tasks", "*")
 
