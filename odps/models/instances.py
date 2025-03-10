@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -127,7 +127,13 @@ class BaseInstances(Iterable):
 
     @classmethod
     def _create_job(
-        cls, job=None, task=None, priority=None, running_cluster=None, uuid_=None
+        cls,
+        job=None,
+        task=None,
+        priority=None,
+        running_cluster=None,
+        unique_identifier_id=None,
+        uuid_=None,
     ):
         job = job or Job()
         if priority is not None:
@@ -138,6 +144,8 @@ class BaseInstances(Iterable):
             job.priority = priority
         if running_cluster is not None:
             job.running_cluster = running_cluster
+        if unique_identifier_id is not None:
+            job.unique_identifier_id = unique_identifier_id
         if task is not None:
             job.add_task(task)
         if job.tasks is None or len(job.tasks) == 0:
@@ -177,10 +185,15 @@ class BaseInstances(Iterable):
         encoding=None,
         session_project=None,
         session_name=None,
+        unique_identifier_id=None,
     ):
         if xml is None:
             job = self._create_job(
-                job=job, task=task, priority=priority, running_cluster=running_cluster
+                job=job,
+                task=task,
+                priority=priority,
+                running_cluster=running_cluster,
+                unique_identifier_id=unique_identifier_id,
             )
 
             xml = self._get_submit_instance_content(job)

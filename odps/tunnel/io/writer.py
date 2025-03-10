@@ -775,27 +775,31 @@ class BaseArrowWriter(object):
         if arrow_data.schema != self._arrow_schema or any(
             isinstance(tp, pa.TimestampType) for tp in arrow_data.schema.types
         ):
-            type_dict = dict(zip(arrow_data.schema.names, arrow_data.schema.types))
-            column_dict = dict(zip(arrow_data.schema.names, arrow_data.columns))
+            lower_names = [n.lower() for n in arrow_data.schema.names]
+            type_dict = dict(zip(lower_names, arrow_data.schema.types))
+            column_dict = dict(zip(lower_names, arrow_data.columns))
             arrays = []
             for name, tp in zip(self._arrow_schema.names, self._arrow_schema.types):
-                if name not in column_dict:
+                lower_name = name.lower()
+                if lower_name not in column_dict:
                     raise ValueError(
                         "Input record batch does not contain column %s" % name
                     )
 
                 if isinstance(tp, pa.TimestampType):
-                    if self._schema[name].type == types.timestamp_ntz:
-                        col = self._localize_timezone(column_dict[name], "UTC")
+                    if self._schema[lower_name].type == types.timestamp_ntz:
+                        col = self._localize_timezone(column_dict[lower_name], "UTC")
                     else:
-                        col = self._localize_timezone(column_dict[name])
-                    column_dict[name] = col.cast(pa.timestamp(tp.unit, col.type.tz))
+                        col = self._localize_timezone(column_dict[lower_name])
+                    column_dict[lower_name] = col.cast(
+                        pa.timestamp(tp.unit, col.type.tz)
+                    )
 
-                if tp == type_dict[name]:
-                    arrays.append(column_dict[name])
+                if tp == type_dict[lower_name]:
+                    arrays.append(column_dict[lower_name])
                 else:
                     try:
-                        arrays.append(column_dict[name].cast(tp, safe=False))
+                        arrays.append(column_dict[lower_name].cast(tp, safe=False))
                     except (pa.ArrowInvalid, pa.ArrowNotImplementedError):
                         raise ValueError(
                             "Failed to cast column %s to type %s" % (name, tp)

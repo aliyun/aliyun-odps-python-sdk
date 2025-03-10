@@ -235,6 +235,51 @@ def test_create_table_ddl(odps):
     )
 
 
+def test_create_table_ddl_with_auto_parts(odps_daily):
+    odps = odps_daily
+    test_table_name = tn("pyodps_t_tmp_table_ddl_with_auto_parts")
+    odps.delete_table(test_table_name, if_exists=True)
+
+    schema = TableSchema(
+        columns=[
+            Column(name="dt", type="datetime"),
+            Column(name="test_col", type="string"),
+        ],
+        partitions=[
+            Column(name="pt", type="string"),
+            Column(
+                name="pt_d", type="string", generate_expression="trunc_time(dt, 'hour')"
+            ),
+        ],
+    )
+    with pytest.raises(ValueError):
+        odps.create_table(test_table_name, schema, lifecycle=10)
+
+    schema = TableSchema(
+        columns=[
+            Column(name="dt", type="datetime"),
+            Column(name="test_col", type="string"),
+        ],
+        partitions=[
+            Column(
+                name="pt_d", type="string", generate_expression="trunc_time(dt, 'hour')"
+            ),
+        ],
+    )
+    table = odps.create_table(test_table_name, schema, lifecycle=10)
+    ddl = table.get_ddl()
+    assert "AUTO PARTITIONED BY" in ddl
+
+    odps.delete_table(test_table_name, if_exists=True)
+    table = odps.create_table(
+        test_table_name,
+        ("dt datetime, test_col string", "trunc_time(dt, 'day') as pt"),
+        lifecycle=10,
+    )
+    ddl = table.get_ddl()
+    assert "AUTO PARTITIONED BY" in ddl
+
+
 def test_create_delete_table(odps):
     test_table_name = tn("pyodps_t_tmp_create_table")
     schema = TableSchema.from_lists(

@@ -19,6 +19,7 @@ import json
 import random
 import textwrap
 import time
+import uuid
 from datetime import datetime, timedelta
 
 import mock
@@ -281,8 +282,10 @@ def test_create_instance(odps):
     test_table = tn("pyodps_t_tmp_create_instance")
 
     task = SQLTask(query="drop table if exists %s" % test_table)
-    instance = odps._project.instances.create(task=task)
+    unique_id = str(uuid.uuid4())
+    instance = odps._project.instances.create(task=task, unique_identifier_id=unique_id)
     assert instance.get_sql_query().rstrip(";") == task.query.rstrip(";")
+    assert instance.get_unique_identifier_id() == unique_id
     instance.wait_for_completion()
     assert instance.is_successful() is True
     assert odps.exist_table(test_table) is False

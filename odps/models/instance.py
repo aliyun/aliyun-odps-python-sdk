@@ -1125,6 +1125,10 @@ class Instance(LazyLoad):
             raise errors.ODPSError("Multiple SQLTasks exist in instance %s.", self.id)
         return task[0].query
 
+    def get_unique_identifier_id(self):
+        job = self._get_job()
+        return job.unique_identifier_id
+
     def _check_get_task_name(self, task_type, task_name=None, err_head=None):
         if not self.is_successful(retry=True):
             raise errors.ODPSError(

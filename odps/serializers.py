@@ -1,6 +1,4 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -858,7 +856,8 @@ class JSONNodeReferenceField(HasSubModelField):
                 if not _check:
                     return
 
-            instance = self._model.deserial(node, **kwargs)
+            if node is not None:
+                instance = self._model.deserial(node, **kwargs)
 
         if instance is None:
             return
