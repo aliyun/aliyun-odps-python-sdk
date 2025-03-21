@@ -23,7 +23,7 @@ try:
 except ImportError:
     pd = None
 
-from ..compat import six
+from ..compat import datetime_utcnow, six
 from ..utils import camel_to_underline
 
 _name_to_funcs = {}
@@ -57,6 +57,10 @@ class ExprFunction(object):
     def call(cls, *args):
         raise NotImplementedError
 
+    @classmethod
+    def to_str(cls, arg_strs):
+        return "%s(%s)" % (cls._func_name, ", ".join(arg_strs))
+
 
 _date_patterns = {
     "year": "%Y",
@@ -88,10 +92,10 @@ class TruncateTime(ExprFunction):
         return cls._call_single(arg, date_part)
 
 
-class GetUtcDate(ExprFunction):
-    _func_name = "getutcdate"
+class CurrentTimestampNTZ(ExprFunction):
+    _func_name = "current_timestamp_ntz"
     arg_count = 0
 
     @classmethod
     def call(cls):
-        return datetime.datetime.utcnow()
+        return datetime_utcnow()

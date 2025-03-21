@@ -104,6 +104,10 @@ def odps_schema_to_arrow_schema(odps_schema):
 def arrow_type_to_odps_type(arrow_type):
     from ... import types
 
+    arrow_decimal_types = (pa.Decimal128Type,)
+    if hasattr(pa, "Decimal256Type"):
+        arrow_decimal_types += (pa.Decimal256Type,)
+
     if arrow_type in _ARROW_TO_ODPS_TYPE:
         col_type = _ARROW_TO_ODPS_TYPE[arrow_type]
     else:
@@ -114,7 +118,7 @@ def arrow_type_to_odps_type(arrow_type):
                 arrow_type_to_odps_type(arrow_type.key_type),
                 arrow_type_to_odps_type(arrow_type.item_type),
             )
-        elif isinstance(arrow_type, (pa.Decimal128Type, pa.Decimal256Type)):
+        elif isinstance(arrow_type, arrow_decimal_types):
             precision = arrow_type.precision or types.Decimal._default_precision
             scale = arrow_type.scale or types.Decimal._default_scale
             col_type = types.Decimal(precision, scale)

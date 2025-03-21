@@ -29,7 +29,7 @@ from datetime import datetime
 import requests
 
 from . import options, utils
-from .compat import cgi, parse_qsl, six, unquote, urlparse
+from .compat import cgi, datetime_utcnow, parse_qsl, six, unquote, urlparse
 
 logger = logging.getLogger(__name__)
 
@@ -132,7 +132,7 @@ class AliyunAccount(BaseAccount):
             return "ODPS %s:%s" % (self.access_id, utils.to_str(signature))
         else:
             # use v4 sign
-            date_str = datetime.strftime(datetime.utcnow(), "%Y%m%d")
+            date_str = datetime.strftime(datetime_utcnow(), "%Y%m%d")
             credential = "/".join(
                 [self.access_id, date_str, region_name, "odps/aliyun_v4_request"]
             )

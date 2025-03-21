@@ -1340,3 +1340,9 @@ def get_supported_python_tag(align=None):
             return "cp27"
     else:
         return "cp" + str(sys.version_info[0]) + str(sys.version_info[1])
+
+
+def chain_generator(*iterable):
+    for itr in iterable:
+        for item in itr:
+            yield item

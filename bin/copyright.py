@@ -21,6 +21,8 @@ else:
     StrPattern = re.Pattern
 
 CURRENT_YEAR = str(datetime.datetime.now().year)
+COPYRIGHT_EMPTY_LINE_RE = re.compile(r"^((?:#[^\n]*\n)+)([^\n#\"\'])")
+COPYRIGHT_EMPTY_LINE_SUB = r"\1\n\2"
 
 
 def main() -> None:
@@ -31,6 +33,11 @@ def main() -> None:
     )
     args_parser.add_argument(
         "--required", action="store_true", help="The copyright is required"
+    )
+    args_parser.add_argument(
+        "--fill-empty-line",
+        action="store_true",
+        help="Empty line needed between copyright and code",
     )
     args_parser.add_argument(
         "--verbose", "-v", action="store_true", help="Verbose mode"
@@ -130,6 +137,7 @@ def main() -> None:
                 file_name,
                 args.required,
                 args.verbose,
+                args.fill_empty_line,
             )
         if not file_success:
             success = False
@@ -155,6 +163,7 @@ def update_file(
     filename: str = "<unknown>",
     required: bool = False,
     verbose: bool = False,
+    fill_empty_line: bool = False,
     current_year: str = CURRENT_YEAR,
 ) -> Tuple[bool, str]:
     """Update the copyright header of the file content."""
@@ -176,6 +185,11 @@ def update_file(
             )
 
         if two_date_match.group("to") in (last_year, current_year):
+            copyright_space_match = COPYRIGHT_EMPTY_LINE_RE.search(content)
+            if fill_empty_line and copyright_space_match:
+                return False, COPYRIGHT_EMPTY_LINE_RE.sub(
+                    COPYRIGHT_EMPTY_LINE_SUB, content
+                )
             return True, content
 
         return False, two_date_re.sub(
@@ -190,6 +204,11 @@ def update_file(
         copyright_year = one_date_match.group("year")
 
         if copyright_year == last_year:
+            copyright_space_match = COPYRIGHT_EMPTY_LINE_RE.search(content)
+            if fill_empty_line and copyright_space_match:
+                return False, COPYRIGHT_EMPTY_LINE_RE.sub(
+                    COPYRIGHT_EMPTY_LINE_SUB, content
+                )
             return True, content
 
         return False, one_date_re.sub(

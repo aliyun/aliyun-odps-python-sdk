@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-03-10 09:44+0800\n"
+"POT-Creation-Date: 2025-03-10 10:18+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -29,7 +29,7 @@ msgstr ""
 "`Tables <https://www.alibabacloud.com/help/en/doc-detail/27819.htm>`_ are"
 " the data storage unit in MaxCompute."
 
-#: ../../source/base-tables.rst:9 ../../source/base-tables.rst:494
+#: ../../source/base-tables.rst:9 ../../source/base-tables.rst:498
 msgid "基本操作"
 msgstr "Basic operations"
 
@@ -887,8 +887,8 @@ msgid ""
 "=True``，相应的分区将会自动创建。"
 msgstr ""
 "Since PyODPS 0.12.0, ``write_table`` supports dynamic partitioning. You "
-"can use ``partition_cols`` argument to specify columns as partitions, and "
-"when ``create_partition=True`` is specified, these partitions will be "
+"can use ``partition_cols`` argument to specify columns as partitions, and"
+" when ``create_partition=True`` is specified, these partitions will be "
 "created by the method."
 
 #: ../../source/base-tables.rst:428
@@ -916,11 +916,19 @@ msgstr ""
 ">>> o.write_table('test_part_table', df, partition_cols=['pt'], "
 "create_partition=True)"
 
-#: ../../source/base-tables.rst:441 ../../source/base-tables.rst:880
+#: ../../source/base-tables.rst:442
+msgid ""
+"``partition_cols`` 参数从 PyODPS 0.12.3 开始支持。在此之前的版本请使用 ``"
+"partitions`` 参数。"
+msgstr ""
+"``partition_cols`` is supported since PyODPS 0.12.3. Please use ``"
+"partitions`` argument instead when using PyODPS 0.12.2 or earlier."
+
+#: ../../source/base-tables.rst:445 ../../source/base-tables.rst:884
 msgid "压缩选项"
 msgstr "Compression options"
 
-#: ../../source/base-tables.rst:442 ../../source/base-tables.rst:881
+#: ../../source/base-tables.rst:446 ../../source/base-tables.rst:885
 msgid ""
 "为加快数据上传 / 下载速度，你可以在上传 / 下载数据时设置压缩选项。具体地"
 "，可以创建一个 ``CompressOption`` 实例，在其中指定需要的压缩算法及压缩"
@@ -933,7 +941,7 @@ msgstr ""
 "ZSTD is supported, and you need to install ``zstandard`` package to "
 "enable ZSTD support."
 
-#: ../../source/base-tables.rst:446 ../../source/base-tables.rst:885
+#: ../../source/base-tables.rst:450 ../../source/base-tables.rst:889
 msgid ""
 "from odps.tunnel import CompressOption\n"
 "\n"
@@ -952,13 +960,13 @@ msgstr ""
 "zlib\n"
 ")"
 
-#: ../../source/base-tables.rst:456
+#: ../../source/base-tables.rst:460
 msgid "此后可在 ``open_reader`` / ``open_writer`` 中设置压缩选项，例如："
 msgstr ""
 "Then you may specify compression option when calling ``open_reader`` or "
 "``open_writer``. For instance,"
 
-#: ../../source/base-tables.rst:458
+#: ../../source/base-tables.rst:462
 msgid ""
 "with table.open_writer(compress_option=compress_option) as writer:\n"
 "    # 写入数据，此处从略"
@@ -966,7 +974,7 @@ msgstr ""
 "with table.open_writer(compress_option=compress_option) as writer:\n"
 "    # replace this comment with actual data writing code"
 
-#: ../../source/base-tables.rst:463
+#: ../../source/base-tables.rst:467
 msgid ""
 "如果仅需指定算法名，也可以直接在 ``open_reader`` / ``open_writer`` 中指定"
 " ``compress_algo`` 参数，例如"
@@ -974,7 +982,7 @@ msgstr ""
 "If you only need to specify name of the compression algorithm, you can "
 "specify it with ``compress_algo`` argument directly."
 
-#: ../../source/base-tables.rst:465
+#: ../../source/base-tables.rst:469
 msgid ""
 "with table.open_writer(compress_algo=\"zlib\") as writer:\n"
 "    # 写入数据，此处从略"
@@ -982,11 +990,11 @@ msgstr ""
 "with table.open_writer(compress_algo=\"zlib\") as writer:\n"
 "    # replace this comment with actual data writing code"
 
-#: ../../source/base-tables.rst:471
+#: ../../source/base-tables.rst:475
 msgid "删除表"
 msgstr "Delete tables"
 
-#: ../../source/base-tables.rst:473
+#: ../../source/base-tables.rst:477
 msgid ""
 ">>> o.delete_table('my_table_name', if_exists=True)  #  只有表存在时删除\n"
 ">>> t.drop()  # Table对象存在的时候可以直接执行drop函数"
@@ -995,11 +1003,11 @@ msgstr ""
 "the table exists\n"
 ">>> t.drop()  # call drop method of the Table object to delete directly"
 
-#: ../../source/base-tables.rst:480
+#: ../../source/base-tables.rst:484
 msgid "创建DataFrame"
 msgstr "Create a DataFrame"
 
-#: ../../source/base-tables.rst:482
+#: ../../source/base-tables.rst:486
 msgid ""
 "PyODPS提供了 :ref:`DataFrame框架 <df>` ，支持更方便地方式来查询和操作ODPS"
 "数据。 使用 ``to_df`` 方法，即可转化为 DataFrame 对象。"
@@ -1008,42 +1016,42 @@ msgstr ""
 "operate MaxCompute data. You can use ``to_df`` to convert a table to a "
 "DataFrame object."
 
-#: ../../source/base-tables.rst:485
+#: ../../source/base-tables.rst:489
 msgid ""
 ">>> table = o.get_table('my_table_name')\n"
 ">>> df = table.to_df()"
 msgstr ""
 
-#: ../../source/base-tables.rst:491
+#: ../../source/base-tables.rst:495
 msgid "表分区"
 msgstr "Table partitions"
 
-#: ../../source/base-tables.rst:496
+#: ../../source/base-tables.rst:500
 msgid "判断表是否为分区表："
 msgstr "Check if a table is partitioned:"
 
-#: ../../source/base-tables.rst:498
+#: ../../source/base-tables.rst:502
 #, python-format
 msgid ""
 ">>> if table.table_schema.partitions:\n"
 ">>>     print('Table %s is partitioned.' % table.name)"
 msgstr ""
 
-#: ../../source/base-tables.rst:503
+#: ../../source/base-tables.rst:507
 msgid "判断分区是否存在（该方法需要填写所有分区字段值）："
 msgstr ""
 "Check whether the specified partition exists, all field values should be "
 "provided:"
 
-#: ../../source/base-tables.rst:505
+#: ../../source/base-tables.rst:509
 msgid ">>> table.exist_partition('pt=test,sub=2015')"
 msgstr ""
 
-#: ../../source/base-tables.rst:509
+#: ../../source/base-tables.rst:513
 msgid "判断给定前缀的分区是否存在："
 msgstr "Check whether partitions satisfying provided prefix exist:"
 
-#: ../../source/base-tables.rst:511
+#: ../../source/base-tables.rst:515
 msgid ""
 ">>> # 表 table 的分区字段依次为 pt, sub\n"
 ">>> table.exist_partitions('pt=test')"
@@ -1051,11 +1059,11 @@ msgstr ""
 ">>> # the order of partitions fields of table is pt, sub\n"
 ">>> table.exist_partitions('pt=test')"
 
-#: ../../source/base-tables.rst:516
+#: ../../source/base-tables.rst:520
 msgid "获取一个分区的相关信息："
 msgstr "Obtain information about one specified partition:"
 
-#: ../../source/base-tables.rst:518
+#: ../../source/base-tables.rst:522
 msgid ""
 ">>> partition = table.get_partition('pt=test')\n"
 ">>> print(partition.creation_time)\n"
@@ -1064,7 +1072,7 @@ msgid ""
 "0"
 msgstr ""
 
-#: ../../source/base-tables.rst:528
+#: ../../source/base-tables.rst:532
 msgid ""
 "这里的\"分区\"指的不是分区字段而是所有分区字段均确定的分区定义对应的子表"
 "。如果某个分区字段对应多个值， 则相应地有多个子表，即多个分区。而 ``get_"
@@ -1077,7 +1085,7 @@ msgstr ""
 "partitions. Meanwhile the method ``get_partition`` can only obtain "
 "information of only one sub-table. Thus,"
 
-#: ../../source/base-tables.rst:531
+#: ../../source/base-tables.rst:535
 msgid ""
 "如果某些分区未指定，那么这个分区定义可能对应多个子表，``get_partition`` "
 "时则不被 PyODPS 支持。\\ 此时，需要使用 ``iterate_partitions`` 分别处理"
@@ -1088,7 +1096,7 @@ msgstr ""
 " specification is not supported in PyODPS. You need to use "
 "``iter_partitions`` to handle every partition respectively."
 
-#: ../../source/base-tables.rst:533
+#: ../../source/base-tables.rst:537
 msgid ""
 "如果某个分区字段被定义多次，或者使用类似 ``pt>20210302`` 这样的非确定逻辑"
 "表达式，则无法使用 ``get_partition`` 获取分区。在此情况下，可以尝试使用 `"
@@ -1100,57 +1108,57 @@ msgstr ""
 " case, ``iterate_partitions`` might be used to iterate over all "
 "partitions."
 
-#: ../../source/base-tables.rst:537
+#: ../../source/base-tables.rst:541
 msgid "创建分区"
 msgstr "Create partitions"
 
-#: ../../source/base-tables.rst:539
+#: ../../source/base-tables.rst:543
 msgid "下面的操作将创建一个分区，如果分区存在将报错："
 msgstr ""
 "Code below will create a partition or raise an error if the partition "
 "already exists."
 
-#: ../../source/base-tables.rst:541
+#: ../../source/base-tables.rst:545
 msgid ">>> t.create_partition('pt=test')"
 msgstr ""
 
-#: ../../source/base-tables.rst:545
+#: ../../source/base-tables.rst:549
 msgid "下面的操作将创建一个分区，如果分区存在则跳过："
 msgstr ""
 "Code below will create a partition or do nothing if the partition already"
 " exists."
 
-#: ../../source/base-tables.rst:547
+#: ../../source/base-tables.rst:551
 msgid ">>> t.create_partition('pt=test', if_not_exists=True)"
 msgstr ""
 
-#: ../../source/base-tables.rst:554
+#: ../../source/base-tables.rst:558
 msgid "遍历表分区"
 msgstr "Iterate through partitions"
 
-#: ../../source/base-tables.rst:555
+#: ../../source/base-tables.rst:559
 msgid "下面的操作将遍历表全部分区："
 msgstr "Code below iterates through all the partitions in a table."
 
-#: ../../source/base-tables.rst:557
+#: ../../source/base-tables.rst:561
 msgid ""
 ">>> for partition in table.partitions:\n"
 ">>>     print(partition.name)"
 msgstr ""
 
-#: ../../source/base-tables.rst:562
+#: ../../source/base-tables.rst:566
 msgid "如果要遍历部分分区值确定的分区，可以使用 ``iterate_partitions`` 方法。"
 msgstr ""
 "If you need to iterate through partitions with certain values of "
 "partition fields fixed, you can use ``iterate_partitions`` method."
 
-#: ../../source/base-tables.rst:564
+#: ../../source/base-tables.rst:568
 msgid ""
 ">>> for partition in table.iterate_partitions(spec='pt=test'):\n"
 ">>>     print(partition.name)"
 msgstr ""
 
-#: ../../source/base-tables.rst:569
+#: ../../source/base-tables.rst:573
 msgid ""
 "自 PyODPS 0.11.3 开始，支持为 ``iterate_partitions`` 指定简单的逻辑表达式"
 "及通过逗号连接，\\ 每个子表达式均须满足的复合逻辑表达式。或运算符暂不支持"
@@ -1161,13 +1169,13 @@ msgstr ""
 "when iterating through partitions. OR operator is not supported "
 "currently."
 
-#: ../../source/base-tables.rst:572
+#: ../../source/base-tables.rst:576
 msgid ""
 ">>> for partition in table.iterate_partitions(spec='dt>20230119'):\n"
 ">>>     print(partition.name)"
 msgstr ""
 
-#: ../../source/base-tables.rst:579
+#: ../../source/base-tables.rst:583
 msgid ""
 "在 0.11.3 之前的版本中，``iterate_partitions`` 仅支持枚举前若干个分区等于"
 "相应值的情形。例如， 当表的分区字段按顺序分别为 pt1、pt2 和 pt3，那么 ``"
@@ -1183,15 +1191,15 @@ msgstr ""
 "flexible forms of ``spec`` arguments. However, it is still recommended to"
 " fix values of first partition fields to improve speed of iteration."
 
-#: ../../source/base-tables.rst:585
+#: ../../source/base-tables.rst:589
 msgid "删除分区"
 msgstr "Delete partitions"
 
-#: ../../source/base-tables.rst:587
+#: ../../source/base-tables.rst:591
 msgid "下面的操作将删除一个分区："
 msgstr "Code below will delete a partition."
 
-#: ../../source/base-tables.rst:589
+#: ../../source/base-tables.rst:593
 msgid ""
 ">>> t.delete_partition('pt=test', if_exists=True)  # 存在的时候才删除\n"
 ">>> partition.drop()  # Partition对象存在的时候直接drop"
@@ -1201,11 +1209,11 @@ msgstr ""
 ">>> partition.drop()  # delete directly via the drop method of the "
 "partition object"
 
-#: ../../source/base-tables.rst:595
+#: ../../source/base-tables.rst:599
 msgid "获取值最大分区"
 msgstr "Obtain the partition with maximal value:"
 
-#: ../../source/base-tables.rst:596
+#: ../../source/base-tables.rst:600
 msgid ""
 "很多时候你可能希望获取值最大的分区。例如，当以日期为分区值时，你可能希望"
 "获得日期最近的有数据的分区。PyODPS 自 0.11.3 开始支持此功能。"
@@ -1215,11 +1223,11 @@ msgstr ""
 "partition with data and latest date. PyODPS starts supporting this "
 "function since 0.11.3."
 
-#: ../../source/base-tables.rst:599
+#: ../../source/base-tables.rst:603
 msgid "创建分区表并写入一些数据："
 msgstr "Create a partitioned table and write some data."
 
-#: ../../source/base-tables.rst:601
+#: ../../source/base-tables.rst:605
 #, python-format
 msgid ""
 "t = o.create_table(\"test_multi_pt_table\", (\"col string\", \"pt1 "
@@ -1230,13 +1238,13 @@ msgid ""
 "partition=\"pt1=%s,pt2=%s\" % (pt1, pt2))"
 msgstr ""
 
-#: ../../source/base-tables.rst:607
+#: ../../source/base-tables.rst:611
 msgid "如果想要获得值最大的分区，可以使用下面的代码："
 msgstr ""
 "If you want to get the partition with maximal value, you can use code "
 "below:"
 
-#: ../../source/base-tables.rst:609
+#: ../../source/base-tables.rst:613
 msgid ""
 ">>> part = t.get_max_partition()\n"
 ">>> part\n"
@@ -1250,35 +1258,35 @@ msgstr ""
 ">>> part.partition_spec[\"pt1\"]  # get value of certain partition field\n"
 "b"
 
-#: ../../source/base-tables.rst:617
+#: ../../source/base-tables.rst:621
 msgid "如果只希望获得最新的分区而忽略分区内是否有数据，可以用"
 msgstr ""
 "If you want to get latest partition while ignore whether the partition "
 "has data, you may use"
 
-#: ../../source/base-tables.rst:619
+#: ../../source/base-tables.rst:623
 msgid ""
 ">>> t.get_max_partition(skip_empty=False)\n"
 "<Partition cupid_test_release.`test_multi_pt_table`(pt1='b',pt2='d')>"
 msgstr ""
 
-#: ../../source/base-tables.rst:624
+#: ../../source/base-tables.rst:628
 msgid "对于多级分区表，可以通过限定上级分区值来获得值最大的子分区，例如"
 msgstr ""
 "For tables with multiple partitions, you may specify the parent partition"
 " specification to get child partition with maximal value, for instance,"
 
-#: ../../source/base-tables.rst:626
+#: ../../source/base-tables.rst:630
 msgid ""
 ">>> t.get_max_partition(\"pt1=a\")\n"
 "<Partition cupid_test_release.`test_multi_pt_table`(pt1='a',pt2='b')>"
 msgstr ""
 
-#: ../../source/base-tables.rst:634
+#: ../../source/base-tables.rst:638
 msgid "数据上传下载通道"
 msgstr "Data upload and download tunnels"
 
-#: ../../source/base-tables.rst:637
+#: ../../source/base-tables.rst:641
 msgid ""
 "不推荐直接使用 Tunnel 接口，该接口较为低级，简单的表写入推荐直接使用 "
 "Tunnel 接口上实现的表 :ref:`写 <table_write>` 和 :ref:`读 <table_read>` "
@@ -1292,7 +1300,7 @@ msgstr ""
 "use tunnel interfaces directly when writing tables distributedly or under"
 " complicated scenarios."
 
-#: ../../source/base-tables.rst:641
+#: ../../source/base-tables.rst:645
 msgid ""
 "ODPS Tunnel 是 MaxCompute 的数据通道，用户可以通过 Tunnel 向 MaxCompute "
 "中上传或者下载数据。\\ 关于 ODPS Tunnel 的详细解释可以参考\\ `https://"
@@ -1303,15 +1311,15 @@ msgstr ""
 "tunnel can be found in `this document "
 "<https://help.aliyun.com/zh/maxcompute/user-guide/overview-of-dts>`_."
 
-#: ../../source/base-tables.rst:645
+#: ../../source/base-tables.rst:649
 msgid "上传"
 msgstr "Upload"
 
-#: ../../source/base-tables.rst:647
+#: ../../source/base-tables.rst:651
 msgid "分块上传接口"
 msgstr "Block upload interface"
 
-#: ../../source/base-tables.rst:648
+#: ../../source/base-tables.rst:652
 msgid ""
 "直接使用 Tunnel 分块接口上传时，需要首先通过 ``create_upload_session`` "
 "方法使用表名和分区创建 Upload Session，此后从 Upload Session 创建 Writer"
@@ -1333,7 +1341,7 @@ msgstr ""
 "the list submitted with ``commit`` method, the corresponding data block "
 "will not appear in the final table."
 
-#: ../../source/base-tables.rst:655
+#: ../../source/base-tables.rst:659
 msgid ""
 "对于需要写入数据的情形，\\ ``commit`` 调用有且只能有一次，完成 ``commit``"
 " 后 Upload Session 即完成写入，此后无法再在该 Upload Session 上提交。"
@@ -1342,7 +1350,7 @@ msgstr ""
 "``commit`` is called, the upload session is closed and no more data can "
 "be written on the same session."
 
-#: ../../source/base-tables.rst:658
+#: ../../source/base-tables.rst:662
 msgid ""
 "from odps.tunnel import TableTunnel\n"
 "\n"
@@ -1396,7 +1404,7 @@ msgstr ""
 "# for every upload_session, commit can be called only once.\n"
 "upload_session.commit([0])"
 
-#: ../../source/base-tables.rst:683
+#: ../../source/base-tables.rst:687
 msgid ""
 "如果你需要在多个进程乃至节点中使用相同的 Upload Session，可以先创建 "
 "Upload Session，并获取其 ``id`` 属性。此后在其他进程中调用 ``create_"
@@ -1411,7 +1419,7 @@ msgstr ""
 "need to collect ``block_id`` used in these processes and call ``commit`` "
 "in some process."
 
-#: ../../source/base-tables.rst:687
+#: ../../source/base-tables.rst:691
 msgid ""
 "from odps.tunnel import TableTunnel\n"
 "\n"
@@ -1496,7 +1504,7 @@ msgstr ""
 "# submit all collected block_id\n"
 "upload_session_main.commit(collected_block_ids)"
 
-#: ../../source/base-tables.rst:727
+#: ../../source/base-tables.rst:731
 msgid ""
 "需要注意的是，指定 block id 后，所创建的 Writer 为长连接，如果长时间不"
 "写入会导致连接关闭，并导致写入失败，\\ 该时间通常为 5 分钟。如果你写入"
@@ -1521,7 +1529,7 @@ msgstr ""
 "with ``options.tunnel.block_buffer_size``. After writing all data you "
 "need to obtain all written blocks with ``get_blocks_written`` method."
 
-#: ../../source/base-tables.rst:734
+#: ../../source/base-tables.rst:738
 msgid ""
 "from odps.tunnel import TableTunnel\n"
 "\n"
@@ -1570,7 +1578,7 @@ msgstr ""
 "# obtain block ids from the writer and then commit\n"
 "upload_session.commit(writer.get_blocks_written())"
 
-#: ../../source/base-tables.rst:760
+#: ../../source/base-tables.rst:764
 msgid ""
 "使用带缓存的 Writer 时，需要注意不能在同一 Upload Session 上开启多个带"
 "缓存 Writer 进行写入，\\ 否则可能导致冲突而使数据丢失。"
@@ -1579,7 +1587,7 @@ msgstr ""
 "on a single upload session, or there might be collisions and data might "
 "be lost."
 
-#: ../../source/base-tables.rst:763
+#: ../../source/base-tables.rst:767
 msgid ""
 "如果你需要使用 Arrow 格式而不是 Record 格式进行上传，可以将 ``open_record"
 "_writer`` 替换为 ``open_arrow_writer``，并写入 Arrow RecordBatch / Arrow "
@@ -1589,7 +1597,7 @@ msgstr ""
 " replace ``open_record_writer`` with ``open_arrow_writer`` and write "
 "arrow RecordBatches, Tables or pandas DataFrames."
 
-#: ../../source/base-tables.rst:766
+#: ../../source/base-tables.rst:770
 msgid ""
 "import pandas as pd\n"
 "import pyarrow as pa\n"
@@ -1632,17 +1640,17 @@ msgstr ""
 "# commit, and an error will be raised.\n"
 "upload_session.commit([0])"
 
-#: ../../source/base-tables.rst:786
+#: ../../source/base-tables.rst:790
 msgid "本章节中所述所有 Writer 均非线程安全。你需要为每个线程单独创建 Writer。"
 msgstr ""
 "All writers described in this chapter are not thread safe. You need to "
 "create separate writers for every thread."
 
-#: ../../source/base-tables.rst:789
+#: ../../source/base-tables.rst:793
 msgid "流式上传接口"
 msgstr "Stream upload interface"
 
-#: ../../source/base-tables.rst:790
+#: ../../source/base-tables.rst:794
 msgid ""
 "MaxCompute 提供了\\ `流式上传接口 <https://help.aliyun.com/zh/maxcompute/"
 "user-guide/overview-of-streaming-data-channels>`_\\ 用于简化分布式服务"
@@ -1657,7 +1665,7 @@ msgstr ""
 "sessions. Block ids are not needed for ``open_record_writer`` for this "
 "session type."
 
-#: ../../source/base-tables.rst:794
+#: ../../source/base-tables.rst:798
 msgid ""
 "from odps.tunnel import TableTunnel\n"
 "\n"
@@ -1677,11 +1685,11 @@ msgid ""
 "    writer.write(record)"
 msgstr ""
 
-#: ../../source/base-tables.rst:813
+#: ../../source/base-tables.rst:817
 msgid "下载"
 msgstr "Download"
 
-#: ../../source/base-tables.rst:815
+#: ../../source/base-tables.rst:819
 msgid ""
 "直接使用 Tunnel 接口下载数据时，需要首先使用表名和分区创建 Download "
 "Session，此后从 Download Session 创建 Reader。每个 Download Session 可"
@@ -1699,7 +1707,7 @@ msgstr ""
 " table or partition. Data read from the reader are of :ref:`record type "
 "<record-type>`."
 
-#: ../../source/base-tables.rst:820
+#: ../../source/base-tables.rst:824
 msgid ""
 "from odps.tunnel import TableTunnel\n"
 "\n"
@@ -1727,7 +1735,7 @@ msgstr ""
 "    for record in reader:\n"
 "        # process every record"
 
-#: ../../source/base-tables.rst:833
+#: ../../source/base-tables.rst:837
 msgid ""
 "如果你需要在多个进程乃至节点中使用相同的 Download Session，可以先创建 "
 "Download Session，并获取其 ``id`` 属性。此后在其他进程中调用 ``create_"
@@ -1738,7 +1746,7 @@ msgstr ""
 "property and then call ``create_download_session`` in other processes "
 "with the value as ``download_id`` argument."
 
-#: ../../source/base-tables.rst:836
+#: ../../source/base-tables.rst:840
 msgid ""
 "from odps.tunnel import TableTunnel\n"
 "\n"
@@ -1799,7 +1807,7 @@ msgstr ""
 "    for record in reader:\n"
 "        # handle data records"
 
-#: ../../source/base-tables.rst:865
+#: ../../source/base-tables.rst:869
 msgid ""
 "你也可以通过使用 ``open_arrow_reader`` 而不是 ``open_record_reader`` 使"
 "读取的数据为 Arrow 格式而不是 Record 格式。"
@@ -1807,7 +1815,7 @@ msgstr ""
 "You can download data with arrow format instead of record format by "
 "calling ``open_arrow_reader`` instead of ``open_record_reader``."
 
-#: ../../source/base-tables.rst:868
+#: ../../source/base-tables.rst:872
 msgid ""
 "from odps.tunnel import TableTunnel\n"
 "\n"
@@ -1831,7 +1839,7 @@ msgstr ""
 "    for batch in reader:\n"
 "        # process every Arrow RecordBatch"
 
-#: ../../source/base-tables.rst:895
+#: ../../source/base-tables.rst:899
 msgid ""
 "此后，在创建 Upload / Download Session 时，可以指定 ``compress_option`` "
 "参数，并在 ``open_xxx_reader`` / ``open_xxx_writer`` 方法中设置 ``"
@@ -1841,7 +1849,7 @@ msgstr ""
 "``compress_option`` argument and use ``compress=True`` in "
 "``open_xxx_reader`` or ``open_xxx_writer`` methods to enable compression."
 
-#: ../../source/base-tables.rst:898
+#: ../../source/base-tables.rst:902
 msgid ""
 "tunnel = TableTunnel(o)\n"
 "# 为 table 和 pt=test 分区创建 Download Session\n"
@@ -1869,7 +1877,7 @@ msgstr ""
 "    for record in reader:\n"
 "        # process every record"
 
-#: ../../source/base-tables.rst:911
+#: ../../source/base-tables.rst:915
 msgid ""
 "自 PyODPS 0.12.3 起，你可以通过全局配置指定当前 Python 进程中使用的压缩"
 "选项，示例如下："
@@ -1877,7 +1885,7 @@ msgstr ""
 "Since PyODPS 0.12.3, you may specify compress options used in current "
 "Python process by setting global options as follows."
 
-#: ../../source/base-tables.rst:913
+#: ../../source/base-tables.rst:917
 msgid ""
 "from odps import options\n"
 "\n"
@@ -1893,7 +1901,7 @@ msgstr ""
 "# set compression algorithm\n"
 "options.tunnel.compress.algo = \"zstd\""
 
-#: ../../source/base-tables.rst:922
+#: ../../source/base-tables.rst:926
 msgid ""
 "此后在所有后续数据读写操作中，都会启用压缩。更多压缩选项可以参考\\ :ref:`"
 "配置选项 <options_tunnel>`。"
@@ -1902,11 +1910,11 @@ msgstr ""
 "write operations. For more details, please refer to :ref:`Options "
 "<options_tunnel>`."
 
-#: ../../source/base-tables.rst:925
+#: ../../source/base-tables.rst:929
 msgid "提升上传和下载性能"
 msgstr "Improve upload and download performance"
 
-#: ../../source/base-tables.rst:927
+#: ../../source/base-tables.rst:931
 msgid ""
 "Tunnel 上传和下载性能受到各种因素影响较大。首先，考虑对本地代码的优化，"
 "主要有下面的优化点："
@@ -1915,7 +1923,7 @@ msgstr ""
 "factors. First, you may consider optimizing your local code, which "
 "includes:"
 
-#: ../../source/base-tables.rst:929
+#: ../../source/base-tables.rst:933
 msgid ""
 "减少创建 Upload Session 或者 Download Session 的次数，尽量复用。Tunnel "
 "Session 本身创建代价较大，\\ 因而除非必要，一次读取或写入只应当创建一个。"
@@ -1924,15 +1932,15 @@ msgstr ""
 "of tunnel session creation is high, so unless necessary, only one upload "
 "session should be created for each read or write."
 
-#: ../../source/base-tables.rst:931
+#: ../../source/base-tables.rst:935
 msgid "增加每个 Reader / Writer 读取或者写入的数据量。"
 msgstr "Increase the amount of data read or written by readers or writers."
 
-#: ../../source/base-tables.rst:932
+#: ../../source/base-tables.rst:936
 msgid "启用数据压缩以减小传输的数据量。"
 msgstr "Compress data to reduce the amount of data to transfer."
 
-#: ../../source/base-tables.rst:933
+#: ../../source/base-tables.rst:937
 msgid ""
 "如果数据源或者需要的数据目标为 pandas，由于 Record 类型本身需要较大的 "
 "Python 解释器时间开销，因而建议尽量采用 Arrow 接口进行读写。"
@@ -1941,7 +1949,7 @@ msgstr ""
 " overhead in Python interpreter, it is recommended to use Arrow interface"
 " for pandas data if possible."
 
-#: ../../source/base-tables.rst:935
+#: ../../source/base-tables.rst:939
 msgid ""
 "如有可能，使用多线程或者 multiprocessing 进行读写。需要注意的是，Python "
 "使用了 GIL，因而如果你读写数据\\ 前的预处理步骤使用了较多纯 Python 代码，"
@@ -1952,7 +1960,7 @@ msgstr ""
 "code to do data preprocessing before reading or writing, multi-threading "
 "may not improve performance much."
 
-#: ../../source/base-tables.rst:938
+#: ../../source/base-tables.rst:942
 msgid ""
 "此外，读写数据时的网络状况等因素也可能影响上传和下载速度，可能发生共享 "
 "Tunnel 服务资源用满或者客户端到 Tunnel 服务网络链路不稳定等因素。针对这些"

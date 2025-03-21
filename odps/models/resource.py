@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ from ..compat import Enum, six
 from ..config import options
 from .cache import cache, cache_parent
 from .core import LazyLoad
+from .volumes import Volume
 
 _RESOURCE_SPLITTER = "/resources/"
 _SCHEMA_SPLITTER = "/schemas/"
@@ -45,7 +46,13 @@ class Resource(LazyLoad):
                  :class:`odps.models.TableResource`
     """
 
-    __slots__ = ("content_md5", "is_temp_resource", "volume_path", "_type_indicator")
+    __slots__ = (
+        "content_md5",
+        "is_temp_resource",
+        "volume_path",
+        "_type_indicator",
+        "volume_type",
+    )
 
     class Type(Enum):
         FILE = "FILE"
@@ -819,11 +826,18 @@ class VolumeResource(Resource):
         method = self._client.post if not overwrite else self._client.put
         url = self.parent.resource() if not overwrite else self.resource()
 
+        ref_path = self.volume_path
+        path_prefix = self.project.name + "/volumes"
+        if self.volume_type == Volume.Type.EXTERNAL and not ref_path.startswith(
+            path_prefix
+        ):
+            ref_path = path_prefix + self.volume_path
+
         headers = {
             "Content-Type": "text/plain",
             "x-odps-resource-type": self.type.value.lower(),
             "x-odps-resource-name": self.name,
-            "x-odps-copy-file-source": self.volume_path,
+            "x-odps-copy-file-source": ref_path,
         }
         if self._getattr("comment") is not None:
             headers["x-odps-comment"] = self._getattr("comment")
@@ -852,6 +866,7 @@ class VolumeFileResource(VolumeResource):
         if "volume_file" in kw:
             vf = kw.pop("volume_file")
             self.volume_path = vf.path
+            self.volume_type = vf.volume.type
         return super(VolumeFileResource, self).create(overwrite, **kw)
 
 

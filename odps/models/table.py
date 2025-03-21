@@ -443,8 +443,9 @@ class Table(LazyLoad):
             if column_name.lower() == "_partitiontime" and utils.str_to_bool(
                 table_props.get("ingestion_time_partition")
             ):
-                return '[{"functionCall":{"name":"getutcdate","type":"%s"}}]' % str(
-                    self.table_schema[column_name].type
+                return (
+                    '[{"functionCall":{"name":"current_timestamp_ntz","type":"%s"}}]'
+                    % str(self.table_schema[column_name].type)
                 )
         return None
 
