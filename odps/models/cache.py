@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -103,7 +103,10 @@ class ObjectCache(object):
     def del_item_cache(self, obj, item):
         from .core import LazyLoad
 
-        item = obj[item]
+        try:
+            item = obj._get_parent_typed(item)
+        except (AttributeError, NotImplementedError):
+            item = obj[item]
 
         client = getattr(item, "_client")
         parent = getattr(item, "_parent")

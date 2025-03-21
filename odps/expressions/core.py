@@ -32,7 +32,7 @@ from ..serializers import (
     JSONNodesReferencesField,
     JSONSerializableModel,
 )
-from ..types import validate_data_type, validate_value
+from ..types import is_record, validate_data_type, validate_value
 from ..utils import to_odps_scalar
 from .functions import ExprFunction
 
@@ -77,17 +77,22 @@ class Expression(JSONSerializableModel):
     def eval(self, data):
         raise NotImplementedError
 
+    def to_str(self, ref_to_str=None):
+        raise NotImplementedError
+
+    def __str__(self):
+        return self.to_str()
+
     def __repr__(self):
         return "%s(%s)" % (type(self).__name__, str(self))
 
     def _make_final_result(self, data, res):
-        from ..models import Record
         from ..tunnel.io.types import odps_type_to_arrow_type
 
         if not self.final:
             return res
 
-        if isinstance(data, Record):
+        if is_record(data):
             return res
         elif pd and isinstance(data, pd.DataFrame):
             if not isinstance(res, pd.Series):
@@ -106,11 +111,13 @@ class FunctionCall(Expression):
 
     name = JSONNodeField("name")
 
-    def __str__(self):
+    def to_str(self, ref_to_str=None):
+        ref_to_str = ref_to_str or {}
         if not hasattr(self, "args"):
-            return super(FunctionCall, self).__str__()
+            return super(FunctionCall, self).to_str(ref_to_str)
 
-        return "%s(%s)" % (self.name, ", ".join(str(s) for s in self.args))
+        func_cls = self.get_function_cls()
+        return func_cls.to_str([s.to_str(ref_to_str) for s in self.args])
 
     def get_function_cls(self):
         return ExprFunction.get_cls(self.name)
@@ -147,12 +154,14 @@ class LeafExprDesc(Expression):
             raise NotImplementedError("Expression cannot be called")
         return self._make_final_result(data, val)
 
-    def __str__(self):
+    def to_str(self, ref_to_str=None):
+        ref_to_str = ref_to_str or {}
         if self.constant:
             val = validate_value(self.constant, self.type)
             return to_odps_scalar(val)
         elif self.reference:
-            return "`%s`" % self.reference.name
+            default_str = "`%s`" % self.reference.name
+            return ref_to_str.get(self.reference.name, default_str)
         else:
             raise NotImplementedError("Expression cannot be accepted")
 

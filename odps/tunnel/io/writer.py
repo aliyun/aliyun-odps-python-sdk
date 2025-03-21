@@ -35,7 +35,7 @@ except (ImportError, ValueError):
     pd = None
 
 from ... import compat, options, types, utils
-from ...compat import Enum, futures, six
+from ...compat import Decimal, Enum, futures, six
 from ...lib.monotonic import monotonic
 from ..base import TunnelMetrics
 from ..checksum import Checksum
@@ -759,6 +759,11 @@ class BaseArrowWriter(object):
             pd_col = col.to_pandas().dt.tz_localize(tz)
             return pa.Array.from_pandas(pd_col)
 
+    @classmethod
+    def _str_to_decimal_array(cls, col, dec_type):
+        dec_col = col.to_pandas().map(Decimal)
+        return pa.Array.from_pandas(dec_col, type=dec_type)
+
     def write(self, data):
         """
         Write an Arrow RecordBatch, an Arrow Table or a pandas DataFrame.
@@ -769,6 +774,10 @@ class BaseArrowWriter(object):
             arrow_data = data
         else:
             raise TypeError("Cannot support writing data type %s", type(data))
+
+        arrow_decimal_types = (pa.Decimal128Type,)
+        if hasattr(pa, "Decimal256Type"):
+            arrow_decimal_types += (pa.Decimal256Type,)
 
         assert isinstance(arrow_data, (pa.RecordBatch, pa.Table))
 
@@ -793,6 +802,12 @@ class BaseArrowWriter(object):
                         col = self._localize_timezone(column_dict[lower_name])
                     column_dict[lower_name] = col.cast(
                         pa.timestamp(tp.unit, col.type.tz)
+                    )
+                elif isinstance(tp, arrow_decimal_types) and isinstance(
+                    column_dict[lower_name], (pa.BinaryArray, pa.StringArray)
+                ):
+                    column_dict[lower_name] = self._str_to_decimal_array(
+                        column_dict[lower_name], tp
                     )
 
                 if tp == type_dict[lower_name]:

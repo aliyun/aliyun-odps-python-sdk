@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -43,6 +43,11 @@ class Resources(Iterable):
 
     def _get(self, name):
         return self.get_typed(name, None)
+
+    def _get_parent_typed(self, item):
+        return Resource(
+            client=self._client, name=item, parent=self, type=Resource.Type.UNKOWN
+        )
 
     def __contains__(self, item):
         if isinstance(item, six.string_types):
@@ -124,7 +129,7 @@ class Resources(Iterable):
 
     def delete(self, name):
         if not isinstance(name, Resource):
-            resource = Resource(name=name, parent=self, type=Resource.Type.UNKOWN)
+            resource = self._get_parent_typed(name)
         else:
             resource = name
             name = name.name

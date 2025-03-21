@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,6 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
+
+from ...config import options
 from ...examples import create_iris
 from ...tests.core import tn
 from ...utils import to_text
@@ -118,6 +121,7 @@ def test_iter_sub_instances(odps):
     except:
         pass
     try:
+        options.default_task_settings = {"SKYNET_ID": "12345"}
         xflow_inst = odps.run_xflow(
             "LogisticRegression",
             "algo_public",
@@ -127,12 +131,14 @@ def test_iter_sub_instances(odps):
                 inputTableName=table.name,
                 modelName=model_name,
             ),
-            hints={"settings": "{\"SKYNET_ID\": \"12345\"}"},
         )
+        xsrc = odps.get_project().xflows.get_xflow_source(xflow_inst)
+        assert json.dumps(options.default_task_settings) in to_text(xsrc)
         sub_insts = dict()
         for k, v in odps.iter_xflow_sub_instances(xflow_inst, check=True):
             sub_insts[k] = v
         assert xflow_inst.is_terminated
         assert len(sub_insts) > 0
     finally:
+        options.default_task_settings = None
         odps.delete_offline_model(model_name, if_exists=True)

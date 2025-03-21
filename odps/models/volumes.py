@@ -142,6 +142,11 @@ class Volumes(Iterable):
     def _get(self, item):
         return Volume(client=self._client, parent=self, name=item)
 
+    def _get_parent_typed(self, item):
+        return Volume(
+            client=self._client, parent=self, name=item, type=Volume.Type.UNKNOWN
+        )
+
     def __contains__(self, item):
         if isinstance(item, six.string_types):
             try:
@@ -237,7 +242,7 @@ class Volumes(Iterable):
 
     def delete(self, name, auto_remove_dir=False, recursive=False):
         if not isinstance(name, Volume):
-            volume = Volume(name=name, parent=self, client=self._client)
+            volume = self._get_parent_typed(name)
         else:
             volume = name
             name = name.name

@@ -496,6 +496,11 @@ def py_and_c(modules=None, reloader=None):
             yield
         finally:
             setattr(options, "force_{0}".format(impl), old_config)
+            for mod_name in modules or []:
+                mod = importlib.import_module(mod_name)
+                compat.reload_module(mod)
+            if callable(reloader):
+                reloader()
 
     mod_reloader.__name__ = fixture_name
 

@@ -1,4 +1,4 @@
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,8 +18,14 @@ import zipfile
 
 import pytest
 
+try:
+    import oss2
+except ImportError:
+    oss2 = None
+
 from ... import compat, errors, options, types
 from ...compat import ConfigParser, UnsupportedOperation, futures, six
+from ...errors import NoSuchObject
 from ...tests.core import tn
 from ...utils import to_text
 from .. import (
@@ -480,3 +486,60 @@ def test_volume_file_resource(odps):
     assert res.type == Resource.Type.VOLUMEFILE
     assert res.volume_path == volume_file.path
     odps.delete_resource(resource_name)
+
+
+def test_ext_volume_resource(config, odps_daily):
+    odps = odps_daily
+
+    if not hasattr(config, "oss_bucket") or oss2 is None:
+        pytest.skip("Need oss2 and config to run this test")
+
+    test_res_vol_name = tn("pyodps_test_res_external_volume")
+    test_res_name = tn("pyodps_t_tmp_ext_file_resource")
+    test_dir_name = tn("test_oss_directory")
+
+    try:
+        odps.delete_resource(test_res_name)
+    except NoSuchObject:
+        pass
+    try:
+        odps.delete_volume(test_res_vol_name)
+    except NoSuchObject:
+        pass
+
+    config.oss_bucket.put_object(test_dir_name + "/", b"")
+
+    (
+        oss_access_id,
+        oss_secret_access_key,
+        oss_bucket_name,
+        oss_endpoint,
+    ) = config.oss_config
+    test_location = "oss://%s:%s@%s/%s/%s" % (
+        oss_access_id,
+        oss_secret_access_key,
+        oss_endpoint,
+        oss_bucket_name,
+        test_dir_name,
+    )
+
+    vol = odps_daily.create_external_volume(
+        test_res_vol_name, location=test_location, auto_create_dir=True
+    )
+    try:
+        test_read_file_name = "test_oss_file_read"
+        config.oss_bucket.put_object(
+            test_dir_name + "/" + test_read_file_name, FILE_CONTENT
+        )
+        odps.create_resource(
+            test_res_name, "volumefile", volume_file=vol[test_read_file_name]
+        )
+        assert odps.exist_resource(test_res_name)
+        res = odps.get_resource(test_res_name)
+        res.reload()
+        assert res.volume_path == "/".join(
+            [odps.project, "volumes", test_res_vol_name, test_read_file_name]
+        )
+        odps.delete_resource(test_res_name)
+    finally:
+        vol.drop(auto_remove_dir=True, recursive=True)

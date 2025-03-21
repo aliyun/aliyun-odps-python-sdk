@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -243,6 +243,15 @@ class Container(RestModel):
         return object.__new__(cls)
 
     def _get(self, item):
+        raise NotImplementedError
+
+    def _get_parent_typed(self, item):
+        """
+        If an object has subtypes and needs an RPC call to get
+        its type, this method returns a parent-typed instance
+        for cases without RPC call in scenarios such as delete
+        requesst.
+        """
         raise NotImplementedError
 
     def __getitem__(self, item):

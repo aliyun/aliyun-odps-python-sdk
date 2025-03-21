@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -365,38 +365,47 @@ except ImportError:
         return datetime.datetime(*dtuple[:6], tzinfo=FixedOffset(tz / 60.0))
 
 
+if not hasattr(datetime, "UTC"):
+    datetime_utcnow = datetime.datetime.utcnow
+else:
+
+    def datetime_utcnow():
+        return datetime.datetime.now(datetime.UTC).replace(tzinfo=None)
+
+
 __all__ = [
-    "sys",
-    "builtins",
-    "logging.config",
-    "dictconfig",
-    "suppress",
-    "reduce",
-    "reload_module",
-    "Queue",
-    "Empty",
+    "DECIMAL_TYPES",
+    "ConfigParser",
+    "Decimal",
     "ElementTree",
     "ElementTreeParseError",
-    "urlretrieve",
+    "Empty",
+    "Enum",
+    "FixedOffset",
+    "Iterable",
+    "Monthdelta",
+    "Queue",
+    "Semaphore",
+    "TimeoutError",
+    "Version",
+    "builtins",
+    "cgi",
+    "datetime_utcnow",
+    "decimal",
+    "dictconfig",
+    "logging.config",
+    "parse_qsl",
+    "parsedate_to_datetime",
     "pickle",
-    "urlencode",
-    "urlparse",
-    "unquote",
     "quote",
     "quote_plus",
-    "parse_qsl",
-    "Enum",
-    "ConfigParser",
-    "decimal",
-    "Decimal",
-    "DECIMAL_TYPES",
-    "FixedOffset",
+    "reduce",
+    "reload_module",
+    "suppress",
+    "sys",
+    "unquote",
+    "urlencode",
+    "urlparse",
+    "urlretrieve",
     "utc",
-    "Monthdelta",
-    "Iterable",
-    "TimeoutError",
-    "cgi",
-    "parsedate_to_datetime",
-    "Version",
-    "Semaphore",
 ]

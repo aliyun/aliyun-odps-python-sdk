@@ -31,7 +31,7 @@ import mock
 import pytest
 
 from ... import types as odps_types
-from ...compat import futures, six
+from ...compat import datetime_utcnow, futures, six
 from ...config import options
 from ...errors import NoSuchObject
 from ...tests.core import (
@@ -50,7 +50,8 @@ from ..tableio import MPBlockClient, MPBlockServer
 
 def _reloader():
     from ...conftest import get_config
-    from .. import Record, table
+    from .. import table
+    from ..record import Record
 
     cfg = get_config()
     cfg.tunnel = TableTunnel(cfg.odps, endpoint=cfg.odps._tunnel_endpoint)
@@ -816,6 +817,38 @@ def test_write_pandas_with_dynamic_parts(odps, use_arrow):
         odps.delete_table(test_table_name, if_exists=True)
 
 
+@pyarrow_case
+@pandas_case
+@odps2_typed_case
+def test_write_pandas_with_decimal(odps):
+    test_table_name = tn("pyodps_t_tmp_write_pandas_decimal")
+    odps.delete_table(test_table_name, if_exists=True)
+
+    table = odps.create_table(
+        test_table_name,
+        "idx string, dec_number decimal(8, 6)",
+        lifecycle=1,
+    )
+
+    data = pd.DataFrame(
+        [
+            ["05ac09c4-f947-45a8-8c14-88f430f8b294", "62.388819"],
+            ["cfae9054-940b-42a1-84d4-052daae6194f", "81.251166"],
+            ["6029501d-c274-49f2-a69d-4c75a3d9931d", "23.395968"],
+            ["c653e520-df81-4a5f-b44b-bb1b4c1b7846", "72.210084"],
+            ["59caed0d-53d6-473c-a88c-3726c7693f05", "68.602943"],
+        ],
+        columns=["idx", "dec_number"],
+    )
+
+    try:
+        odps.write_table(test_table_name, data)
+        fetched = odps.get_table(test_table_name).to_pandas()
+        pd.testing.assert_frame_equal(fetched.applymap(str), data)
+    finally:
+        table.drop()
+
+
 @py_and_c_deco
 def test_write_record_with_dynamic_parts(odps):
     test_table_name = tn("pyodps_t_tmp_write_rec_dyn_parts")
@@ -881,6 +914,30 @@ def test_read_write_transactional_table(odps):
         assert result == sorted(data[1:])
     finally:
         odps.delete_table(test_table_name, if_exists=True)
+
+
+@pandas_case
+def test_write_table_with_schema_evolution(odps):
+    test_table_name = tn("pyodps_t_tmp_write_table_with_evol")
+    odps.delete_table(test_table_name, if_exists=True)
+    dest_table = odps.create_table(
+        test_table_name,
+        ("a string, b bigint", "pt string, pt2 string"),
+        lifecycle=1,
+    )
+    df = pd.DataFrame(
+        [["abcd", 12345, 3.456, "part1", "part2"]], columns=["a", "b", "c", "pt", "pt2"]
+    )
+    odps.write_table(
+        test_table_name,
+        df,
+        partition_cols=["pt", "pt2"],
+        append_missing_cols=True,
+        create_partition=True,
+    )
+    assert "c" in odps.get_table(test_table_name).table_schema
+    with dest_table.open_reader("pt=part1,pt2=part2", reopen=True) as reader:
+        assert reader.count == 1
 
 
 @pandas_case
@@ -996,7 +1053,7 @@ def test_write_table_with_generate_cols_and_parts(odps_daily):
         lifecycle=1,
     )
 
-    cur_dt = datetime.datetime.utcnow()
+    cur_dt = datetime_utcnow()
     pt_spec = "pt=%s" % cur_dt.strftime("%Y-%m-%d")
     # fixme remove this when table_properties is ready on server response
     tb.table_properties = {"ingestion_time_partition": "true"}
@@ -1109,7 +1166,7 @@ def test_write_sql_to_partitioned_table(odps):
     with pytest.raises(ValueError):
         odps.write_sql_result_to_table(
             test_dest_table_name,
-            "select a, b from %s" % test_src_table_name,
+            "select * from %s" % test_src_table_name,
             partition="pt1=a,pt2=a",
             create_table=True,
         )
@@ -1117,7 +1174,7 @@ def test_write_sql_to_partitioned_table(odps):
     # test partition absense and create_partition=True
     odps.write_sql_result_to_table(
         test_dest_table_name,
-        "select a, b from %s" % test_src_table_name,
+        "@var1 := select a, b from %s; select * from @var1" % test_src_table_name,
         partition="pt1=a,pt2=a",
         create_table=True,
         create_partition=True,
@@ -1135,6 +1192,104 @@ def test_write_sql_to_partitioned_table(odps):
     )
     with dest_table.open_reader("pt1=a,pt2=a", reopen=True) as reader:
         assert reader.count == 4
+
+    # test writing with dynamic partition and overwrite
+    odps.write_sql_result_to_table(
+        test_dest_table_name,
+        "select a, b, pt2 from %s" % test_src_table_name,
+        partition="pt1=a",
+        partition_cols="pt2",
+        overwrite=True,
+    )
+    with dest_table.open_reader("pt1=a,pt2=a", reopen=True) as reader:
+        assert reader.count == 1
+
+
+def test_write_sql_to_partitioned_table_with_schema_evolution(odps):
+    test_src_table_name = tn("pyodps_t_tmp_write_sql_to_part_evl_tbl_src")
+    test_dest_table_name = tn("pyodps_t_tmp_write_sql_to_part_evl_tbl_dest")
+    odps.delete_table(test_src_table_name, if_exists=True)
+    odps.delete_table(test_dest_table_name, if_exists=True)
+
+    data = [
+        ["abcd", 12345, 2.141, "a", "a"],
+        ["efgh", 94512, 5.671, "a", "b"],
+        ["eragf", 434, 9.358, "a", "b"],
+    ]
+    src_table = odps.create_table(
+        test_src_table_name,
+        "a string, b bigint, c double, pt1 string, pt2 string",
+        lifecycle=1,
+    )
+    with src_table.open_writer() as writer:
+        writer.write(data)
+
+    dest_table = odps.create_table(
+        test_dest_table_name,
+        ("a string, b bigint", "pt1 string, pt2 string"),
+        lifecycle=1,
+    )
+    dest_table.create_partition("pt1=a,pt2=a")
+
+    odps.write_sql_result_to_table(
+        test_dest_table_name,
+        "select a, b, c, pt2 from %s" % test_src_table_name,
+        partition="pt1=a",
+        partition_cols="pt2",
+        append_missing_cols=True,
+        overwrite=True,
+    )
+    assert "c" in odps.get_table(test_dest_table_name).table_schema
+    with dest_table.open_reader("pt1=a,pt2=b", reopen=True) as reader:
+        assert reader.count == 2
+
+
+@pandas_case
+@odps2_typed_case
+def test_write_sql_to_generate_parted_table(odps_daily):
+    odps = odps_daily
+
+    test_src_table_name = tn("pyodps_t_tmp_write_sql_to_gen_pt_tbl_src")
+    test_dest_table_name = tn("pyodps_t_tmp_write_sql_to_auto_pt_tbl_dest")
+    odps.delete_table(test_src_table_name, if_exists=True)
+    odps.delete_table(test_dest_table_name, if_exists=True)
+
+    data = [
+        [pd.Timestamp("2025-02-21 11:23:41"), "abcd", 12345],
+        [pd.Timestamp("2025-02-21 12:23:41"), "efgh", 94512],
+        [pd.Timestamp("2025-02-21 13:23:41"), "eragf", 434],
+    ]
+    src_table = odps.create_table(
+        test_src_table_name, "ts timestamp, a string, b bigint", lifecycle=1
+    )
+    with src_table.open_writer() as writer:
+        writer.write(data)
+
+    dest_table = odps.create_table(
+        test_dest_table_name,
+        (
+            "ts timestamp_ntz, a string, b bigint",
+            "trunc_time(ts, 'day') as pt",
+        ),
+        lifecycle=1,
+    )
+    odps.write_sql_result_to_table(
+        test_dest_table_name, "select * from %s" % test_src_table_name
+    )
+    pt_spec = "pt='2025-02-21'"
+    assert dest_table.exist_partition(pt_spec)
+    with dest_table.open_reader(pt_spec) as reader:
+        assert reader.count == 3
+
+    odps.write_sql_result_to_table(
+        test_dest_table_name,
+        "select * from %s" % test_src_table_name,
+        overwrite=True,
+    )
+    pt_spec = "pt='2025-02-21'"
+    assert dest_table.exist_partition(pt_spec)
+    with dest_table.open_reader(pt_spec) as reader:
+        assert reader.count == 3
 
 
 @odps2_typed_case
@@ -1167,7 +1322,17 @@ def test_write_sql_to_auto_parted_table(odps_daily):
     odps.write_sql_result_to_table(
         test_dest_table_name, "select * from %s" % test_src_table_name
     )
-    pt_spec = "pt='%s'" % datetime.datetime.utcnow().strftime("%Y-%m-%d")
+    pt_spec = "pt='%s'" % datetime_utcnow().strftime("%Y-%m-%d")
+    assert dest_table.exist_partition(pt_spec)
+    with dest_table.open_reader(pt_spec) as reader:
+        assert reader.count == 3
+
+    odps.write_sql_result_to_table(
+        test_dest_table_name,
+        "select * from %s" % test_src_table_name,
+        overwrite=True,
+    )
+    pt_spec = "pt='%s'" % datetime_utcnow().strftime("%Y-%m-%d")
     assert dest_table.exist_partition(pt_spec)
     with dest_table.open_reader(pt_spec) as reader:
         assert reader.count == 3

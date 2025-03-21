@@ -22,6 +22,7 @@ try:
 except ImportError:
     pa = pd = None
 
+from ...compat import datetime_utcnow
 from ...models import Record, TableSchema
 from ...tests.core import pandas_case, pyarrow_case
 from ..core import FunctionCall, VisitedExpressions
@@ -59,7 +60,7 @@ def test_expression_parse():
     expr_str = """[
       {
         "functionCall": {
-          "name": "getutcdate",
+          "name": "current_timestamp_ntz",
           "type": "timestamp"
         }
       },
@@ -90,7 +91,9 @@ def test_expression_parse():
     ]"""
     parsed = VisitedExpressions.parse(expr_str)
     assert isinstance(parsed, FunctionCall)
-    assert str(parsed) == "trunc_time(trunc_time(getutcdate(), 'hour'), 'day')"
+    assert (
+        str(parsed) == "trunc_time(trunc_time(current_timestamp_ntz(), 'hour'), 'day')"
+    )
 
 
 interval_fmt_combine = [
@@ -107,7 +110,7 @@ def test_expression_call_record(interval, fmt):
     record = Record(schema=schema)
 
     parsed = VisitedExpressions.parse(_routine_expr_str % dict(interval=interval))
-    record["dt"] = datetime.datetime.utcnow()
+    record["dt"] = datetime_utcnow()
     assert parsed.eval(record) == record["dt"].strftime(fmt)
 
 

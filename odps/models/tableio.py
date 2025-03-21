@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import functools
 import itertools
 import logging
@@ -23,6 +24,7 @@ import struct
 import sys
 import threading
 import uuid
+import warnings
 from collections import OrderedDict, defaultdict
 from types import GeneratorType, MethodType
 
@@ -829,22 +831,18 @@ class TableIOMethods(object):
         from ..df.backends.odpssql.types import df_schema_to_odps_schema
         from ..df.backends.pd.types import pd_to_df_schema
         from ..tunnel.io.types import arrow_schema_to_odps_schema
-        from . import Record
 
-        if records_list:
-            if isinstance(records_list, list) and records_list:
-                records_list = records_list[0]
-
-            if cls._is_pa_collection(records_list[0]):
-                schema = arrow_schema_to_odps_schema(records_list[0].schema)
-            elif cls._is_pd_df(records_list[0]):
+        if records_list is not None:
+            if cls._is_pa_collection(records_list):
+                schema = arrow_schema_to_odps_schema(records_list.schema)
+            elif cls._is_pd_df(records_list):
                 schema = df_schema_to_odps_schema(
-                    pd_to_df_schema(
-                        records_list[0], unknown_as_string=unknown_as_string
-                    )
+                    pd_to_df_schema(records_list, unknown_as_string=unknown_as_string)
                 )
-            elif isinstance(records_list[0][0], Record):
-                schema = records_list[0][0].schema
+            elif isinstance(records_list, list) and odps_types.is_record(
+                records_list[0]
+            ):
+                schema = odps_types.OdpsSchema(records_list[0]._columns)
             else:
                 raise TypeError(
                     "Inferring schema from provided data not implemented. "
@@ -864,6 +862,22 @@ class TableIOMethods(object):
             ]
             schema = odps_types.OdpsSchema(simple_cols, part_cols)
         return schema
+
+    @classmethod
+    def _calc_schema_diff(cls, src_schema, dest_schema, partition_cols=None):
+        if not src_schema or not dest_schema:
+            return [], []
+        union_cols, diff_cols = [], []
+        part_col_set = set(partition_cols or [])
+        # collect union columns in the order of dest schema
+        for col in dest_schema.simple_columns:
+            if col.name in src_schema:
+                union_cols.append(col)
+        # collect columns not in dest schema
+        for col in src_schema.simple_columns:
+            if col.name not in dest_schema and col.name not in part_col_set:
+                diff_cols.append(col)
+        return union_cols, diff_cols
 
     @classmethod
     def _check_partition_specified(
@@ -1106,6 +1120,8 @@ class TableIOMethods(object):
         :param str schema: schema name, if not provided, will be the default schema
         :param partition: the partition of this table to write into
         :param list partition_cols: columns representing dynamic partitions
+        :param bool append_missing_cols: Whether to append missing columns to the target
+            table. False by default.
         :param bool overwrite: if True, will overwrite existing data
         :param bool create_table: if true, the table will be created if not exist
         :param int lifecycle: specify table lifecycle when creating tables
@@ -1157,6 +1173,7 @@ class TableIOMethods(object):
         """
         project = kw.pop("project", None)
         schema = kw.pop("schema", None)
+        append_missing_cols = kw.pop("append_missing_cols", False)
 
         single_block_types = (Iterable,)
         if pa is not None:
@@ -1164,10 +1181,10 @@ class TableIOMethods(object):
 
         if len(block_data) == 1 and isinstance(block_data[0], single_block_types):
             blocks = [None]
-            data_list = block_data
+            data_list = list(block_data)
         else:
-            blocks = block_data[::2]
-            data_list = block_data[1::2]
+            blocks = list(block_data[::2])
+            data_list = list(block_data[1::2])
 
             if len(blocks) != len(data_list):
                 raise ValueError(
@@ -1185,32 +1202,67 @@ class TableIOMethods(object):
         lifecycle = kw.pop("lifecycle", None)
         if isinstance(partition_cols, six.string_types):
             partition_cols = [partition_cols]
+
+        try:
+            data_sample = data_list[0]
+            if isinstance(data_sample, GeneratorType):
+                data_gen = data_sample
+                data_sample = [next(data_gen)]
+                data_list[0] = utils.chain_generator([data_sample[0]], data_gen)
+            table_schema = cls._resolve_schema(
+                data_sample,
+                unknown_as_string=unknown_as_string,
+                partition=partition,
+                partition_cols=partition_cols,
+            )
+        except TypeError:
+            table_schema = None
+
         if not odps.exist_table(name, project=project, schema=schema):
             if not create_table:
                 raise errors.NoSuchTable(
                     "Target table %s not exist. To create a new table "
                     "you can add an argument `create_table=True`." % name
                 )
-            table_schema = cls._resolve_schema(
-                data_list,
-                unknown_as_string=unknown_as_string,
-                partition=partition,
-                partition_cols=partition_cols,
-            )
-            table = odps.create_table(
+            target_table = odps.create_table(
                 name, table_schema, project=project, schema=schema, lifecycle=lifecycle
             )
         else:
-            table = cls._get_table_obj(odps, name, project=project, schema=schema)
+            target_table = cls._get_table_obj(
+                odps, name, project=project, schema=schema
+            )
+
+        union_cols, diff_cols = cls._calc_schema_diff(
+            table_schema, target_table.schema, partition_cols=partition_cols
+        )
+        if table_schema and not union_cols:
+            warnings.warn(
+                "No columns overlapped between source and target table. If result "
+                "is not as expected, please check if your query provides correct "
+                "column names."
+            )
+        if diff_cols:
+            if append_missing_cols:
+                target_table.add_columns(diff_cols)
+            else:
+                warnings.warn(
+                    "Columns in source data %s are missing in target table %s. "
+                    "Specify append_missing_cols=True to append missing columns "
+                    "to the target table."
+                    % (", ".join(c.name for c in diff_cols), target_table.name)
+                )
 
         partition_cols = cls._check_partition_specified(
-            name, table.table_schema, partition_cols=partition_cols, partition=partition
+            name,
+            target_table.table_schema,
+            partition_cols=partition_cols,
+            partition=partition,
         )
 
         data_lists = defaultdict(lambda: defaultdict(list))
         for block, data in zip(blocks, data_list):
             for key, parted_data in cls._split_block_data_in_partitions(
-                table,
+                target_table,
                 data,
                 partition_cols=partition_cols,
                 partition=partition,
@@ -1235,11 +1287,12 @@ class TableIOMethods(object):
                 blocks = None
 
             final_pt = ",".join(p for p in (pt_name, partition_str) if p is not None)
-            with table.open_writer(
+            with target_table.open_writer(
                 partition=final_pt or None,
                 blocks=blocks,
                 arrow=is_arrow,
                 create_partition=create_partition,
+                reopen=append_missing_cols,
                 **kw
             ) as writer:
                 if blocks is None:
@@ -1259,7 +1312,7 @@ class TableIOMethods(object):
         partition_cols=None,
         create_table=False,
         create_partition=False,
-        target_columns=None,
+        append_missing_cols=False,
         overwrite=False,
         project=None,
         schema=None,
@@ -1273,23 +1326,22 @@ class TableIOMethods(object):
         """
         Write SQL query results into a specified table and partition. If the target
         table does not exist, you may specify the argument create_table=True. Columns
-        are inserted into the target table in the order of the SQL query result. If you
-        need to customize order of output columns, you can specify the argument
-        target_columns=[col1, col2, ...].
+        are inserted into the target table aligned by column names. Note that column
+        order in the target table will NOT be changed.
 
-        :param table_name: The target table name
-        :param sql: The SQL query to execute
-        :param partition: Target partition in the format "part=value" or
+        :param str table_name: The target table name
+        :param str sql: The SQL query to execute
+        :param str partition: Target partition in the format "part=value" or
             "part1=value1,part2=value2"
-        :param partition_cols: List of dynamic partition fields. If not provided,
+        :param list partition_cols: List of dynamic partition fields. If not provided,
             all partition fields of the target table are used.
-        :param create_table: Whether to create the target table if it does not exist.
+        :param bool create_table: Whether to create the target table if it does not exist.
             False by default.
-        :param create_partition: Whether to create partitions if they do not exist.
+        :param bool create_partition: Whether to create partitions if they do not exist.
             False by default.
-        :param list target_columns: List of target columns. If not provided, data will be
-            written into the target table in the order of the SQL query result.
-        :param overwrite: Whether to overwrite existing data. False by default.
+        :param bool append_missing_cols: Whether to append missing columns to the target
+            table. False by default.
+        :param bool overwrite: Whether to overwrite existing data. False by default.
         :param str project: project name, if not provided, will be the default project
         :param str schema: schema name, if not provided, will be the default schema
         :param int lifecycle: specify table lifecycle when creating tables
@@ -1329,7 +1381,7 @@ class TableIOMethods(object):
         sql_kwargs = kwargs.copy()
         sql_kwargs.update(
             {
-                "hints": hints,
+                "hints": copy.deepcopy(hints or {}),
                 "running_cluster": running_cluster,
                 "unique_identifier_id": unique_identifier_id,
                 "default_schema": schema,
@@ -1337,10 +1389,16 @@ class TableIOMethods(object):
             }
         )
 
-        if not target_columns:
-            target_column_str = ""
-        else:
-            target_column_str = "(%s)" % ", ".join(target_columns)
+        def _format_raw_sql(fmt, args):
+            """Add DDLs for existing SQL, multiple statements acceptable"""
+            args = list(args)
+            sql_parts = utils.split_sql_by_semicolon(args[-1])
+            if len(sql_parts) == 1:
+                return fmt % tuple(args)
+            # need script mode for multiple statements
+            sql_kwargs["hints"]["odps.sql.submit.mode"] = "script"
+            sql_parts[-1] = fmt % tuple(args[:-1] + [sql_parts[-1]])
+            return "\n".join(sql_parts)
 
         # Check if the target table exists
         if not odps.exist_table(table_name, project=project, schema=schema):
@@ -1356,18 +1414,18 @@ class TableIOMethods(object):
                     lifecycle_clause = ""
                 else:
                     lifecycle_clause = "LIFECYCLE %d " % lifecycle
-                odps.execute_sql(
-                    "CREATE TABLE `%s` %sAS %s" % (table_name, lifecycle_clause, sql),
-                    **sql_kwargs
+                sql_stmt = _format_raw_sql(
+                    "CREATE TABLE `%s` %sAS %s", (table_name, lifecycle_clause, sql)
                 )
+                odps.execute_sql(sql_stmt, **sql_kwargs)
                 return
             else:
                 # create temp table, get result schema and create target table
-                odps.execute_sql(
-                    "CREATE TABLE `%s` LIFECYCLE %d AS %s"
-                    % (temp_table_name, options.temp_lifecycle, sql),
-                    **sql_kwargs
+                sql_stmt = _format_raw_sql(
+                    "CREATE TABLE `%s` LIFECYCLE %d AS %s",
+                    (temp_table_name, options.temp_lifecycle, sql),
                 )
+                odps.execute_sql(sql_stmt, **sql_kwargs)
                 tmp_schema = odps.get_table(temp_table_name).table_schema
                 out_table_schema = cls._resolve_schema(
                     schema=tmp_schema,
@@ -1378,31 +1436,18 @@ class TableIOMethods(object):
                     table_name, table_schema=out_table_schema, **table_kwargs
                 )
         else:
-            target_table = odps.get_table(table_name, project=project, schema=schema)
-            if not target_table.table_schema.partitions:
-                # insert directly into non-partitioned table
-                if overwrite and target_columns:
-                    target_table.truncate()
-                    target_column_str = ""
-                    insert_mode = "INTO"
-                insert_sql = "INSERT %s `%s`%s %s" % (
-                    insert_mode,
-                    table_name,
-                    target_column_str,
-                    sql,
-                )
-                odps.execute_sql(insert_sql, **sql_kwargs)
-                return
-            else:
-                # for partitioned target, create a temp table and store results
-                odps.execute_sql(
-                    "CREATE TABLE `%s` LIFECYCLE %d AS %s"
-                    % (temp_table_name, options.temp_lifecycle, sql),
-                    **sql_kwargs
-                )
+            target_table = cls._get_table_obj(
+                odps, table_name, project=project, schema=schema
+            )
+            # for partitioned target, create a temp table and store results
+            sql_stmt = _format_raw_sql(
+                "CREATE TABLE `%s` LIFECYCLE %d AS %s",
+                (temp_table_name, options.temp_lifecycle, sql),
+            )
+            odps.execute_sql(sql_stmt, **sql_kwargs)
 
         try:
-            cls._check_partition_specified(
+            partition_cols = cls._check_partition_specified(
                 table_name,
                 target_table.table_schema,
                 partition_cols=partition_cols,
@@ -1410,28 +1455,41 @@ class TableIOMethods(object):
             )
 
             temp_table = odps.get_table(temp_table_name)
-            if not target_table.table_schema.partitions:
-                if overwrite and target_columns:
-                    target_table.truncate()
-                    target_column_str = ""
-                    insert_mode = "INTO"
-                insert_sql = "INSERT %s `%s`%s SELECT * FROM `%s`" % (
-                    insert_mode,
-                    table_name,
-                    target_column_str,
-                    temp_table_name,
+            union_cols, diff_cols = cls._calc_schema_diff(
+                temp_table.table_schema,
+                target_table.table_schema,
+                partition_cols=partition_cols,
+            )
+            if not union_cols:
+                warnings.warn(
+                    "No columns overlapped between source and target table. If result "
+                    "is not as expected, please check if your query provides correct "
+                    "column names."
                 )
-                odps.execute_sql(insert_sql, **sql_kwargs)
-                return
+            if diff_cols:
+                if append_missing_cols:
+                    target_table.add_columns(diff_cols, hints=hints)
+                    union_cols += diff_cols
+                else:
+                    warnings.warn(
+                        "Columns in source query %s are missing in target table %s. "
+                        "Specify append_missing_cols=True to append missing columns "
+                        "to the target table."
+                        % (", ".join(c.name for c in diff_cols), target_table.name)
+                    )
+
+            target_columns = [col.name for col in union_cols]
 
             if partition:
                 static_part_spec = odps_types.PartitionSpec(partition)
             else:
                 static_part_spec = odps_types.PartitionSpec()
 
-            if len(static_part_spec) == len(
+            if (
                 target_table.table_schema.partitions
-            ) and not target_table.exist_partition(static_part_spec):
+                and len(static_part_spec) == len(target_table.table_schema.partitions)
+                and not target_table.exist_partition(static_part_spec)
+            ):
                 if create_partition:
                     target_table.create_partition(static_part_spec)
                 else:
@@ -1440,19 +1498,19 @@ class TableIOMethods(object):
                         % static_part_spec
                     )
 
-            part_specs = []
+            all_parts, part_specs, dyn_parts = [], [], []
             has_dyn_parts = False
             for col in target_table.table_schema.partitions:
                 if col.name in static_part_spec:
-                    part_specs.append(
-                        "%s='%s'"
-                        % (
-                            col.name,
-                            utils.escape_odps_string(static_part_spec[col.name]),
-                        )
+                    spec = "%s='%s'" % (
+                        col.name,
+                        utils.escape_odps_string(static_part_spec[col.name]),
                     )
+                    part_specs.append(spec)
+                    all_parts.append(spec)
                 elif col.name not in temp_table.table_schema:
                     if col.generate_expression:
+                        all_parts.append(col.name)
                         has_dyn_parts = True
                         continue
                     else:
@@ -1462,6 +1520,8 @@ class TableIOMethods(object):
                         )
                 else:
                     has_dyn_parts = True
+                    all_parts.append(col.name)
+                    dyn_parts.append(col.name)
                     part_specs.append(col.name)
 
             if not part_specs:
@@ -1469,32 +1529,64 @@ class TableIOMethods(object):
             else:
                 part_clause = "PARTITION (%s) " % ", ".join(part_specs)
 
-            if (
-                len(target_table.table_schema.simple_columns)
-                > len(temp_table.table_schema.simple_columns)
-                and not target_columns
-            ):
-                target_columns = [
-                    c.name
-                    for c in target_table.table_schema.simple_columns
-                    if not target_table._get_column_generate_expression(c.name)
-                ]
-                target_column_str = "(%s)" % ", ".join(target_columns)
-
-            if overwrite and target_columns:
-                if has_dyn_parts:
-                    raise NotImplementedError(
-                        "Overwrite with both dynamic partitions and target columns is not supported."
-                    )
-                target_table.truncate(partition)
-                target_column_str = ""
+            if overwrite:
                 insert_mode = "INTO"
+                if not has_dyn_parts:
+                    target_table.truncate(partition or None)
+                elif any(target_table.partitions):
+                    # generate column expressions in topological order
+                    col_to_exprs = cls._get_ordered_col_expressions(
+                        target_table, partition
+                    )
+                    part_expr_map = {
+                        col: "`%s`" % col
+                        for col in partition_cols
+                        if col in temp_table.table_schema
+                    }
+                    generated_cols = set()
+                    for col_name, expr in col_to_exprs.items():
+                        if col_name in part_expr_map:
+                            continue
+                        generated_cols.add(col_name)
+                        part_expr_map[col_name] = expr.to_str(part_expr_map)
+                    # add an alias for generated columns
+                    part_expr_map = {
+                        col: (
+                            v if col not in generated_cols else "%s AS `%s`" % (v, col)
+                        )
+                        for col, v in part_expr_map.items()
+                    }
 
-            sql_stmt = "INSERT %s `%s`%s %sSELECT * FROM %s" % (
+                    # query for partitions need to be truncated
+                    part_selections = [
+                        part_expr_map[col_name] for col_name in partition_cols
+                    ]
+                    part_distinct_sql = "SELECT DISTINCT %s FROM `%s`" % (
+                        ", ".join(part_selections),
+                        temp_table_name,
+                    )
+                    distinct_inst = odps.execute_sql(part_distinct_sql)
+                    trunc_part_specs = []
+                    with distinct_inst.open_reader(tunnel=True) as reader:
+                        for row in reader:
+                            local_part_specs = [
+                                "%s='%s'" % (c, utils.escape_odps_string(row[c]))
+                                if c in row
+                                else c
+                                for c in all_parts
+                            ]
+                            local_part_str = ",".join(local_part_specs)
+                            if target_table.exist_partition(local_part_str):
+                                trunc_part_specs.append(local_part_str)
+                    target_table.truncate(trunc_part_specs)
+
+            col_selection = ", ".join("`%s`" % s for s in (target_columns + dyn_parts))
+            sql_stmt = "INSERT %s `%s` %s (%s) SELECT %s FROM %s" % (
                 insert_mode,
                 table_name,
-                target_column_str,
                 part_clause,
+                col_selection,
+                col_selection,
                 temp_table_name,
             )
             odps.execute_sql(sql_stmt, **sql_kwargs)
