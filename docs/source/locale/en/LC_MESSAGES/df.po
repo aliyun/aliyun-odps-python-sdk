@@ -8,14 +8,14 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2022-06-29 16:26+0800\n"
+"POT-Creation-Date: 2025-04-01 11:04+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.12.1\n"
+"Generated-By: Babel 2.16.0\n"
 
 #: ../../source/df.rst:5
 msgid "DataFrame"
@@ -32,6 +32,14 @@ msgstr ""
 "pandas DataFrame, so that the same code can be executed on pandas."
 
 #: ../../source/df.rst:13
+msgid ""
+"PyODPS DataFrame 未来将停止维护。对于新项目，建议使用 `MaxFrame <https://"
+"maxframe.readthedocs.io/en/latest/index.html>`_\\ 。"
+msgstr ""
+"Maintenance of PyODPS DataFrame is discontinued. For new projects, please"
+" do not use this feature."
+
+#: ../../source/df.rst:16
 msgid ""
 "PyODPS DataFrame 尽管看起来和 pandas 形似，但并不是 pandas。pandas 的功能"
 "，例如完整的 Series 支持、Index 支持、按行读取数据、多 DataFrame 按 iloc "
