@@ -91,7 +91,30 @@ class Column(object):
         )
 
     def __hash__(self):
-        return hash((type(self), self.name, self.type, self.comment, self.label))
+        return hash(
+            (
+                type(self),
+                self.name,
+                self.type,
+                self.comment,
+                self.label,
+                self.nullable,
+                self.generate_expression,
+            )
+        )
+
+    def __eq__(self, other):
+        return self is other or all(
+            getattr(self, attr, None) == getattr(other, attr, None)
+            for attr in (
+                "name",
+                "type",
+                "comment",
+                "label",
+                "nullable",
+                "generate_expression",
+            )
+        )
 
     def to_sql_clause(self, with_column_comments=True):
         from .expressions import parse as parse_expression
@@ -604,6 +627,8 @@ class BaseRecord(object):
     __slots__ = "_values", "_columns", "_name_indexes", "_max_field_size"
 
     def __init__(self, columns=None, schema=None, values=None, max_field_size=None):
+        if isinstance(columns, Schema):
+            schema, columns = columns, None
         if columns is not None:
             self._columns = columns
             self._name_indexes = {
@@ -978,6 +1003,17 @@ class Double(BaseFloat):
     _type_id = 1
 
 
+def _check_string_byte_size(val, max_size):
+    if isinstance(val, six.binary_type):
+        byt_len = len(val)
+    else:
+        byt_len = 4 * len(val)
+        if byt_len > max_size:
+            # encode only when necessary
+            byt_len = len(utils.to_binary(val))
+    return byt_len <= max_size, byt_len
+
+
 @_primitive_doc(is_odps2=False)
 class String(OdpsPrimitive):
     __slots__ = ()
@@ -997,11 +1033,12 @@ class String(OdpsPrimitive):
         if val is None and self.nullable:
             return True
         max_field_size = max_field_size or self._max_length
-        if len(val) <= max_field_size:
+        valid, byt_len = _check_string_byte_size(val, max_field_size)
+        if valid:
             return True
         raise ValueError(
-            "InvalidData: Length of string(%s) is more than %sM.'"
-            % (val, max_field_size / (1024**2))
+            "InvalidData: Byte length of string(%s) is more than %sM.'"
+            % (byt_len, max_field_size / (1024**2))
         )
 
     def cast_value(self, value, data_type):
@@ -1104,11 +1141,12 @@ class Binary(OdpsPrimitive):
         if val is None and self.nullable:
             return True
         max_field_size = max_field_size or self._max_length
-        if len(val) <= max_field_size:
+        valid, byt_len = _check_string_byte_size(val, max_field_size)
+        if valid:
             return True
         raise ValueError(
-            "InvalidData: Length of binary(%s) is more than %sM.'"
-            % (val, max_field_size / (1024**2))
+            "InvalidData: Byte length of binary(%s) is more than %sM.'"
+            % (byt_len, max_field_size / (1024**2))
         )
 
     def cast_value(self, value, data_type):
@@ -1261,9 +1299,14 @@ class SizeLimitedString(String, CompositeDataType):
         if val is None and self.nullable:
             return True
         if len(val) <= self.size_limit:
+            # binary size >= unicode size
             return True
+        elif isinstance(val, six.binary_type):
+            val = val.decode("utf-8")
+            if len(val) <= self.size_limit:
+                return True
         raise ValueError(
-            "InvalidData: Length of string(%d) is more than %sM.'"
+            "InvalidData: Length of string(%d) is more than %s.'"
             % (len(val), self.size_limit)
         )
 
@@ -1734,7 +1777,7 @@ class Struct(CompositeDataType):
             isinstance(other, Struct)
             and len(self.field_types) == len(other.field_types)
             and all(
-                self.field_types[k] == other.field_types[k]
+                self.field_types[k] == other.field_types.get(k)
                 for k in six.iterkeys(self.field_types)
             )
         )

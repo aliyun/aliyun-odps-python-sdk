@@ -308,4 +308,7 @@ cpdef inline unicode to_text(s, encoding="utf-8"):
 cpdef str to_lower_str(s, encoding="utf-8"):
     if s is None:
         return None
-    return to_str(s, encoding).lower()
+    if _is_py3:
+        return <str>(to_text(s, encoding).lower())
+    else:
+        return <str>(to_binary(s, encoding).lower())

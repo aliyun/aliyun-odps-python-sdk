@@ -36,8 +36,8 @@ msgid ""
 "PyODPS DataFrame 未来将停止维护。对于新项目，建议使用 `MaxFrame <https://"
 "maxframe.readthedocs.io/en/latest/index.html>`_\\ 。"
 msgstr ""
-"Maintenance of PyODPS DataFrame is discontinued. For new projects, please"
-" do not use this feature."
+"**Maintenance of PyODPS DataFrame is discontinued. Please do not use this"
+" feature in new projects.**"
 
 #: ../../source/df.rst:16
 msgid ""

@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
@@ -28,6 +27,7 @@ except ImportError:
 
 from .. import options
 from .. import types as odps_types
+from .. import utils
 from ..tests.core import pandas_case, py_and_c
 
 
@@ -274,19 +274,23 @@ def test_composite_types():
     comp_type = odps_types.validate_data_type("decimal(10)")
     assert isinstance(comp_type, odps_types.Decimal)
     assert comp_type.precision == 10
+    assert comp_type == "decimal(10)"
 
     comp_type = odps_types.validate_data_type("decimal(10, 2)")
     assert isinstance(comp_type, odps_types.Decimal)
     assert comp_type.precision == 10
     assert comp_type.scale == 2
+    assert comp_type == "decimal(10,2)"
 
     comp_type = odps_types.validate_data_type("varchar(10)")
     assert isinstance(comp_type, odps_types.Varchar)
     assert comp_type.size_limit == 10
+    assert comp_type == "varchar(10)"
 
     comp_type = odps_types.validate_data_type("char(20)")
     assert isinstance(comp_type, odps_types.Char)
     assert comp_type.size_limit == 20
+    assert comp_type == "char(20)"
 
     with pytest.raises(ValueError) as ex_info:
         odps_types.validate_data_type("array")
@@ -295,6 +299,7 @@ def test_composite_types():
     comp_type = odps_types.validate_data_type("array<bigint>")
     assert isinstance(comp_type, odps_types.Array)
     assert isinstance(comp_type.value_type, odps_types.Bigint)
+    assert comp_type == "array<bigint>"
 
     with pytest.raises(ValueError) as ex_info:
         odps_types.validate_data_type("map")
@@ -304,12 +309,16 @@ def test_composite_types():
     assert isinstance(comp_type, odps_types.Map)
     assert isinstance(comp_type.key_type, odps_types.Bigint)
     assert isinstance(comp_type.value_type, odps_types.String)
+    assert comp_type == "map<bigint, string>"
 
     comp_type = odps_types.validate_data_type("struct<abc:int, def:string>")
     assert isinstance(comp_type, odps_types.Struct)
     assert len(comp_type.field_types) == 2
     assert isinstance(comp_type.field_types["abc"], odps_types.Int)
     assert isinstance(comp_type.field_types["def"], odps_types.String)
+    assert comp_type == "struct<abc:int, def:string>"
+    assert comp_type != "struct<abc:int>"
+    assert comp_type != "struct<abc:int, uvw:string>"
 
     comp_type = odps_types.validate_data_type(
         "struct<abc:int, def:map<bigint, string>, ghi:string>"
@@ -347,10 +356,15 @@ def test_set_with_cast():
 @py_and_c_deco
 def test_record_copy():
     s = TableSchema.from_lists(["col1"], ["string"])
-    r = Record(schema=s)
+    r = Record(s)
     r.col1 = "a"
 
     cr = copy.copy(r)
+    assert cr == r
+    assert cr.col1 == r.col1
+
+    cr = copy.deepcopy(r)
+    assert cr == r
     assert cr.col1 == r.col1
 
 
@@ -513,6 +527,42 @@ def test_validate_struct():
             odps_types.validate_value({"abcd", "efgh"}, struct_type)
     finally:
         options.struct_as_dict = False
+
+
+@py_and_c_deco
+@pytest.mark.parametrize("use_binary", [False, True])
+def test_varchar_size_limit(use_binary):
+    def _c(s):
+        if use_binary:
+            return utils.to_binary(s)
+        return utils.to_text(s)
+
+    s = TableSchema.from_lists(["col1"], ["varchar(3)"])
+    r = Record(schema=s)
+    r[0] = _c("123")
+    r[0] = _c("测试字")
+    with pytest.raises(ValueError):
+        r[0] = _c("1234")
+    with pytest.raises(ValueError):
+        r[0] = _c("测试字符")
+
+
+@py_and_c_deco
+@pytest.mark.parametrize("use_binary", [False, True])
+def test_field_size_limit(use_binary):
+    def _c(s):
+        if use_binary:
+            return utils.to_binary(s)
+        return utils.to_text(s)
+
+    s = TableSchema.from_lists(["str_col", "bin_col"], ["string", "binary"])
+    r = Record(schema=s, max_field_size=1024)
+    r[0] = _c("1" * 1024)
+    r[1] = _c("1" * 1024)
+    with pytest.raises(ValueError):
+        r[0] = _c("1" * 1023 + "测")
+    with pytest.raises(ValueError):
+        r[1] = _c("1" * 1023 + "测")
 
 
 def test_validate_decimal():
