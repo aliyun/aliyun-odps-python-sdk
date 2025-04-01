@@ -93,8 +93,8 @@ cdef class StringValidator(TypeValidator):
         if s_size <= max_field_size:
             return u_val
         raise ValueError(
-            "InvalidData: Length of string(%s) is more than %sM.'" %
-            (val, max_field_size / (1024 ** 2))
+            "InvalidData: Byte length of string(%s) is more than %sM.'" %
+            (s_size, max_field_size / (1024 ** 2))
         )
 
 
@@ -118,8 +118,33 @@ cdef class BinaryValidator(TypeValidator):
         if s_size <= max_field_size:
             return bytes_val
         raise ValueError(
-            "InvalidData: Length of string(%s) is more than %sM.'" %
-            (val, max_field_size / (1024 ** 2)))
+            "InvalidData: Byte length of string(%s) is more than %sM.'" %
+            (s_size, max_field_size / (1024 ** 2)))
+
+
+cdef class SizeLimitedStringValidator(TypeValidator):
+    cdef int _size_limit
+
+    def __init__(self, int size_limit):
+        self._size_limit = size_limit
+
+    cdef object validate(self, object val, int64_t max_field_size):
+        cdef:
+            unicode u_val
+
+        if type(val) is bytes or isinstance(val, bytes):
+            u_val = (<bytes> val).decode("utf-8")
+        elif type(val) is unicode or isinstance(val, unicode):
+            u_val = <unicode> val
+        else:
+            raise TypeError("Invalid data type: expect bytes or unicode, got %s" % type(val))
+
+        if len(u_val) <= self._size_limit:
+            return u_val
+        raise ValueError(
+            "InvalidData: Length of string(%s) is more than %s.'" %
+            (val, self._size_limit)
+        )
 
 
 py_strptime = datetime.strptime
@@ -431,7 +456,9 @@ cdef object _build_type_validator(int type_id, object data_type):
     elif type_id == DOUBLE_TYPE_ID:
         return DoubleValidator()
     elif type_id == STRING_TYPE_ID:
-        if options.tunnel.string_as_binary:
+        if isinstance(data_type, types.SizeLimitedString):
+            return SizeLimitedStringValidator(data_type.size_limit)
+        elif options.tunnel.string_as_binary:
             return BinaryValidator()
         else:
             return StringValidator()
@@ -502,6 +529,8 @@ cdef class SchemaSnapshot:
 
 cdef class BaseRecord:
     def __cinit__(self, columns=None, schema=None, values=None, max_field_size=None):
+        if isinstance(columns, types.Schema):
+            schema, columns = columns, None
         self._c_schema_snapshot = getattr(schema, "_snapshot", None)
         if columns is not None:
             self._c_columns = columns
