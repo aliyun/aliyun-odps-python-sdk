@@ -29,7 +29,7 @@ def collect_sql_settings(value, glob):
 
     settings = OrderedDict()
     if options.default_task_settings:
-        settings = options.default_task_settings
+        settings.update(options.default_task_settings)
 
     if utils.str_to_bool(os.environ.get("PYODPS_SUBMIT_CLIENT_VERSIONS") or "true"):
         settings["PYODPS_VERSION"] = __version__

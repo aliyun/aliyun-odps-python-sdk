@@ -178,6 +178,21 @@ def test_groupby_prune(odps, setup):
                "HAVING MAX(t1.`id`) < 0"
     assert to_text(expected) == to_text(ODPSEngine(odps).compile(expr, prettify=False))
 
+    expr = setup.expr[setup.expr.id > 0]
+    expr2 = expr['name', 'id', expr.name.split('x').explode(['nameSplit'])]
+    expr3 = expr2['name', 'nameSplit', expr2.id + 1]
+    expr4 = expr3.groupby('name', 'nameSplit').agg(id=expr3.id.max())
+
+    expected = "SELECT t2.`name`, t3.`nameSplit`, MAX(t2.`id` + 1) AS `id` \n" \
+               "FROM (\n" \
+               "  SELECT * \n" \
+               "  FROM mocked_project.`pyodps_test_expr_table` t1 \n" \
+               "  WHERE t1.`id` > 0\n" \
+               ") t2 \n" \
+               "LATERAL VIEW EXPLODE(SPLIT(t2.`name`, 'x')) t3 AS `nameSplit` \n" \
+               "GROUP BY t2.`name`, t3.`nameSplit`"
+    assert to_text(expected) == to_text(ODPSEngine(odps).compile(expr4, prettify=False))
+
 
 def test_mutate_prune(odps, setup):
     expr = setup.expr[setup.expr.exclude('birth'), setup.expr.fid.astype('int').rename('new_id')]

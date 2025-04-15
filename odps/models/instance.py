@@ -78,6 +78,7 @@ class SpawnedInstanceReaderMixin(object):
         instance_id=None,
         tunnel_endpoint=None,
         columns=None,
+        arrow=False,
     ):
         # read part data
         from ..tunnel import InstanceTunnel
@@ -93,10 +94,16 @@ class SpawnedInstanceReaderMixin(object):
             )
 
             def _data_to_pandas():
-                with session.open_record_reader(
-                    start, count, columns=columns
-                ) as reader:
-                    return reader.to_pandas()
+                if not arrow:
+                    with session.open_record_reader(
+                        start, count, columns=columns
+                    ) as reader:
+                        return reader.to_pandas()
+                else:
+                    with session.open_arrow_reader(
+                        start, count, columns=columns
+                    ) as reader:
+                        return reader.to_pandas()
 
             data = utils.call_with_retry(_data_to_pandas)
             conn.send((idx, data, True))
@@ -118,6 +125,7 @@ class SpawnedInstanceReaderMixin(object):
             rest_client=rest_client,
             project=project,
             instance_id=instance_id,
+            arrow=isinstance(self, TunnelArrowReader),
             tunnel_endpoint=tunnel_endpoint,
             columns=columns or self._column_names,
         )

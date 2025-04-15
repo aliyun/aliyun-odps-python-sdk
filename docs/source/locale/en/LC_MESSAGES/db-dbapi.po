@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.11.2\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2022-07-31 22:03+0800\n"
+"POT-Creation-Date: 2025-04-15 10:45+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -22,17 +22,15 @@ msgid "DBAPI 接口"
 msgstr "DBAPI Interface"
 
 #: ../../source/db-dbapi.rst:6
-msgid ""
-"在 PyODPS 0.10.0 中开始支持。事务操作不被 MaxCompute 支持，因而未实现相关"
-"接口。"
+msgid "在 PyODPS 0.10.0 中开始支持。事务操作不被 MaxCompute 支持，因而未实现相关接口。"
 msgstr ""
 "Supported since PyODPS 0.10.0. As transaction operations are not "
 "supported in MaxCompute, related interfaces are not implemented."
 
 #: ../../source/db-dbapi.rst:8
 msgid ""
-"PyODPS 支持使用 `Python DBAPI <https://peps.python.org/pep-0249/>`_ 兼容"
-"的数据库访问接口访问 MaxCompute。"
+"PyODPS 支持使用 `Python DBAPI <https://peps.python.org/pep-0249/>`_ "
+"兼容的数据库访问接口访问 MaxCompute。"
 msgstr ""
 "PyODPS supports accessing MaxCompute data via `Python DBAPI "
 "<https://peps.python.org/pep-0249/>`_ compatible interfaces."
@@ -43,8 +41,8 @@ msgstr "Create connections"
 
 #: ../../source/db-dbapi.rst:13
 msgid ""
-"可以通过指定 ``access_id``、``access_key``、``project``和``endpoint`` 来"
-"建立连接："
+"可以通过指定 ``access_id``、\\ ``access_key``、\\ ``project``\\ 和\\ ``endpoint`` "
+"来建立连接："
 msgstr ""
 "Connections can be established via ``access_id``, ``access_key``, "
 "`project`` and ``endpoint``."
@@ -66,15 +64,23 @@ msgid ""
 ">>> conn = odps.dbapi.connect(o)  # type(o) is ODPS"
 msgstr ""
 
-#: ../../source/db-dbapi.rst:29
+#: ../../source/db-dbapi.rst:28
+msgid "如果要使用 MaxQA（MCQA 2.0）查询加速，可以指定 ``use_sqa='v2'`` 并指定 ``quota_name`` 参数："
+msgstr ""
+
+#: ../../source/db-dbapi.rst:30
+msgid ">>> conn = odps.dbapi.connect(o, use_sqa='v2', quota_name='my_quota')"
+msgstr ""
+
+#: ../../source/db-dbapi.rst:35
 msgid "执行 SQL"
 msgstr "Execute SQL statements"
 
-#: ../../source/db-dbapi.rst:30
-msgid "创建游标并在游标上执行 SQL："
-msgstr "Create a cursor and execute SQL statement on it."
+#: ../../source/db-dbapi.rst:36
+msgid "你可以创建游标并在游标上执行 SQL："
+msgstr "You can create a cursor and execute SQL statement on it."
 
-#: ../../source/db-dbapi.rst:32
+#: ../../source/db-dbapi.rst:38
 msgid ""
 ">>> cursor = conn.cursor()\n"
 ">>> cursor.execute(\"SELECT * FROM pyodps_iris\")\n"
@@ -86,25 +92,55 @@ msgid ""
 " ('category', 'string', None, None, None, None, True)]"
 msgstr ""
 
-#: ../../source/db-dbapi.rst:44
+#: ../../source/db-dbapi.rst:49
+msgid ""
+"PyODPS 使用与标准库 ``sqlite3`` 一样的参数指定方式指定查询参数。你可以使用 ``?`` 指定非命名参数， 使用 "
+"``:name`` 指定命名参数，并使用 tuple 替换非命名参数，使用 dict 替换命名参数。"
+msgstr ""
+
+#: ../../source/db-dbapi.rst:52
+msgid ""
+">>> # 使用非命名参数\n"
+">>> cursor.execute(\"SELECT * FROM pyodps_iris WHERE petal_length > ?\", "
+"(1.5,))\n"
+">>> print(cursor.fetchone())\n"
+"[5.4, 3.9, 1.7, 0.4, 'Iris-setosa']\n"
+">>> # 使用命名参数\n"
+">>> cursor.execute(\"SELECT * FROM pyodps_iris WHERE petal_length > "
+":length\", {'length': 1.5})\n"
+">>> print(cursor.fetchone())\n"
+"[5.4, 3.9, 1.7, 0.4, 'Iris-setosa']"
+msgstr ""
+">>> # use anonymous parameters\n"
+">>> cursor.execute(\"SELECT * FROM pyodps_iris WHERE petal_length > ?\", "
+"(1.5,))\n"
+">>> print(cursor.fetchone())\n"
+"[5.4, 3.9, 1.7, 0.4, 'Iris-setosa']\n"
+">>> # use named parameters\n"
+">>> cursor.execute(\"SELECT * FROM pyodps_iris WHERE petal_length > "
+":length\", {'length': 1.5})\n"
+">>> print(cursor.fetchone())\n"
+"[5.4, 3.9, 1.7, 0.4, 'Iris-setosa']"
+
+#: ../../source/db-dbapi.rst:64
 msgid "读取结果"
 msgstr "Read results"
 
-#: ../../source/db-dbapi.rst:45
-msgid "使用和标准的 DBAPI 一样使用迭代的方式读取结果："
-msgstr "Use iterations to read results just like standard DBAPI."
+#: ../../source/db-dbapi.rst:65
+msgid "你可以使用和标准的 DBAPI 一样使用迭代的方式读取结果："
+msgstr "You can use iterations to read results just like standard DBAPI."
 
-#: ../../source/db-dbapi.rst:47
+#: ../../source/db-dbapi.rst:67
 msgid ""
 ">>> for rec in cursor:\n"
 ">>>     print(rec)"
 msgstr ""
 
-#: ../../source/db-dbapi.rst:52
+#: ../../source/db-dbapi.rst:72
 msgid "也可以一次性读取所有结果："
 msgstr "You can also fetch all results at once."
 
-#: ../../source/db-dbapi.rst:54
+#: ../../source/db-dbapi.rst:74
 msgid ">>> print(cursor.fetchall())"
 msgstr ""
 

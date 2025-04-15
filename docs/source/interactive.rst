@@ -440,9 +440,9 @@ PyODPS 还提供了 SQL 插件，来执行 ODPS SQL。下面是单行 SQL：
 
     In [1]: %load_ext odps
 
-    In [2]: mytable = 'dual'
+    In [2]: var = '0'
 
-    In [3]: %sql select * from :mytable
+    In [3]: %sql select * from table_name where c_string_a = :var
     |==========================================|   1 /  1  (100.00%)         2s
     Out[3]:
        c_int_a  c_int_b  c_double_a  c_double_b  c_string_a  c_string_b c_bool_a  \

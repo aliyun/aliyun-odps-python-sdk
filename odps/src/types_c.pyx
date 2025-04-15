@@ -57,13 +57,23 @@ import_datetime()
 
 
 cdef class TypeValidator:
+    cdef bint nullable
+
+    def __init__(self, bint nullable = True):
+        self.nullable = nullable
+
     cdef object validate(self, object val, int64_t max_field_size):
         pass
 
 
 cdef class BigintValidator(TypeValidator):
     cdef object validate(self, object val, int64_t max_field_size):
-        cdef int64_t i_val = val
+        cdef int64_t i_val
+
+        if self.nullable and val is None:
+            return val
+
+        i_val = val
         if bigint_min <= i_val <= bigint_max:
             return i_val
         raise ValueError("InvalidData: Bigint(%s) out of range" % val)
@@ -74,6 +84,9 @@ cdef class StringValidator(TypeValidator):
         cdef:
             size_t s_size
             unicode u_val
+
+        if self.nullable and val is None:
+            return val
 
         if max_field_size == 0:
             max_field_size = string_len_max
@@ -104,6 +117,9 @@ cdef class BinaryValidator(TypeValidator):
             size_t s_size
             bytes bytes_val
 
+        if self.nullable and val is None:
+            return val
+
         if max_field_size == 0:
             max_field_size = string_len_max
 
@@ -125,12 +141,16 @@ cdef class BinaryValidator(TypeValidator):
 cdef class SizeLimitedStringValidator(TypeValidator):
     cdef int _size_limit
 
-    def __init__(self, int size_limit):
+    def __init__(self, int size_limit, bint nullable = True):
+        TypeValidator.__init__(self, nullable)
         self._size_limit = size_limit
 
     cdef object validate(self, object val, int64_t max_field_size):
         cdef:
             unicode u_val
+
+        if self.nullable and val is None:
+            return val
 
         if type(val) is bytes or isinstance(val, bytes):
             u_val = (<bytes> val).decode("utf-8")
@@ -152,6 +172,9 @@ py_strptime = datetime.strptime
 
 cdef class DatetimeValidator(TypeValidator):
     cdef object validate(self, object val, int64_t max_field_size):
+        if self.nullable and val is None:
+            return val
+
         if PyDateTime_Check(val):
             return val
         if isinstance(val, (bytes, unicode)):
@@ -161,6 +184,9 @@ cdef class DatetimeValidator(TypeValidator):
 
 cdef class DateValidator(TypeValidator):
     cdef object validate(self, object val, int64_t max_field_size):
+        if self.nullable and val is None:
+            return val
+
         if PyDate_Check(val):
             return val
         if PyDateTime_Check(val):
@@ -177,6 +203,10 @@ pd_ts_strptime = None
 cdef class TimestampValidator(TypeValidator):
     cdef object validate(self, object val, int64_t max_field_size):
         global pd_ts, pd_ts_strptime
+
+        if self.nullable and val is None:
+            return val
+
         if pd_ts is None:
             try:
                 import pandas as pd
@@ -194,6 +224,9 @@ cdef class TimestampValidator(TypeValidator):
 
 cdef class JsonValidator(TypeValidator):
     cdef object validate(self, object val, int64_t max_field_size):
+        if self.nullable and val is None:
+            return val
+
         if not isinstance(val, (list, dict, unicode, bytes, float, int, long)):
             raise ValueError("Invalid data type: cannot accept %r for json type" % val)
 
@@ -206,18 +239,29 @@ cdef class JsonValidator(TypeValidator):
 
 cdef class FloatValidator(TypeValidator):
     cdef object validate(self, object val, int64_t max_field_size):
-        cdef float flt_val = val
+        cdef float flt_val
+
+        if self.nullable and val is None:
+            return val
+
+        flt_val = val
         return flt_val
 
 
 cdef class DoubleValidator(TypeValidator):
     cdef object validate(self, object val, int64_t max_field_size):
+        if self.nullable and val is None:
+            return val
+
         cdef double dbl_val = val
         return dbl_val
 
 
 cdef class BoolValidator(TypeValidator):
     cdef object validate(self, object val, int64_t max_field_size):
+        if self.nullable and val is None:
+            return val
+
         if PyBool_Check(val):
             return val
         raise TypeError("Invalid data type: expect bool, got %s" % type(val))
@@ -227,7 +271,9 @@ cdef class DecimalValidator(TypeValidator):
     cdef int precision, scale
     cdef object _decimal_ctx, _scale_decimal
 
-    def __init__(self, dec_type):
+    def __init__(self, dec_type, bint nullable = True):
+        TypeValidator.__init__(self, nullable)
+
         self.precision = dec_type.precision or dec_type._default_precision
         self.scale = dec_type.scale or dec_type._default_scale
         self._scale_decimal = dec_type._scale_decimal
@@ -236,6 +282,9 @@ cdef class DecimalValidator(TypeValidator):
     cdef object validate(self, object val, int64_t max_field_size):
         cdef int int_len
         cdef object scaled_val
+
+        if self.nullable and val is None:
+            return val
 
         if (
             _has_other_decimal_type
@@ -264,16 +313,21 @@ cdef class ArrayValidator(TypeValidator):
     cdef object _value_type
     cdef TypeValidator _value_validator
 
-    def __init__(self, array_type):
+    def __init__(self, array_type, bint nullable = True):
+        TypeValidator.__init__(self, nullable)
+
         self._value_type = array_type.value_type
         try:
             self._value_validator = _build_type_validator(
-                self._value_type._type_id, self._value_type
+                self._value_type._type_id, self._value_type, True
             )
         except TypeError:
             self._value_validator = None
 
     cdef object validate(self, object val, int64_t max_field_size):
+        if self.nullable and val is None:
+            return val
+
         if type(val) is not list:
             if not isinstance(val, list):
                 raise ValueError("Array data type requires `list`, instead of %s" % val)
@@ -300,21 +354,23 @@ cdef class MapValidator(TypeValidator):
     cdef TypeValidator _value_validator
     cdef bint _use_ordered_dict
 
-    def __init__(self, map_type):
+    def __init__(self, map_type, bint nullable = True):
+        TypeValidator.__init__(self, nullable)
+
         self._use_ordered_dict = map_type._use_ordered_dict
         self._key_type = map_type.key_type
         self._value_type = map_type.value_type
 
         try:
             self._key_validator = _build_type_validator(
-                self._key_type._type_id, self._key_type
+                self._key_type._type_id, self._key_type, True
             )
         except TypeError:
             self._key_validator = None
 
         try:
             self._value_validator = _build_type_validator(
-                self._value_type._type_id, self._value_type
+                self._value_type._type_id, self._value_type, True
             )
         except TypeError:
             self._value_validator = None
@@ -346,6 +402,9 @@ cdef class MapValidator(TypeValidator):
         cdef object k, v, obj_ret
         cdef dict dict_ret
 
+        if self.nullable and val is None:
+            return val
+
         if not isinstance(val, dict):
             raise ValueError("Map data type requires `dict`, instead of %s" % val)
 
@@ -367,9 +426,11 @@ cdef class StructValidator(TypeValidator):
     cdef object _field_types, _namedtuple_type
     cdef bint _struct_as_dict
 
-    def __init__(self, struct_type):
+    def __init__(self, struct_type, bint nullable = True):
         cdef int idx
         cdef object validator
+
+        TypeValidator.__init__(self, nullable)
 
         self._field_types = struct_type.field_types
         self._namedtuple_type = struct_type.namedtuple_type
@@ -381,7 +442,7 @@ cdef class StructValidator(TypeValidator):
 
         for idx, (k, v) in enumerate(self._field_types.items()):
             try:
-                validator = _build_type_validator(v._type_id, v)
+                validator = _build_type_validator(v._type_id, v, True)
             except TypeError:
                 validator = None
             self._validators[idx] = validator
@@ -418,6 +479,9 @@ cdef class StructValidator(TypeValidator):
         cdef int idx
         cdef object ret
 
+        if self.nullable and val is None:
+            return val
+
         if self._struct_as_dict:
             if isinstance(val, tuple):
                 fields = getattr(val, "_fields", None) or self._field_types.keys()
@@ -448,40 +512,40 @@ cdef class StructValidator(TypeValidator):
         )
 
 
-cdef object _build_type_validator(int type_id, object data_type):
+cdef object _build_type_validator(int type_id, object data_type, bint nullable):
     if type_id == BIGINT_TYPE_ID:
-        return BigintValidator()
+        return BigintValidator(nullable=nullable)
     elif type_id == FLOAT_TYPE_ID:
-        return FloatValidator()
+        return FloatValidator(nullable=nullable)
     elif type_id == DOUBLE_TYPE_ID:
-        return DoubleValidator()
+        return DoubleValidator(nullable=nullable)
     elif type_id == STRING_TYPE_ID:
         if isinstance(data_type, types.SizeLimitedString):
-            return SizeLimitedStringValidator(data_type.size_limit)
+            return SizeLimitedStringValidator(data_type.size_limit, nullable=nullable)
         elif options.tunnel.string_as_binary:
-            return BinaryValidator()
+            return BinaryValidator(nullable=nullable)
         else:
-            return StringValidator()
+            return StringValidator(nullable=nullable)
     elif type_id == DATETIME_TYPE_ID:
-        return DatetimeValidator()
+        return DatetimeValidator(nullable=nullable)
     elif type_id == DATE_TYPE_ID:
-        return DateValidator()
+        return DateValidator(nullable=nullable)
     elif type_id == BOOL_TYPE_ID:
-        return BoolValidator()
+        return BoolValidator(nullable=nullable)
     elif type_id == BINARY_TYPE_ID:
-        return BinaryValidator()
+        return BinaryValidator(nullable=nullable)
     elif type_id == TIMESTAMP_TYPE_ID:
-        return TimestampValidator()
+        return TimestampValidator(nullable=nullable)
     elif type_id == JSON_TYPE_ID:
-        return JsonValidator()
+        return JsonValidator(nullable=nullable)
     elif type_id == DECIMAL_TYPE_ID:
-        return DecimalValidator(data_type)
+        return DecimalValidator(data_type, nullable=nullable)
     elif type_id == ARRAY_TYPE_ID:
-        return ArrayValidator(data_type)
+        return ArrayValidator(data_type, nullable=nullable)
     elif type_id == MAP_TYPE_ID:
-        return MapValidator(data_type)
+        return MapValidator(data_type, nullable=nullable)
     elif type_id == STRUCT_TYPE_ID:
-        return StructValidator(data_type)
+        return StructValidator(data_type, nullable=nullable)
     return None
 
 
@@ -510,7 +574,7 @@ cdef class SchemaSnapshot:
         self._col_validators = [None] * self._col_count
         for i in range(self._col_count):
             self._col_validators[i] = _build_type_validator(
-                self._col_type_ids[i], self._col_types[i]
+                self._col_type_ids[i], self._col_types[i], self._col_nullable[i]
             )
 
     cdef object validate_value(self, int i, object val, int64_t max_field_size):

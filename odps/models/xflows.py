@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import json
+import logging
 import time
 from collections import OrderedDict
 
@@ -23,6 +24,8 @@ from ..compat import six
 from .core import Iterable, XMLRemoteModel
 from .instance import Instance
 from .xflow import XFlow
+
+logger = logging.getLogger(__name__)
 
 
 class XFlows(Iterable):
@@ -153,7 +156,15 @@ class XFlows(Iterable):
                 props.get("settings") or "{}", object_pairs_hook=OrderedDict
             )
             settings.update(exist_settings)
-            props["settings"] = json.dumps(settings)
+            str_settings = OrderedDict()
+            for k, v in settings.items():
+                if isinstance(v, six.string_types):
+                    str_settings[k] = v
+                elif isinstance(v, bool):
+                    str_settings[k] = "true" if v else "false"
+                else:
+                    str_settings[k] = str(v)
+            props["settings"] = json.dumps(str_settings)
 
         if props:
             kw["properties"] = props
@@ -167,11 +178,15 @@ class XFlows(Iterable):
                 else:
                     new_params[k] = v
             parameters = new_params
-        return project.instances.create(
-            xml=self._gen_xflow_instance_xml(
-                xflow_instance=xflow_instance, parameters=parameters, **kw
-            )
+
+        inst_xml = self._gen_xflow_instance_xml(
+            xflow_instance=xflow_instance, parameters=parameters, **kw
         )
+        try:
+            return project.instances.create(xml=inst_xml)
+        except:
+            logger.error("Failed to create xflow instance. Job XML:\n%s", inst_xml)
+            raise
 
     class XFlowResult(XMLRemoteModel):
         class XFlowAction(XMLRemoteModel):

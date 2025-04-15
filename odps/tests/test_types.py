@@ -75,6 +75,7 @@ def test_nullable_record():
         ["col%s" % i for i in range(len(col_types))],
         col_types,
     )
+    s.build_snapshot()
     r = Record(schema=s, values=[None] * len(col_types))
     assert list(r.values) == [None] * len(col_types)
 
@@ -82,6 +83,7 @@ def test_nullable_record():
 @py_and_c_deco
 def test_record_max_field_size():
     s = TableSchema.from_lists(["col"], ["string"])
+    s.build_snapshot()
     r = Record(schema=s, max_field_size=1024)
 
     r["col"] = "e" * 1024
@@ -174,6 +176,7 @@ def test_record_set_and_get_by_name():
             "map<string,bigint>",
         ],
     )
+    s.build_snapshot()
     r = Record(schema=s)
     r["col0"] = 1
     r["col1"] = 1.2
@@ -209,6 +212,7 @@ def test_record_set_and_get_by_name():
 @py_and_c_deco
 def test_record_set_and_get_ignore_cases():
     s = TableSchema.from_lists(["COL1", "col2"], ["bigint", "double"])
+    s.build_snapshot()
     r = Record(schema=s)
     r["col1"] = 1
     r["COL2"] = 2.0
@@ -338,6 +342,7 @@ def test_set_with_cast():
         ["bigint", "double", "string", "datetime", "date", "boolean", "decimal"],
         ["bigint", "double", "string", "datetime", "date", "boolean", "decimal"],
     )
+    s.build_snapshot()
     r = Record(schema=s)
     r["double"] = 1
     assert 1.0 == r["double"]
@@ -356,6 +361,7 @@ def test_set_with_cast():
 @py_and_c_deco
 def test_record_copy():
     s = TableSchema.from_lists(["col1"], ["string"])
+    s.build_snapshot()
     r = Record(s)
     r.col1 = "a"
 
@@ -371,6 +377,7 @@ def test_record_copy():
 @py_and_c_deco
 def test_record_set_field():
     s = TableSchema.from_lists(["col1"], ["string"])
+    s.build_snapshot()
     r = Record(schema=s)
     r.col1 = "a"
     assert r.col1 == "a"
@@ -386,6 +393,7 @@ def test_record_set_field():
 @py_and_c_deco
 def test_record_multi_fields():
     s = TableSchema.from_lists(["col1", "col2"], ["string", "bigint"])
+    s.build_snapshot()
     r = Record(values=[1, 2], schema=s)
 
     assert r["col1", "col2"] == ["1", 2]
@@ -412,6 +420,7 @@ def test_schema_cases():
     schema = TableSchema.from_lists(
         ["col1", "COL2"], ["bigint", "double"], ["pt1", "PT2"], ["string", "string"]
     )
+    schema.build_snapshot()
     assert schema.get_column("COL1").name == "col1"
     assert schema.get_column("col2").name == "COL2"
     assert schema.get_partition("PT1").name == "pt1"
@@ -429,6 +438,7 @@ def test_schema_cases():
 @py_and_c_deco
 def test_chinese_schema():
     s = TableSchema.from_lists([u"用户"], ["string"], ["分区"], ["bigint"])
+    s.build_snapshot()
     assert "用户" in s
     assert s.get_column("用户").type.name == "string"
     assert s.get_partition(u"分区").type.name == "bigint"
@@ -436,12 +446,14 @@ def test_chinese_schema():
     assert s[u"分区"].type.name == "bigint"
 
     s2 = TableSchema.from_lists(["用户"], ["string"], [u"分区"], ["bigint"])
+    s2.build_snapshot()
     assert s == s2
 
 
 @py_and_c_deco
 def test_bizarre_repr():
     s = TableSchema.from_lists(['不正常 " \t'], ["string"], ["正常"], ["bigint"])
+    s.build_snapshot()
     s_repr = repr(s)
     assert '"不正常 \\" \\t"' in s_repr
     assert '"正常"' not in s_repr
@@ -452,6 +464,7 @@ def test_string_as_binary():
     try:
         options.tunnel.string_as_binary = True
         s = TableSchema.from_lists(["col1", "col2"], ["string", "bigint"])
+        s.build_snapshot()
         r = Record(values=[1, 2], schema=s)
         assert r["col1", "col2"] == [b"1", 2]
         assert isinstance(r[0], bytes)
@@ -477,6 +490,7 @@ def test_validate_nested_types(map_as_ordered_dict):
         s = TableSchema.from_lists(
             ["col1"], ["array<map<string,struct<abc: int, def: string>>>"]
         )
+        s.build_snapshot()
         r = Record(schema=s)
         r[0] = [{"abcd": (123, "uvw")}]
         assert r[0] == [{"abcd": (123, "uvw")}]
@@ -486,6 +500,7 @@ def test_validate_nested_types(map_as_ordered_dict):
         s = TableSchema.from_lists(
             ["col1"], ["struct<abc: int, def: map<string, int>>"]
         )
+        s.build_snapshot()
         r = Record(schema=s)
         r[0] = (123, {"uvw": 123})
         assert r[0] == (123, {"uvw": 123})
@@ -538,6 +553,7 @@ def test_varchar_size_limit(use_binary):
         return utils.to_text(s)
 
     s = TableSchema.from_lists(["col1"], ["varchar(3)"])
+    s.build_snapshot()
     r = Record(schema=s)
     r[0] = _c("123")
     r[0] = _c("测试字")
@@ -556,6 +572,7 @@ def test_field_size_limit(use_binary):
         return utils.to_text(s)
 
     s = TableSchema.from_lists(["str_col", "bin_col"], ["string", "binary"])
+    s.build_snapshot()
     r = Record(schema=s, max_field_size=1024)
     r[0] = _c("1" * 1024)
     r[1] = _c("1" * 1024)
@@ -597,3 +614,12 @@ def test_validate_timestamp():
     ts = pd.Timestamp("2023-12-19 14:24:31")
     vl = odps_types.validate_value(ts, odps_types.timestamp)
     assert vl == ts
+
+
+@py_and_c_deco
+def test_nullable_array_item():
+    s = TableSchema.from_lists(["array_col"], ["array<struct<abc: int, def: double>>"])
+    s.build_snapshot()
+    r = Record(schema=s)
+    r[0] = [None, {"abc": 1, "def": 2.0}]
+    r[0] = [{"abc": None, "def": 3.0}, {"abc": 1, "def": None}]

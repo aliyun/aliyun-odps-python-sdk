@@ -28,6 +28,7 @@ from .. import types as odps_types
 from .. import utils
 from ..compat import Enum, dir2, six
 from ..config import options
+from ..expressions import parse as parse_expression
 from .cluster_info import ClusterInfo
 from .core import JSONRemoteModel, LazyLoad
 from .partitions import Partitions
@@ -78,10 +79,13 @@ class TableSchema(odps_types.OdpsSchema, JSONRemoteModel):
         comment = serializers.JSONNodeField("comment")
         label = serializers.JSONNodeField("label")
         nullable = serializers.JSONNodeField("isNullable")
-        generate_expression = serializers.JSONNodeField("generateExpression")
+        _generate_expression = serializers.JSONNodeField("generateExpression")
 
         def __init__(self, **kwargs):
             kwargs.setdefault("nullable", True)
+            self._parsed_generate_expression = None
+            if "generate_expression" in kwargs:
+                self._generate_expression = kwargs.pop("generate_expression")
             JSONRemoteModel.__init__(self, **kwargs)
             if self.type is not None:
                 self.type = odps_types.validate_data_type(self.type)
@@ -443,10 +447,11 @@ class Table(LazyLoad):
             if column_name.lower() == "_partitiontime" and utils.str_to_bool(
                 table_props.get("ingestion_time_partition")
             ):
-                return (
+                col_expr = (
                     '[{"functionCall":{"name":"current_timestamp_ntz","type":"%s"}}]'
                     % str(self.table_schema[column_name].type)
                 )
+                return parse_expression(col_expr)
         return None
 
     def _repr(self):

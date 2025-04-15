@@ -43,7 +43,6 @@ from .. import utils
 from ..compat import Iterable, six
 from ..config import options
 from ..dag import DAG
-from ..expressions import parse as parse_expression
 from ..lib import cloudpickle
 from ..lib.tblib import pickling_support
 from .readers import TunnelArrowReader, TunnelRecordReader
@@ -936,19 +935,15 @@ class TableIOMethods(object):
         by variable dependencies
         """
         part_spec = odps_types.PartitionSpec(partition)
-        col_to_expr_str = {
+        col_to_expr = {
             c.name.lower(): table._get_column_generate_expression(c.name)
             for c in table.table_schema.columns
             if c.name not in part_spec
         }
-        if not col_to_expr_str:
+        col_to_expr = {c: expr for c, expr in col_to_expr.items() if expr}
+        if not col_to_expr:
             # no columns with expressions, quit
             return {}
-        col_to_expr = {
-            key: parse_expression(value)
-            for key, value in col_to_expr_str.items()
-            if value is not None
-        }
         col_dag = DAG()
         for col in col_to_expr:
             col_dag.add_node(col)
@@ -1124,6 +1119,10 @@ class TableIOMethods(object):
             table. False by default.
         :param bool overwrite: if True, will overwrite existing data
         :param bool create_table: if true, the table will be created if not exist
+        :param dict table_kwargs: specify other kwargs for :method:~odps.core.ODPS.create_table
+        :param table_schema_callback: a function to accept table schema resolved from data
+            and return a new schema for table to create. Only works when target table does
+            not exist and ``create_table`` is True.
         :param int lifecycle: specify table lifecycle when creating tables
         :param bool create_partition: if true, the partition will be created if not exist
         :param compress_option: the compression algorithm, level and strategy
@@ -1200,6 +1199,11 @@ class TableIOMethods(object):
         partition = kw.pop("partition", None)
         partition_cols = kw.pop("partition_cols", None) or kw.pop("partitions", None)
         lifecycle = kw.pop("lifecycle", None)
+        table_schema_callback = kw.pop("table_schema_callback", None)
+        table_kwargs = dict(kw.pop("table_kwargs", None) or {})
+        if lifecycle:
+            table_kwargs["lifecycle"] = lifecycle
+
         if isinstance(partition_cols, six.string_types):
             partition_cols = [partition_cols]
 
@@ -1224,8 +1228,10 @@ class TableIOMethods(object):
                     "Target table %s not exist. To create a new table "
                     "you can add an argument `create_table=True`." % name
                 )
+            if callable(table_schema_callback):
+                table_schema = table_schema_callback(table_schema)
             target_table = odps.create_table(
-                name, table_schema, project=project, schema=schema, lifecycle=lifecycle
+                name, table_schema, project=project, schema=schema, **table_kwargs
             )
         else:
             target_table = cls._get_table_obj(
@@ -1317,6 +1323,7 @@ class TableIOMethods(object):
         project=None,
         schema=None,
         lifecycle=None,
+        table_schema_callback=None,
         table_kwargs=None,
         hints=None,
         running_cluster=None,
@@ -1345,6 +1352,9 @@ class TableIOMethods(object):
         :param str project: project name, if not provided, will be the default project
         :param str schema: schema name, if not provided, will be the default schema
         :param int lifecycle: specify table lifecycle when creating tables
+        :param table_schema_callback: a function to accept table schema resolved from data
+            and return a new schema for table to create. Only works when target table does
+            not exist and ``create_table`` is True.
         :param dict table_kwargs: specify other kwargs for :method:~odps.core.ODPS.create_table
         :param dict hints: specify hints for SQL statements, will be passed through
             to execute_sql method
@@ -1361,7 +1371,7 @@ class TableIOMethods(object):
         insert_mode = "OVERWRITE" if overwrite else "INTO"
 
         # move table params in kwargs into table_kwargs
-        table_kwargs = table_kwargs or {}
+        table_kwargs = dict(table_kwargs or {})
         for extra_table_arg in (
             "table_properties",
             "shard_num",
@@ -1407,7 +1417,12 @@ class TableIOMethods(object):
                     "Table %s does not exist and create_table is set to False."
                     % table_name
                 )
-            elif not partition and not partition_cols and not with_extra_table_kw:
+            elif (
+                not partition
+                and not partition_cols
+                and not with_extra_table_kw
+                and table_schema_callback is None
+            ):
                 # return directly when creating table without partitions
                 #  and special kwargs
                 if not lifecycle:
@@ -1432,6 +1447,8 @@ class TableIOMethods(object):
                     partition=partition,
                     partition_cols=partition_cols,
                 )
+                if table_schema_callback:
+                    out_table_schema = table_schema_callback(out_table_schema)
                 target_table = odps.create_table(
                     table_name, table_schema=out_table_schema, **table_kwargs
                 )
