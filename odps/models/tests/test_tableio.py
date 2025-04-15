@@ -399,12 +399,12 @@ def test_multi_process_to_pandas(odps):
         pd_data = reader.to_pandas(n_process=2)
         assert len(pd_data) == 1000
 
-    orginal_meth = TableDownloadSession.open_record_reader
+    original_meth = TableDownloadSession.open_record_reader
 
     def patched(self, start, *args, **kwargs):
         if start != 0:
             raise ValueError("Intentional error")
-        return orginal_meth(self, start, *args, **kwargs)
+        return original_meth(self, start, *args, **kwargs)
 
     with pytest.raises(ValueError):
         with mock.patch(

@@ -64,6 +64,23 @@ class Config(object):
     admin = None
 
 
+def _get_config_item(config, section_names, key, env=None, default=utils.notset):
+    if isinstance(section_names, six.string_types):
+        section_names = [section_names]
+
+    last_exc = None
+    for section_name in section_names:
+        try:
+            return config.get(section_name, key)
+        except (ConfigParser.NoSectionError, ConfigParser.NoOptionError) as exc:
+            last_exc = exc
+    if env and env in os.environ:
+        return os.environ[env]
+    if default is not utils.notset:
+        return default
+    raise last_exc
+
+
 def _load_config_odps(config, section_name, overwrite_global=True):
     from ..core import ODPS
 
@@ -72,42 +89,28 @@ def _load_config_odps(config, section_name, overwrite_global=True):
     except ConfigParser.NoSectionError:
         return
 
-    project = config.get(section_name, "project")
+    daily_sections = [section_name, "odps", "odps_daily"]
 
-    try:
-        access_id = config.get(section_name, "access_id")
-    except ConfigParser.NoOptionError:
-        access_id = config.get("odps", "access_id")
-    try:
-        secret_access_key = config.get(section_name, "secret_access_key")
-    except ConfigParser.NoOptionError:
-        secret_access_key = config.get("odps", "secret_access_key")
-    try:
-        endpoint = config.get(section_name, "endpoint")
-    except ConfigParser.NoOptionError:
-        endpoint = config.get("odps", "endpoint")
+    project = _get_config_item(config, section_name, "project", env="TEST_ODPS_PROJECT")
 
-    try:
-        seahawks_url = config.get(section_name, "seahawks_url")
-    except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
-        seahawks_url = None
-    try:
-        schema = config.get(section_name, "schema")
-    except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
-        schema = None
-    try:
-        tunnel_endpoint = config.get(section_name, "tunnel_endpoint")
-    except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
-        tunnel_endpoint = None
-    try:
-        quota_name = config.get(section_name, "quota_name")
-    except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
-        quota_name = None
+    access_id = _get_config_item(
+        config, daily_sections, "access_id", env="TEST_ODPS_ACCESS_ID"
+    )
+    secret_access_key = _get_config_item(
+        config, daily_sections, "secret_access_key", env="TEST_ODPS_SECRET_ACCESS_KEY"
+    )
+    endpoint = _get_config_item(
+        config, daily_sections, "endpoint", env="TEST_ODPS_ENDPOINT"
+    )
 
-    try:
-        attr_name = config.get(section_name, "attr")
-    except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
-        attr_name = section_name
+    seahawks_url = _get_config_item(config, section_name, "seahawks_url", default=None)
+    schema = _get_config_item(config, section_name, "schema", default=None)
+    tunnel_endpoint = _get_config_item(
+        config, section_name, "tunnel_endpoint", default=None
+    )
+    quota_name = _get_config_item(config, section_name, "quota_name", default=None)
+
+    attr_name = _get_config_item(config, section_name, "attr", default=section_name)
 
     odps_entry = ODPS(
         access_id,

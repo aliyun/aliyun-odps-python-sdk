@@ -450,7 +450,7 @@ class OdpsSQLCompiler(Backend):
                 args = self._ctx._expr_raw_args[id(collection)]  # get the args which are substituted out
                 while True:
                     for lv in args[2]:
-                        if column_name in lv.schema._name_indexes:
+                        if utils.to_lower_str(column_name) in lv.schema._name_indexes:
                             return lv, column_name
                     if isinstance(args[0], LateralViewCollectionExpr):
                         args = self._ctx._expr_raw_args[id(args[0])]

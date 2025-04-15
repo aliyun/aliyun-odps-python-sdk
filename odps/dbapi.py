@@ -15,15 +15,14 @@
 # limitations under the License.
 
 import functools
-import re
 import warnings
 
-from .compat import enum, six
+from .compat import enum
 from .config import options
 from .core import ODPS
 from .errors import InstanceTypeNotSupported, NotSupportedError, ODPSError
 from .models.session.v1 import PUBLIC_SESSION_NAME
-from .utils import to_str
+from .utils import to_odps_scalar
 
 # PEP 249 module globals
 apilevel = "2.0"
@@ -70,6 +69,7 @@ class Connection(object):
         secret_access_key=None,
         project=None,
         endpoint=None,
+        account=None,
         session_name=None,
         odps=None,
         hints=None,
@@ -85,6 +85,7 @@ class Connection(object):
         else:
             self._sqa_type = None if not use_sqa else "v1"
 
+        self._quota_name = quota_name
         self._fallback_policy = kw.pop("fallback_policy", "")
         self._project_as_schema = kw.pop(
             "project_as_schema", options.sqlalchemy.project_as_schema
@@ -96,6 +97,7 @@ class Connection(object):
                 secret_access_key=secret_access_key,
                 project=project,
                 endpoint=endpoint,
+                account=account,
                 quota_name=quota_name,
                 **kw
             )
@@ -133,6 +135,7 @@ class Connection(object):
             sqa_type=self._sqa_type,
             fallback_policy=self._fallback_policy,
             hints=self._hints,
+            quota_name=self._quota_name,
             **kwargs
         )
 
@@ -161,6 +164,7 @@ class Cursor(object):
         sqa_type=None,
         fallback_policy="",
         hints=None,
+        quota_name=None,
         **kwargs
     ):
         self._connection = connection
@@ -170,6 +174,7 @@ class Cursor(object):
         self._sqa_type = sqa_type
         self._fallback_policy = []
         self._hints = hints
+        self._quota_name = quota_name
         fallback_policies = map(lambda x: x.strip(), fallback_policy.split(","))
         for policy in fallback_policies:
             if policy in FALLBACK_POLICY_ALIASES:
@@ -187,6 +192,10 @@ class Cursor(object):
     @property
     def arraysize(self):
         return self._arraysize
+
+    @property
+    def instance(self):
+        return self._instance
 
     @property
     def connection(self):
@@ -240,15 +249,87 @@ class Cursor(object):
         return self._description
 
     @staticmethod
-    def escape_string(item):
-        item = to_str(item)
-        return "'{}'".format(
-            item.replace("\\", "\\\\")
-            .replace("'", "\\'")
-            .replace("\r", "\\r")
-            .replace("\n", "\\n")
-            .replace("\t", "\\t")
-        )
+    def _find_placeholders(sql, placeholder_type):
+        placeholders = []
+        in_string = False
+        string_char = None  # single or double quote
+        i = 0
+        while i < len(sql):
+            c = sql[i]
+            if in_string:
+                if c == string_char:
+                    in_string = False
+                    string_char = None
+                elif c == "\\":
+                    i += 1
+            else:
+                if c in ('"', "'"):
+                    in_string = True
+                    string_char = c
+                elif c == ":" and placeholder_type == "named":
+                    # check start char (should be alphabetical or underline)
+                    if i + 1 < len(sql) and (sql[i + 1].isalpha() or sql[i + 1] == "_"):
+                        j = i + 1
+                        while j < len(sql) and (sql[j].isalnum() or sql[j] == "_"):
+                            j += 1
+                        key = sql[i + 1 : j]
+                        placeholders.append((i, key))
+                        i = j
+                        continue
+                elif c == "?" and placeholder_type == "positional":
+                    placeholders.append((i, None))
+            i += 1
+        return placeholders
+
+    @classmethod
+    def _replace_sql_parameters(cls, sql, parameters):
+        if isinstance(parameters, dict):
+            placeholders = cls._find_placeholders(sql, "named")
+            # check if all parameters provided
+            for pos, key in placeholders:
+                if key not in parameters:
+                    raise KeyError("Missing parameter '%s'" % key)
+            # collect replacements
+            replacements = []
+            for pos, key in placeholders:
+                replacement = to_odps_scalar(parameters[key])
+                placeholder_str = ":" + key
+                start = pos
+                end = pos + len(placeholder_str)
+                replacements.append((start, end, replacement))
+            # replace in reversed order to avoid position shift
+            replacements.sort(key=lambda x: x[0], reverse=True)
+            new_sql = list(sql)
+            for start, end, repl in replacements:
+                new_sql[start:end] = list(repl)
+            return "".join(new_sql)
+
+        elif isinstance(parameters, (list, tuple)):
+            placeholders = cls._find_placeholders(sql, "positional")
+            num_placeholders = len(placeholders)
+            num_params = len(parameters)
+            if num_placeholders != num_params:
+                raise ValueError(
+                    "Expected %d parameters, got %d" % (num_placeholders, num_params)
+                )
+            # split sql statement into parts
+            positions = [pos for pos, _ in placeholders]
+            parts = []
+            prev = 0
+            for pos in positions:
+                parts.append(sql[prev:pos])
+                prev = pos + 1
+            parts.append(sql[prev:])
+            # merge all stuff together
+            result = []
+            for i in range(len(parts) - 1):
+                result.append(parts[i])
+                result.append(to_odps_scalar(parameters[i]))
+            result.append(parts[-1])
+            return "".join(result)
+
+        else:
+            raise TypeError("Parameters must be a dictionary or tuple")
 
     def execute(self, operation, parameters=None, **kwargs):
         """Prepare and execute a database operation (query or command).
@@ -270,14 +351,7 @@ class Cursor(object):
         if parameters is None:
             sql = operation
         else:
-            sql = operation
-            for origin, replacement in parameters.items():
-                if isinstance(replacement, six.string_types):
-                    replacement = self.escape_string(replacement)
-
-                pattern_str = ":%s([,)])?" % re.escape(to_str(origin))
-                replacement_str = "%s\\1" % to_str(replacement)
-                sql = re.sub(pattern_str, replacement_str, to_str(sql))
+            sql = self._replace_sql_parameters(operation, parameters)
 
         self._reset_state()
 
@@ -289,13 +363,20 @@ class Cursor(object):
             run_sql = self._run_sqa_with_fallback
         if async_:
             run_sql = odps.run_sql
-        hints = self._hints or {}
+        hints = dict(self._hints or {})
         hints.update(kwargs.get("hints") or {})
-        self._instance = run_sql(sql, hints=hints)
+        self._instance = run_sql(sql, hints=hints, quota_name=self._quota_name)
+        return self
 
     def executemany(self, operation, seq_of_parameters):
         for parameter in seq_of_parameters:
             self.execute(operation, parameter)
+        return self
+
+    def executescript(self, sql_script, **kwargs):
+        hints = dict(kwargs.get("hints") or {})
+        hints["odps.sql.submit.mode"] = "script"
+        return self.execute(sql_script, hints=hints)
 
     def _sqa_error_should_fallback(self, err_str):
         if "ODPS-18" not in err_str:

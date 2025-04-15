@@ -80,7 +80,10 @@ class Column(object):
             warnings.warn("label is deprecated.", DeprecationWarning)
         self.label = label
         self.nullable = nullable
-        self.generate_expression = generate_expression
+
+        self._generate_expression = generate_expression
+        self._parsed_generate_expression = None
+
         if kw:
             raise TypeError("Arguments not supported for Column: %s" % list(kw))
 
@@ -99,7 +102,7 @@ class Column(object):
                 self.comment,
                 self.label,
                 self.nullable,
-                self.generate_expression,
+                self._generate_expression,
             )
         )
 
@@ -112,20 +115,31 @@ class Column(object):
                 "comment",
                 "label",
                 "nullable",
-                "generate_expression",
+                "_generate_expression",
             )
         )
 
-    def to_sql_clause(self, with_column_comments=True):
+    @property
+    def generate_expression(self):
         from .expressions import parse as parse_expression
 
+        if not self._generate_expression:
+            return None
+        if not self._parsed_generate_expression:
+            try:
+                self._parsed_generate_expression = parse_expression(
+                    self._generate_expression
+                )
+            except (SyntaxError, ValueError):
+                self._parsed_generate_expression = self._generate_expression
+        return self._parsed_generate_expression
+
+    def to_sql_clause(self, with_column_comments=True):
         sio = six.StringIO()
         if self.generate_expression:
-            try:
-                expr = parse_expression(self.generate_expression)
-            except (SyntaxError, ValueError):
-                expr = self.generate_expression
-            sio.write(u"  %s AS `%s`" % (utils.to_text(expr), self.name))
+            sio.write(
+                u"  %s AS `%s`" % (utils.to_text(self.generate_expression), self.name)
+            )
         else:
             sio.write(
                 u"  `%s` %s" % (utils.to_text(self.name), utils.to_text(self.type))

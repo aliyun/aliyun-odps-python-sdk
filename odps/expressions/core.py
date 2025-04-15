@@ -171,6 +171,9 @@ class VisitedExpressions(JSONSerializableModel):
 
     @classmethod
     def parse(cls, response, obj=None, **kw):
+        if isinstance(response, Expression):
+            return response
+
         if isinstance(response, requests.Response):
             # PY2 prefer bytes, while PY3 prefer str
             response = response.content.decode() if six.PY3 else response.content

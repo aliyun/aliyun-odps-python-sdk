@@ -400,6 +400,10 @@ def test_read_sql_instance(odps):
             pd_data = reader.to_pandas()
             assert len(pd_data) == 1
 
+        with instance.open_reader(tunnel=True, arrow=True) as reader:
+            pd_data = reader.to_pandas(n_process=2)
+            assert len(pd_data) == 1
+
     table.drop()
 
 

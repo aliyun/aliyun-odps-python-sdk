@@ -132,8 +132,9 @@ class Optimizer(Backend):
                 selects.append(self._do_compact(field, grouped) or field)
 
             grouped._aggregations = grouped._fields = selects
-            grouped._schema = TableSchema.from_lists([f.name for f in selects],
-                                                [f.dtype for f in selects])
+            grouped._schema = TableSchema.from_lists(
+                [f.name for f in selects], [f.dtype for f in selects]
+            )
             self._sub(expr, grouped)
 
             return
