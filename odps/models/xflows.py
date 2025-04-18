@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
+import logging
 import time
 from collections import OrderedDict
 
@@ -22,6 +24,8 @@ from ..compat import six
 from .core import Iterable, XMLRemoteModel
 from .instance import Instance
 from .xflow import XFlow
+
+logger = logging.getLogger(__name__)
 
 
 class XFlows(Iterable):
@@ -139,15 +143,31 @@ class XFlows(Iterable):
         self, xflow_instance=None, project=None, hints=None, parameters=None, **kw
     ):
         project = project or self.parent
-        hints = hints or {}
+        props = kw.get("properties") or OrderedDict()
+        props.update(hints or {})
         if options.ml.xflow_settings:
-            hints.update(options.ml.xflow_settings)
-        if hints:
-            kw["properties"] = hints
+            props.update(options.ml.xflow_settings)
         if options.biz_id:
-            if kw.get("properties") is None:
-                kw["properties"] = OrderedDict()
-            kw["properties"]["biz_id"] = str(options.biz_id)
+            props["biz_id"] = str(options.biz_id)
+
+        if options.default_task_settings:
+            settings = options.default_task_settings.copy()
+            exist_settings = json.loads(
+                props.get("settings") or "{}", object_pairs_hook=OrderedDict
+            )
+            settings.update(exist_settings)
+            str_settings = OrderedDict()
+            for k, v in settings.items():
+                if isinstance(v, six.string_types):
+                    str_settings[k] = v
+                elif isinstance(v, bool):
+                    str_settings[k] = "true" if v else "false"
+                else:
+                    str_settings[k] = str(v)
+            props["settings"] = json.dumps(str_settings)
+
+        if props:
+            kw["properties"] = props
         if parameters:
             new_params = OrderedDict()
             for k, v in six.iteritems(parameters):
@@ -158,11 +178,15 @@ class XFlows(Iterable):
                 else:
                     new_params[k] = v
             parameters = new_params
-        return project.instances.create(
-            xml=self._gen_xflow_instance_xml(
-                xflow_instance=xflow_instance, parameters=parameters, **kw
-            )
+
+        inst_xml = self._gen_xflow_instance_xml(
+            xflow_instance=xflow_instance, parameters=parameters, **kw
         )
+        try:
+            return project.instances.create(xml=inst_xml)
+        except:
+            logger.error("Failed to create xflow instance. Job XML:\n%s", inst_xml)
+            raise
 
     class XFlowResult(XMLRemoteModel):
         class XFlowAction(XMLRemoteModel):
