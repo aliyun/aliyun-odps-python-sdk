@@ -22,15 +22,17 @@ msgid "DBAPI 接口"
 msgstr "DBAPI Interface"
 
 #: ../../source/db-dbapi.rst:6
-msgid "在 PyODPS 0.10.0 中开始支持。事务操作不被 MaxCompute 支持，因而未实现相关接口。"
+msgid ""
+"在 PyODPS 0.10.0 中开始支持。事务操作不被 MaxCompute 支持，因而未实现相关"
+"接口。"
 msgstr ""
 "Supported since PyODPS 0.10.0. As transaction operations are not "
 "supported in MaxCompute, related interfaces are not implemented."
 
 #: ../../source/db-dbapi.rst:8
 msgid ""
-"PyODPS 支持使用 `Python DBAPI <https://peps.python.org/pep-0249/>`_ "
-"兼容的数据库访问接口访问 MaxCompute。"
+"PyODPS 支持使用 `Python DBAPI <https://peps.python.org/pep-0249/>`_ 兼容"
+"的数据库访问接口访问 MaxCompute。"
 msgstr ""
 "PyODPS supports accessing MaxCompute data via `Python DBAPI "
 "<https://peps.python.org/pep-0249/>`_ compatible interfaces."
@@ -41,8 +43,8 @@ msgstr "Create connections"
 
 #: ../../source/db-dbapi.rst:13
 msgid ""
-"可以通过指定 ``access_id``、\\ ``access_key``、\\ ``project``\\ 和\\ ``endpoint`` "
-"来建立连接："
+"可以通过指定 ``access_id``、\\ ``access_key``、\\ ``project``\\ 和\\ ``"
+"endpoint`` 来建立连接："
 msgstr ""
 "Connections can be established via ``access_id``, ``access_key``, "
 "`project`` and ``endpoint``."
@@ -65,8 +67,12 @@ msgid ""
 msgstr ""
 
 #: ../../source/db-dbapi.rst:28
-msgid "如果要使用 MaxQA（MCQA 2.0）查询加速，可以指定 ``use_sqa='v2'`` 并指定 ``quota_name`` 参数："
+msgid ""
+"如果要使用 MaxQA（MCQA 2.0）查询加速，可以指定 ``use_sqa='v2'`` 并指定 ``"
+"quota_name`` 参数："
 msgstr ""
+"If you want to use MaxQA (MCQA 2.0), you can specify parameters "
+"``use_sqa='v2'`` and ``quota_name``."
 
 #: ../../source/db-dbapi.rst:30
 msgid ">>> conn = odps.dbapi.connect(o, use_sqa='v2', quota_name='my_quota')"
@@ -94,9 +100,14 @@ msgstr ""
 
 #: ../../source/db-dbapi.rst:49
 msgid ""
-"PyODPS 使用与标准库 ``sqlite3`` 一样的参数指定方式指定查询参数。你可以使用 ``?`` 指定非命名参数， 使用 "
-"``:name`` 指定命名参数，并使用 tuple 替换非命名参数，使用 dict 替换命名参数。"
+"PyODPS 使用与标准库 ``sqlite3`` 一样的参数指定方式指定查询参数。你可以"
+"使用 ``?`` 指定非命名参数， 使用 ``:name`` 指定命名参数，并使用 tuple "
+"替换非命名参数，使用 dict 替换命名参数。"
 msgstr ""
+"PyODPS uses the same parameter specification as Python standard library "
+"``sqlite3``. You can use ``?`` to specify anonymous parameters and use "
+"``:name`` to specify named parameters. Tuples can be used to replace non-"
+"named parameters and dicts replace named parameters."
 
 #: ../../source/db-dbapi.rst:52
 msgid ""

@@ -12,7 +12,7 @@ XFlow 是 ODPS 对算法包的封装，使用 PyODPS 可以执行 XFlow。对于
 
     PAI -name AlgoName -project algo_public -Dparam1=param_value1 -Dparam2=param_value2 ...
 
-可以使用如下方法调用：
+可以使用 :meth:`~odps.ODPS.run_xflow` 提交任务：
 
 .. code:: python
 
@@ -20,7 +20,7 @@ XFlow 是 ODPS 对算法包的封装，使用 PyODPS 可以执行 XFlow。对于
     >>> inst = o.run_xflow('AlgoName', 'algo_public',
                            parameters={'param1': 'param_value1', 'param2': 'param_value2', ...})
 
-或者使用同步调用：
+或者使用 :meth:`~odps.ODPS.execute_xflow` 提交任务并等待执行完成：
 
 .. code:: python
 
@@ -30,7 +30,7 @@ XFlow 是 ODPS 对算法包的封装，使用 PyODPS 可以执行 XFlow。对于
 
 参数不应包含命令两端的引号（如果有），也不应该包含末尾的分号。
 
-这两个方法都会返回一个 Instance 对象。由于
+这两个方法都会返回一个 :class:`~odps.models.Instance` 对象。由于
 XFlow 的一个 Instance 包含若干个子 Instance，需要使用下面的方法来获得每个 Instance 的 LogView：
 
 .. code-block:: python
@@ -38,10 +38,12 @@ XFlow 的一个 Instance 包含若干个子 Instance，需要使用下面的方�
     >>> for sub_inst_name, sub_inst in o.get_xflow_sub_instances(inst).items():
     >>>     print('%s: %s' % (sub_inst_name, sub_inst.get_logview_address()))
 
-需要注意的是，``get_xflow_sub_instances`` 返回的是 Instance 当前的子 Instance，可能会随时间变化，因而可能需要定时查询。
-为简化这一步骤，可以使用 ``iter_xflow_sub_instances 方法``。该方法返回一个迭代器，会阻塞执行直至发现新的子 Instance
-或者主 Instance 结束。同时需要注意的是， ``iter_xflow_sub_instances`` 默认不会检查 Instance 是否报错，建议在循环结束时手动检查
-Instance 是否报错，以免遗漏可能的问题，或者增加 ``check=True`` 参数在 ``iter_xflow_sub_instances`` 退出时自动检查：
+需要注意的是，:meth:`~odps.ODPS.get_xflow_sub_instances` 返回的是 Instance 当前的子 Instance，\
+可能会随时间变化，因而可能需要定时查询。为简化这一步骤，可以使用 :meth:`~odps.ODPS.iter_xflow_sub_instances`
+方法。该方法返回一个迭代器，会阻塞执行直至发现新的子 Instance 或者主 Instance 结束。同时需要注意的是，
+:meth:`~odps.ODPS.iter_xflow_sub_instances` 默认不会检查 Instance 是否报错，建议在循环结束时手动检查
+Instance 是否报错，以免遗漏可能的问题，或者增加 ``check=True`` 参数在 :meth:`~odps.ODPS.iter_xflow_sub_instances`
+退出时自动检查：
 
 .. code-block:: python
 

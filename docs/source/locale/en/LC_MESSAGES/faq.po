@@ -493,5 +493,5 @@ msgid ""
 "这里 <table_read>`。"
 msgstr ""
 "To reduce memory usage when reading data, you might try Arrow format. "
-"Details can be found :ref:`here <table_arrow_io>`."
+"Details can be found :ref:`here <table_read>`."
 

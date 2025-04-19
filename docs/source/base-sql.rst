@@ -3,30 +3,33 @@
 SQL
 =====
 
-PyODPS支持ODPS SQL的查询，并可以读取执行的结果。 ``execute_sql`` / ``execute_sql_interactive`` /
-``run_sql`` / ``run_sql_interactive`` 方法的返回值是 :ref:`运行实例 <instances>` 。
+PyODPS支持ODPS SQL的查询，并可以读取执行的结果。 :meth:`~odps.ODPS.execute_sql` /
+:meth:`~odps.ODPS.execute_sql_interactive` / :meth:`~odps.ODPS.run_sql` /
+:meth:`~odps.ODPS.run_sql_interactive` 方法的返回值是 :ref:`运行实例 <instances>` 。
 
 .. note::
 
     并非所有在 ODPS Console 中可以执行的命令都是 ODPS 可以接受的 SQL 语句。
     在调用非 DDL / DML 语句时，请使用其他方法，例如 GRANT / REVOKE 等语句请使用
-    ``run_security_query`` 方法，PAI 命令请使用 ``run_xflow`` 或 ``execute_xflow`` 方法。
+    :meth:`~odps.ODPS.run_security_query` 方法，PAI 命令请使用
+    :meth:`~odps.ODPS.run_xflow` 或 :meth:`~odps.ODPS.execute_xflow` 方法。
 
 .. _execute_sql:
 
 执行 SQL
 --------
 
-你可以使用 ``execute_sql`` 方法以同步方式执行 SQL。调用时，该方法会阻塞直至 SQL 执行完成，并返回一个
-Instance 实例。如果 SQL 执行报错，该方法会抛出以 ``odps.errors.ODPSError`` 为基类的错误。
+你可以使用 :meth:`~odps.ODPS.execute_sql` 方法以同步方式执行 SQL。调用时，该方法会阻塞直至 SQL 执行完成，并返回一个
+:class:`~odps.models.Instance` 实例。如果 SQL 执行报错，该方法会抛出以 ``odps.errors.ODPSError`` 为基类的错误。
 
 .. code-block:: python
 
    >>> o.execute_sql('select * from dual')  # 同步的方式执行，会阻塞直到SQL执行完成
 
 你也可以使用非阻塞方式异步执行 SQL。调用时，该方法在将 SQL 提交到 MaxCompute 后即返回 Instance
-实例。你需要使用 ``wait_for_success`` 方法等待该 SQL 执行完成。同样地，如果 instance 出现错误，
-``wait_for_success`` 会抛出以 ``odps.errors.ODPSError`` 为基类的错误。
+实例。你需要使用 :meth:`~odps.models.Instance.wait_for_success` 方法等待该 SQL 执行完成。\
+同样地，如果 instance 出现错误，:meth:`~odps.models.Instance.wait_for_success` 会抛出以
+``odps.errors.ODPSError`` 为基类的错误。
 
 .. code-block:: python
 
@@ -42,7 +45,7 @@ Instance 实例。如果 SQL 执行报错，该方法会抛出以 ``odps.errors.
 支持使用独立资源池对中小规模数据进行加速。PyODPS 从 0.11.4.1 开始支持以下列方式通过 MCQA 执行 SQL
 ，同时需要 MaxCompute 具备 MCQA 的支持。
 
-你可以使用 ``execute_sql_interactive`` 通过 MCQA 执行 SQL 并返回 MCQA Instance。如果
+你可以使用 :meth:`~odps.ODPS.execute_sql_interactive` 通过 MCQA 执行 SQL 并返回 MCQA Instance。如果
 MCQA 无法执行相应的 SQL ，会自动回退到传统模式。此时，函数返回的 Instance 为回退后的 Instance。
 
 .. code-block:: python
@@ -64,9 +67,9 @@ MCQA 无法执行相应的 SQL ，会自动回退到传统模式。此时，函�
 
     >>> o.execute_sql_interactive('select * from dual', fallback="noresource,unsupported")
 
-你也可以使用 ``run_sql_interactive`` 通过 MCQA 异步执行 SQL。类似 ``run_sql``，该方法会在提交任务后即返回
-MCQA Instance，你需要自行等待 Instance 完成。需要注意的是，该方法不会自动回退。当执行失败时，你需要自行重试或执行
-``execute_sql``。
+你也可以使用 :meth:`~odps.ODPS.run_sql_interactive` 通过 MCQA 异步执行 SQL。类似 :meth:`~odps.ODPS.run_sql`，\
+该方法会在提交任务后即返回 MCQA Instance，你需要自行等待 Instance 完成。需要注意的是，该方法不会自动回退。当执行失败时，\
+你需要自行重试或执行 :meth:`~odps.ODPS.execute_sql`。
 
 .. code-block:: python
 
@@ -115,8 +118,9 @@ MCQA Instance，你需要自行等待 Instance 完成。需要注意的是，该
 设置运行参数
 ------------
 
-有时，我们在运行时，需要设置运行时参数，我们可以通过设置 ``hints`` 参数，参数类型是 dict。该参数对 ``execute_sql`` /
-``execute_sql_interactive`` / ``run_sql`` / ``run_sql_interactive`` 均有效。
+有时，我们在运行时，需要设置运行时参数，我们可以通过设置 ``hints`` 参数，参数类型是 dict。该参数对
+:meth:`~odps.ODPS.execute_sql` / :meth:`~odps.ODPS.execute_sql_interactive` /
+:meth:`~odps.ODPS.run_sql` / :meth:`~odps.ODPS.run_sql_interactive` 均有效。
 
 .. code-block:: python
 
@@ -139,7 +143,7 @@ MCQA Instance，你需要自行等待 Instance 完成。需要注意的是，该
 读取 SQL 执行结果
 ---------------
 
-运行 SQL 的 instance 能够直接执行 ``open_reader`` 的操作，一种情况是SQL返回了结构化的数据。
+运行 SQL 的 instance 能够直接执行 :meth:`~odps.models.Instance.open_reader` 的操作，一种情况是SQL返回了结构化的数据。
 
 .. code-block:: python
 
@@ -210,18 +214,18 @@ PyODPS 检测到读取 Instance 数据被限制，且 ``options.tunnel.limit_ins
     从 2024 年年末开始，MaxCompute 服务将支持离线 SQL 任务 ``open_reader`` 使用与表类似的 Arrow
     接口，MCQA 作业暂不支持。在此之前，使用 ``Instance.open_reader(arrow=True)`` 读取数据将报错。
 
-从 PyODPS 0.12.0 开始，你也可以直接调用 Instance 上的 ``to_pandas`` 方法直接将数据转换为 pandas。\
-你可以指定转换为 pandas 的起始行号和行数，若不指定则读取所有数据。该方法也支持 ``limit`` 参数，具体定义\
-与 ``open_reader`` 方法相同。该方法默认会使用 Arrow 格式读取，并转换为 pandas。如果 Arrow 格式不被\
-支持，将会回退到 Record 接口。
+从 PyODPS 0.12.0 开始，你也可以直接调用 Instance 上的 :meth:`~odps.models.Instance.to_pandas`
+方法直接将数据转换为 pandas。你可以指定转换为 pandas 的起始行号和行数，若不指定则读取所有数据。该方法也支持
+``limit`` 参数，具体定义与 ``open_reader`` 方法相同。该方法默认会使用 Arrow 格式读取，并转换为
+pandas。如果 Arrow 格式不被支持，将会回退到 Record 接口。
 
 .. code-block:: python
 
   >>> inst = o.execute_sql('select * from dual')
   >>> pd_df = inst.to_pandas(start=10, count=20)
 
-与表类似，从 PyODPS 0.12.0 开始，你也可以使用 Instance 上的 ``iter_pandas`` 方法按多个批次读取
-pandas DataFrame，参数与 ``Table.iter_pandas`` 类似。
+与表类似，从 PyODPS 0.12.0 开始，你也可以使用 Instance 上的 :meth:`~odps.models.Instance.iter_pandas`
+方法按多个批次读取 pandas DataFrame，参数与 ``Table.iter_pandas`` 类似。
 
 .. code-block:: python
 

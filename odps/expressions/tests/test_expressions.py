@@ -84,7 +84,7 @@ def test_expression_parse():
       },
       {
         "functionCall": {
-          "name": "trunc_time",
+          "name": "TRUNC_time",
           "type": "string"
         }
       }

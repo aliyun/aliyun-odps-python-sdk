@@ -485,6 +485,9 @@ default_options.redirect_option("always_enable_schema", "enable_schema")
 default_options.register_option("table_auto_flush_time", 150, validator=is_integer)
 default_options.register_option("struct_as_dict", False, validator=is_bool)
 default_options.register_option(
+    "struct_as_ordered_dict", None, validator=any_validator(is_bool, is_null)
+)
+default_options.register_option(
     "map_as_ordered_dict", None, validator=any_validator(is_bool, is_null)
 )
 default_options.register_option(

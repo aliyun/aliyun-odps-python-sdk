@@ -7,5 +7,5 @@ oldest-supported-numpy; (python_version>'3.7' or platform_machine=='aarch64') an
 # with both numpy 1 and 2
 numpy>=2.0.0; python_version>='3.9'
 
-cython>=3.0
+cython>=3.0,<3.1
 requests>=2.4.0

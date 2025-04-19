@@ -371,13 +371,15 @@ def sample(expr, parts=None, columns=None, i=None, n=None, frac=None, replace=Fa
 
 class RowAppliedCollectionExpr(CollectionExpr):
     __slots__ = '_func', '_func_args', '_func_kwargs', '_close_func', \
-                '_resources', '_raw_inputs', '_lateral_view', '_keep_nulls'
+                '_resources', '_raw_inputs', '_lateral_view', '_keep_nulls', \
+                '_cu_request'
     _args = '_input', '_fields', '_collection_resources'
     node_name = 'Apply'
 
     def _init(self, *args, **kwargs):
         self._init_attr('_raw_inputs', None)
         self._init_attr('_lateral_view', False)
+        self._init_attr('_cu_request', None)
         super(RowAppliedCollectionExpr, self)._init(*args, **kwargs)
 
     @property
@@ -411,7 +413,7 @@ class RowAppliedCollectionExpr(CollectionExpr):
 
 
 def _apply_horizontal(expr, func, names=None, types=None, resources=None,
-                      collection_resources=None, keep_nulls=False,
+                      collection_resources=None, keep_nulls=False, cu_request=None,
                       args=(), **kwargs):
     if isinstance(func, FunctionWrapper):
         names = names or func.output_names
@@ -440,11 +442,12 @@ def _apply_horizontal(expr, func, names=None, types=None, resources=None,
                                     _func_kwargs=kwargs, _schema=schema,
                                     _fields=[expr[n] for n in expr.schema.names],
                                     _keep_nulls=keep_nulls, _resources=resources,
-                                    _collection_resources=collection_resources)
+                                    _collection_resources=collection_resources,
+                                    _cu_request=cu_request)
 
 
 def apply(expr, func, axis=0, names=None, types=None, reduce=False,
-          resources=None, keep_nulls=False, args=(), **kwargs):
+          resources=None, keep_nulls=False, cu_request=None, args=(), **kwargs):
     """
     Apply a function to a row when axis=1 or column when axis=0.
 
@@ -545,13 +548,13 @@ def apply(expr, func, axis=0, names=None, types=None, reduce=False,
             else:
                 inputs = [expr[n] for n in expr.schema.names]
             return MappedExpr(_func=func, _func_args=args, _func_kwargs=kwargs,
-                              _name=name, _data_type=tp,
-                              _inputs=inputs, _multiple=True,
-                              _resources=resources, _collection_resources=collection_resources)
+                              _name=name, _data_type=tp, _inputs=inputs, _multiple=True,
+                              _resources=resources, _cu_request=cu_request,
+                              _collection_resources=collection_resources)
         else:
             return _apply_horizontal(expr, func, names=names, types=types, resources=resources,
                                      collection_resources=collection_resources, keep_nulls=keep_nulls,
-                                     args=args, **kwargs)
+                                     cu_request=cu_request, args=args, **kwargs)
 
 
 class ReshuffledCollectionExpr(CollectionExpr):
@@ -610,8 +613,8 @@ def reshuffle(expr, by=None, sort=None, ascending=True):
 
 def map_reduce(expr, mapper=None, reducer=None, group=None, sort=None, ascending=True,
                combiner=None, combiner_buffer_size=1024,
-               mapper_output_names=None, mapper_output_types=None, mapper_resources=None,
-               reducer_output_names=None, reducer_output_types=None, reducer_resources=None):
+               mapper_output_names=None, mapper_output_types=None, mapper_resources=None, mapper_cu=None,
+               reducer_output_names=None, reducer_output_types=None, reducer_resources=None, reducer_cu=None):
     """
     MapReduce API, mapper or reducer should be provided.
 
@@ -882,7 +885,8 @@ def map_reduce(expr, mapper=None, reducer=None, group=None, sort=None, ascending
                                           group, sort, ascending, combiner_buffer_size,
                                           mapper_resources=mapper_resources)
         mapped = expr.apply(mapper, axis=1, names=mapper_output_names,
-                            types=mapper_output_types, resources=mapper_resources)
+                            types=mapper_output_types, resources=mapper_resources,
+                            cu_request=mapper_cu)
 
     clustered = mapped.groupby(group).sort(sort, ascending=ascending)
 
@@ -902,7 +906,8 @@ def map_reduce(expr, mapper=None, reducer=None, group=None, sort=None, ascending
 
     ActualReducer = _gen_actual_reducer(reducer, group)
     return clustered.apply(ActualReducer, resources=reducer_resources,
-                           names=reducer_output_names, types=reducer_output_types)
+                           names=reducer_output_names, types=reducer_output_types,
+                           cu_request=reducer_cu)
 
 
 class PivotCollectionExpr(DynamicCollectionExpr):

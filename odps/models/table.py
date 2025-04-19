@@ -462,8 +462,10 @@ class Table(LazyLoad):
         if self.type:
             buf.write("  type: {0}\n".format(self.type.value))
 
-        name_space = 2 * max(len(col.name) for col in self.table_schema.columns)
-        type_space = 2 * max(len(repr(col.type)) for col in self.table_schema.columns)
+        max_name_len = max(len(col.name) for col in self.table_schema.columns)
+        name_space = max_name_len + min(max_name_len, 16)
+        max_type_len = max(len(repr(col.type)) for col in self.table_schema.columns)
+        type_space = max_type_len + min(max_type_len, 16)
 
         not_empty = lambda field: field is not None and len(field.strip()) > 0
 
@@ -477,7 +479,7 @@ class Table(LazyLoad):
                     "# {0}".format(utils.to_str(col.comment))
                     if not_empty(col.comment)
                     else "",
-                )
+                ).strip()
             )
         buf.write(utils.indent("\n".join(cols_strs), 4))
         buf.write("\n")
@@ -494,7 +496,7 @@ class Table(LazyLoad):
                         "# {0}".format(utils.to_str(partition.comment))
                         if not_empty(partition.comment)
                         else "",
-                    )
+                    ).strip()
                 )
             buf.write(utils.indent("\n".join(partition_strs), 4))
 
@@ -1173,11 +1175,11 @@ class Table(LazyLoad):
             raise ValueError(
                 "You must specify a partition when calling to_pandas on a partitioned table"
             )
-        kwargs.pop("arrow", None)
+        arrow = kwargs.pop("arrow", True)
         with self.open_reader(
             partition=partition,
             columns=columns,
-            arrow=True,
+            arrow=arrow,
             quota_name=quota_name,
             append_partitions=append_partitions,
             tags=tags,

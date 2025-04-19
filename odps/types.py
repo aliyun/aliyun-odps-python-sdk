@@ -151,6 +151,24 @@ class Column(object):
             sio.write(u" COMMENT '%s'" % comment_str)
         return sio.getvalue()
 
+    def replace(
+        self,
+        name=None,
+        type=None,
+        comment=None,
+        label=None,
+        nullable=None,
+        generate_expression=None,
+    ):
+        return Column(
+            name=name or self.name,
+            typo=type or self.type,
+            comment=comment or self.comment,
+            label=label or self.label,
+            nullable=nullable or self.nullable,
+            generate_expression=generate_expression or self._generate_expression,
+        )
+
 
 class Partition(Column):
     """
@@ -400,7 +418,10 @@ class OdpsSchema(Schema):
         else:
             return self.columns[item]
 
-    def _repr(self):
+    def _repr(self, strip=True):
+        def _strip(line):
+            return line.rstrip() if strip else line
+
         buf = six.StringIO()
 
         name_dict = dict(
@@ -412,8 +433,10 @@ class OdpsSchema(Schema):
                 for k, v in six.iteritems(name_dict)
             ]
         )
-        name_space = 2 * max(six.itervalues(name_display_lens))
-        type_space = 2 * max(len(repr(col.type)) for col in self.columns)
+        max_name_len = max(six.itervalues(name_display_lens))
+        name_space = max_name_len + min(16, max_name_len)
+        max_type_len = max(len(repr(col.type)) for col in self.columns)
+        type_space = max_type_len + min(16, max_type_len)
         has_not_null = any(not col.nullable for col in self.columns)
 
         not_empty = lambda field: field is not None and len(field.strip()) > 0
@@ -423,16 +446,15 @@ class OdpsSchema(Schema):
         for col in self._columns:
             pad_spaces = name_space - name_display_lens[col.name]
             not_null = "not null" if not col.nullable else " " * 8
-            cols_strs.append(
-                "{0}{1}{2}{3}".format(
-                    utils.to_str(name_dict[col.name] + " " * pad_spaces),
-                    repr(col.type).ljust(type_space),
-                    not_null + " " * 4 if has_not_null else "",
-                    "# {0}".format(utils.to_str(col.comment))
-                    if not_empty(col.comment)
-                    else "",
-                )
+            row = "{0}{1}{2}{3}".format(
+                utils.to_str(name_dict[col.name] + " " * pad_spaces),
+                repr(col.type).ljust(type_space),
+                not_null + " " * 4 if has_not_null else "",
+                "# {0}".format(utils.to_str(col.comment))
+                if not_empty(col.comment)
+                else "",
             )
+            cols_strs.append(_strip(row))
         buf.write(utils.indent("\n".join(cols_strs), 2))
         buf.write("\n")
         buf.write("}\n")
@@ -442,15 +464,14 @@ class OdpsSchema(Schema):
 
             partition_strs = []
             for partition in self._partitions:
-                partition_strs.append(
-                    "{0}{1}{2}".format(
-                        utils.to_str(name_dict[partition.name].ljust(name_space)),
-                        repr(partition.type).ljust(type_space),
-                        "# {0}".format(utils.to_str(partition.comment))
-                        if not_empty(partition.comment)
-                        else "",
-                    )
+                row = "{0}{1}{2}".format(
+                    utils.to_str(name_dict[partition.name].ljust(name_space)),
+                    repr(partition.type).ljust(type_space),
+                    "# {0}".format(utils.to_str(partition.comment))
+                    if not_empty(partition.comment)
+                    else "",
                 )
+                partition_strs.append(_strip(row))
             buf.write(utils.indent("\n".join(partition_strs), 2))
             buf.write("\n")
             buf.write("}\n")
@@ -1768,13 +1789,17 @@ class Struct(CompositeDataType):
 
         self._struct_as_dict = options.struct_as_dict
         if self._struct_as_dict:
+            self._use_ordered_dict = options.struct_as_ordered_dict
+            if self._use_ordered_dict is None:
+                self._use_ordered_dict = sys.version_info[:2] <= (3, 6)
             warnings.warn(
                 "Representing struct values as dicts is now deprecated. Try config "
                 "`options.struct_as_dict=False` and return structs as named tuples "
                 "instead.",
                 DeprecationWarning,
             )
-            utils.add_survey_call("options.struct_as_dict")
+        else:
+            self._use_ordered_dict = False
 
     @property
     def name(self):
@@ -1835,11 +1860,12 @@ class Struct(CompositeDataType):
         if value is None and self.nullable:
             return value
         if self._struct_as_dict:
+            dict_hook = OrderedDict if self._use_ordered_dict else dict
             if isinstance(value, tuple):
                 fields = getattr(value, "_fields", None) or self.field_types.keys()
-                value = OrderedDict(compat.izip(fields, value))
+                value = dict_hook(compat.izip(fields, value))
             if isinstance(value, dict):
-                return OrderedDict(
+                return dict_hook(
                     (validate_value(k, string), validate_value(value[k], tp))
                     for k, tp in six.iteritems(self.field_types)
                 )

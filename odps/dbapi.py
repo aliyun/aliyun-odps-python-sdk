@@ -109,7 +109,7 @@ class Connection(object):
         try:
             if self._project_as_schema is None:
                 self._project_as_schema = not self._odps.is_schema_namespace_enabled()
-        except:
+        except:  # pragma: no cover
             pass
 
         self._session_name = PUBLIC_SESSION_NAME
@@ -466,7 +466,7 @@ class Cursor(object):
             res = self.fetchone()
             if res is not None:
                 yield res
-            else:
+            if res is None or self._download_session is None:
                 break
 
     def next(self):

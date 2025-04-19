@@ -13,33 +13,33 @@ Schema
 
 Schema 基本操作
 ----------------
-你可以使用 ``exist_schema`` 判断 Schema 对象是否存在：
+你可以使用 :meth:`~odps.ODPS.exist_schema` 判断 Schema 对象是否存在：
 
 .. code-block:: python
 
     print(o.exist_schema("test_schema"))
 
-使用 ``create_schema`` 创建一个 Schema 对象：
+使用 :meth:`~odps.ODPS.create_schema` 创建一个 Schema 对象：
 
 .. code-block:: python
 
     schema = o.create_schema("test_schema")
     print(schema)
 
-使用 ``delete_schema`` 删除一个 Schema 对象：
+使用 :meth:`~odps.ODPS.delete_schema` 删除一个 Schema 对象：
 
 .. code-block:: python
 
     schema = o.delete_schema("test_schema")
 
-使用 ``get_schema`` 获得一个 Schema 对象并打印 Schema Owner：
+使用 :meth:`~odps.ODPS.get_schema` 获得一个 Schema 对象并打印 Schema Owner：
 
 .. code-block:: python
 
     schema = o.get_schema("test_schema")
     print(schema.owner)
 
-使用 ``list_schema`` 列举所有 Schema 对象并打印名称：
+使用 :meth:`~odps.ODPS.list_schema` 列举所有 Schema 对象并打印名称：
 
 .. code-block:: python
 

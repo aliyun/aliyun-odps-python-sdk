@@ -1066,13 +1066,16 @@ def test_intervals(odps):
 
 @py_and_c_deco
 @odps2_typed_case
-@pytest.mark.parametrize("struct_as_dict", [False, True])
-def test_struct(odps, struct_as_dict):
+@pytest.mark.parametrize(
+    "struct_as_dict, use_ordered_dict", [(False, None), (True, False), (True, True)]
+)
+def test_struct(odps, struct_as_dict, use_ordered_dict):
     table_name = tn("test_hivetunnel_struct_io_" + get_test_unique_name(5))
     odps.delete_table(table_name, if_exists=True)
 
     try:
         options.struct_as_dict = struct_as_dict
+        options.struct_as_ordered_dict = use_ordered_dict
 
         col_def = (
             "col1 int, col2 struct<name:string,age:int,"
@@ -1089,8 +1092,9 @@ def test_struct(odps, struct_as_dict):
             [2, ("user3", 32, {"fa": 1, "mo": 3}, ["poetry", "calligraphy"])],
         ]
         if struct_as_dict:
+            dict_hook = OrderedDict if use_ordered_dict else dict
             for c in contents:
-                c[1] = OrderedDict(zip(struct_type.field_types.keys(), c[1]))
+                c[1] = dict_hook(zip(struct_type.field_types.keys(), c[1]))
         else:
             contents[-1][1] = struct_type.namedtuple_type(*contents[-1][1])
 
@@ -1102,6 +1106,7 @@ def test_struct(odps, struct_as_dict):
         table.drop(if_exists=True)
     finally:
         options.struct_as_dict = False
+        options.struct_as_ordered_dict = None
 
 
 @py_and_c_deco

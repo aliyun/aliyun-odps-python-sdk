@@ -8,14 +8,14 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2023-05-18 11:37+0800\n"
+"POT-Creation-Date: 2025-04-17 13:04+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.12.1\n"
+"Generated-By: Babel 2.16.0\n"
 
 #: ../../source/base-models.rst:4
 msgid "XFlow 和模型"
@@ -40,8 +40,8 @@ msgid ""
 msgstr ""
 
 #: ../../source/base-models.rst:15
-msgid "可以使用如下方法调用："
-msgstr "You can call ``run_xflow`` to execute it asynchronously:"
+msgid "可以使用 :meth:`~odps.ODPS.run_xflow` 提交任务："
+msgstr "You can call :meth:`~odps.ODPS.run_xflow` to execute it asynchronously:"
 
 #: ../../source/base-models.rst:17
 msgid ""
@@ -56,8 +56,8 @@ msgstr ""
 "'param_value2', ...})"
 
 #: ../../source/base-models.rst:23
-msgid "或者使用同步调用："
-msgstr "Or call ``execute_xflow`` to execute it synchronously:"
+msgid "或者使用 :meth:`~odps.ODPS.execute_xflow` 提交任务并等待执行完成："
+msgstr "Or call :meth:`~odps.ODPS.execute_xflow` to execute it synchronously:"
 
 #: ../../source/base-models.rst:25
 msgid ""
@@ -80,12 +80,13 @@ msgstr ""
 
 #: ../../source/base-models.rst:33
 msgid ""
-"这两个方法都会返回一个 Instance 对象。由于 XFlow 的一个 Instance 包含"
-"若干个子 Instance，需要使用下面的方法来获得每个 Instance 的 LogView："
+"这两个方法都会返回一个 :class:`~odps.models.Instance` 对象。由于 XFlow 的"
+"一个 Instance 包含若干个子 Instance，需要使用下面的方法来获得每个 "
+"Instance 的 LogView："
 msgstr ""
-"Both methods return an Instance object. An XFlow instance contains "
-"several sub-instances. You can obtain the LogView of each Instance by "
-"using the following method:"
+"Both methods return an :class:`~odps.models.Instance` object. An XFlow "
+"instance contains several sub-instances. You can obtain the LogView of "
+"each Instance by using the following method:"
 
 #: ../../source/base-models.rst:36
 #, python-format
@@ -97,25 +98,28 @@ msgstr ""
 
 #: ../../source/base-models.rst:41
 msgid ""
-"需要注意的是，``get_xflow_sub_instances`` 返回的是 Instance 当前的子 "
-"Instance，可能会随时间变化，因而可能需要定时查询。 为简化这一步骤，可以"
-"使用 ``iter_xflow_sub_instances 方法``。该方法返回一个迭代器，会阻塞执行"
-"直至发现新的子 Instance 或者主 Instance 结束。同时需要注意的是， ``iter_"
-"xflow_sub_instances`` 默认不会检查 Instance 是否报错，建议在循环结束时"
-"手动检查 Instance 是否报错，以免遗漏可能的问题，或者增加 ``check=True`` "
-"参数在 ``iter_xflow_sub_instances`` 退出时自动检查："
+"需要注意的是，:meth:`~odps.ODPS.get_xflow_sub_instances` 返回的是 "
+"Instance 当前的子 Instance，\\ 可能会随时间变化，因而可能需要定时查询。为"
+"简化这一步骤，可以使用 :meth:`~odps.ODPS.iter_xflow_sub_instances` 方法。"
+"该方法返回一个迭代器，会阻塞执行直至发现新的子 Instance 或者主 Instance "
+"结束。同时需要注意的是， :meth:`~odps.ODPS.iter_xflow_sub_instances` 默认"
+"不会检查 Instance 是否报错，建议在循环结束时手动检查 Instance 是否报错，"
+"以免遗漏可能的问题，或者增加 ``check=True`` 参数在 :meth:`~odps.ODPS.iter"
+"_xflow_sub_instances` 退出时自动检查："
 msgstr ""
-"Note that ``get_xflow_sub_instances`` returns the current sub-instances "
-"of an Instance object, which may change over time. Periodic queries may "
-"be required. To simplify this, you may use ``iter_xflow_sub_instances`` "
-"which returns a generator of sub-instances that will block current thread"
-" till a new instance starts or the main instance terminates. Also note "
-"that ``iter_xflow_sub_instances`` will not check if the instance succeeds"
-" by default. It is recommended to check whether the instance succeeds "
-"manually to avoid potential errors, or add a ``check=True`` parameter to "
-"let ``iter_xflow_sub_instances`` check automatically at exit."
+"Note that :meth:`~odps.ODPS.get_xflow_sub_instances` returns the current "
+"sub-instances of an Instance object, which may change over time. Periodic"
+" queries may be required. To simplify this, you may use "
+":meth:`~odps.ODPS.iter_xflow_sub_instances` which returns a generator of "
+"sub-instances that will block current thread till a new instance starts "
+"or the main instance terminates. Also note that "
+":meth:`~odps.ODPS.iter_xflow_sub_instances` will not check if the "
+"instance succeeds by default. It is recommended to check whether the "
+"instance succeeds manually to avoid potential errors, or add a "
+"``check=True`` parameter to let "
+":meth:`~odps.ODPS.iter_xflow_sub_instances` check automatically at exit."
 
-#: ../../source/base-models.rst:46
+#: ../../source/base-models.rst:48
 #, python-format
 msgid ""
 ">>> # 此处建议使用异步调用\n"
@@ -140,11 +144,11 @@ msgstr ""
 ">>> # check if instance succeeds in case of uncaught errors\n"
 ">>> instance.wait_for_success()"
 
-#: ../../source/base-models.rst:57
+#: ../../source/base-models.rst:59
 msgid "或者"
 msgstr "Or"
 
-#: ../../source/base-models.rst:59
+#: ../../source/base-models.rst:61
 #, python-format
 msgid ""
 ">>> # 此处建议使用异步调用\n"
@@ -166,7 +170,7 @@ msgstr ""
 ">>> for sub_inst_name, sub_inst in o.iter_xflow_sub_instances(inst):\n"
 ">>>     print('%s: %s' % (sub_inst_name, sub_inst.get_logview_address()))"
 
-#: ../../source/base-models.rst:68
+#: ../../source/base-models.rst:70
 msgid ""
 "在调用 run_xflow 或者 execute_xflow 时，也可以指定运行参数，指定的方法与 "
 "SQL 类似："
@@ -174,7 +178,7 @@ msgstr ""
 "You can specify runtime parameters when calling run_xflow or "
 "execute_xflow. This process is similar to executing SQL statements:"
 
-#: ../../source/base-models.rst:70
+#: ../../source/base-models.rst:72
 msgid ""
 ">>> parameters = {'param1': 'param_value1', 'param2': 'param_value2', "
 "...}\n"
@@ -182,23 +186,23 @@ msgid ""
 "hints={'odps.xxx.yyy': 10})"
 msgstr ""
 
-#: ../../source/base-models.rst:76
+#: ../../source/base-models.rst:78
 msgid "例如，如果需要任务运行到指定卡型的机器上，可以在 hints 中增加如下配置："
 msgstr ""
 "For instance, if you want to run your code in hosts with certain "
 "hardware, you can add a configuration in hints:"
 
-#: ../../source/base-models.rst:78
+#: ../../source/base-models.rst:80
 msgid ""
 ">>> hints={\"settings\": json.dumps({\"odps.algo.hybrid.deploy.info\": "
 "\"xxxxx\"})}"
 msgstr ""
 
-#: ../../source/base-models.rst:83
+#: ../../source/base-models.rst:85
 msgid "使用 options.ml.xflow_settings 可以配置全局设置："
 msgstr "You can use options.ml.xflow_settings to configure the global settings:"
 
-#: ../../source/base-models.rst:85
+#: ../../source/base-models.rst:87
 msgid ""
 ">>> from odps import options\n"
 ">>> options.ml.xflow_settings = {'odps.xxx.yyy': 10}\n"
@@ -207,7 +211,7 @@ msgid ""
 ">>> o.execute_xflow('AlgoName', 'algo_public', parameters=parameters)"
 msgstr ""
 
-#: ../../source/base-models.rst:92
+#: ../../source/base-models.rst:94
 msgid ""
 "PAI 命令的文档可以参考 `这份文档 <https://help.aliyun.com/document_detail"
 "/114368.html>`_ 里列出的各个\"组件参考\"章节。"
@@ -217,11 +221,11 @@ msgstr ""
 "machine-learning-platform-for-ai/latest/visualized-modeling-in-machine-"
 "learning-studio>`_ 。"
 
-#: ../../source/base-models.rst:95
+#: ../../source/base-models.rst:97
 msgid "离线模型"
 msgstr "Offline models"
 
-#: ../../source/base-models.rst:97
+#: ../../source/base-models.rst:99
 msgid ""
 "离线模型是 XFlow 分类 / 回归算法输出的模型。用户可以使用 PyODPS ML 或直接"
 "使用 odps.run_xflow 创建一个离线模型，例如下面使用 run_xflow 的例子："
@@ -230,7 +234,7 @@ msgstr ""
 "algorithms. You can directly call odps.run_xflow to create an offline "
 "model. For example:"
 
-#: ../../source/base-models.rst:100
+#: ../../source/base-models.rst:102
 msgid ""
 ">>> o.run_xflow('LogisticRegression', 'algo_public', "
 "dict(modelName='logistic_regression_model_name',\n"
@@ -240,33 +244,33 @@ msgid ""
 "inputTableName='bank_data'))"
 msgstr ""
 
-#: ../../source/base-models.rst:106
+#: ../../source/base-models.rst:108
 msgid "在模型创建后，用户可以列出当前 Project 下的模型："
 msgstr ""
 "After creating the models, you can list the models under the current "
 "project as follows:"
 
-#: ../../source/base-models.rst:108
+#: ../../source/base-models.rst:110
 msgid ">>> models = o.list_offline_models(prefix='prefix')"
 msgstr ""
 
-#: ../../source/base-models.rst:112
+#: ../../source/base-models.rst:114
 msgid "也可以通过模型名获取模型并读取模型 PMML（如果支持）："
 msgstr ""
 "You can also retrieve the models and read their PMML (if supported) by "
 "the model names:"
 
-#: ../../source/base-models.rst:114
+#: ../../source/base-models.rst:116
 msgid ""
 ">>> model = o.get_offline_model('logistic_regression_model_name')\n"
 ">>> pmml = model.get_model()"
 msgstr ""
 
-#: ../../source/base-models.rst:119
+#: ../../source/base-models.rst:121
 msgid "复制离线模型可以使用下列语句："
 msgstr "You can copy a model using the following statement:"
 
-#: ../../source/base-models.rst:121
+#: ../../source/base-models.rst:123
 msgid ""
 ">>> model = o.get_offline_model('logistic_regression_model_name')\n"
 ">>> # 复制到当前 project\n"
@@ -282,11 +286,11 @@ msgstr ""
 ">>> new_model2 = model.copy('logistic_regression_model_name_new2', "
 "project='new_project')"
 
-#: ../../source/base-models.rst:129
+#: ../../source/base-models.rst:131
 msgid "删除模型可使用下列语句："
 msgstr "You can delete a model using the following statement:"
 
-#: ../../source/base-models.rst:131
+#: ../../source/base-models.rst:133
 msgid ">>> o.delete_offline_model('logistic_regression_model_name')"
 msgstr ""
 

@@ -43,13 +43,13 @@ class ExprFunction(object):
                 ):
                     continue
                 cls_name = getattr(val, "_func_name", camel_to_underline(val.__name__))
-                _name_to_funcs[cls_name] = val
+                _name_to_funcs[cls_name.lower()] = val
         return _name_to_funcs
 
     @classmethod
     def get_cls(cls, func_name):
         try:
-            return ExprFunction._load_name_to_funcs()[func_name]
+            return ExprFunction._load_name_to_funcs()[func_name.lower()]
         except KeyError:
             six.raise_from(ValueError("%s function not found" % func_name), None)
 

@@ -10,7 +10,7 @@ requires = [
     # Force numpy higher than 2.0, so that built wheels are compatible
     # with both numpy 1 and 2
     "numpy>=2.0.0; python_version>='3.9'",
-    "cython>=3.0; platform_system!='Windows'",
+    "cython>=3.0,<3.1; platform_system!='Windows'",
 ]
 
 [tool.coverage.run]

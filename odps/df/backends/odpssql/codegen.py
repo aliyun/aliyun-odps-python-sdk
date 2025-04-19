@@ -600,7 +600,7 @@ class %(func_cls_name)s(BaseUDAF):
 
 
 def _gen_map_udf(node, func_cls_name, libraries, func, resources,
-                 func_to_udfs, func_to_resources, func_params):
+                 func_to_udfs, func_to_resources, func_to_cus, func_params):
     names_str = ''
     if isinstance(node, MappedExpr) and node._multiple and \
             all(f.name is not None for f in node.inputs):
@@ -652,10 +652,12 @@ def _gen_map_udf(node, func_cls_name, libraries, func, resources,
     }
     if resources:
         func_to_resources[func] = resources
+    if node._cu_request:
+        func_to_cus[func] = node._cu_request
 
 
 def _gen_apply_udf(node, func_cls_name, libraries, func, resources,
-                   func_to_udfs, func_to_resources, func_params):
+                   func_to_udfs, func_to_resources, func_to_cus, func_params):
     names_str = ','.join(f.name for f in node.fields)
     from_type = ','.join(df_type_to_odps_type(t).name.replace('`', '') for t in node.input_types)
     raw_from_type = ','.join(
@@ -697,10 +699,12 @@ def _gen_apply_udf(node, func_cls_name, libraries, func, resources,
     }
     if resources:
         func_to_resources[func] = resources
+    if node._cu_request:
+        func_to_cus[func] = node._cu_request
 
 
 def _gen_agg_udf(node, func_cls_name, libraries, func, resources,
-                 func_to_udfs, func_to_resources, func_params):
+                 func_to_udfs, func_to_resources, func_to_cus, func_params):
     from_type = ','.join(df_type_to_odps_type(t).name.replace('`', '') for t in node.input_types)
     raw_from_type = ','.join(
         df_type_to_odps_type(t).name.replace('`', '') for t in node.raw_input_types
@@ -739,11 +743,14 @@ def _gen_agg_udf(node, func_cls_name, libraries, func, resources,
     }
     if resources:
         func_to_resources[func] = resources
+    if node._cu_request:
+        func_to_cus[func] = node._cu_request
 
 
 def gen_udf(expr, func_cls_name=None, libraries=None):
     func_to_udfs = OrderedDict()
     func_to_resources = OrderedDict()
+    func_to_cus = OrderedDict()
     func_params = dict()
     if libraries is not None:
         def _get_library_name(res):
@@ -798,12 +805,12 @@ def gen_udf(expr, func_cls_name=None, libraries=None):
 
         if isinstance(node, MappedExpr):
             _gen_map_udf(node, func_cls_name, libraries, func, resources,
-                         func_to_udfs, func_to_resources, func_params)
+                         func_to_udfs, func_to_resources, func_to_cus, func_params)
         elif isinstance(node, RowAppliedCollectionExpr):
             _gen_apply_udf(node, func_cls_name, libraries, func, resources,
-                           func_to_udfs, func_to_resources, func_params)
+                           func_to_udfs, func_to_resources, func_to_cus, func_params)
         elif isinstance(node, (Aggregation, GroupedAggregation)):
             _gen_agg_udf(node, func_cls_name, libraries, func, resources,
-                         func_to_udfs, func_to_resources, func_params)
+                         func_to_udfs, func_to_resources, func_to_cus, func_params)
 
-    return func_to_udfs, func_to_resources
+    return func_to_udfs, func_to_resources, func_to_cus
