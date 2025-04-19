@@ -9,8 +9,9 @@ Task如SQLTask是ODPS的基本计算单元，当一个Task在执行时会被实�
 基本操作
 --------
 
-可以调用 ``list_instances`` 来获取项目空间下的所有instance， ``exist_instance`` 能判断是否存在某instance，
-``get_instance`` 能获取实例。
+可以调用 :meth:`~odps.ODPS.list_instances` 来获取项目空间下的所有 instance，\
+:meth:`~odps.ODPS.exist_instance` 能判断是否存在某instance，\
+:meth:`~odps.ODPS.get_instance` 能获取实例。
 
 .. code-block:: python
 
@@ -20,7 +21,8 @@ Task如SQLTask是ODPS的基本计算单元，当一个Task在执行时会被实�
    >>>     print("Instance <my_instance_id> exists!")
 
 
-停止一个instance可以在odps入口使用 ``stop_instance``，或者对 instance 对象调用 ``stop`` 方法：
+停止一个instance可以在odps入口使用 :meth:`~odps.ODPS.stop_instance`\ ，或者对 :class:`~odps.models.Instance`
+对象调用 :meth:`~odps.models.Instance.stop` 方法：
 
 .. code-block:: python
 
@@ -35,7 +37,7 @@ Task如SQLTask是ODPS的基本计算单元，当一个Task在执行时会被实�
 获取 LogView 地址
 ---------------
 
-对于 SQL 等任务，通过调用 ``get_logview_address`` 方法即可。
+对于 SQL 等任务，通过调用 :meth:`~odps.ODPS.get_logview_address` 方法即可。
 
 .. code-block:: python
 
@@ -58,9 +60,10 @@ Task如SQLTask是ODPS的基本计算单元，当一个Task在执行时会被实�
 任务实例状态
 -------------
 
-一个instance的状态可以是 ``Running``、``Suspended`` 或者 ``Terminated``，用户可以通过 ``status`` 属性来获取状态。
-``is_terminated`` 方法返回当前instance是否已经执行完成，``is_successful`` 方法返回当前instance是否正确完成执行，
-任务处于运行中或者执行失败都会返回False。
+一个instance的状态可以是 ``Running``、``Suspended`` 或者 ``Terminated``，用户可以通过
+:meth:`~odps.models.Instance.status` 属性来获取状态。:meth:`~odps.models.Instance.is_terminated`
+方法返回当前instance是否已经执行完成，:meth:`~odps.models.Instance.is_successful`
+方法返回当前instance是否正确完成执行，任务处于运行中或者执行失败都会返回False。
 
 .. code-block:: python
 
@@ -74,7 +77,8 @@ Task如SQLTask是ODPS的基本计算单元，当一个Task在执行时会被实�
    'Terminated'
 
 
-调用 ``wait_for_completion`` 方法会阻塞直到instance执行完成。 ``wait_for_success`` 方法同样会阻塞，不同的是，
+调用 :meth:`~odps.models.Instance.wait_for_completion` 方法会阻塞直到instance执行完成。\
+:meth:`~odps.models.Instance.wait_for_success` 方法同样会阻塞，不同的是，\
 如果最终任务执行失败，则会抛出相关异常。
 
 子任务操作
@@ -82,15 +86,15 @@ Task如SQLTask是ODPS的基本计算单元，当一个Task在执行时会被实�
 
 一个Instance真正运行时，可能包含一个或者多个子任务，我们称为Task，要注意这个Task不同于ODPS的计算单元。
 
-我们可以通过 ``get_task_names`` 来获取所有的Task任务，它返回一个所有子任务的名称列表。
+我们可以通过 :meth:`~odps.models.Instance.get_task_names` 来获取所有的Task任务，它返回一个所有子任务的名称列表。
 
 .. code-block:: python
 
    >>> instance.get_task_names()
    ['SQLDropTableTask']
 
-拿到Task的名称，我们就可以通过 ``get_task_result`` 来获取这个Task的执行结果。
-``get_task_results`` 以字典的形式返回每个Task的执行结果
+拿到Task的名称，我们就可以通过 :meth:`~odps.models.Instance.get_task_result` 来获取这个Task的执行结果。\
+:meth:`~odps.models.Instance.get_task_results` 以字典的形式返回每个Task的执行结果
 
 .. code-block:: python
 
@@ -103,7 +107,8 @@ Task如SQLTask是ODPS的基本计算单元，当一个Task在执行时会被实�
    OrderedDict([('AnonymousSQLTask',
               '"sepallength","sepalwidth","petallength","petalwidth","name"\n5.1,3.5,1.4,0.2,"Iris-setosa"\n')])
 
-有时候我们需要在任务实例运行时显示所有子任务的运行进程。使用 ``get_task_progress`` 能获得Task当前的运行进度。
+有时候我们需要在任务实例运行时显示所有子任务的运行进程。使用 :meth:`~odps.models.Instance.get_task_progress`
+能获得Task当前的运行进度。
 
 .. code-block:: python
 

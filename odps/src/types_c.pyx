@@ -425,6 +425,7 @@ cdef class StructValidator(TypeValidator):
     cdef list _validators, _type_list
     cdef object _field_types, _namedtuple_type
     cdef bint _struct_as_dict
+    cdef bint _use_ordered_dict
 
     def __init__(self, struct_type, bint nullable = True):
         cdef int idx
@@ -435,6 +436,7 @@ cdef class StructValidator(TypeValidator):
         self._field_types = struct_type.field_types
         self._namedtuple_type = struct_type.namedtuple_type
         self._struct_as_dict = struct_type._struct_as_dict
+        self._use_ordered_dict = struct_type._use_ordered_dict
 
         self._attr_to_validator = dict()
         self._validators = [None] * len(self._field_types)
@@ -477,33 +479,35 @@ cdef class StructValidator(TypeValidator):
     cdef object validate(self, object val, int64_t max_field_size):
         cdef list ret_list
         cdef int idx
+        cdef object dict_hook
         cdef object ret
 
         if self.nullable and val is None:
             return val
 
         if self._struct_as_dict:
+            dict_hook = OrderedDict if self._use_ordered_dict else dict
             if isinstance(val, tuple):
                 fields = getattr(val, "_fields", None) or self._field_types.keys()
-                val = OrderedDict(zip(fields, val))
+                val = dict_hook(zip(fields, val))
             if isinstance(val, dict):
-                ret = OrderedDict()
+                ret = dict_hook()
                 for k, v in val.items():
                     ret[k] = self._validate_by_key(k, v, max_field_size)
                 return ret
         else:
             if isinstance(val, tuple):
                 if type(val) is tuple:
-                    ret_list = [None] * len(<tuple>val)
+                    ret_list = [None] * len(self._type_list)
                     for idx, v in enumerate(<tuple>val):
                         ret_list[idx] = self._validate_by_index(idx, v, max_field_size)
                 else:
-                    ret_list = [None] * len(val)
+                    ret_list = [None] * len(self._type_list)
                     for idx, v in enumerate(val):
                         ret_list[idx] = self._validate_by_index(idx, v, max_field_size)
                 return self._namedtuple_type(*tuple(ret_list))
             elif isinstance(val, dict):
-                ret_list = [None] * len(val)
+                ret_list = [None] * len(self._type_list)
                 for idx, k in enumerate(self._field_types.keys()):
                     ret_list[idx] = self._validate_by_key(k, val.get(k), max_field_size)
                 return self._namedtuple_type(*tuple(ret_list))

@@ -16,6 +16,7 @@
 
 import functools
 import itertools
+import json
 import math
 import os
 import re
@@ -29,6 +30,7 @@ from datetime import datetime, timedelta
 from functools import partial
 from random import randint
 
+import mock
 import pytest
 
 from ..... import options, types
@@ -2546,6 +2548,8 @@ def test_map_reduce_by_apply_distribute_sort(odps, setup):
 
 
 def test_map_reduce(odps, setup):
+    from .....core import ODPS
+
     data = [
         ['name key', 4, 5.3, None, None, None],
         ['name', 2, 3.5, None, None, None],
@@ -2571,9 +2575,19 @@ def test_map_reduce(odps, setup):
 
         return h
 
-    expr = setup.expr['name', ].map_reduce(functools.partial(mapper, mul=2), reducer, group='word')
+    old_run_sql = ODPS.run_sql
 
-    res = setup.engine.execute(expr)
+    def new_run_sql(self, *args, **kwargs):
+        cu_hints = json.loads(kwargs['hints']['odps.sql.udf.cu'])
+        assert list(cu_hints.values()) == [2]
+        return old_run_sql(self, *args, **kwargs)
+
+    expr = setup.expr['name', ].map_reduce(
+        functools.partial(mapper, mul=2), reducer, group='word', reducer_cu=2
+    )
+
+    with mock.patch("odps.core.ODPS.run_sql", new=new_run_sql):
+        res = setup.engine.execute(expr)
     result = get_result(res)
 
     expected = [['key', 6], ['name', 8]]

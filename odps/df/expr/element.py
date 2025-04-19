@@ -95,13 +95,14 @@ class ElementOp(ElementWise):
 
 class MappedExpr(ElementWise):
     _slots = '_func', '_func_args', '_func_kwargs', '_resources', \
-             '_multiple', '_raw_inputs'
+             '_multiple', '_raw_inputs', '_cu_request'
     _args = '_inputs', '_collection_resources'
     node_name = 'Map'
 
     def _init(self, *args, **kwargs):
         self._init_attr('_multiple', False)
         self._init_attr('_raw_inputs', None)
+        self._init_attr('_cu_request', None)
         super(MappedExpr, self)._init(*args, **kwargs)
 
     @property
@@ -390,7 +391,7 @@ class FuncFactory(object):
         return gen_func
 
 
-def _map(expr, func, rtype=None, resources=None, args=(), **kwargs):
+def _map(expr, func, rtype=None, resources=None, cu_request=None, args=(), **kwargs):
     """
     Call func on each element of this sequence.
 
@@ -437,11 +438,13 @@ def _map(expr, func, rtype=None, resources=None, args=(), **kwargs):
     if is_seq:
         return MappedExpr(_data_type=output_type, _func=func, _inputs=[expr, ],
                           _func_args=args, _func_kwargs=kwargs, _name=name,
-                          _resources=resources, _collection_resources=collection_resources)
+                          _cu_request=cu_request, _resources=resources,
+                          _collection_resources=collection_resources)
     else:
         return MappedExpr(_value_type=output_type, _func=func, _inputs=[expr, ],
                           _func_args=args, _func_kwargs=kwargs, _name=name,
-                          _resources=resources, _collection_resources=collection_resources)
+                          _cu_request=cu_request, _resources=resources,
+                          _collection_resources=collection_resources)
 
 
 def _hash(expr, func=None):

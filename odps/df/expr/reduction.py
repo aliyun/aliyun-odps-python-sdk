@@ -329,11 +329,12 @@ class GroupedToList(GroupedSequenceReduction):
 
 class Aggregation(SequenceReduction):
     __slots__ = '_aggregator', '_func_args', '_func_kwargs', '_resources', '_raw_inputs'
-    _args = '_inputs', '_collection_resources', '_by'
+    _args = '_inputs', '_collection_resources', '_by', '_cu_request'
     node_name = 'Aggregation'
 
     def _init(self, *args, **kwargs):
         self._init_attr('_raw_inputs', None)
+        self._init_attr('_cu_request', None)
         super(Aggregation, self)._init(*args, **kwargs)
 
     @property
@@ -375,11 +376,12 @@ class Aggregation(SequenceReduction):
 
 class GroupedAggregation(GroupedSequenceReduction):
     __slots__ = '_aggregator', '_func_args', '_func_kwargs', '_resources', '_raw_inputs'
-    _args = '_inputs', '_collection_resources', '_by'
+    _args = '_inputs', '_collection_resources', '_by', '_cu_request'
     node_name = 'Aggregation'
 
     def _init(self, *args, **kwargs):
         self._init_attr('_raw_inputs', None)
+        self._init_attr('_cu_request', None)
         super(GroupedAggregation, self)._init(*args, **kwargs)
 
     @property
@@ -726,7 +728,8 @@ def kurtosis(expr):
     return _reduction(expr, Kurtosis, output_type)
 
 
-def aggregate(exprs, aggregator, rtype=None, resources=None, unique=False, args=(), **kwargs):
+def aggregate(exprs, aggregator, rtype=None, resources=None, unique=False,
+              cu_request=None, args=(), **kwargs):
     name = None
     if isinstance(aggregator, FunctionWrapper):
         if aggregator.output_names:
@@ -764,7 +767,8 @@ def aggregate(exprs, aggregator, rtype=None, resources=None, unique=False, args=
         inputs = [expr.to_column() for expr in exprs]
         return GroupedAggregation(_inputs=inputs, _aggregator=aggregator,
                                   _data_type=output_type, _name=name,
-                                  _func_args=args, _func_kwargs=kwargs, _resources=resources,
+                                  _func_args=args, _func_kwargs=kwargs,
+                                  _cu_request=cu_request, _resources=resources,
                                   _collection_resources=collection_resources,
                                   _grouped=exprs[0].input)
     else:
@@ -775,8 +779,10 @@ def aggregate(exprs, aggregator, rtype=None, resources=None, unique=False, args=
                 exprs = [unique_input]
         return Aggregation(_inputs=exprs, _aggregator=aggregator,
                            _value_type=output_type, _name=name,
-                           _func_args=args, _func_kwargs=kwargs, _resources=resources,
-                           _collection_resources=collection_resources, _unique=unique)
+                           _func_args=args, _func_kwargs=kwargs,
+                           _cu_request=cu_request, _resources=resources,
+                           _collection_resources=collection_resources,
+                           _unique=unique)
 
 
 def agg(*args, **kwargs):

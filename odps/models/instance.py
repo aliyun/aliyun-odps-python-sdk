@@ -1294,7 +1294,7 @@ class Instance(LazyLoad):
                 if not kwargs.get("limit"):
                     warnings.warn(
                         "Instance tunnel not supported, will fallback to "
-                        "conventional ways. 10000 records will be limited. "
+                        "restricted approach. 10000 records will be limited. "
                         + _RESULT_LIMIT_HELPER_MSG
                     )
             except requests.Timeout:
@@ -1304,7 +1304,7 @@ class Instance(LazyLoad):
                     raise
                 if not kwargs.get("limit"):
                     warnings.warn(
-                        "Instance tunnel timed out, will fallback to conventional ways. "
+                        "Instance tunnel timed out, will fallback to restricted approach. "
                         "10000 records will be limited. You may try merging small files "
                         "on your source table. " + _RESULT_LIMIT_HELPER_MSG
                     )
@@ -1316,13 +1316,16 @@ class Instance(LazyLoad):
                 # InternalServerError when creating download sessions.
                 if not auto_fallback_result:
                     raise
-            except errors.NoPermission:
-                # project is protected
+            except errors.NoPermission as exc:
+                # project is protected or data permission is configured
                 if not auto_fallback_protection:
                     raise
                 if not kwargs.get("limit"):
                     warnings.warn(
-                        "Project under protection, 10000 records will be limited."
+                        "Project or data under protection, 10000 records will be limited. "
+                        "Raw error message:\n"
+                        + str(exc)
+                        + "\n"
                         + _RESULT_LIMIT_HELPER_MSG
                     )
                     kwargs["limit"] = True

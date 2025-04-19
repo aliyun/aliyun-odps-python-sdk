@@ -822,32 +822,37 @@ class TableIOMethods(object):
     def _resolve_schema(
         cls,
         records_list=None,
-        schema=None,
+        data_schema=None,
         unknown_as_string=False,
         partition=None,
         partition_cols=None,
+        type_mapping=None,
     ):
         from ..df.backends.odpssql.types import df_schema_to_odps_schema
         from ..df.backends.pd.types import pd_to_df_schema
         from ..tunnel.io.types import arrow_schema_to_odps_schema
 
+        type_mapping = type_mapping or {}
+        type_mapping = {
+            k: odps_types.validate_data_type(v) for k, v in type_mapping.items()
+        }
         if records_list is not None:
             if cls._is_pa_collection(records_list):
-                schema = arrow_schema_to_odps_schema(records_list.schema)
+                data_schema = arrow_schema_to_odps_schema(records_list.schema)
             elif cls._is_pd_df(records_list):
-                schema = df_schema_to_odps_schema(
+                data_schema = df_schema_to_odps_schema(
                     pd_to_df_schema(records_list, unknown_as_string=unknown_as_string)
                 )
             elif isinstance(records_list, list) and odps_types.is_record(
                 records_list[0]
             ):
-                schema = odps_types.OdpsSchema(records_list[0]._columns)
+                data_schema = odps_types.OdpsSchema(records_list[0]._columns)
             else:
                 raise TypeError(
                     "Inferring schema from provided data not implemented. "
                     "You need to supply a pandas DataFrame or records."
                 )
-        assert schema is not None
+        assert data_schema is not None
 
         part_col_names = partition_cols or []
         if partition is not None:
@@ -855,12 +860,35 @@ class TableIOMethods(object):
             part_col_names.extend(k for k in part_spec.keys())
         if part_col_names:
             part_col_set = set(part_col_names)
-            simple_cols = [c for c in schema.columns if c.name not in part_col_set]
+            simple_cols = [c for c in data_schema.columns if c.name not in part_col_set]
             part_cols = [
                 odps_types.Column(n, odps_types.string) for n in part_col_names
             ]
-            schema = odps_types.OdpsSchema(simple_cols, part_cols)
-        return schema
+            data_schema = odps_types.OdpsSchema(simple_cols, part_cols)
+
+        if not type_mapping:
+            return data_schema
+
+        simple_cols, part_cols = [], []
+        unmapped_cols = set(type_mapping.keys())
+        for col in data_schema.columns:
+            if col.name not in type_mapping:
+                simple_cols.append(col)
+            else:
+                unmapped_cols.remove(col.name)
+                simple_cols.append(col.replace(type=type_mapping[col.name]))
+        for col in getattr(data_schema, "partitions", None) or ():
+            if col.name not in type_mapping:
+                part_cols.append(col)
+            else:
+                unmapped_cols.remove(col.name)
+                part_cols.append(col.replace(type=type_mapping[col.name]))
+
+        for col_name in unmapped_cols:
+            simple_cols.append(
+                odps_types.Column(name=col_name, type=type_mapping[col_name])
+            )
+        return odps_types.OdpsSchema(simple_cols, part_cols or None)
 
     @classmethod
     def _calc_schema_diff(cls, src_schema, dest_schema, partition_cols=None):
@@ -883,11 +911,15 @@ class TableIOMethods(object):
         cls, table_name, table_schema, partition_cols=None, partition=None
     ):
         partition_cols = partition_cols or []
-        part_col_set = set(n.lower() for n in partition_cols)
+        no_eval_set = set(n.lower() for n in partition_cols)
+        if partition:
+            no_eval_set.update(
+                c.lower() for c in odps_types.PartitionSpec(partition).keys()
+            )
         expr_cols = [
             c.name.lower()
             for c in table_schema.partitions
-            if c.generate_expression and c not in part_col_set
+            if c.generate_expression and c.name.lower() not in no_eval_set
         ]
         partition_cols += expr_cols
         if not partition_cols and not partition:
@@ -994,6 +1026,8 @@ class TableIOMethods(object):
                 data = [data]
                 wrapped = True
             for rec in data:
+                if not odps_types.is_record(rec):
+                    continue
                 for c in col_to_expr:
                     if rec[c] is not None:
                         continue
@@ -1006,13 +1040,19 @@ class TableIOMethods(object):
     ):
         from . import Record
 
-        def _fill_cols(data):
-            if not col_to_expr:
-                return data
-            return cls._fill_missing_expressions(data, col_to_expr)
-
         table_schema = table.table_schema
         col_to_expr = cls._get_ordered_col_expressions(table, partition)
+
+        def _fill_cols(data):
+            if col_to_expr:
+                data = cls._fill_missing_expressions(data, col_to_expr)
+            if not pd or not isinstance(data, pd.DataFrame):
+                return data
+            data.columns = [col.lower() for col in data.columns]
+            tb_col_names = [c.name.lower() for c in table_schema.simple_columns]
+            tb_col_set = set(tb_col_names)
+            extra_cols = [col for col in data.columns if col not in tb_col_set]
+            return data.reindex(tb_col_names + extra_cols, axis=1)
 
         if not partition_cols:
             is_arrow = cls._is_pa_collection(block_data) or cls._is_pd_df(block_data)
@@ -1078,13 +1118,14 @@ class TableIOMethods(object):
             if cls._is_pd_df(data):
                 data = _fill_cols(data)
                 part_set = set(partition_cols)
-                col_names = [c.name for c in input_cols if c.name not in part_set]
                 for name, group in data.groupby(partition_cols):
                     name = name if isinstance(name, tuple) else (name,)
                     pt_name = ",".join(
                         "=".join([str(n), str(v)]) for n, v in zip(partition_cols, name)
                     )
-                    parted_data[(True, pt_name)].append(group[col_names])
+                    parted_data[(True, pt_name)].append(
+                        group.drop(part_set, axis=1, errors="ignore")
+                    )
             elif odps_types.is_record(data):
                 data = _fill_cols(data)
                 pt_name = ",".join(
@@ -1105,7 +1146,7 @@ class TableIOMethods(object):
     @classmethod
     def write_table(cls, odps, name, *block_data, **kw):
         """
-        Write records into given table.
+        Write records or pandas DataFrame into given table.
 
         :param name: table or table name
         :type name: :class:`.models.table.Table` or str
@@ -1119,7 +1160,10 @@ class TableIOMethods(object):
             table. False by default.
         :param bool overwrite: if True, will overwrite existing data
         :param bool create_table: if true, the table will be created if not exist
-        :param dict table_kwargs: specify other kwargs for :method:~odps.core.ODPS.create_table
+        :param dict table_kwargs: specify other kwargs for :meth:`~odps.ODPS.create_table`
+        :param dict type_mapping: specify type mapping for columns when creating tables,
+            can be dicts like ``{"column": "bigint"}``. If column does not exist in data,
+            it will be added as an empty column.
         :param table_schema_callback: a function to accept table schema resolved from data
             and return a new schema for table to create. Only works when target table does
             not exist and ``create_table`` is True.
@@ -1146,7 +1190,7 @@ class TableIOMethods(object):
 
         >>> odps.write_table('test_table', data, partition='pt=test')
 
-        Write a pandas DataFrame.
+        Write a pandas DataFrame. Create the table if it does not exist.
 
         >>> import pandas as pd
         >>> df = pd.DataFrame([
@@ -1156,6 +1200,20 @@ class TableIOMethods(object):
         >>>     [444, '中文', False]
         >>> ], columns=['num_col', 'str_col', 'bool_col'])
         >>> o.write_table('test_table', df, partition='pt=test', create_table=True, create_partition=True)
+
+        Passing more arguments when creating table.
+
+        >>> import pandas as pd
+        >>> df = pd.DataFrame([
+        >>>     [111, 'aaa', True],
+        >>>     [222, 'bbb', False],
+        >>>     [333, 'ccc', True],
+        >>>     [444, '中文', False]
+        >>> ], columns=['num_col', 'str_col', 'bool_col'])
+        >>> # this dict will be passed to `create_table` as kwargs.
+        >>> table_kwargs = {"transactional": True, "primary_key": "num_col"}
+        >>> o.write_table('test_table', df, partition='pt=test', create_table=True, create_partition=True,
+        >>>               table_kwargs=table_kwargs)
 
         Write with dynamic partitioning.
 
@@ -1167,6 +1225,13 @@ class TableIOMethods(object):
         >>>     [444, '中文', False, 'p2']
         >>> ], columns=['num_col', 'str_col', 'bool_col', 'pt'])
         >>> o.write_table('test_part_table', df, partition_cols=['pt'], create_partition=True)
+
+        :Note:
+
+        ``write_table`` treats object type of Pandas data as strings as it is often hard to determine their
+        types when creating a new table for your data. To make sure the column type meet your need, you can
+        specify `type_mapping` argument to specify the column types, for instance,
+        ``type_mapping={"col1": "array<struct<id:string>>"}``.
 
         .. seealso:: :class:`odps.models.Record`
         """
@@ -1199,6 +1264,7 @@ class TableIOMethods(object):
         partition = kw.pop("partition", None)
         partition_cols = kw.pop("partition_cols", None) or kw.pop("partitions", None)
         lifecycle = kw.pop("lifecycle", None)
+        type_mapping = kw.pop("type_mapping", None)
         table_schema_callback = kw.pop("table_schema_callback", None)
         table_kwargs = dict(kw.pop("table_kwargs", None) or {})
         if lifecycle:
@@ -1218,6 +1284,7 @@ class TableIOMethods(object):
                 unknown_as_string=unknown_as_string,
                 partition=partition,
                 partition_cols=partition_cols,
+                type_mapping=type_mapping,
             )
         except TypeError:
             table_schema = None
@@ -1323,6 +1390,7 @@ class TableIOMethods(object):
         project=None,
         schema=None,
         lifecycle=None,
+        type_mapping=None,
         table_schema_callback=None,
         table_kwargs=None,
         hints=None,
@@ -1352,10 +1420,13 @@ class TableIOMethods(object):
         :param str project: project name, if not provided, will be the default project
         :param str schema: schema name, if not provided, will be the default schema
         :param int lifecycle: specify table lifecycle when creating tables
+        :param dict type_mapping: specify type mapping for columns when creating tables,
+            can be dicts like ``{"column": "bigint"}``. If column does not exist in data,
+            it will be added as an empty column.
         :param table_schema_callback: a function to accept table schema resolved from data
             and return a new schema for table to create. Only works when target table does
             not exist and ``create_table`` is True.
-        :param dict table_kwargs: specify other kwargs for :method:~odps.core.ODPS.create_table
+        :param dict table_kwargs: specify other kwargs for :meth:`~odps.ODPS.create_table`
         :param dict hints: specify hints for SQL statements, will be passed through
             to execute_sql method
         :param dict running_cluster: specify running cluster for SQL statements, will
@@ -1443,9 +1514,10 @@ class TableIOMethods(object):
                 odps.execute_sql(sql_stmt, **sql_kwargs)
                 tmp_schema = odps.get_table(temp_table_name).table_schema
                 out_table_schema = cls._resolve_schema(
-                    schema=tmp_schema,
+                    data_schema=tmp_schema,
                     partition=partition,
                     partition_cols=partition_cols,
+                    type_mapping=type_mapping,
                 )
                 if table_schema_callback:
                     out_table_schema = table_schema_callback(out_table_schema)

@@ -8,8 +8,9 @@ ODPS用户可以编写自定义 `函数 <https://help.aliyun.com/document_detail
 基本操作
 ---------
 
-可以调用 ODPS 入口对象的 ``list_functions`` 来获取项目空间下的所有函数，``exist_function`` 能判断是否存在函数，
-``get_function`` 获取函数对象。
+可以调用 ODPS 入口对象的 :meth:`~odps.ODPS.list_functions` 来获取项目空间下的所有函数，
+:meth:`~odps.ODPS.exist_function` 能判断是否存在函数，\ :meth:`~odps.ODPS.get_function`
+获取函数对象。
 
 创建函数
 ---------

@@ -618,8 +618,8 @@ class MLSchema(TableSchema):
         else:
             return self.MLAttrCollection()
 
-    def _repr(self):
-        original_repr = super(MLSchema, self)._repr()
+    def _repr(self, strip=True):
+        original_repr = super(MLSchema, self)._repr(strip=False)
         sio = six.StringIO()
         ml_attrs = self.ml_attr
         for line in original_repr.splitlines():

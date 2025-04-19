@@ -13,7 +13,7 @@
     本文档中的代码对 PyODPS 0.11.3 及后续版本有效。对早于 0.11.3 版本的 PyODPS，请使用 ``odps.models.Schema`` 代替
     ``odps.models.TableSchema``，使用 ``schema`` 属性代替 ``table_schema`` 属性。
 
-我们可以用 ODPS 入口对象的 ``list_tables`` 来列出项目空间下的所有表。
+我们可以用 ODPS 入口对象的 :meth:`~odps.ODPS.list_tables` 来列出项目空间下的所有表。
 
 .. code-block:: python
 
@@ -29,7 +29,7 @@
 
 通过该方法获取的 Table 对象不会自动加载表名以外的属性，此时获取这些属性（例如 ``table_schema`` 或者
 ``creation_time``）可能导致额外的请求并造成额外的时间开销。如果需要在列举表的同时读取这些属性，在
-PyODPS 0.11.5 及后续版本中，可以为 ``list_tables`` 添加 ``extended=True`` 参数：
+PyODPS 0.11.5 及后续版本中，可以为 :meth:`~odps.ODPS.list_tables` 添加 ``extended=True`` 参数：
 
 .. code-block:: python
 
@@ -45,13 +45,13 @@ PyODPS 0.11.5 及后续版本中，可以为 ``list_tables`` 添加 ``extended=T
    virtual_views = list(o.list_tables(type="virtual_view"))  # 列举视图
    materialized_views = list(o.list_tables(type="materialized_view"))  # 列举物化视图
 
-通过调用 ``exist_table`` 来判断表是否存在。
+通过调用 :meth:`~odps.ODPS.exist_table` 来判断表是否存在。
 
 .. code-block:: python
 
    o.exist_table('dual')
 
-通过调用 ``get_table`` 来获取表。
+通过调用 :meth:`~odps.ODPS.get_table` 来获取表。
 
 .. code-block:: python
 
@@ -105,7 +105,7 @@ PyODPS 0.11.5 及后续版本中，可以为 ``list_tables`` 添加 ``extended=T
 创建表
 --------
 
-可以使用:ref:`表 schema <table_schema>` 来创建表，方法如下：
+你可以使用\ :ref:`表 schema <table_schema>` 通过 :meth:`~odps.ODPS.create_table` 方法来创建表，方法如下：
 
 .. code-block:: python
 
@@ -138,11 +138,19 @@ PyODPS 0.11.5 及后续版本中，可以为 ``list_tables`` 添加 ``extended=T
    >>> options.sql.use_odps2_extension = True
    >>> table = o.create_table('my_new_table', 'cat smallint, content struct<title:varchar(100), body string>')
 
+:meth:`~odps.ODPS.create_table` 方法也提供了其他参数，可用于设置表属性及事务性等参数。例如，下面的调用创建了一张
+ACID 2.0 表并指定 ``key`` 为主键。
+
+.. code-block:: python
+
+   >>> table = o.create_table('my_trans_table', 'key string, value string',
+   >>>                        primary_key=['key'], transactional=True)
+
 
 同步表更新
 -------------
 
-有时候，一个表可能被别的程序做了更新，比如schema有了变化。此时可以调用 ``reload`` 方法来更新。
+有时候，一个表可能被别的程序做了更新，比如schema有了变化。此时可以调用 :meth:`~odps.models.Table.reload` 方法来更新。
 
 .. code-block:: python
 
@@ -156,7 +164,7 @@ PyODPS 0.11.5 及后续版本中，可以为 ``list_tables`` 添加 ``extended=T
 获取表数据
 ~~~~~~~~~~~
 
-有若干种方法能够获取表数据。首先，如果只是查看每个表的开始的小于1万条数据，则可以使用 ``head`` 方法。
+有若干种方法能够获取表数据。首先，如果只是查看每个表的开始的小于1万条数据，则可以使用 :meth:`~odps.models.Table.head` 方法。
 
 .. code-block:: python
 
@@ -167,8 +175,8 @@ PyODPS 0.11.5 及后续版本中，可以为 ``list_tables`` 添加 ``extended=T
 
 .. _table_open_reader:
 
-其次，在 table 实例上可以执行 ``open_reader`` 操作来打一个 reader 来读取数据。如果表为分区表，需要引入
-``partition`` 参数指定需要读取的分区。
+其次，在 table 实例上可以执行 :meth:`~odps.models.Table.open_reader` 操作来打一个 reader
+来读取数据。如果表为分区表，需要引入 ``partition`` 参数指定需要读取的分区。
 
 使用 with 表达式的写法，with 表达式会保证离开时关闭 reader：
 
@@ -189,7 +197,7 @@ PyODPS 0.11.5 及后续版本中，可以为 ``list_tables`` 添加 ``extended=T
    >>>     # 处理一条记录
    >>> reader.close()
 
-更简单的调用方法是使用 ODPS 对象的 ``read_table`` 方法，例如
+更简单的调用方法是使用 ODPS 对象的 :meth:`~odps.ODPS.read_table` 方法，例如
 
 .. code-block:: python
 
@@ -271,8 +279,8 @@ DataFrame，并通过 ``batch_size`` 参数指定每次读取的 DataFrame 批�
 向表写数据
 ~~~~~~~~~~
 
-类似于 ``open_reader``，table对象同样能执行 ``open_writer`` 来打开writer，并写数据。如果表为分区表，需要引入
-``partition`` 参数指定需要写入的分区。
+类似于 :meth:`~odps.models.Table.open_reader`，table对象同样能执行 :meth:`~odps.models.Table.open_writer`
+来打开writer，并写数据。如果表为分区表，需要引入 ``partition`` 参数指定需要写入的分区。
 
 使用 with 表达式的写法，with 表达式会保证离开时关闭 writer 并提交所有数据：
 
@@ -304,7 +312,7 @@ DataFrame，并通过 ``batch_size`` 参数指定每次读取的 DataFrame 批�
    >>>                [444, '中文', False]]
    >>>     writer.write(records)  # 这里records可以是可迭代对象
 
-更简单的写数据方法是使用 ODPS 对象的 write_table 方法，例如
+更简单的写数据方法是使用 ODPS 对象的 :meth:`~odps.ODPS.write_table` 方法，例如
 
 .. code-block:: python
 
@@ -504,7 +512,7 @@ PyODPS提供了 :ref:`DataFrame框架 <df>` ，支持更方便地方式来查询
    >>> if table.table_schema.partitions:
    >>>     print('Table %s is partitioned.' % table.name)
 
-判断分区是否存在（该方法需要填写所有分区字段值）：
+使用 :meth:`~odps.models.Table.exist_partition` 方法判断分区是否存在（该方法需要填写所有分区字段值）：
 
 .. code:: python
 
@@ -517,7 +525,7 @@ PyODPS提供了 :ref:`DataFrame框架 <df>` ，支持更方便地方式来查询
    >>> # 表 table 的分区字段依次为 pt, sub
    >>> table.exist_partitions('pt=test')
 
-获取一个分区的相关信息：
+使用 :meth:`~odps.models.Table.get_partition` 方法获取一个分区的相关信息：
 
 .. code:: python
 
@@ -530,17 +538,17 @@ PyODPS提供了 :ref:`DataFrame框架 <df>` ，支持更方便地方式来查询
 .. note::
 
     这里的"分区"指的不是分区字段而是所有分区字段均确定的分区定义对应的子表。如果某个分区字段对应多个值，
-    则相应地有多个子表，即多个分区。而 ``get_partition`` 只能获取一个分区的信息。因而，
+    则相应地有多个子表，即多个分区。而 :meth:`~odps.models.Table.get_partition` 只能获取一个分区的信息。因而，
 
     #. 如果某些分区未指定，那么这个分区定义可能对应多个子表，``get_partition`` 时则不被 PyODPS 支持。\
-       此时，需要使用 ``iterate_partitions`` 分别处理每个分区。
+       此时，需要使用 :meth:`~odps.models.Table.iterate_partitions` 分别处理每个分区。
     #. 如果某个分区字段被定义多次，或者使用类似 ``pt>20210302`` 这样的非确定逻辑表达式，则无法使用
        ``get_partition`` 获取分区。在此情况下，可以尝试使用 ``iterate_partitions`` 枚举每个分区。
 
 创建分区
 ~~~~~~~~
 
-下面的操作将创建一个分区，如果分区存在将报错：
+下面的操作使用 :meth:`~odps.models.Table.create_partition` 方法创建一个分区，如果分区存在将报错：
 
 .. code:: python
 
@@ -563,7 +571,7 @@ PyODPS提供了 :ref:`DataFrame框架 <df>` ，支持更方便地方式来查询
    >>> for partition in table.partitions:
    >>>     print(partition.name)
 
-如果要遍历部分分区值确定的分区，可以使用 ``iterate_partitions`` 方法。
+如果要遍历部分分区值确定的分区，可以使用 :meth:`~odps.models.Table.iterate_partitions` 方法。
 
 .. code:: python
 
@@ -588,7 +596,7 @@ PyODPS提供了 :ref:`DataFrame框架 <df>` ，支持更方便地方式来查询
 删除分区
 ~~~~~~~~~
 
-下面的操作将删除一个分区：
+下面的操作使用 :meth:`~odps.models.Table.delete_partition` 方法删除一个分区：
 
 .. code:: python
 
@@ -649,12 +657,12 @@ ODPS Tunnel 是 MaxCompute 的数据通道，用户可以通过 Tunnel 向 MaxCo
 ~~~~~~
 分块上传接口
 ^^^^^^^^^^^^^
-直接使用 Tunnel 分块接口上传时，需要首先通过 ``create_upload_session`` 方法使用表名和分区创建
-Upload Session，此后从 Upload Session 创建 Writer。每个 Upload Session 可多次调用
-``open_record_writer`` 方法创建多个 Writer，每个 Writer 拥有一个 ``block_id``
-对应一个数据块。写入的数据类型为 :ref:`Record <record-type>` 类型。完成所有写入后，需要调用
-Upload Session 上的 ``commit`` 方法并指定需要提交的数据块列表。如果有某个 ``block_id``
-有数据写入但未包括在 ``commit`` 的参数中，则该数据块不会出现在最终的表中。
+直接使用 Tunnel 分块接口上传时，需要首先通过 :meth:`~odps.tunnel.TableTunnel.create_upload_session`
+方法使用表名和分区创建 Upload Session，此后从 Upload Session 创建 Writer。每个 Upload Session 可多次调用
+:meth:`~odps.tunnel.TableUploadSession.open_record_writer` 方法创建多个 Writer，每个 Writer 拥有一个
+``block_id`` 对应一个数据块。写入的数据类型为 :ref:`Record <record-type>` 类型。完成所有写入后，需要调用
+Upload Session 上的 :meth:`~odps.tunnel.TableUploadSession.commit` 方法并指定需要提交的数据块列表。\
+如果有某个 ``block_id`` 有数据写入但未包括在 ``commit`` 的参数中，则该数据块不会出现在最终的表中。
 
 对于需要写入数据的情形，\ ``commit`` 调用有且只能有一次，完成 ``commit`` 后 Upload Session
 即完成写入，此后无法再在该 Upload Session 上提交。
@@ -733,7 +741,8 @@ Upload Session 上的 ``commit`` 方法并指定需要提交的数据块列表�
 Writer 并按需写入数据。如果你只希望在单个 Writer 上通过 Tunnel 写入数据，可以考虑在调用 ``open_record_writer``
 时不指定 block id，此时创建的 Writer 在写入数据时将首先将数据缓存在本地，当 Writer 关闭或者缓存数据大于\
 一定大小（默认为 20MB，可通过 ``options.tunnel.block_buffer_size`` 指定）时才会写入数据。写入数据后，\
-需要先通过 Writer 上的 ``get_blocks_written`` 方法获得已经写入的 block 列表，再进行提交。
+需要先通过 Writer 上的 :meth:`~odps.tunnel.BufferedRecordWriter.get_blocks_written`
+方法获得已经写入的 block 列表，再进行提交。
 
 .. code-block:: python
 
@@ -764,8 +773,9 @@ Writer 并按需写入数据。如果你只希望在单个 Writer 上通过 Tunn
     使用带缓存的 Writer 时，需要注意不能在同一 Upload Session 上开启多个带缓存 Writer 进行写入，\
     否则可能导致冲突而使数据丢失。
 
-如果你需要使用 Arrow 格式而不是 Record 格式进行上传，可以将 ``open_record_writer`` 替换为
-``open_arrow_writer``，并写入 Arrow RecordBatch / Arrow Table 或者 pandas DataFrame。
+如果你需要使用 Arrow 格式而不是 Record 格式进行上传，可以将 :meth:`~odps.tunnel.TableUploadSession.open_record_writer`
+替换为 :meth:`~odps.tunnel.TableUploadSession.open_arrow_writer`，并写入 Arrow RecordBatch
+/ Arrow Table 或者 pandas DataFrame。
 
 .. code-block:: python
 
@@ -792,8 +802,8 @@ Writer 并按需写入数据。如果你只希望在单个 Writer 上通过 Tunn
 流式上传接口
 ^^^^^^^^^^^^^
 MaxCompute 提供了\ `流式上传接口 <https://help.aliyun.com/zh/maxcompute/user-guide/overview-of-streaming-data-channels>`_\
-用于简化分布式服务开发成本。可以使用 ``create_stream_upload_session`` 方法创建专门的 Upload Session。\
-此时，不需要为该 Session 的 ``open_record_writer`` 提供 block id。
+用于简化分布式服务开发成本。可以使用 :meth:`~odps.tunnel.TableTunnel.create_stream_upload_session`
+方法创建专门的 Upload Session。此时，不需要为该 Session 的 ``open_record_writer`` 提供 block id。
 
 .. code-block:: python
 
@@ -817,9 +827,9 @@ MaxCompute 提供了\ `流式上传接口 <https://help.aliyun.com/zh/maxcompute
 ~~~~~~
 
 直接使用 Tunnel 接口下载数据时，需要首先使用表名和分区创建 Download Session，此后从 Download Session
-创建 Reader。每个 Download Session 可多次调用 ``open_record_reader`` 方法创建多个 Reader，每个
-Reader 需要指定起始行号以及需要的行数。起始行号从 0 开始，行数可指定为 Session 的 ``count`` 属性，\
-为表或分区的总行数。读取的数据类型为 :ref:`Record <record-type>` 类型。
+创建 Reader。每个 Download Session 可多次调用 :meth:`~odps.tunnel.TableDownloadSession.open_record_reader`
+方法创建多个 Reader，每个 Reader 需要指定起始行号以及需要的行数。起始行号从 0 开始，行数可指定为 Session
+的 ``count`` 属性，为表或分区的总行数。读取的数据类型为 :ref:`Record <record-type>` 类型。
 
 .. code-block:: python
 
@@ -835,7 +845,8 @@ Reader 需要指定起始行号以及需要的行数。起始行号从 0 开始�
            # 处理每条记录
 
 如果你需要在多个进程乃至节点中使用相同的 Download Session，可以先创建 Download Session，并获取其 ``id``
-属性。此后在其他进程中调用 ``create_download_session`` 方法时，将该值作为 ``download_id`` 参数。
+属性。此后在其他进程中调用 :meth:`~odps.tunnel.TableTunnel.create_download_session` 方法时，将该值作为
+``download_id`` 参数。
 
 .. code-block:: python
 
@@ -866,7 +877,8 @@ Reader 需要指定起始行号以及需要的行数。起始行号从 0 开始�
        for record in reader:
            # 处理记录
 
-你也可以通过使用 ``open_arrow_reader`` 而不是 ``open_record_reader`` 使读取的数据为 Arrow
+你也可以通过使用 :meth:`~odps.tunnel.TableDownloadSession.open_arrow_reader` 而不是
+:meth:`~odps.tunnel.TableDownloadSession.open_record_reader` 使读取的数据为 Arrow
 格式而不是 Record 格式。
 
 .. code-block:: python

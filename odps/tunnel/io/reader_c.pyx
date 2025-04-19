@@ -605,10 +605,7 @@ cdef class MapFieldReader(AbstractFieldReader):
         self._values_reader = ArrayFieldReader(
             record_reader, types.Array(data_type.value_type)
         )
-        if options.map_as_ordered_dict is None:
-            self._use_ordered_dict = sys.version_info[:2] <= (3, 6)
-        else:
-            self._use_ordered_dict = options.map_as_ordered_dict
+        self._use_ordered_dict = data_type._use_ordered_dict
 
     cdef _read_raw(self):
         cdef list keys, values
@@ -625,6 +622,7 @@ cdef class StructFieldReader(AbstractFieldReader):
 
     cdef:
         bint _struct_as_dict
+        bint _use_ordered_dict
         list _field_readers
         list _field_keys
         list _field_types
@@ -636,7 +634,8 @@ cdef class StructFieldReader(AbstractFieldReader):
         cdef int idx, field_count
         super(StructFieldReader, self).__init__(record_reader)
 
-        self._struct_as_dict = options.struct_as_dict
+        self._struct_as_dict = data_type._struct_as_dict
+        self._use_ordered_dict = data_type._use_ordered_dict
         self._nt_type = data_type.namedtuple_type
 
         field_count = len(data_type.field_types)
@@ -652,11 +651,12 @@ cdef class StructFieldReader(AbstractFieldReader):
         cdef:
             list res_list = [None] * len(self._field_types)
             int idx
+        dict_hook = OrderedDict if self._use_ordered_dict else dict
         for idx, field_type in enumerate(self._field_types):
             if not self._record_reader._reader.read_bool():
                 res_list[idx] = (<AbstractFieldReader>self._field_readers[idx])._read_raw()
         if self._struct_as_dict:
-            return OrderedDict(zip(self._field_keys, res_list))
+            return dict_hook(zip(self._field_keys, res_list))
         else:
             return self._nt_type(*res_list)
 

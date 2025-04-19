@@ -16,7 +16,7 @@ import json
 from collections import OrderedDict
 
 from ... import serializers
-from ...compat import enum
+from ...compat import enum, six
 from ...config import options
 from .core import Task
 
@@ -63,5 +63,14 @@ class MaxFrameTask(Task):
         if "settings" in self.properties:
             settings.update(json.loads(self.properties["settings"]))
 
-        self.properties["settings"] = json.dumps(settings)
+        final_settings = OrderedDict()
+        for k, v in settings.items():
+            if isinstance(v, six.string_types):
+                final_settings[k] = v
+            elif isinstance(v, bool):
+                final_settings[k] = str(v).lower()
+            else:
+                final_settings[k] = str(v)
+
+        self.properties["settings"] = json.dumps(final_settings)
         return super(MaxFrameTask, self).serial()

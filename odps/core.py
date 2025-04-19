@@ -711,6 +711,7 @@ class ODPS(object):
         transactional=False,
         primary_key=None,
         storage_tier=None,
+        table_properties=None,
         async_=False,
         **kw
     ):
@@ -731,6 +732,7 @@ class ODPS(object):
         :param bool transactional: make table transactional
         :param list primary_key: primary key of the table, only for transactional tables
         :param str storage_tier: storage tier of the table
+        :param dict table_properties: properties for table creation
         :param bool async_: if True, will run asynchronously
         :return: the created Table if not async else odps instance
         :rtype: :class:`odps.models.Table` or :class:`odps.models.Instance`
@@ -777,6 +779,7 @@ class ODPS(object):
             transactional=transactional,
             primary_key=primary_key,
             storage_tier=storage_tier,
+            table_properties=table_properties,
             async_=async_,
             **kw
         )
@@ -2044,7 +2047,7 @@ class ODPS(object):
         :param interval: time interval to check
         :param project: project name, if not provided, will be the default project
         :param bool check: check if the instance is successful
-        :return: sub instances dictionary
+        :return: generator of sub-instances
         """
         project = self.get_project(name=project)
         return project.xflows.iter_xflow_sub_instances(

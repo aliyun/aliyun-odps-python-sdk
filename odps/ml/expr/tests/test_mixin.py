@@ -133,7 +133,7 @@ def test_collection_operations(utils):
     assert id_appended._params['IDColName'] == 'append_id'
 
 
-def test_d_types(utils):
+def test_ml_dtypes(utils):
     rstrip_lines = lambda s: '\n'.join(l.rstrip() for l in s.splitlines())
     old_dtypes_repr = rstrip_lines(textwrap.dedent("""
     odps.Schema {

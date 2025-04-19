@@ -8,14 +8,14 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.11.3\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2024-08-29 18:44+0800\n"
+"POT-Creation-Date: 2025-04-17 11:44+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.12.1\n"
+"Generated-By: Babel 2.16.0\n"
 
 #: ../../source/base-schemas.rst:4
 msgid "Schema"
@@ -47,18 +47,18 @@ msgid "Schema 基本操作"
 msgstr "Basic operations"
 
 #: ../../source/base-schemas.rst:16
-msgid "你可以使用 ``exist_schema`` 判断 Schema 对象是否存在："
+msgid "你可以使用 :meth:`~odps.ODPS.exist_schema` 判断 Schema 对象是否存在："
 msgstr ""
-"You may use ``exist_schema`` to check if the schema with specific name "
-"exists."
+"You may use :meth:`~odps.ODPS.exist_schema` to check if the schema with "
+"specific name exists."
 
 #: ../../source/base-schemas.rst:18
 msgid "print(o.exist_schema(\"test_schema\"))"
 msgstr ""
 
 #: ../../source/base-schemas.rst:22
-msgid "使用 ``create_schema`` 创建一个 Schema 对象："
-msgstr "Use ``create_schema`` to create a schema object."
+msgid "使用 :meth:`~odps.ODPS.create_schema` 创建一个 Schema 对象："
+msgstr "Use :meth:`~odps.ODPS.create_schema` to create a schema object."
 
 #: ../../source/base-schemas.rst:24
 msgid ""
@@ -67,16 +67,20 @@ msgid ""
 msgstr ""
 
 #: ../../source/base-schemas.rst:29
-msgid "使用 ``delete_schema`` 删除一个 Schema 对象："
-msgstr "Use ``delete_schema`` to delete a schema object."
+msgid "使用 :meth:`~odps.ODPS.delete_schema` 删除一个 Schema 对象："
+msgstr "Use :meth:`~odps.ODPS.delete_schema` to delete a schema object."
 
 #: ../../source/base-schemas.rst:31
 msgid "schema = o.delete_schema(\"test_schema\")"
 msgstr ""
 
 #: ../../source/base-schemas.rst:35
-msgid "使用 ``get_schema`` 获得一个 Schema 对象并打印 Schema Owner："
-msgstr "Use ``get_schema`` to obtain a schema object and print its owner."
+msgid ""
+"使用 :meth:`~odps.ODPS.get_schema` 获得一个 Schema 对象并打印 Schema "
+"Owner："
+msgstr ""
+"Use :meth:`~odps.ODPS.get_schema` to obtain a schema object and print its"
+" owner."
 
 #: ../../source/base-schemas.rst:37
 msgid ""
@@ -85,10 +89,10 @@ msgid ""
 msgstr ""
 
 #: ../../source/base-schemas.rst:42
-msgid "使用 ``list_schema`` 列举所有 Schema 对象并打印名称："
+msgid "使用 :meth:`~odps.ODPS.list_schema` 列举所有 Schema 对象并打印名称："
 msgstr ""
-"Use ``list_schema`` to list all schemas in s project and print their "
-"names."
+"Use :meth:`~odps.ODPS.list_schema` to list all schemas in s project and "
+"print their names."
 
 #: ../../source/base-schemas.rst:44
 msgid ""

@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import sys
 from collections import OrderedDict
 from datetime import datetime as _datetime, date as _date
 from decimal import Decimal as _Decimal
@@ -239,6 +240,12 @@ class Struct(_Struct):
             "StructNamedTuple", list(self.field_types.keys())
         )
         self._struct_as_dict = options.struct_as_dict
+        if self._struct_as_dict:
+            self._use_ordered_dict = options.struct_as_ordered_dict
+            if self._use_ordered_dict is None:
+                self._use_ordered_dict = sys.version_info[:2] <= (3, 6)
+        else:
+            self._use_ordered_dict = False
 
     def _equals(self, other):
         if isinstance(other, six.string_types):

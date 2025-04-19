@@ -10,8 +10,8 @@
 基本操作
 -------
 
-列出所有资源还是可以使用 ``list_resources``，判断资源是否存在使用 ``exist_resource``。
-删除资源时，可以调用 ``delete_resource``，或者直接对于Resource对象调用 ``drop`` 方法。
+列出所有资源还是可以使用 :meth:`~odps.ODPS.list_resources`，判断资源是否存在使用 :meth:`~odps.ODPS.exist_resource`。\
+删除资源时，可以调用 :meth:`~odps.ODPS.delete_resource`，或者直接对于Resource对象调用 :meth:`~odps.models.Resource.drop` 方法。
 
 例如，要列举 Project 下的所有资源，可以使用下面的方法：
 
@@ -33,8 +33,8 @@
 
     o.exist_resource("resource_name.tar.gz")
 
-删除给定资源，可以使用 ODPS 入口对象的 ``delete_resource`` 方法，也可以使用 ``Resource``
-对象自己的 ``drop`` 方法。
+删除给定资源，可以使用 ODPS 入口对象的 :meth:`~odps.models.Resource.delete_resource` 方法，也可以使用
+:class:`~odps.models.Resource` 对象自己的 :meth:`~odps.models.Resource.drop` 方法。
 
 .. code-block:: python
 
@@ -109,7 +109,7 @@
 同时，PyODPS中，文件资源支持以二进制模式打开，打开如说一些压缩文件等等就需要以这种模式，
 因此 ``rb`` 就是指以二进制读模式打开文件，``r+b`` 是指以二进制读写模式打开。
 
-对于较大的文件资源，可以使用流式方式读写文件，使用方法为在调用 ``open_resource`` 时增加一个
+对于较大的文件资源，可以使用流式方式读写文件，使用方法为在调用 :meth:`~odps.ODPS.open_resource` 时增加一个
 ``stream=True`` 选项：
 
 .. code-block:: python

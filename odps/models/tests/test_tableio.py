@@ -26,6 +26,10 @@ try:
     import pyarrow as pa
 except (AttributeError, ImportError):
     np = pd = pa = None
+try:
+    from packaging.version import Version
+except ImportError:
+    from distutils.version import LooseVersion as Version
 
 import mock
 import pytest
@@ -820,6 +824,57 @@ def test_write_pandas_with_dynamic_parts(odps, use_arrow):
 @pyarrow_case
 @pandas_case
 @odps2_typed_case
+def test_write_pandas_with_complex_type_and_mapping(odps):
+    if Version(pa.__version__) < Version("1.0.0"):
+        pytest.skip("casting nested type is not supported in arrow < 1.0.0")
+    test_table_name = tn("pyodps_t_tmp_write_pd_complex_type")
+    odps.delete_table(test_table_name, if_exists=True)
+
+    table = odps.create_table(
+        test_table_name,
+        "idx string, list_data array<bigint>, "
+        "list_struct_data array<struct<name:string, val: bigint>>",
+        table_properties={"columnar.nested.type": "true"},
+        lifecycle=1,
+    )
+
+    data = pd.DataFrame(
+        [
+            ["05ac09c4", [134, 256], [None, {"name": "col1", "val": 134}]],
+            ["cfae9054", [5431], [{"name": "col2", "val": 2345}]],
+            [
+                "6029501d",
+                [145, None, 561],
+                [{"name": "ddd", "val": 2341}, {"name": None, "val": None}],
+            ],
+            ["c653e520", [7412, 234], [None, {"name": "uvw", "val": None}]],
+            ["59caed0d", [295, 1674], None],
+        ],
+        columns=["idx", "list_data", "list_struct_data"],
+    )
+    try:
+        type_mapping = {
+            "list_data": "array<bigint>",
+            "list_struct_data": "array<struct<name:string, val: bigint>>",
+        }
+        odps.write_table(
+            test_table_name,
+            data,
+            type_mapping=type_mapping,
+            create_table=True,
+            lifecycle=1,
+        )
+        pd.testing.assert_frame_equal(
+            data.sort_values("idx").reset_index(drop=True),
+            table.to_pandas().sort_values("idx").reset_index(drop=True),
+        )
+    finally:
+        table.drop()
+
+
+@pyarrow_case
+@pandas_case
+@odps2_typed_case
 def test_write_pandas_with_decimal(odps):
     test_table_name = tn("pyodps_t_tmp_write_pandas_decimal")
     odps.delete_table(test_table_name, if_exists=True)
@@ -936,6 +991,38 @@ def test_write_table_with_schema_evolution(odps):
         create_partition=True,
     )
     assert "c" in odps.get_table(test_table_name).table_schema
+    with dest_table.open_reader("pt=part1,pt2=part2", reopen=True) as reader:
+        assert reader.count == 1
+
+
+@pandas_case
+def test_write_table_with_overwrite(odps):
+    test_table_name = tn("pyodps_t_tmp_write_table_with_overwrite")
+    odps.delete_table(test_table_name, if_exists=True)
+    dest_table = odps.create_table(
+        test_table_name,
+        ("a string, b bigint", "pt string, pt2 string"),
+        lifecycle=1,
+    )
+    df = pd.DataFrame(
+        [["abcd", 12345, "part1", "part2"]], columns=["a", "b", "pt", "pt2"]
+    )
+    odps.write_table(
+        test_table_name,
+        df,
+        partition_cols=["pt", "pt2"],
+        create_partition=True,
+    )
+    with dest_table.open_reader("pt=part1,pt2=part2", reopen=True) as reader:
+        assert reader.count == 1
+
+    odps.write_table(
+        test_table_name,
+        df,
+        partition_cols=["pt", "pt2"],
+        create_partition=True,
+        overwrite=True,
+    )
     with dest_table.open_reader("pt=part1,pt2=part2", reopen=True) as reader:
         assert reader.count == 1
 
@@ -1058,19 +1145,27 @@ def test_write_table_with_generate_cols_and_parts(odps_daily):
     # fixme remove this when table_properties is ready on server response
     tb.table_properties = {"ingestion_time_partition": "true"}
 
+    # test writing dataframe
     df = pd.DataFrame([["r1"], ["r2"], ["r3"], ["r4"], ["r5"]], columns=["a"])
     odps.write_table(tb, df, create_partition=True)
     assert tb.exist_partition(pt_spec)
 
-    tb.delete_partition(pt_spec)
+    # test writing with specified partition (and ignore existing)
+    tb.delete_partition(pt_spec, if_exists=True)
+    odps.write_table(tb, df, create_partition=True, partition="pt=2025-04-05")
+    assert not tb.exist_partition(pt_spec)
+    assert tb.exist_partition("pt=2025-04-05")
+    tb.delete_partition("pt=2025-04-05")
 
+    # test writing arrow data
+    tb.delete_partition(pt_spec, if_exists=True)
     s_col = pa.array(["r%s" % (1 + idx) for idx in range(5)])
     pa_batch = pa.RecordBatch.from_arrays([s_col], ["a"])
     odps.write_table(tb, pa_batch, create_partition=True)
     assert tb.exist_partition(pt_spec)
 
-    tb.delete_partition(pt_spec)
-
+    # test writing plain arrays
+    tb.delete_partition(pt_spec, if_exists=True)
     recs = [["s1"], ["s2"], ["s3"], ["s4"], ["s5"]]
     odps.write_table(tb, recs, create_partition=True)
     assert tb.exist_partition(pt_spec)

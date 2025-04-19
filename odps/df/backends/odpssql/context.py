@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import itertools
+import json
 import os
 import tarfile
 import uuid
@@ -54,6 +55,7 @@ class ODPSContext(object):
         self._registered_funcs = OrderedDict()
         self._func_to_functions = OrderedDict()
         self._func_to_resources = OrderedDict()
+        self._func_to_cus = OrderedDict()
 
         self._indent_size = indent_size
         self._mapjoin_hints = []
@@ -114,17 +116,30 @@ class ODPSContext(object):
         return '%s_%s_%s' % (TEMP_TABLE_PREFIX, int(time.time()),
                              str(uuid.uuid4()).replace('-', '_'))
 
-    def register_udfs(self, func_to_udfs, func_to_resources):
+    def register_udfs(self, func_to_udfs, func_to_resources, func_to_cus):
         self._func_to_udfs = func_to_udfs
         for func in func_to_udfs.keys():
             self._registered_funcs[func] = self._gen_udf_name(func)
         self._func_to_resources = func_to_resources
+        self._func_to_cus = func_to_cus
 
     def get_udf(self, func):
         return self._registered_funcs[func]
 
     def get_udf_count(self):
         return len(self._registered_funcs)
+
+    def get_udf_sql_hints(self):
+        cu_dict = OrderedDict()
+        for func, name in self._registered_funcs.items():
+            if func in self._func_to_cus:
+                prefix = self._odps.project + "."
+                if self._default_schema:
+                    prefix += self._default_schema + "."
+                cu_dict[prefix + name] = self._func_to_cus[func]
+        if not cu_dict:
+            return {}
+        return {"odps.sql.udf.cu": json.dumps(cu_dict)}
 
     def prepare_resources(self, libraries):
         from ....models import Resource

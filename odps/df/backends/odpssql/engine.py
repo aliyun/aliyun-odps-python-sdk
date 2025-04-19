@@ -147,6 +147,7 @@ class ODPSSQLEngine(Engine):
         image = image or options.df.image
         if image:
             hints['odps.session.image'] = image
+        hints.update(self._ctx.get_udf_sql_hints())
 
         instance = self._odps.run_sql(sql, hints=hints, priority=priority, name='PyODPSDataFrameTask',
                                       running_cluster=running_cluster, default_schema=schema)
