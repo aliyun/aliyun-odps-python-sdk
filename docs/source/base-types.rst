@@ -23,7 +23,7 @@ PyODPS 对 MaxCompute 中的类型支持实现于 ``odps.types`` 包中。所有
 通过字符串指定类型实例
 ~~~~~~~~~~~~~~~~~~~~~~
 
-通常情况下，在 PyODPS 中，你都可以直接用 MaxCompute DDL 中表示类型的字符串来表示类型，这避免了\
+通常情况下，在 PyODPS 中，你都可以直接用 MaxCompute DDL 中表示类型的字符串来表示类型，这可以避免\
 了解类型的实现细节。例如，当我们创建一个列实例，可以直接传入 ``array<int>`` 代表一个32位整数数组，\
 而不需要关心使用哪个类去实现：
 
@@ -37,7 +37,7 @@ PyODPS 对 MaxCompute 中的类型支持实现于 ``odps.types`` 包中。所有
     >>> print(type(column.type.value_type))
     <class 'odps.types.Int'>
 
-如果需要，你可以使用 :class:`odps.types.validate_data_type` 函数获取字符串表示的 MaxCompute 类型实例。
+如果需要，你可以使用 :func:`~odps.types.validate_data_type` 函数获取字符串表示的 MaxCompute 类型实例。
 
 .. code-block:: python
 
@@ -194,7 +194,8 @@ MaxCompute 支持的复合类型有 Array、Map 和 Struct，可通过构造函�
      pt      string      # the partition
    }
 
-第二种方法是使用 ``TableSchema.from_lists`` 方法。这种方法更容易调用，但无法直接设置列和分区的注释。
+第二种方法是使用 :meth:`TableSchema.from_lists() <odps.models.TableSchema.from_lists>`
+方法。这种方法更容易调用，但无法直接设置列和分区的注释。
 
 .. code-block:: python
 
@@ -213,9 +214,10 @@ MaxCompute 支持的复合类型有 Array、Map 和 Struct，可通过构造函�
      pt      string
    }
 
-你可以从 ``TableSchema`` 实例中获取表的一般字段和分区字段。\ ``simple_columns`` 和 ``partitions``
-属性分别指代一般列和分区列，而 ``columns`` 属性则指代所有字段。这三个属性的返回值均为 :class:`~odps.types.Column`
-或 :class:`~odps.types.Partition` 类型组成的列表。你也可以通过 ``names`` 和 ``types`` 属性分别获取非分区字段的名称和类型。
+你可以从 :class:`~odps.models.TableSchema` 实例中获取表的一般字段和分区字段。\ :attr:`~odps.models.TableSchema.simple_columns`
+和 :attr:`~odps.models.TableSchema.partitions` 属性分别指代一般列和分区列，而 :attr:`~odps.models.TableSchema.columns`
+属性则指代所有字段。这三个属性的返回值均为 :class:`~odps.types.Column` 或 :class:`~odps.types.Partition` 类型组成的列表。\
+你也可以通过 ``names`` 和 ``types`` 属性分别获取非分区字段的名称和类型。
 
 .. code-block:: python
 
@@ -242,9 +244,9 @@ MaxCompute 支持的复合类型有 Array、Map 和 Struct，可通过构造函�
    >>> print(schema.types)  # 获取非分区字段的字段类型
    [bigint, double]
 
-在使用 ``TableSchema`` 时，:class:`~odps.types.Column` 和 :class:`~odps.types.Partition` 类型分别用于表示\
-表的字段和分区。你可以通过字段名和类型创建 ``Column`` 实例，也可以同时指定列注释以及字段是否可以为空。你也可以通过相应\
-的字段获取字段的名称、类型等属性，其中类型为:ref:`数据类型 <data_types>`中的类型实例。
+在使用 :class:`~odps.models.TableSchema` 时，:class:`~odps.types.Column` 和 :class:`~odps.types.Partition`
+类型分别用于表示表的字段和分区。你可以通过字段名和类型创建 :class:`~odps.types.Column` 实例，也可以同时指定列注释以及字段是否可以为空。\
+你也可以通过相应的字段获取字段的名称、类型等属性，其中类型为:ref:`数据类型 <data_types>`中的类型实例。
 
 .. code-block:: python
 
@@ -264,14 +266,18 @@ MaxCompute 支持的复合类型有 Array、Map 和 Struct，可通过构造函�
     >>> print(col.nullable)
     False
 
-相比 ``Column`` 类型，\ ``Partition`` 类型仅仅是类名有差异，此处不再介绍。
+相比 :class:`~odps.types.Column` 类型，\ :class:`~odps.types.Partition` 类型仅仅是类名有差异，此处不再介绍。
 
 .. _record-type:
 
 行记录（Record）
 ----------------
-:class:`~odps.models.Record` 类型表示表的一行记录，为 ``Table.open_reader`` / ``Table.open_writer`` 当 ``arrow=False``
-时所使用的数据结构，也用于 ``TableDownloadSession.open_record_reader`` / ``TableUploadSession.open_record_writer`` 。\
+:class:`~odps.models.Record` 类型表示表的一行记录，为
+:meth:`Table.open_reader() <odps.models.Table.open_reader>` /
+:meth:`Table.open_reader() <odps.models.Table.open_writer>` 当 ``arrow=False``
+时所使用的数据结构，也用于
+:meth:`TableDownloadSession.open_record_reader() <odps.tunnel.TableDownloadSession.open_record_reader>` /
+:meth:`TableUploadSession.open_record_writer() <odps.tunnel.TableUploadSession.open_record_writer>` 。\
 我们在 Table 对象上调用 new_record 就可以创建一个新的 Record。
 
 下面的例子中，假定表结构为

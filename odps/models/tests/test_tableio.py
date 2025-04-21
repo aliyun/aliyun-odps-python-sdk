@@ -1021,6 +1021,15 @@ def test_write_table_with_overwrite(odps):
         df,
         partition_cols=["pt", "pt2"],
         create_partition=True,
+    )
+    with dest_table.open_reader("pt=part1,pt2=part2", reopen=True) as reader:
+        assert reader.count == 2
+
+    odps.write_table(
+        test_table_name,
+        df,
+        partition_cols=["pt", "pt2"],
+        create_partition=True,
         overwrite=True,
     )
     with dest_table.open_reader("pt=part1,pt2=part2", reopen=True) as reader:
@@ -1136,7 +1145,10 @@ def test_write_table_with_generate_cols_and_parts(odps_daily):
             "_partitiontime timestamp, a string",
             "trunc_time(_partitiontime, 'day') as pt",
         ),
-        table_properties={"ingestion_time_partition": "true"},
+        table_properties={
+            "ingestion_time_partition": "true",
+            "table.format.version": "2",
+        },
         lifecycle=1,
     )
 
@@ -1147,7 +1159,7 @@ def test_write_table_with_generate_cols_and_parts(odps_daily):
 
     # test writing dataframe
     df = pd.DataFrame([["r1"], ["r2"], ["r3"], ["r4"], ["r5"]], columns=["a"])
-    odps.write_table(tb, df, create_partition=True)
+    odps.write_table(tb, df, create_partition=True, overwrite=True)
     assert tb.exist_partition(pt_spec)
 
     # test writing with specified partition (and ignore existing)
@@ -1167,8 +1179,22 @@ def test_write_table_with_generate_cols_and_parts(odps_daily):
     # test writing plain arrays
     tb.delete_partition(pt_spec, if_exists=True)
     recs = [["s1"], ["s2"], ["s3"], ["s4"], ["s5"]]
+    odps.write_table(tb, recs, create_partition=True, overwrite=True)
+    assert tb.exist_partition(pt_spec)
+    with tb.open_reader(pt_spec) as reader:
+        assert reader.count == 5
+
+    recs = [["s1"], ["s2"], ["s3"], ["s4"], ["s5"]]
     odps.write_table(tb, recs, create_partition=True)
     assert tb.exist_partition(pt_spec)
+    with tb.open_reader(pt_spec) as reader:
+        assert reader.count == 10
+
+    recs = [["s1"], ["s2"], ["s3"], ["s4"], ["s5"]]
+    odps.write_table(tb, recs, create_partition=True, overwrite=True)
+    assert tb.exist_partition(pt_spec)
+    with tb.open_reader(pt_spec) as reader:
+        assert reader.count == 5
 
 
 def test_write_sql_to_simple_table(odps):
