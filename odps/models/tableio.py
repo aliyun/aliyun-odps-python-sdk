@@ -1238,6 +1238,7 @@ class TableIOMethods(object):
         project = kw.pop("project", None)
         schema = kw.pop("schema", None)
         append_missing_cols = kw.pop("append_missing_cols", False)
+        overwrite = kw.pop("overwrite", False)
 
         single_block_types = (Iterable,)
         if pa is not None:
@@ -1347,6 +1348,18 @@ class TableIOMethods(object):
         else:
             partition_str = str(odps_types.PartitionSpec(partition))
 
+        # fixme cover up for overwrite failure on table.format.version=2:
+        #  only applicable for transactional table with partitions
+        #  with generate expressions
+        manual_truncate = (
+            overwrite
+            and target_table.is_transactional
+            and any(
+                pt_col.generate_expression
+                for pt_col in target_table.table_schema.partitions
+            )
+        )
+
         for (is_arrow, pt_name), block_to_data in data_lists.items():
             if not block_to_data:
                 continue
@@ -1360,12 +1373,17 @@ class TableIOMethods(object):
                 blocks = None
 
             final_pt = ",".join(p for p in (pt_name, partition_str) if p is not None)
+            # fixme cover up for overwrite failure on table.format.version=2
+            if overwrite and manual_truncate:
+                if not final_pt or target_table.exist_partition(final_pt):
+                    target_table.truncate(partition_spec=final_pt or None)
             with target_table.open_writer(
                 partition=final_pt or None,
                 blocks=blocks,
                 arrow=is_arrow,
                 create_partition=create_partition,
                 reopen=append_missing_cols,
+                overwrite=overwrite,
                 **kw
             ) as writer:
                 if blocks is None:

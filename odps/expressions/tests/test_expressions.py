@@ -147,3 +147,10 @@ def test_expression_call_arrow_record_batch(interval, fmt):
     parsed = VisitedExpressions.parse(_routine_expr_str % dict(interval=interval))
     expected = pa.array([c.strftime(fmt) for c in dt_array])
     pd.testing.assert_series_equal(parsed.eval(tb).to_pandas(), expected.to_pandas())
+
+    dt_arrays = [dt_array[:3], dt_array[3:]]
+    tb = pa.Table.from_arrays([pa.chunked_array(dt_arrays)], names=["dt"])
+
+    parsed = VisitedExpressions.parse(_routine_expr_str % dict(interval=interval))
+    expected = pa.array([c.strftime(fmt) for c in dt_array])
+    pd.testing.assert_series_equal(parsed.eval(tb).to_pandas(), expected.to_pandas())

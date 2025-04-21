@@ -173,6 +173,32 @@ def test_create_table_ddl(odps):
     assert odps.exist_table(test_table_name)
 
     ddl = Table.gen_create_table_sql(
+        "test_trans_table",
+        schema,
+        comment="TEST_COMMENT",
+        transactional=True,
+        table_properties={"table.format.version": True},
+    )
+    assert (
+        ddl
+        == textwrap.dedent(
+            """
+    CREATE TABLE `test_trans_table` (
+      `id` BIGINT,
+      `name` STRING
+    )
+    COMMENT 'TEST_COMMENT'
+    PARTITIONED BY (
+      `ds` STRING
+    )
+    TBLPROPERTIES (
+      'table.format.version' = 'true',
+      'transactional' = 'true'
+    )"""
+        ).strip()
+    )
+
+    ddl = Table.gen_create_table_sql(
         "test_external_table",
         schema,
         comment="TEST_COMMENT",

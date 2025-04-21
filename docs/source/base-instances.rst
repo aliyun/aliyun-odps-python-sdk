@@ -61,7 +61,7 @@ Task如SQLTask是ODPS的基本计算单元，当一个Task在执行时会被实�
 -------------
 
 一个instance的状态可以是 ``Running``、``Suspended`` 或者 ``Terminated``，用户可以通过
-:meth:`~odps.models.Instance.status` 属性来获取状态。:meth:`~odps.models.Instance.is_terminated`
+:attr:`~odps.models.Instance.status` 属性来获取状态。:meth:`~odps.models.Instance.is_terminated`
 方法返回当前instance是否已经执行完成，:meth:`~odps.models.Instance.is_successful`
 方法返回当前instance是否正确完成执行，任务处于运行中或者执行失败都会返回False。
 

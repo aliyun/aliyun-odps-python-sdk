@@ -224,7 +224,7 @@ class TableDownloadSession(BaseTableTunnelSession):
             options.tunnel_session_create_callback(self)
 
     def __repr__(self):
-        return "<TableDownloadSession id=%s project=%s table=%s partition_spec=%s>" % (
+        return "<TableDownloadSession id=%s project=%s table=%s partition_spec=%r>" % (
             self.id,
             self._table.project.name,
             self._table.name,
@@ -472,12 +472,15 @@ class TableUploadSession(BaseTableTunnelSession):
             options.tunnel_session_create_callback(self)
 
     def __repr__(self):
-        return "<TableUploadSession id=%s project=%s table=%s partition_spec=%s>" % (
+        repr_args = "id=%s project=%s table=%s partition_spec=%r" % (
             self.id,
             self._table.project.name,
             self._table.name,
             self._partition_spec,
         )
+        if self._overwrite:
+            repr_args += " overwrite=True"
+        return "<TableUploadSession %s>" % repr_args
 
     def _create_or_reload_session(self, reload=False):
         headers = self.get_common_headers(content_length=0, tags=self._tags)
