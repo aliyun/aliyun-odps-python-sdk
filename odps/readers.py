@@ -358,9 +358,7 @@ class CsvRecordReader(AbstractRecordReader):
         self._load_columns()
 
         values = self._readline()
-        if values is None:
-            raise StopIteration
-        if len(values) == 0:
+        if values is None or len(values)==0:
             raise StopIteration
 
         if self._filtered_col_idxes:
