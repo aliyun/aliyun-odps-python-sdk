@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.12.3\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-01-15 17:42+0800\n"
+"POT-Creation-Date: 2025-04-19 22:11+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: en\n"
@@ -63,7 +63,7 @@ msgstr "Specify types by strings"
 #: ../../source/base-types.rst:26
 msgid ""
 "通常情况下，在 PyODPS 中，你都可以直接用 MaxCompute DDL 中表示类型的"
-"字符串来表示类型，这避免了\\ 了解类型的实现细节。例如，当我们创建一个列"
+"字符串来表示类型，这可以避免\\ 了解类型的实现细节。例如，当我们创建一个列"
 "实例，可以直接传入 ``array<int>`` 代表一个32位整数数组，\\ 而不需要关心"
 "使用哪个类去实现："
 msgstr ""
@@ -86,10 +86,10 @@ msgstr ""
 
 #: ../../source/base-types.rst:40
 msgid ""
-"如果需要，你可以使用 :class:`odps.types.validate_data_type` 函数获取"
+"如果需要，你可以使用 :func:`~odps.types.validate_data_type` 函数获取"
 "字符串表示的 MaxCompute 类型实例。"
 msgstr ""
-"You can use the :class:`odps.types.validate_data_type` function to get "
+"You can use the :func:`~odps.types.validate_data_type` function to get "
 "type instances from string representations if needed."
 
 #: ../../source/base-types.rst:42
@@ -408,14 +408,15 @@ msgstr ""
 
 #: ../../source/base-types.rst:197
 msgid ""
-"第二种方法是使用 ``TableSchema.from_lists`` 方法。这种方法更容易调用，但"
-"无法直接设置列和分区的注释。"
+"第二种方法是使用 :meth:`TableSchema.from_lists() <odps.models.TableSchema"
+".from_lists>` 方法。这种方法更容易调用，但无法直接设置列和分区的注释。"
 msgstr ""
-"Second, you can use ``TableSchema.from_lists`` to initialize the table. "
-"This method is easier, but you cannot directly set the comments of the "
-"columns and the partitions."
+"Second, you can use :meth:`TableSchema.from_lists() "
+"<odps.models.TableSchema.from_lists>` to initialize the table. This "
+"method is easier, but you cannot directly set the comments of the columns"
+" and the partitions."
 
-#: ../../source/base-types.rst:199
+#: ../../source/base-types.rst:200
 msgid ""
 ">>> from odps.models import TableSchema, Column, Partition\n"
 ">>>\n"
@@ -434,24 +435,28 @@ msgid ""
 "}"
 msgstr ""
 
-#: ../../source/base-types.rst:216
+#: ../../source/base-types.rst:217
 msgid ""
-"你可以从 ``TableSchema`` 实例中获取表的一般字段和分区字段。\\ ``simple_"
-"columns`` 和 ``partitions`` 属性分别指代一般列和分区列，而 ``columns`` "
-"属性则指代所有字段。这三个属性的返回值均为 :class:`~odps.types.Column` 或"
-" :class:`~odps.types.Partition` 类型组成的列表。你也可以通过 ``names`` 和"
-" ``types`` 属性分别获取非分区字段的名称和类型。"
+"你可以从 :class:`~odps.models.TableSchema` 实例中获取表的一般字段和分区字"
+"段。\\ :attr:`~odps.models.TableSchema.simple_columns` 和 :attr:`~odps."
+"models.TableSchema.partitions` 属性分别指代一般列和分区列，而 :attr:`~"
+"odps.models.TableSchema.columns` 属性则指代所有字段。这三个属性的返回值均"
+"为 :class:`~odps.types.Column` 或 :class:`~odps.types.Partition` 类型组成"
+"的列表。\\ 你也可以通过 ``names`` 和 ``types`` 属性分别获取非分区字段的"
+"名称和类型。"
 msgstr ""
 "You can get non-partition columns and partition columns in "
-"``TableSchema``. ``simple_columns`` and ``partitions`` properties provide"
-" the list of  non-partition columns and partitions respectively. You can "
-"also get all columns by ``columns`` property. The return values of "
-"``columns``, ``simple_columns`` and ``partitions`` are lists of "
-":class:`~odps.types.Column` or :class:`~odps.types.Partition` instances. "
-"You can also get names and types of non-partition columns by ``names`` "
-"and ``types`` property respectively."
+":class:`~odps.models.TableSchema`. "
+":attr:`~odps.models.TableSchema.simple_columns` and "
+":attr:`~odps.models.TableSchema.partitions` properties provide the list "
+"of  non-partition columns and partitions respectively. You can also get "
+"all columns by :attr:`~odps.models.TableSchema.columns` property. The "
+"return values of ``columns``, ``simple_columns`` and ``partitions`` are "
+"lists of :class:`~odps.types.Column` or :class:`~odps.types.Partition` "
+"instances. You can also get names and types of non-partition columns by "
+"``names`` and ``types`` property respectively."
 
-#: ../../source/base-types.rst:220
+#: ../../source/base-types.rst:222
 msgid ""
 ">>> from odps.models import TableSchema, Column, Partition\n"
 ">>>\n"
@@ -503,23 +508,23 @@ msgstr ""
 ">>> print(schema.types)  # get column type of none-partition columns\n"
 "[bigint, double]"
 
-#: ../../source/base-types.rst:245
+#: ../../source/base-types.rst:247
 msgid ""
-"在使用 ``TableSchema`` 时，:class:`~odps.types.Column` 和 :class:`~odps."
-"types.Partition` 类型分别用于表示\\ 表的字段和分区。你可以通过字段名和"
-"类型创建 ``Column`` 实例，也可以同时指定列注释以及字段是否可以为空。你也"
-"可以通过相应\\ 的字段获取字段的名称、类型等属性，其中类型为:ref:`数据类型"
-" <data_types>`中的类型实例。"
+"在使用 :class:`~odps.models.TableSchema` 时，:class:`~odps.types.Column` "
+"和 :class:`~odps.types.Partition` 类型分别用于表示表的字段和分区。你可以"
+"通过字段名和类型创建 :class:`~odps.types.Column` 实例，也可以同时指定列"
+"注释以及字段是否可以为空。\\ 你也可以通过相应的字段获取字段的名称、类型等"
+"属性，其中类型为:ref:`数据类型 <data_types>`中的类型实例。"
 msgstr ""
-"When using ``TableSchema``, :class:`~odps.types.Column` and "
-":class:`~odps.types.Partition` are used to represent columns and "
-"partitions of a table. You can create a Column instance with column name "
-"and type, and optionally specify the column comment and nullable flag. "
-"You can also retrieve column name, type, etc. from a Column instance with"
-" corresponding fields, where types are defined in :ref:`data types "
-"<data_types>` chapter. "
+"When using :class:`~odps.models.TableSchema`, :class:`~odps.types.Column`"
+" and :class:`~odps.types.Partition` are used to represent columns and "
+"partitions of a table. You can create a :class:`~odps.types.Column` "
+"instance with column name and type, and optionally specify the column "
+"comment and nullable flag. You can also retrieve column name, type, etc. "
+"from a Column instance with corresponding fields, where types are defined"
+" in :ref:`data types <data_types>` chapter. "
 
-#: ../../source/base-types.rst:249
+#: ../../source/base-types.rst:251
 msgid ""
 ">>> from odps.models import Column\n"
 ">>>\n"
@@ -539,38 +544,44 @@ msgid ""
 "False"
 msgstr ""
 
-#: ../../source/base-types.rst:267
+#: ../../source/base-types.rst:269
 msgid ""
-"相比 ``Column`` 类型，\\ ``Partition`` 类型仅仅是类名有差异，此处不再介绍"
-"。"
+"相比 :class:`~odps.types.Column` 类型，\\ :class:`~odps.types.Partition` "
+"类型仅仅是类名有差异，此处不再介绍。"
 msgstr ""
-"As ``Partition`` is just a derived class with name difference, we do not "
-"introduce it here."
+"As :class:`~odps.types.Partition` is just a derived class of "
+":class:`~odps.types.Column` with name difference, we do not introduce it "
+"here."
 
-#: ../../source/base-types.rst:272
+#: ../../source/base-types.rst:274
 msgid "行记录（Record）"
 msgstr "Records"
 
-#: ../../source/base-types.rst:273
+#: ../../source/base-types.rst:275
 msgid ""
-":class:`~odps.models.Record` 类型表示表的一行记录，为 ``Table.open_reader"
-"`` / ``Table.open_writer`` 当 ``arrow=False`` 时所使用的数据结构，也用于 "
-"``TableDownloadSession.open_record_reader`` / ``TableUploadSession.open_"
-"record_writer`` 。\\ 我们在 Table 对象上调用 new_record 就可以创建一个新"
-"的 Record。"
+":class:`~odps.models.Record` 类型表示表的一行记录，为 :meth:`Table.open_"
+"reader() <odps.models.Table.open_reader>` / :meth:`Table.open_reader() <"
+"odps.models.Table.open_writer>` 当 ``arrow=False`` 时所使用的数据结构，也"
+"用于 :meth:`TableDownloadSession.open_record_reader() <odps.tunnel."
+"TableDownloadSession.open_record_reader>` / :meth:`TableUploadSession."
+"open_record_writer() <odps.tunnel.TableUploadSession.open_record_writer>`"
+" 。\\ 我们在 Table 对象上调用 new_record 就可以创建一个新的 Record。"
 msgstr ""
 "A :class:`~odps.models.Record` is a row record in a table. Record data "
-"structure is used in APIs like ``Table.open_reader`` or "
-"``Table.open_writer`` when ``arrow=False``. It is also used in "
-"``TableDownloadSession.open_record_reader`` or "
-"``TableUploadSession.open_record_writer``. You can use new_record method "
-"of a table object to create a new record."
+"structure is used in APIs like :meth:`Table.open_reader() "
+"<odps.models.Table.open_reader>` or :meth:`Table.open_reader() "
+"<odps.models.Table.open_writer>` when ``arrow=False``. It is also used in"
+" :meth:`TableDownloadSession.open_record_reader() "
+"<odps.tunnel.TableDownloadSession.open_record_reader>` or "
+":meth:`TableUploadSession.open_record_writer() "
+"<odps.tunnel.TableUploadSession.open_record_writer>`. You can use "
+"new_record method of a table object to create a new record."
 
-#: ../../source/base-types.rst:277
+#: ../../source/base-types.rst:283
 msgid "下面的例子中，假定表结构为"
 msgstr "Assuming that the table schema for the example below is"
 
-#: ../../source/base-types.rst:279
+#: ../../source/base-types.rst:285
 msgid ""
 "odps.Schema {\n"
 "  c_int_a                 bigint\n"
@@ -583,11 +594,11 @@ msgid ""
 "}"
 msgstr ""
 
-#: ../../source/base-types.rst:291
+#: ../../source/base-types.rst:297
 msgid "该表对应 record 的修改和读取示例为"
 msgstr "Reading or writing operations on the record of the table are as follows:"
 
-#: ../../source/base-types.rst:293
+#: ../../source/base-types.rst:299
 msgid ""
 ">>> import datetime\n"
 ">>> t = o.get_table('mytable')\n"
@@ -636,7 +647,7 @@ msgstr ""
 ">>> print(record['c_int_a', 'c_double_a'])  # get multiple values via "
 "column names"
 
-#: ../../source/base-types.rst:314
+#: ../../source/base-types.rst:320
 msgid "MaxCompute 不同数据类型在 Record 中对应 Python 类型的关系如下："
 msgstr ""
 "Relation between MaxCompute data types and Python types in Records are "
@@ -802,11 +813,11 @@ msgstr ""
 msgid "见说明5"
 msgstr "See Note 5"
 
-#: ../../source/base-types.rst:336
+#: ../../source/base-types.rst:342
 msgid "对部分类型的说明如下。"
 msgstr "Comments for some types are listed as follows."
 
-#: ../../source/base-types.rst:338
+#: ../../source/base-types.rst:344
 msgid ""
 "PyODPS 默认 string 类型对应 Unicode 字符串，在 Python 3 中为 str，在 "
 "Python 2 中为 unicode。对于部分在 string 中存储 binary 的情形，可能需要"
@@ -817,7 +828,7 @@ msgstr ""
 "string fields, you may have to set ``options.tunnel.string_as_binary = "
 "True`` to avoid encoding issues."
 
-#: ../../source/base-types.rst:341
+#: ../../source/base-types.rst:347
 msgid ""
 "PyODPS 默认使用 Local Time 作为时区，如果要使用 UTC 则需要设置 ``options."
 "local_timezone = False``。 如果要使用其他时区，需要设置该选项为指定时区，"
@@ -831,13 +842,13 @@ msgstr ""
 "``Asia/Shanghai``. Note that MaxCompute does not store time zone values, "
 "so time values will be converted to Unix Timestamp before storing."
 
-#: ../../source/base-types.rst:344
+#: ../../source/base-types.rst:350
 msgid "对于 Python 2，当安装 cdecimal 包时，会使用 ``cdecimal.Decimal``。"
 msgstr ""
 "For Python 2, PyODPS will use ``cdecimal.Decimal`` when cdecimal package "
 "is installed."
 
-#: ../../source/base-types.rst:345
+#: ../../source/base-types.rst:351
 msgid ""
 "对于 PyODPS \\< 0.11.5，MaxCompute struct 对应 Python dict 类型。PyODPS "
 "\\>= 0.11.5 则默认对应 namedtuple 类型。如果要使用旧版行为则需要设置选项 "
@@ -853,13 +864,13 @@ msgstr ""
 " struct values of records, PyODPS >= 0.11.5 accepts both dict and tuple "
 "types, while the older version accepts only dict type."
 
-#: ../../source/base-types.rst:349
+#: ../../source/base-types.rst:355
 msgid "Monthdelta 可使用年 / 月进行初始化，使用示例如下："
 msgstr ""
 "Monthdelta can be initialized with years and months. Example of using "
 "Monthdelta class is shown below."
 
-#: ../../source/base-types.rst:351
+#: ../../source/base-types.rst:357
 msgid ""
 ">>> from odps import Monthdelta\n"
 ">>>\n"
@@ -872,7 +883,7 @@ msgid ""
 "14"
 msgstr ""
 
-#: ../../source/base-types.rst:363
+#: ../../source/base-types.rst:369
 msgid "关于如何设置 ``options.xxx``，请参考文档\\ :ref:`配置选项 <options>`。"
 msgstr ""
 "For details about how to configure ``options.xxx``, please take a look at"

@@ -84,7 +84,7 @@ class TruncateTime(ExprFunction):
     def call(cls, arg, date_part):
         assert isinstance(date_part, six.string_types)
         date_part = date_part.lower()
-        if pa and isinstance(arg, pa.Array):
+        if pa and isinstance(arg, (pa.Array, pa.ChunkedArray)):
             res = [cls._call_single(x, date_part) for x in arg.to_pandas()]
             return pa.array(res)
         elif pd and isinstance(arg, pd.Series):

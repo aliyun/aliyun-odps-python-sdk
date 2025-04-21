@@ -931,15 +931,18 @@ class ArrowRecordFieldConverter(object):
         )
 
     @staticmethod
-    def _convert_struct(value, field_converters, tuple_type):
+    def _convert_struct(value, field_converters, tuple_type, use_ordered_dict=False):
         if value is None:
             return None
 
-        results = {k: field_converters[k](v) for k, v in value.items()}
+        result_iter = ((k, field_converters[k](v)) for k, v in value.items())
         if tuple_type is not None:
-            return tuple_type(**results)
+            return tuple_type(**dict(result_iter))
+        elif not use_ordered_dict:
+            return dict(result_iter)
         else:
-            return results
+            d = dict(result_iter)
+            return OrderedDict([(k, d[k]) for k in field_converters if k in d])
 
     def _build_converter(self, odps_type, arrow_type=None):
         import pyarrow as pa
@@ -1006,7 +1009,7 @@ class ArrowRecordFieldConverter(object):
                 else None
             )
         elif isinstance(odps_type, types.Struct):
-            field_converters = {}
+            field_converters = OrderedDict()
             for field_name, field_type in odps_type.field_types.items():
                 arrow_field_type = None
                 if arrow_type is not None:
@@ -1019,15 +1022,19 @@ class ArrowRecordFieldConverter(object):
                 tuple_type = None
             else:
                 tuple_type = odps_type.namedtuple_type
+            use_ordered_dict = odps_type._use_ordered_dict
             return functools.partial(
                 self._convert_struct,
                 field_converters=field_converters,
                 tuple_type=tuple_type,
+                use_ordered_dict=use_ordered_dict,
             )
         else:
             return _reflective
 
     def __call__(self, value):
+        if value is None:
+            return None
         return self._converter(value)
 
 

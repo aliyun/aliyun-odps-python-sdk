@@ -98,12 +98,12 @@ class Expression(JSONSerializableModel):
             if not isinstance(res, pd.Series):
                 return pd.Series([res] * len(data))
             return res
-        elif pa and isinstance(data, pa.RecordBatch):
-            if not isinstance(res, pa.Array):
-                return pa.array(
-                    [res] * data.num_rows, type=odps_type_to_arrow_type(self.type)
-                )
-            return res
+        elif pa and isinstance(data, (pa.RecordBatch, pa.Table)):
+            if isinstance(res, (pa.Array, pa.ChunkedArray)):
+                return res
+            return pa.array(
+                [res] * data.num_rows, type=odps_type_to_arrow_type(self.type)
+            )
 
 
 class FunctionCall(Expression):
@@ -140,7 +140,7 @@ class LeafExprDesc(Expression):
         if self.constant:
             val = validate_value(self.constant, self.type)
         elif self.reference:
-            if pa and isinstance(data, pa.RecordBatch):
+            if pa and isinstance(data, (pa.RecordBatch, pa.Table)):
                 name_to_idx = {
                     c.lower(): idx for idx, c in enumerate(data.schema.names)
                 }

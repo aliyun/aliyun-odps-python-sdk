@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import functools
 import json
 import struct
 
@@ -764,12 +765,81 @@ class BaseArrowWriter(object):
         dec_col = col.to_pandas().map(Decimal)
         return pa.Array.from_pandas(dec_col, type=dec_type)
 
+    def _convert_df_types(self, df):
+        pa_dec_types = (pa.Decimal128Type,)
+        if hasattr(pa, "Decimal256Type"):
+            pa_dec_types += (pa.Decimal256Type,)
+
+        def _need_cast(arrow_type):
+            if isinstance(arrow_type, (pa.MapType, pa.StructType) + pa_dec_types):
+                return True
+            elif isinstance(arrow_type, pa.ListType):
+                return _need_cast(arrow_type.value_type)
+            else:
+                return False
+
+        def _cast_map_data(data, cur_type):
+            if data is None:
+                return None
+
+            if isinstance(cur_type, pa.MapType):
+                if isinstance(data, dict):
+                    return [
+                        (
+                            _cast_map_data(k, cur_type.key_type),
+                            _cast_map_data(v, cur_type.item_type),
+                        )
+                        for k, v in data.items()
+                    ]
+                else:
+                    return data
+            elif isinstance(cur_type, pa.ListType):
+                return [
+                    _cast_map_data(element, cur_type.value_type) for element in data
+                ]
+            elif isinstance(cur_type, pa.StructType):
+                if isinstance(data, (list, tuple)):
+                    field_names = getattr(data, "_fields", None) or [
+                        cur_type[fid].name for fid in range(cur_type.num_fields)
+                    ]
+                    data = dict(zip(data, field_names))
+                if isinstance(data, dict):
+                    fields = {}
+                    for fid in range(cur_type.num_fields):
+                        field = cur_type[fid]
+                        fields[field.name] = _cast_map_data(
+                            data.get(field.name), field.type
+                        )
+                    data = fields
+                return data
+            elif isinstance(cur_type, pa_dec_types):
+                return Decimal(data)
+            else:
+                return data
+
+        dest_df = df.copy()
+        lower_to_df_name = {utils.to_lower_str(s): s for s in df.columns}
+        new_fields = []
+        for name, typ in zip(self._arrow_schema.names, self._arrow_schema.types):
+            df_name = lower_to_df_name[name.lower()]
+            new_fields.append(pa.field(df_name, typ))
+            if df_name not in df.columns:
+                dest_df[df_name] = None
+                continue
+            if not _need_cast(typ):
+                continue
+            dest_df[df_name] = df[df_name].map(
+                functools.partial(_cast_map_data, cur_type=typ)
+            )
+        df_arrow_schema = pa.schema(new_fields)
+        return pa.Table.from_pandas(dest_df, df_arrow_schema)
+
     def write(self, data):
         """
         Write an Arrow RecordBatch, an Arrow Table or a pandas DataFrame.
         """
         if isinstance(data, pd.DataFrame):
-            arrow_data = pa.RecordBatch.from_pandas(data)
+            arrow_data = self._convert_df_types(data)
         elif isinstance(data, (pa.Table, pa.RecordBatch)):
             arrow_data = data
         else:
@@ -803,8 +873,10 @@ class BaseArrowWriter(object):
                     column_dict[lower_name] = col.cast(
                         pa.timestamp(tp.unit, col.type.tz)
                     )
-                elif isinstance(tp, arrow_decimal_types) and isinstance(
-                    column_dict[lower_name], (pa.BinaryArray, pa.StringArray)
+                elif (
+                    isinstance(tp, arrow_decimal_types)
+                    and isinstance(column_dict[lower_name], (pa.Array, pa.ChunkedArray))
+                    and column_dict[lower_name].type in (pa.binary(), pa.string())
                 ):
                     column_dict[lower_name] = self._str_to_decimal_array(
                         column_dict[lower_name], tp

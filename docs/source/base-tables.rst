@@ -139,11 +139,11 @@ PyODPS 0.11.5 及后续版本中，可以为 :meth:`~odps.ODPS.list_tables` 添�
    >>> table = o.create_table('my_new_table', 'cat smallint, content struct<title:varchar(100), body string>')
 
 :meth:`~odps.ODPS.create_table` 方法也提供了其他参数，可用于设置表属性及事务性等参数。例如，下面的调用创建了一张
-ACID 2.0 表并指定 ``key`` 为主键。
+ACID 2.0 表并指定 ``key`` 为主键（``key``必须指定为非空）。
 
 .. code-block:: python
 
-   >>> table = o.create_table('my_trans_table', 'key string, value string',
+   >>> table = o.create_table('my_trans_table', 'key string not null, value string',
    >>>                        primary_key=['key'], transactional=True)
 
 
@@ -324,12 +324,13 @@ DataFrame，并通过 ``batch_size`` 参数指定每次读取的 DataFrame 批�
 
 .. note::
 
-    **注意**\ ：每次调用 write_table，MaxCompute 都会在服务端生成一个文件。这一操作需要较大的时间开销，\
-    同时过多的文件会降低后续的查询效率。因此，我们建议在使用 write_table 方法时，一次性写入多组数据，\
-    或者传入一个 generator 对象。
+    **注意**\ ：每次调用 :meth:`~odps.ODPS.write_table`，MaxCompute 都会在服务端生成一个文件。\
+    这一操作需要较大的时间开销，同时过多的文件会降低后续的查询效率。因此，我们建议在使用
+    :meth:`~odps.ODPS.write_table` 方法时，一次性写入多组数据，或者传入一个 generator 对象。
 
-    write_table 写表时会追加到原有数据。如果需要覆盖数据，可以为 write_table 增加一个参数 ``overwrite=True``
-    （仅在 0.11.1 以后支持），或者调用 table.truncate() / 删除分区后再建立分区。
+    :meth:`~odps.ODPS.write_table` 写表时会追加到原有数据。如果需要覆盖数据，可以为 :meth:`~odps.ODPS.write_table`
+    增加一个参数 ``overwrite=True``（仅在 0.11.1 以后支持），或者调用 :meth:`Table.truncate() <odps.models.Table.truncate>`
+    / 删除分区后再建立分区。
 
 你可以使用多线程写入数据。从 PyODPS 0.11.6 开始，直接将 open_writer 创建的 Writer 对象分发到\
 各个线程中即可完成多线程写入，写入时请注意不要关闭 writer，待所有数据写入完成后再关闭 writer。
@@ -393,8 +394,8 @@ open_writer 创建的 Writer 对象通过 multiprocessing 标准库传递到需�
             # 等待子进程中的执行完成
             [f.get() for f in futures]
 
-从 0.11.2 开始，PyODPS 支持使用 `Arrow <https://arrow.apache.org/>`_ 格式读写数据，该格式可以以更高\
-效率与 pandas 等格式互相转换。安装 pyarrow 后，在调用 ``open_writer`` 时增加 ``arrow=True`` 参数，即可按
+从 0.11.2 开始，PyODPS 支持使用 `Arrow <https://arrow.apache.org/>`_ 格式读写数据，该格式可以以更高效率与
+pandas 等格式互相转换。安装 pyarrow 后，在调用 ``open_writer`` 时增加 ``arrow=True`` 参数，即可按
 `Arrow RecordBatch <https://arrow.apache.org/docs/python/data.html#record-batches>`_
 格式写入表内容。PyODPS 也支持直接写入 pandas DataFrame，支持自动转换为 Arrow RecordBatch。
 
