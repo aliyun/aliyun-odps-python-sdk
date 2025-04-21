@@ -360,6 +360,8 @@ class CsvRecordReader(AbstractRecordReader):
         values = self._readline()
         if values is None:
             raise StopIteration
+        if len(values) == 0:
+            raise StopIteration
 
         if self._filtered_col_idxes:
             values = [values[idx] for idx in self._filtered_col_idxes]
