@@ -680,9 +680,18 @@ class Table(LazyLoad):
 
         if table_properties:
             buf.write(u"TBLPROPERTIES (\n")
-            for k, v in table_properties.items():
-                buf.write(u'  "%s"="%s"' % (k, v))
-            buf.write(u"\n)\n")
+            for idx, (k, v) in enumerate(
+                sorted(table_properties.items(), key=lambda x: x[0])
+            ):
+                k = utils.escape_odps_string(utils.to_text(k))
+                if isinstance(v, bool):
+                    v = "true" if v else "false"
+                v = utils.escape_odps_string(utils.to_text(v))
+                buf.write(u"  '%s' = '%s'" % (k, v))
+                if idx + 1 < len(table_properties):
+                    buf.write(u",")
+                buf.write(u"\n")
+            buf.write(u")\n")
 
         serde_properties = kw.get("serde_properties")
         resources = kw.get("resources")
@@ -698,14 +707,14 @@ class Table(LazyLoad):
                 )
             if serde_properties:
                 buf.write(u"WITH SERDEPROPERTIES (\n")
-                for idx, k in enumerate(serde_properties):
-                    buf.write(
-                        u"  '%s' = '%s'"
-                        % (
-                            utils.escape_odps_string(k),
-                            utils.escape_odps_string(serde_properties[k]),
-                        )
-                    )
+                for idx, (k, v) in enumerate(
+                    sorted(serde_properties.items(), key=lambda x: x[0])
+                ):
+                    k = utils.escape_odps_string(utils.to_text(k))
+                    if isinstance(v, bool):
+                        v = "true" if v else "false"
+                    v = utils.escape_odps_string(utils.to_text(v))
+                    buf.write(u"  '%s' = '%s'" % (k, v))
                     if idx + 1 < len(serde_properties):
                         buf.write(u",")
                     buf.write(u"\n")

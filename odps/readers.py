@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -358,7 +358,7 @@ class CsvRecordReader(AbstractRecordReader):
         self._load_columns()
 
         values = self._readline()
-        if values is None or len(values) == 0:
+        if not values:
             raise StopIteration
 
         if self._filtered_col_idxes:
