@@ -833,29 +833,42 @@ def test_write_pandas_with_complex_type_and_mapping(odps):
     table = odps.create_table(
         test_table_name,
         "idx string, list_data array<bigint>, "
-        "list_struct_data array<struct<name:string, val: bigint>>",
+        "list_struct_data array<struct<name:string, val: bigint>>, "
+        "map_data map<string, bigint>",
         table_properties={"columnar.nested.type": "true"},
         lifecycle=1,
     )
 
     data = pd.DataFrame(
         [
-            ["05ac09c4", [134, 256], [None, {"name": "col1", "val": 134}]],
-            ["cfae9054", [5431], [{"name": "col2", "val": 2345}]],
+            [
+                "05ac09c4",
+                [134, 256],
+                [None, {"name": "col1", "val": 134}],
+                {"name": 1234},
+            ],
+            ["cfae9054", [5431], [{"name": "col2", "val": 2345}], {"abc": 456}],
             [
                 "6029501d",
                 [145, None, 561],
                 [{"name": "ddd", "val": 2341}, {"name": None, "val": None}],
+                {"fasd": 234},
             ],
-            ["c653e520", [7412, 234], [None, {"name": "uvw", "val": None}]],
-            ["59caed0d", [295, 1674], None],
+            [
+                "c653e520",
+                [7412, 234],
+                [None, {"name": "uvw", "val": None}],
+                {"asfgsdf": None},
+            ],
+            ["59caed0d", [295, 1674], None, None],
         ],
-        columns=["idx", "list_data", "list_struct_data"],
+        columns=["idx", "list_data", "list_struct_data", "map_data"],
     )
     try:
         type_mapping = {
             "list_data": "array<bigint>",
             "list_struct_data": "array<struct<name:string, val: bigint>>",
+            "map_data": "map<string, bigint>",
         }
         odps.write_table(
             test_table_name,
@@ -1150,6 +1163,7 @@ def test_write_table_with_generate_cols_and_parts(odps_daily):
             "table.format.version": "2",
         },
         lifecycle=1,
+        hints={"odps.table.append2.enable": "true"},
     )
 
     cur_dt = datetime_utcnow()

@@ -1033,6 +1033,8 @@ class ArrowRecordFieldConverter(object):
             return _reflective
 
     def __call__(self, value):
+        if value is None:
+            return None
         return self._converter(value)
 
 
