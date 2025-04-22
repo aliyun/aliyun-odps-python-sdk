@@ -56,6 +56,14 @@ try:
 except ImportError:
     pass
 
+try:
+    from urllib3.util import Retry
+except ImportError:
+    try:
+        from requests.packages.urllib3.util import Retry
+    except ImportError:
+        Retry = None
+
 
 logger = logging.getLogger(__name__)
 
@@ -177,11 +185,21 @@ class RestClient(object):
         except KeyError:
             pass
 
+        try:
+            retries = Retry(
+                total=options.retry_times,
+                backoff_factor=0.1,
+                allowed_methods={"DELETE", "GET", "HEAD"},
+                status_forcelist=[502, 503, 504],
+            )
+        except:
+            retries = options.retry_times
+
         parsed_url = urlparse(self._endpoint)
         adapter_options = dict(
             pool_connections=options.pool_connections,
             pool_maxsize=options.pool_maxsize,
-            max_retries=options.retry_times,
+            max_retries=retries,
         )
         if parsed_url.scheme == "http+unix":
             session = requests_unixsocket.Session()
