@@ -832,7 +832,7 @@ class BaseArrowWriter(object):
                 functools.partial(_cast_map_data, cur_type=typ)
             )
         df_arrow_schema = pa.schema(new_fields)
-        return pa.RecordBatch.from_pandas(dest_df, df_arrow_schema)
+        return pa.Table.from_pandas(dest_df, df_arrow_schema)
 
     def write(self, data):
         """
@@ -873,8 +873,10 @@ class BaseArrowWriter(object):
                     column_dict[lower_name] = col.cast(
                         pa.timestamp(tp.unit, col.type.tz)
                     )
-                elif isinstance(tp, arrow_decimal_types) and isinstance(
-                    column_dict[lower_name], (pa.BinaryArray, pa.StringArray)
+                elif (
+                    isinstance(tp, arrow_decimal_types)
+                    and isinstance(column_dict[lower_name], (pa.Array, pa.ChunkedArray))
+                    and column_dict[lower_name].type in (pa.binary(), pa.string())
                 ):
                     column_dict[lower_name] = self._str_to_decimal_array(
                         column_dict[lower_name], tp
