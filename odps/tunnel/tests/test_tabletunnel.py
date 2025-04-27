@@ -690,11 +690,15 @@ def test_partition_upload_and_download_by_raw_tunnel(odps, setup):
     test_table_partition = "ds=test"
     odps.delete_table(test_table_name, if_exists=True)
 
-    table = setup.create_partitioned_table(test_table_name)
-    table.create_partition(test_table_partition)
+    setup.create_partitioned_table(test_table_name)
     data = setup.gen_data()
 
-    setup.upload_data(test_table_name, data, partition_spec=test_table_partition)
+    setup.upload_data(
+        test_table_name,
+        data,
+        partition_spec=test_table_partition,
+        create_partition=True,
+    )
     records = setup.download_data(test_table_name, partition_spec=test_table_partition)
     assert list(data) == [r[:-1] for r in records]
 
