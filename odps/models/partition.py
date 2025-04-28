@@ -49,6 +49,7 @@ class Partition(LazyLoad):
         "last_meta_modified_time",
         "last_data_modified_time",
         "size",
+        "record_num",
         "_is_extend_info_loaded",
     )
     __slots__ += _extended_args
@@ -72,6 +73,9 @@ class Partition(LazyLoad):
         )
         size = serializers.JSONNodeField(
             "partitionSize", parse_callback=int, set_to_parent=True
+        )
+        record_num = serializers.JSONNodeField(
+            "partitionRecordNum", parse_callback=int, set_to_parent=True
         )
 
     class PartitionExtendedMeta(PartitionMeta):
