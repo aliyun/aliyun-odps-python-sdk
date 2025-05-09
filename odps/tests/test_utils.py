@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -316,6 +316,26 @@ def test_wait_function_compatibility():
     assert arg_holder(0, **{"async": True})
     assert arg_holder(0, async_=True)
     assert arg_holder(0, wait=False)
+
+
+def test_split_backquoted():
+    with pytest.raises(ValueError):
+        utils.split_backquoted("ab.c.de", "`")
+
+    res = utils.split_backquoted("ab", ".")
+    assert res == ["ab"]
+
+    res = utils.split_backquoted("`ab.c.de`", ".")
+    assert res == ["`ab.c.de`"]
+
+    res = utils.split_backquoted("ab.c.de", ".")
+    assert res == ["ab", "c", "de"]
+
+    res = utils.split_backquoted("`a``b`.c.`d``e`", ".")
+    assert res == ["`a``b`", "c", "`d``e`"]
+
+    res = utils.split_backquoted("`a``b`.c.`d``e`", ".", 1)
+    assert res == ["`a``b`", "c.`d``e`"]
 
 
 def test_call_with_retry():

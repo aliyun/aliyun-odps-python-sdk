@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import functools
 import json
 import struct
 
@@ -711,6 +710,8 @@ class BaseArrowWriter(object):
         self._output = out
         self._chunk_size_written = False
 
+        self._pd_mappers = self._build_pd_mappers()
+
     def _re_init(self, output):
         self._output = output
         self._chunk_size_written = False
@@ -765,7 +766,7 @@ class BaseArrowWriter(object):
         dec_col = col.to_pandas().map(Decimal)
         return pa.Array.from_pandas(dec_col, type=dec_type)
 
-    def _convert_df_types(self, df):
+    def _build_pd_mappers(self):
         pa_dec_types = (pa.Decimal128Type,)
         if hasattr(pa, "Decimal256Type"):
             pa_dec_types += (pa.Decimal256Type,)
@@ -778,45 +779,65 @@ class BaseArrowWriter(object):
             else:
                 return False
 
-        def _cast_map_data(data, cur_type):
-            if data is None:
-                return None
-
+        def _build_mapper(cur_type):
             if isinstance(cur_type, pa.MapType):
-                if isinstance(data, dict):
-                    return [
-                        (
-                            _cast_map_data(k, cur_type.key_type),
-                            _cast_map_data(v, cur_type.item_type),
-                        )
-                        for k, v in data.items()
-                    ]
-                else:
-                    return data
-            elif isinstance(cur_type, pa.ListType):
-                return [
-                    _cast_map_data(element, cur_type.value_type) for element in data
-                ]
-            elif isinstance(cur_type, pa.StructType):
-                if isinstance(data, (list, tuple)):
-                    field_names = getattr(data, "_fields", None) or [
-                        cur_type[fid].name for fid in range(cur_type.num_fields)
-                    ]
-                    data = dict(zip(data, field_names))
-                if isinstance(data, dict):
-                    fields = {}
-                    for fid in range(cur_type.num_fields):
-                        field = cur_type[fid]
-                        fields[field.name] = _cast_map_data(
-                            data.get(field.name), field.type
-                        )
-                    data = fields
-                return data
-            elif isinstance(cur_type, pa_dec_types):
-                return Decimal(data)
-            else:
-                return data
+                key_mapper = _build_mapper(cur_type.key_type)
+                value_mapper = _build_mapper(cur_type.item_type)
 
+                def mapper(data):
+                    if isinstance(data, dict):
+                        return [
+                            (key_mapper(k), value_mapper(v)) for k, v in data.items()
+                        ]
+                    else:
+                        return data
+
+            elif isinstance(cur_type, pa.ListType):
+                item_mapper = _build_mapper(cur_type.value_type)
+
+                def mapper(data):
+                    if data is None:
+                        return data
+                    return [item_mapper(element) for element in data]
+
+            elif isinstance(cur_type, pa.StructType):
+                val_mappers = dict()
+                for fid in range(cur_type.num_fields):
+                    field = cur_type[fid]
+                    val_mappers[field.name.lower()] = _build_mapper(field.type)
+
+                def mapper(data):
+                    if isinstance(data, (list, tuple)):
+                        field_names = getattr(data, "_fields", None) or [
+                            cur_type[fid].name for fid in range(cur_type.num_fields)
+                        ]
+                        data = dict(zip(data, field_names))
+                    if isinstance(data, dict):
+                        fields = dict()
+                        for key, val in data.items():
+                            fields[key] = val_mappers[key.lower()](val)
+                        data = fields
+                    return data
+
+            elif isinstance(cur_type, pa_dec_types):
+
+                def mapper(data):
+                    if data is None:
+                        return None
+                    return Decimal(data)
+
+            else:
+                mapper = lambda x: x
+
+            return mapper
+
+        mappers = dict()
+        for name, typ in zip(self._arrow_schema.names, self._arrow_schema.types):
+            if _need_cast(typ):
+                mappers[name.lower()] = _build_mapper(typ)
+        return mappers
+
+    def _convert_df_types(self, df):
         dest_df = df.copy()
         lower_to_df_name = {utils.to_lower_str(s): s for s in df.columns}
         new_fields = []
@@ -826,11 +847,9 @@ class BaseArrowWriter(object):
             if df_name not in df.columns:
                 dest_df[df_name] = None
                 continue
-            if not _need_cast(typ):
+            if name.lower() not in self._pd_mappers:
                 continue
-            dest_df[df_name] = df[df_name].map(
-                functools.partial(_cast_map_data, cur_type=typ)
-            )
+            dest_df[df_name] = df[df_name].map(self._pd_mappers[name.lower()])
         df_arrow_schema = pa.schema(new_fields)
         return pa.Table.from_pandas(dest_df, df_arrow_schema)
 

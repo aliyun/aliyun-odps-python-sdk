@@ -18,7 +18,7 @@ import time
 import warnings
 from collections import namedtuple
 
-from ... import compat, serializers
+from ... import compat, serializers, utils
 from ...config import options
 from .core import Task, build_execute_method
 
@@ -82,7 +82,8 @@ class MergeTask(Task):
             _, schema, _ = odps._split_object_dots(table_name)
         if partition:
             table_name += " partition(%s)" % (ODPS._parse_partition_string(partition))
-        return _MergeTaskTableProps(table, schema, table_name.replace("`", ""))
+        tb_name_parts = [utils.strip_backquotes(s) for s in table_name.split(".")]
+        return _MergeTaskTableProps(table, schema, ".".join(tb_name_parts))
 
     @staticmethod
     def _parse_compact_opts(force_mode, recent_hours, kwargs):

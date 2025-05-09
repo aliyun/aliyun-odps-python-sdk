@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -31,7 +31,12 @@ from ..ui.progress import (
     fetch_instance_group,
     reload_instance_status,
 )
-from ..utils import init_progress_ui, replace_sql_parameters
+from ..utils import (
+    init_progress_ui,
+    replace_sql_parameters,
+    split_backquoted,
+    strip_backquotes,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -293,14 +298,13 @@ else:
             frame_name, table_name = line.split(None, 1)
 
             if "." in table_name:
-                parts = table_name.split(".")
+                parts = split_backquoted(table_name, ".")
                 if len(parts) == 3:
                     project_name, schema_name, table_name = parts
                 else:
                     project_name, table_name = parts
                     schema_name = None
-                if table_name.startswith("`") and table_name.endswith("`"):
-                    table_name = table_name[1:-1]
+                table_name = strip_backquotes(table_name)
             else:
                 project_name = schema_name = None
 

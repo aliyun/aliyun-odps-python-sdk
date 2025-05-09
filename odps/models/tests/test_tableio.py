@@ -426,6 +426,36 @@ def test_multi_process_to_pandas(odps):
 
 
 @pandas_case
+@pytest.mark.parametrize("pd_cast_mode", [None, "numpy", "arrow"])
+def test_none_value_to_pandas(odps, pd_cast_mode):
+    if pd_cast_mode == "arrow" and not hasattr(pd, "ArrowDtype"):
+        pytest.skip("ArrowDtype not available")
+
+    test_table_name = tn("pyodps_t_tmp_none_value_to_pandas")
+    schema = TableSchema.from_lists(
+        ["num1", "num2", "num3"], ["bigint", "bigint", "double"]
+    )
+    odps.delete_table(test_table_name, if_exists=True)
+    table = odps.create_table(test_table_name, schema)
+
+    options.tunnel.pd_cast_mode = pd_cast_mode
+    try:
+        with table.open_writer() as writer:
+            writer.write([[123, 456, 23.4], [456, None, 45.7], [841, 184, None]])
+
+        with table.open_reader() as reader:
+            pd_data = reader.to_pandas()
+
+        if pd_cast_mode == "numpy":
+            assert pd_data["num2"].dtype.kind == "f"
+        elif pd_cast_mode == "arrow":
+            assert pd_data["num2"].dtype == pd.ArrowDtype(pa.int64())
+    finally:
+        options.tunnel.pd_cast_mode = None
+        odps.delete_table(test_table_name, if_exists=True)
+
+
+@pandas_case
 def test_column_select_to_pandas(odps):
     if pa is None:
         pytest.skip("Need pyarrow to run the test.")
@@ -455,6 +485,8 @@ def test_column_select_to_pandas(odps):
         pd_data = reader.to_pandas()
         assert len(pd_data) == 1000
         assert len(pd_data.columns) == 1
+
+    odps.delete_table(test_table_name, if_exists=True)
 
 
 @pandas_case
@@ -709,10 +741,16 @@ def test_multi_process_pool_write(odps):
 
 @pandas_case
 @pyarrow_case
-@pytest.mark.parametrize("use_arrow", [False, True])
-def test_write_table_with_pandas_or_arrow(odps, use_arrow):
-    suffix = "arrow" if use_arrow else "pd"
-    test_table_name = tn("pyodps_t_tmp_write_table_pandas_arrow_" + suffix)
+@pytest.mark.parametrize("data_mode", ["pd", "pd_ext", "pd_arrow", "arrow"])
+def test_write_table_with_pandas_or_arrow(odps, data_mode):
+    if data_mode == "pd_ext" and (
+        not hasattr(pd, "StringDtype") or not hasattr(pd, "Int64Dtype")
+    ):
+        pytest.skip("Need ExtensionDtype to run the test")
+    if data_mode == "pd_arrow" and not hasattr(pd, "ArrowDtype"):
+        pytest.skip("Need ArrowDtype to run the test")
+
+    test_table_name = tn("pyodps_t_tmp_write_table_pandas_arrow_" + data_mode)
     odps.delete_table(test_table_name, if_exists=True)
 
     data = pd.DataFrame(
@@ -727,10 +765,21 @@ def test_write_table_with_pandas_or_arrow(odps, use_arrow):
         odps.write_table(test_table_name, data, lifecycle=1)
 
     try:
-        if use_arrow:
-            data_to_write = pa.Table.from_pandas(data)
-        else:
+        if data_mode == "pd":
             data_to_write = data
+        elif data_mode == "pd_ext":
+            data_to_write = data.astype(
+                {
+                    "names": pd.StringDtype(),
+                    "num_legs": pd.Int64Dtype(),
+                    "num_wings": pd.Int64Dtype(),
+                }
+            )
+        elif data_mode == "pd_arrow":
+            arrow_tb = pa.Table.from_pandas(data)
+            data_to_write = arrow_tb.to_pandas(types_mapper=pd.ArrowDtype)
+        else:
+            data_to_write = pa.Table.from_pandas(data)
 
         odps.write_table(test_table_name, data_to_write, create_table=True, lifecycle=1)
         fetched = odps.get_table(test_table_name).to_pandas()

@@ -1188,6 +1188,41 @@ def split_sql_by_semicolon(sql_statement):
     return statements
 
 
+def strip_backquotes(name_str):
+    name_str = name_str.strip()
+    if not name_str.startswith("`") or not name_str.endswith("`"):
+        return name_str
+    return name_str[1:-1].replace("``", "`")
+
+
+def split_backquoted(s, sep=" ", maxsplit=-1):
+    if "`" in sep:
+        raise ValueError("Separator cannot contain backquote")
+    results = []
+    pos = 0
+    cur_token = ""
+    quoted = False
+    while pos < len(s):
+        ch = s[pos]
+        if ch == "`":
+            quoted = not quoted
+            cur_token += ch
+            pos += 1
+        elif (
+            not quoted
+            and (maxsplit < 0 or len(results) < maxsplit)
+            and s[pos : pos + len(sep)] == sep
+        ):
+            results.append(cur_token)
+            cur_token = ""
+            pos += len(sep)
+        else:
+            cur_token += ch
+            pos += 1
+    results.append(cur_token)
+    return results
+
+
 _convert_host_hash = (
     "6fe9b6c02efc24159c09863c1aadffb5",
     "9b75728355160c10b5eb75e4bf105a76",

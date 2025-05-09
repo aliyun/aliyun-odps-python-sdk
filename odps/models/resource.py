@@ -640,7 +640,7 @@ class TableResource(Resource):
     ):
         table_project_name = table_project_name or kw.get("project_name")
         if table_name is not None and "." in table_name:
-            parts = table_name.split(".")
+            parts = utils.split_backquoted(table_name, ".")
             if len(parts) == 2:
                 assert table_schema_name is None
                 table_project_name, table_name = parts
@@ -650,10 +650,7 @@ class TableResource(Resource):
             table_project_name = table_project_name.strip()
             if table_schema_name is not None:
                 table_schema_name = table_schema_name.strip()
-            table_name = table_name.strip()
-
-            if table_name.startswith("`") and table_name.endswith("`"):
-                table_name = table_name[1:-1]
+            table_name = utils.strip_backquotes(table_name)
 
         try:
             if not create:
@@ -714,7 +711,7 @@ class TableResource(Resource):
         src = splits[0]
         if "." not in src:
             raise ValueError("Malformed source table name: %s" % src)
-        table_parts = src.split(".")
+        table_parts = utils.split_backquoted(src, ".")
         if len(table_parts) == 2:
             schema_name = None
             project_name, table_name = table_parts

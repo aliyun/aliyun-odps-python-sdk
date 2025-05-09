@@ -613,7 +613,7 @@ class ODPS(object):
             return self.get_project(project)
 
     def _split_object_dots(self, name):
-        parts = [x.strip() for x in name.split(".")]
+        parts = [x.strip() for x in utils.split_backquoted(name, ".")]
         if len(parts) == 1:
             project, schema, name = None, None, parts[0]
         elif len(parts) == 2:
@@ -625,8 +625,7 @@ class ODPS(object):
                 schema = None
         else:
             project, schema, name = parts
-        if name.startswith("`") and name.endswith("`"):
-            name = name.strip("`")
+        name = utils.strip_backquotes(name)
         return project, schema, name
 
     def list_tables(
