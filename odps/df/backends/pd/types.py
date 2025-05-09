@@ -27,11 +27,16 @@ try:
     import pandas as pd
 except (ImportError, ValueError):
     pd = None
+try:
+    from pandas.api.extensions import ExtensionDtype
+except ImportError:
+    ExtensionDtype = None
 
 from ... import types
 from .... import types as odps_types
 from ....compat import six
 from ....models import TableSchema
+from ....tunnel.io.types import arrow_type_to_odps_type
 
 _np_to_df_types = dict()
 _df_to_np_types = dict()
@@ -66,11 +71,31 @@ if np is not None:
     _df_to_np_types = dict((v, k) for k, v in six.iteritems(_np_to_df_types))
 
 
+_pd_ext_type_name_to_df_type = {
+    "StringDtype": types.string,
+    "BooleanDtype": types.boolean,
+    "Int8Dtype": types.int8,
+    "Int16Dtype": types.int16,
+    "Int32Dtype": types.int32,
+    "Int64Dtype": types.int64,
+    "Float32Dtype": types.float32,
+    "Float64Dtype": types.float64,
+}
+
+
 def np_type_to_df_type(dtype, arr=None, unknown_as_string=False, name=None):
+    from ..odpssql.types import odps_type_to_df_type
+
     if dtype in _np_to_df_types:
         return _np_to_df_types[dtype]
+    if hasattr(pd, "ArrowDtype") and isinstance(dtype, pd.ArrowDtype):
+        return odps_type_to_df_type(arrow_type_to_odps_type(dtype.pyarrow_dtype))
     if hasattr(pd, "StringDtype") and isinstance(dtype, pd.StringDtype):
         return types.string
+    if ExtensionDtype is not None and isinstance(dtype, ExtensionDtype):
+        for dt_name, df_type in _pd_ext_type_name_to_df_type.items():
+            if hasattr(pd, dt_name) and isinstance(dtype, getattr(pd, dt_name)):
+                return df_type
 
     name = ', field: ' + name if name else ''
     if arr is None or len(arr) == 0:

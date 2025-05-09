@@ -48,6 +48,7 @@ class Partition(LazyLoad):
         "creation_time",
         "last_meta_modified_time",
         "last_data_modified_time",
+        "last_access_time",
         "size",
         "record_num",
         "_is_extend_info_loaded",
@@ -69,6 +70,11 @@ class Partition(LazyLoad):
         last_data_modified_time = serializers.JSONNodeField(
             "lastModifiedTime",
             parse_callback=datetime.fromtimestamp,
+            set_to_parent=True,
+        )
+        last_access_time = serializers.JSONNodeField(
+            "lastAccessTime",
+            parse_callback=lambda x: datetime.fromtimestamp(x) if x else None,
             set_to_parent=True,
         )
         size = serializers.JSONNodeField(
@@ -103,6 +109,17 @@ class Partition(LazyLoad):
     _extended_schema = serializers.XMLNodeReferenceField(
         PartitionExtendedMeta, "Schema"
     )
+    creation_time = serializers.XMLNodeField(
+        "CreationTime", parse_callback=lambda x: datetime.fromtimestamp(int(x))
+    )
+    last_meta_modified_time = serializers.XMLNodeField(
+        "LastDDLTime", parse_callback=lambda x: datetime.fromtimestamp(int(x))
+    )
+    last_data_modified_time = serializers.XMLNodeField(
+        "LastModifiedTime", parse_callback=lambda x: datetime.fromtimestamp(int(x))
+    )
+    size = serializers.XMLNodeField("PartitionSize", parse_callback=int)
+    record_num = serializers.XMLNodeField("PartitionRecordCount", parse_callback=int)
 
     def __init__(self, **kwargs):
         self._is_extend_info_loaded = False
@@ -119,9 +136,19 @@ class Partition(LazyLoad):
             str(self.partition_spec),
         )
 
+    def _is_field_set(self, attr):
+        try:
+            attr_val = self._getattr(attr)
+        except AttributeError:
+            return False
+
+        if attr in ("size", "record_num") and attr_val is not None and attr_val >= 0:
+            return True
+        return attr_val is not None
+
     def __getattribute__(self, attr):
         if attr in type(self)._extended_args:
-            if not self._is_extend_info_loaded:
+            if not self._is_extend_info_loaded and not self._is_field_set(attr):
                 self.reload_extend_info()
 
             return object.__getattribute__(self, attr)

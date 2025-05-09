@@ -429,6 +429,14 @@ class Table(LazyLoad):
             if not self._is_extend_info_loaded:
                 self.reload_extend_info()
 
+            if attr == "record_num" and self.table_schema.partitions:
+                warnings.warn(
+                    "record_name nay not be correct when table has partitions. Use "
+                    "aggregated value of required partitions instead.",
+                    RuntimeWarning,
+                    stacklevel=3,
+                )
+
             return object.__getattribute__(self, attr)
 
         val = object.__getattribute__(self, attr)

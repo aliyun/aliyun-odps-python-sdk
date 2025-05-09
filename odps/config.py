@@ -550,6 +550,9 @@ default_options.register_option(
     "tunnel.pd_row_cache_size", 1024 * 16, validator=is_integer
 )
 default_options.register_option(
+    "tunnel.pd_cast_mode", None, validator=is_in([None, "numpy", "arrow"])
+)
+default_options.register_option(
     "tunnel.read_row_batch_size", 1024, validator=is_integer
 )
 default_options.register_option(

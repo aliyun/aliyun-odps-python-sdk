@@ -1852,7 +1852,7 @@ class Struct(CompositeDataType):
             if isinstance(type_tuple, tuple):
                 return type_tuple
             else:
-                return tuple(v.strip().strip("`") for v in type_tuple.split(":", 1))
+                return tuple(_split_struct_kv(type_tuple))
 
         return cls(conv_type_tuple(a) for a in args)
 
@@ -1977,23 +1977,31 @@ _composite_handlers = dict(
 )
 
 
+def _split_struct_kv(kv_str):
+    parts = utils.split_backquoted(kv_str, ":", 1)
+    if len(parts) > 2 or len(parts) <= 0:
+        raise ValueError("Invalid type string: %s" % kv_str)
+
+    parts[-1] = parts[-1].strip()
+    if len(parts) > 1:
+        parts[0] = utils.strip_backquotes(parts[0])
+    return parts
+
+
 def parse_composite_types(type_str, handlers=None):
     handlers = handlers or _composite_handlers
 
     def _create_composite_type(typ, *args):
-        prefix = None
-        if ":" in typ:
-            prefix, typ = typ.split(":")
-            prefix = prefix.strip().strip("`")
-            typ = typ.strip()
+        parts = _split_struct_kv(typ)
+        typ = parts[-1]
         if typ not in handlers:
             raise ValueError("Composite type %s not supported." % typ.upper())
         ctype = handlers[typ].parse_composite(args)
 
-        if prefix is None:
+        if len(parts) == 1:
             return ctype
         else:
-            return prefix, ctype
+            return parts[0], ctype
 
     token_stack = []
     bracket_stack = []

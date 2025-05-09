@@ -335,6 +335,15 @@ def test_composite_types():
     assert isinstance(comp_type.field_types["def"].value_type, odps_types.String)
     assert isinstance(comp_type.field_types["ghi"], odps_types.String)
 
+    comp_type = odps_types.validate_data_type(
+        "struct<`<uvw`: int, `>pqr`: string, `:no``te`: double>"
+    )
+    assert isinstance(comp_type, odps_types.Struct)
+    assert len(comp_type.field_types) == 3
+    assert isinstance(comp_type.field_types["<uvw"], odps_types.Int)
+    assert isinstance(comp_type.field_types[">pqr"], odps_types.String)
+    assert isinstance(comp_type.field_types[":no`te"], odps_types.Double)
+
 
 @py_and_c_deco
 def test_set_with_cast():

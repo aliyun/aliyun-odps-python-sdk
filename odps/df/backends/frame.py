@@ -19,18 +19,25 @@ import itertools
 import operator
 
 try:
+    import numpy as np
     import pandas as pd
+
     has_pandas = True
 except (ImportError, ValueError):
     has_pandas = False
 
 from ...compat import u, six, izip as zip, Version
 from ...config import options
-from ...console import get_console_size, in_interactive_session, \
-    in_ipython_frontend, in_qtconsole
-from ...utils import to_str, to_text, deprecated
+from ...console import (
+    get_console_size,
+    in_interactive_session,
+    in_ipython_frontend,
+    in_qtconsole,
+)
 from ...models import TableSchema
 from ...types import Partition
+from ...tunnel.io.types import odps_type_to_arrow_type
+from ...utils import to_str, to_text, deprecated
 from . import formatter as fmt
 
 
@@ -70,8 +77,11 @@ class ResultFrame(six.Iterator):
                 self._values = self._reset_pd_axes(data)
             else:
                 self._values = pd.DataFrame(
-                    [self._get_values(r) for r in data], columns=self._names, index=index
+                    [self._get_values(r) for r in data],
+                    columns=self._names,
+                    index=index,
                 )
+                self._cast_pd_types()
             self._index = self._values.index
             self._pandas = True
         else:
@@ -87,11 +97,36 @@ class ResultFrame(six.Iterator):
 
         self._cursor = -1
 
+    def _cast_pd_types(self):
+        from .odpssql.types import df_type_to_odps_type
+        from .pd.types import df_type_to_np_type
+
+        assert isinstance(self._values, pd.DataFrame)
+
+        if options.tunnel.pd_cast_mode == "arrow":
+            dest_types = [
+                pd.ArrowDtype(odps_type_to_arrow_type(df_type_to_odps_type(tp)))
+                for tp in self._types
+            ]
+            self._values = self._values.astype(dict(zip(self._names, dest_types)))
+        elif options.tunnel.pd_cast_mode == "numpy":
+            dest_types = [df_type_to_np_type(tp) for tp in self._types]
+            dest_df = self._values.copy()
+            for (col_name, src_type), dest_type in zip(
+                self._values.dtypes.items(), dest_types
+            ):
+                if src_type == np.dtype("O") and dest_type.kind in "fiu":
+                    dest_type = np.dtype(float) if dest_type.kind in "iu" else dest_type
+                    dest_df[col_name] = dest_df[col_name].astype(dest_type)
+            self._values = dest_df
+
     def _reset_pd_axes(self, data):
         if Version(pd.__version__) < Version("0.23.0"):
             data = data.values
             return pd.DataFrame(
-                [self._get_values(r) for r in data], columns=self._names, index=self._index
+                [self._get_values(r) for r in data],
+                columns=self._names,
+                index=self._index,
             )
 
         ret_data = data
@@ -105,8 +140,7 @@ class ResultFrame(six.Iterator):
             else:
                 ret_data.set_axis(self._index, axis="index", inplace=True)
         elif self._index is None and (
-            not isinstance(data.index, pd.RangeIndex)
-            or data.index.start != 0
+            not isinstance(data.index, pd.RangeIndex) or data.index.start != 0
         ):
             if data is ret_data:
                 ret_data = ret_data.reset_index(drop=True, inplace=False)
@@ -163,8 +197,10 @@ class ResultFrame(six.Iterator):
             return [r[col_id] for r in self.values]
 
     if has_pandas:
+
         def to_pandas(self, wrap=False):
             from .. import DataFrame
+
             if wrap:
                 return DataFrame(self.values)
             else:
@@ -186,8 +222,12 @@ class ResultFrame(six.Iterator):
             if self._pandas:
                 return self._values.iloc[item]
             else:
-                return ResultFrame(self._values[item], columns=self._columns,
-                                   index=self._index[item], pandas=self._pandas)
+                return ResultFrame(
+                    self._values[item],
+                    columns=self._columns,
+                    index=self._index[item],
+                    pandas=self._pandas,
+                )
         elif isinstance(item, tuple) and len(item) == 2:
             if self._pandas:
                 return self._values.iloc[item]
@@ -195,8 +235,12 @@ class ResultFrame(six.Iterator):
                 if isinstance(item[1], slice):
                     frame = self[item[0]]
                     values = [r[item[1]] for r in frame._values]
-                    return ResultFrame(values, columns=self._columns[item[1]],
-                                       index=frame._index, pandas=self._pandas)
+                    return ResultFrame(
+                        values,
+                        columns=self._columns[item[1]],
+                        index=frame._index,
+                        pandas=self._pandas,
+                    )
                 else:
                     values = [r[item[1]] for r in self[item[0]]._values]
                     return values
@@ -246,13 +290,12 @@ class ResultFrame(six.Iterator):
                 columns = functools.reduce(
                     operator.add,
                     (self._columns,) + tuple(frame._columns for frame in frames),
-                    )
+                )
             return ResultFrame(pd_data, columns=columns, pandas=True)
         else:
             if axis == 0:
                 if any(self._columns != frame._columns for frame in frames):
-                    raise ValueError(
-                        'Cannot concat two frame of different columns')
+                    raise ValueError('Cannot concat two frame of different columns')
 
                 values = functools.reduce(
                     operator.add,
@@ -262,12 +305,12 @@ class ResultFrame(six.Iterator):
                     operator.add,
                     (self._index,) + tuple(frame._index for frame in frames),
                 )
-                return ResultFrame(values, columns=self._columns,
-                                   index=indices, pandas=self._pandas)
+                return ResultFrame(
+                    values, columns=self._columns, index=indices, pandas=self._pandas
+                )
             else:
                 if any(self._index != frame._index for frame in frames):
-                    raise ValueError(
-                        'Cannot concat two frames of different indexes')
+                    raise ValueError('Cannot concat two frames of different indexes')
 
                 sub_tuple = (self._values,) + tuple(frame._values for frame in frames)
                 values = [
@@ -277,8 +320,9 @@ class ResultFrame(six.Iterator):
                     operator.add,
                     (self._columns,) + tuple(frame._columns for frame in frames),
                 )
-                return ResultFrame(values, columns,
-                                   index=self._index, pandas=self._pandas)
+                return ResultFrame(
+                    values, columns, index=self._index, pandas=self._pandas
+                )
 
     @property
     def dtypes(self):
@@ -310,17 +354,19 @@ class ResultFrame(six.Iterator):
         nb_columns = len(self.columns)
 
         # exceed max columns
-        if ((max_columns and nb_columns > max_columns) or
-                ((not ignore_width) and width and nb_columns > (width // 2))):
+        if (max_columns and nb_columns > max_columns) or (
+            (not ignore_width) and width and nb_columns > (width // 2)
+        ):
             return False
 
-        if (ignore_width  # used by repr_html under IPython notebook
-                # scripts ignore terminal dims
-                or not in_interactive_session()):
+        if (
+            ignore_width  # used by repr_html under IPython notebook
+            # scripts ignore terminal dims
+            or not in_interactive_session()
+        ):
             return True
 
-        if (options.display.width is not None or
-                in_ipython_frontend()):
+        if options.display.width is not None or in_ipython_frontend():
             # check at least the column row for excessive width
             max_rows = 1
         else:
@@ -337,7 +383,7 @@ class ResultFrame(six.Iterator):
 
         if not (max_rows is None):  # unlimited rows
             # min of two, where one may be None
-            d = d[:min(max_rows, len(d))]
+            d = d[: min(max_rows, len(d))]
         else:
             return True
 
@@ -366,8 +412,13 @@ class ResultFrame(six.Iterator):
             width, _ = get_console_size()
         else:
             width = None
-        self.to_string(buf=buf, max_rows=max_rows, max_cols=max_cols,
-                       line_width=width, show_dimensions=show_dimensions)
+        self.to_string(
+            buf=buf,
+            max_rows=max_rows,
+            max_cols=max_cols,
+            line_width=width,
+            show_dimensions=show_dimensions,
+        )
 
         return to_str(buf.getvalue())
 
@@ -386,6 +437,7 @@ class ResultFrame(six.Iterator):
         if self._pandas and options.display.notebook_widget:
             from .. import DataFrame
             from ..ui import show_df_widget
+
             show_df_widget(DataFrame(self._values, schema=self.schema))
 
         if self._pandas:
@@ -400,45 +452,82 @@ class ResultFrame(six.Iterator):
             max_cols = options.display.max_columns
             show_dimensions = options.display.show_dimensions
 
-            return self.to_html(max_rows=max_rows, max_cols=max_cols,
-                                show_dimensions=show_dimensions,
-                                notebook=True)
+            return self.to_html(
+                max_rows=max_rows,
+                max_cols=max_cols,
+                show_dimensions=show_dimensions,
+                notebook=True,
+            )
         else:
             return None
 
-    def to_string(self, buf=None, columns=None, col_space=None,
-                  header=True, index=True, na_rep='NaN', formatters=None,
-                  float_format=None, sparsify=None, index_names=True,
-                  justify=None, line_width=None, max_rows=None, max_cols=None,
-                  show_dimensions=False):
+    def to_string(
+        self,
+        buf=None,
+        columns=None,
+        col_space=None,
+        header=True,
+        index=True,
+        na_rep='NaN',
+        formatters=None,
+        float_format=None,
+        sparsify=None,
+        index_names=True,
+        justify=None,
+        line_width=None,
+        max_rows=None,
+        max_cols=None,
+        show_dimensions=False,
+    ):
         """
         Render a DataFrame to a console-friendly tabular output.
         """
 
-        formatter = fmt.ResultFrameFormatter(self, buf=buf, columns=columns,
-                                             col_space=col_space, na_rep=na_rep,
-                                             formatters=formatters,
-                                             float_format=float_format,
-                                             sparsify=sparsify,
-                                             justify=justify,
-                                             index_names=index_names,
-                                             header=header, index=index,
-                                             line_width=line_width,
-                                             max_rows=max_rows,
-                                             max_cols=max_cols,
-                                             show_dimensions=show_dimensions)
+        formatter = fmt.ResultFrameFormatter(
+            self,
+            buf=buf,
+            columns=columns,
+            col_space=col_space,
+            na_rep=na_rep,
+            formatters=formatters,
+            float_format=float_format,
+            sparsify=sparsify,
+            justify=justify,
+            index_names=index_names,
+            header=header,
+            index=index,
+            line_width=line_width,
+            max_rows=max_rows,
+            max_cols=max_cols,
+            show_dimensions=show_dimensions,
+        )
         formatter.to_string()
 
         if buf is None:
             result = formatter.buf.getvalue()
             return result
 
-    def to_html(self, buf=None, columns=None, col_space=None,
-                header=True, index=True, na_rep='NaN', formatters=None,
-                float_format=None, sparsify=None, index_names=True,
-                justify=None, bold_rows=True, classes=None, escape=True,
-                max_rows=None, max_cols=None, show_dimensions=False,
-                notebook=False):
+    def to_html(
+        self,
+        buf=None,
+        columns=None,
+        col_space=None,
+        header=True,
+        index=True,
+        na_rep='NaN',
+        formatters=None,
+        float_format=None,
+        sparsify=None,
+        index_names=True,
+        justify=None,
+        bold_rows=True,
+        classes=None,
+        escape=True,
+        max_rows=None,
+        max_cols=None,
+        show_dimensions=False,
+        notebook=False,
+    ):
         """
         Render a DataFrame as an HTML table.
 
@@ -459,19 +548,25 @@ class ResultFrame(six.Iterator):
 
         """
 
-        formatter = fmt.ResultFrameFormatter(self, buf=buf, columns=columns,
-                                             col_space=col_space, na_rep=na_rep,
-                                             formatters=formatters,
-                                             float_format=float_format,
-                                             sparsify=sparsify,
-                                             justify=justify,
-                                             index_names=index_names,
-                                             header=header, index=index,
-                                             bold_rows=bold_rows,
-                                             escape=escape,
-                                             max_rows=max_rows,
-                                             max_cols=max_cols,
-                                             show_dimensions=show_dimensions)
+        formatter = fmt.ResultFrameFormatter(
+            self,
+            buf=buf,
+            columns=columns,
+            col_space=col_space,
+            na_rep=na_rep,
+            formatters=formatters,
+            float_format=float_format,
+            sparsify=sparsify,
+            justify=justify,
+            index_names=index_names,
+            header=header,
+            index=index,
+            bold_rows=bold_rows,
+            escape=escape,
+            max_rows=max_rows,
+            max_cols=max_cols,
+            show_dimensions=show_dimensions,
+        )
         formatter.to_html(classes=classes, notebook=notebook)
 
         if buf is None:

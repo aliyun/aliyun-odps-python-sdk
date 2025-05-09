@@ -48,6 +48,7 @@ except (ImportError, AttributeError):
     pytestmark = pytest.mark.skip("Need pyarrow to run this test")
 
 from ... import types as odps_types
+from ...compat import Version
 from ...config import options
 from ...models import TableSchema
 from ...tests.core import get_test_unique_name, tn
@@ -115,11 +116,27 @@ def setup(odps, tunnel):
                 pd_data[col_name] = pd_data[col_name].dt.tz_localize(_get_tz_str())
         return pd_data
 
-    def gen_data(repeat=1):
+    def gen_data(repeat=1, with_none=False):
         data = OrderedDict()
         data["id"] = ["hello \x00\x00 world", "goodbye", "c" * 2, "c" * 20] * repeat
-        data["int_num"] = [2**63 - 1, 222222, -(2**63) + 1, -(2**11) + 1] * repeat
-        data["float_num"] = [math.pi, math.e, -2.222, 2.222] * repeat
+        if with_none:
+            data["int_num"] = [
+                2**32 - 1,
+                None,
+                -(2**32) + 1,
+                -(2**11) + 1,
+            ] * repeat
+        else:
+            data["int_num"] = [
+                2**63 - 1,
+                222222,
+                -(2**63) + 1,
+                -(2**11) + 1,
+            ] * repeat
+        if with_none:
+            data["float_num"] = [math.pi, math.e, -2.222, None] * repeat
+        else:
+            data["float_num"] = [math.pi, math.e, -2.222, 2.222] * repeat
         data["bool"] = [True, False, True, True] * repeat
         data["date"] = [
             datetime.date.today() + datetime.timedelta(days=idx) for idx in range(4)
@@ -134,6 +151,10 @@ def setup(odps, tunnel):
             pd.Timestamp.now() + pd.Timedelta(days=idx) for idx in range(4)
         ] * repeat
         pd_data = pd.DataFrame(data)
+        if Version(pd.__version__) >= Version("2.0.0"):
+            pd_data["dt"] = pd_data["dt"].astype("datetime64[ms]")
+        if options.tunnel.pd_cast_mode == "arrow":
+            pd_data["int_num"] = pd_data["int_num"].astype(pd.Int64Dtype())
 
         return pa.RecordBatch.from_pandas(pd_data)
 
@@ -442,3 +463,31 @@ def test_buffered_upload_and_download_with_timezone(odps, setup, zone):
     finally:
         odps.delete_table(test_table_name, if_exists=True)
         options.local_timezone = None
+
+
+@pytest.mark.parametrize("pd_cast_mode", [None, "numpy", "arrow"])
+def test_download_with_none_values(odps, setup, pd_cast_mode):
+    if pd_cast_mode == "arrow" and not hasattr(pd, "ArrowDtype"):
+        pytest.skip("ArrowDtype not available")
+
+    test_table_name = tn("pyodps_test_arrow_down_with_none")
+    odps.delete_table(test_table_name, if_exists=True)
+    options.tunnel.pd_cast_mode = pd_cast_mode
+    try:
+        setup.create_table(test_table_name)
+        data = setup.gen_data(with_none=True)
+
+        setup.buffered_upload_data(test_table_name, data)
+        result = setup.download_data(test_table_name, compress=True)
+
+        if pd_cast_mode == "arrow":
+            data = data.to_pandas(types_mapper=pd.ArrowDtype)
+        _assert_frame_equal(data, result)
+
+        if pd_cast_mode == "numpy":
+            assert result["int_num"].dtype.kind == "f"
+        elif pd_cast_mode == "arrow":
+            assert result["int_num"].dtype == pd.ArrowDtype(pa.int64())
+    finally:
+        odps.delete_table(test_table_name, if_exists=True)
+        options.tunnel.pd_cast_mode = None

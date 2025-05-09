@@ -611,11 +611,20 @@ class TunnelArrowReader(object):
         self.closed = False
 
         self._pd_column_converters = dict()
+        # True if need to convert numeric columns with None as float types
+        self._coerce_numpy_columns = set()
         for col in schema.simple_columns:
+            arrow_type = self._arrow_schema.field(
+                self._arrow_schema.get_field_index(col.name)
+            ).type
             if isinstance(col.type, (types.Map, types.Array, types.Struct)):
                 self._pd_column_converters[col.name] = ArrowRecordFieldConverter(
                     col.type, convert_ts=False
                 )
+            elif options.tunnel.pd_cast_mode == "numpy" and (
+                pa.types.is_integer(arrow_type) or pa.types.is_floating(arrow_type)
+            ):
+                self._coerce_numpy_columns.add(col.name)
 
         self._injected_error = None
 
@@ -795,16 +804,29 @@ class TunnelArrowReader(object):
 
     def _convert_batch_to_pandas(self, batch):
         series_list = []
-        if not self._pd_column_converters:
-            return batch.to_pandas()
+        type_mapper = pd.ArrowDtype if options.tunnel.pd_cast_mode == "arrow" else None
+        if not self._pd_column_converters and not self._coerce_numpy_columns:
+            return batch.to_pandas(types_mapper=type_mapper)
         for col_name, arrow_column in zip(batch.schema.names, batch.columns):
             if col_name not in self._pd_column_converters:
-                series_list.append(arrow_column.to_pandas())
+                series = arrow_column.to_pandas(types_mapper=type_mapper)
+                if col_name in self._coerce_numpy_columns and series.dtype == np.dtype(
+                    "O"
+                ):
+                    if pa.types.is_floating(arrow_column.type):
+                        col_dtype = arrow_column.type.to_pandas_dtype()
+                    else:
+                        col_dtype = np.dtype(float)
+                    series = series.astype(col_dtype)
+                series_list.append(series)
             else:
                 try:
-                    series = arrow_column.to_pandas()
+                    series = arrow_column.to_pandas(types_mapper=type_mapper)
                 except pa.ArrowNotImplementedError:
-                    series = pd.Series(arrow_column.to_pylist(), name=col_name)
+                    dtype = type_mapper(arrow_column.type) if type_mapper else None
+                    series = pd.Series(
+                        arrow_column.to_pylist(), name=col_name, dtype=dtype
+                    )
                 series_list.append(series.map(self._pd_column_converters[col_name]))
         return pd.concat(series_list, axis=1)
 
