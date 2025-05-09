@@ -841,7 +841,11 @@ class TableIOMethods(object):
                 data_schema = arrow_schema_to_odps_schema(records_list.schema)
             elif cls._is_pd_df(records_list):
                 data_schema = df_schema_to_odps_schema(
-                    pd_to_df_schema(records_list, unknown_as_string=unknown_as_string)
+                    pd_to_df_schema(
+                        records_list,
+                        unknown_as_string=unknown_as_string,
+                        type_mapping=type_mapping,
+                    )
                 )
             elif isinstance(records_list, list) and odps_types.is_record(
                 records_list[0]

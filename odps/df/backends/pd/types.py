@@ -29,8 +29,9 @@ except (ImportError, ValueError):
     pd = None
 
 from ... import types
-from ....models import TableSchema
+from .... import types as odps_types
 from ....compat import six
+from ....models import TableSchema
 
 _np_to_df_types = dict()
 _df_to_np_types = dict()
@@ -100,7 +101,10 @@ def np_type_to_df_type(dtype, arr=None, unknown_as_string=False, name=None):
     raise TypeError('Unknown dtype: %s' % dtype)
 
 
-def pd_to_df_schema(pd_df, unknown_as_string=False, as_type=None):
+def pd_to_df_schema(pd_df, unknown_as_string=False, as_type=None, type_mapping=None):
+    from ..odpssql.types import odps_type_to_df_type
+
+    type_mapping = type_mapping or {}
     if pd_df.index.name is not None:
         pd_df.reset_index(inplace=True)
 
@@ -112,6 +116,14 @@ def pd_to_df_schema(pd_df, unknown_as_string=False, as_type=None):
         arr = pd_df.iloc[:, i]
         if as_type and names[i] in as_type:
             df_types.append(as_type[names[i]])
+            continue
+        if names[i] in type_mapping:
+            try:
+                odps_type = odps_types.validate_data_type(type_mapping[names[i]])
+                df_type = odps_type_to_df_type(odps_type)
+            except:
+                df_type = types.validate_data_type(type_mapping[names[i]])
+            df_types.append(df_type)
             continue
         df_types.append(np_type_to_df_type(dtypes.iloc[i], arr,
                                            unknown_as_string=unknown_as_string,
