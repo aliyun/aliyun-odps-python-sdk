@@ -125,7 +125,7 @@ def arrow_type_to_odps_type(arrow_type):
         elif isinstance(arrow_type, pa.StructType):
             fields = [
                 (arrow_type[idx].name, arrow_type_to_odps_type(arrow_type[idx].type))
-                for idx in arrow_type.num_fields
+                for idx in range(arrow_type.num_fields)
             ]
             col_type = types.Struct(fields)
         else:

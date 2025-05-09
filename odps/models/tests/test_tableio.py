@@ -824,20 +824,63 @@ def test_write_pandas_with_dynamic_parts(odps, use_arrow):
 @pyarrow_case
 @pandas_case
 @odps2_typed_case
+def test_write_pandas_with_arrow_complex_type(odps):
+    if Version(pa.__version__) < Version("1.0.0"):
+        pytest.skip("casting nested type is not supported in arrow < 1.0.0")
+    test_table_name = tn("pyodps_t_tmp_write_arrow_complex_type")
+    odps.delete_table(test_table_name, if_exists=True)
+
+    data = pd.DataFrame(
+        [
+            [
+                "05ac09c4",
+                [134, 256],
+                [None, {"name": "col1", "val": 134}],
+            ],
+            ["cfae9054", [5431], [{"name": "col2", "val": 2345}]],
+            [
+                "6029501d",
+                [145, None, 561],
+                [{"name": "ddd", "val": 2341}, {"name": None, "val": None}],
+            ],
+            [
+                "c653e520",
+                [7412, 234],
+                [None, {"name": "uvw", "val": None}],
+            ],
+            ["59caed0d", [295, 1674], None],
+        ],
+        columns=["idx", "list_data", "list_struct_data"],
+    )
+    arrow_data = pa.Table.from_pandas(data)
+    try:
+        table_kwargs = {
+            "table_properties": {"columnar.nested.type": "true"},
+        }
+        odps.write_table(
+            test_table_name,
+            arrow_data,
+            create_table=True,
+            lifecycle=1,
+            table_kwargs=table_kwargs,
+        )
+        table = odps.get_table(test_table_name)
+        pd.testing.assert_frame_equal(
+            data.sort_values("idx").reset_index(drop=True),
+            table.to_pandas().sort_values("idx").reset_index(drop=True),
+        )
+    finally:
+        odps.delete_table(test_table_name, if_exists=True)
+
+
+@pyarrow_case
+@pandas_case
+@odps2_typed_case
 def test_write_pandas_with_complex_type_and_mapping(odps):
     if Version(pa.__version__) < Version("1.0.0"):
         pytest.skip("casting nested type is not supported in arrow < 1.0.0")
     test_table_name = tn("pyodps_t_tmp_write_pd_complex_type")
     odps.delete_table(test_table_name, if_exists=True)
-
-    table = odps.create_table(
-        test_table_name,
-        "idx string, list_data array<bigint>, "
-        "list_struct_data array<struct<name:string, val: bigint>>, "
-        "map_data map<string, bigint>",
-        table_properties={"columnar.nested.type": "true"},
-        lifecycle=1,
-    )
 
     data = pd.DataFrame(
         [
@@ -870,19 +913,24 @@ def test_write_pandas_with_complex_type_and_mapping(odps):
             "list_struct_data": "array<struct<name:string, val: bigint>>",
             "map_data": "map<string, bigint>",
         }
+        table_kwargs = {
+            "table_properties": {"columnar.nested.type": "true"},
+        }
         odps.write_table(
             test_table_name,
             data,
             type_mapping=type_mapping,
             create_table=True,
             lifecycle=1,
+            table_kwargs=table_kwargs,
         )
+        table = odps.get_table(test_table_name)
         pd.testing.assert_frame_equal(
             data.sort_values("idx").reset_index(drop=True),
             table.to_pandas().sort_values("idx").reset_index(drop=True),
         )
     finally:
-        table.drop()
+        odps.delete_table(test_table_name, if_exists=True)
 
 
 @pyarrow_case
