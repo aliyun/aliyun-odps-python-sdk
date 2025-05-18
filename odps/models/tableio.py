@@ -827,6 +827,7 @@ class TableIOMethods(object):
         partition=None,
         partition_cols=None,
         type_mapping=None,
+        infer_type_with_arrow=False,
     ):
         from ..df.backends.odpssql.types import df_schema_to_odps_schema
         from ..df.backends.pd.types import pd_to_df_schema
@@ -845,6 +846,7 @@ class TableIOMethods(object):
                         records_list,
                         unknown_as_string=unknown_as_string,
                         type_mapping=type_mapping,
+                        infer_type_with_arrow=infer_type_with_arrow,
                     )
                 )
             elif isinstance(records_list, list) and odps_types.is_record(
@@ -1168,6 +1170,8 @@ class TableIOMethods(object):
         :param dict type_mapping: specify type mapping for columns when creating tables,
             can be dicts like ``{"column": "bigint"}``. If column does not exist in data,
             it will be added as an empty column.
+        :param bool infer_type_with_arrow: whether to infer column types of pandas objects
+            with arrow when creating tables. Default as False.
         :param table_schema_callback: a function to accept table schema resolved from data
             and return a new schema for table to create. Only works when target table does
             not exist and ``create_table`` is True.
@@ -1242,6 +1246,7 @@ class TableIOMethods(object):
         project = kw.pop("project", None)
         schema = kw.pop("schema", None)
         append_missing_cols = kw.pop("append_missing_cols", False)
+        infer_type_with_arrow = kw.pop("infer_type_with_arrow", False)
         overwrite = kw.pop("overwrite", False)
 
         single_block_types = (Iterable,)
@@ -1290,6 +1295,7 @@ class TableIOMethods(object):
                 partition=partition,
                 partition_cols=partition_cols,
                 type_mapping=type_mapping,
+                infer_type_with_arrow=infer_type_with_arrow,
             )
         except TypeError:
             table_schema = None
@@ -1302,6 +1308,11 @@ class TableIOMethods(object):
                 )
             if callable(table_schema_callback):
                 table_schema = table_schema_callback(table_schema)
+            if table_schema is None:
+                raise ValueError(
+                    "Table schema is required when creating a new table. "
+                    "You can pass a dict to `type_mapping` argument."
+                )
             target_table = odps.create_table(
                 name, table_schema, project=project, schema=schema, **table_kwargs
             )
@@ -1523,15 +1534,20 @@ class TableIOMethods(object):
                 else:
                     lifecycle_clause = "LIFECYCLE %d " % lifecycle
                 sql_stmt = _format_raw_sql(
-                    "CREATE TABLE `%s` %sAS %s", (table_name, lifecycle_clause, sql)
+                    "CREATE TABLE %s %sAS %s",
+                    (utils.backquote_string(table_name), lifecycle_clause, sql),
                 )
                 odps.execute_sql(sql_stmt, **sql_kwargs)
                 return
             else:
                 # create temp table, get result schema and create target table
                 sql_stmt = _format_raw_sql(
-                    "CREATE TABLE `%s` LIFECYCLE %d AS %s",
-                    (temp_table_name, options.temp_lifecycle, sql),
+                    "CREATE TABLE %s LIFECYCLE %d AS %s",
+                    (
+                        utils.backquote_string(temp_table_name),
+                        options.temp_lifecycle,
+                        sql,
+                    ),
                 )
                 odps.execute_sql(sql_stmt, **sql_kwargs)
                 tmp_schema = odps.get_table(temp_table_name).table_schema
@@ -1552,8 +1568,8 @@ class TableIOMethods(object):
             )
             # for partitioned target, create a temp table and store results
             sql_stmt = _format_raw_sql(
-                "CREATE TABLE `%s` LIFECYCLE %d AS %s",
-                (temp_table_name, options.temp_lifecycle, sql),
+                "CREATE TABLE %s LIFECYCLE %d AS %s",
+                (utils.backquote_string(temp_table_name), options.temp_lifecycle, sql),
             )
             odps.execute_sql(sql_stmt, **sql_kwargs)
 
@@ -1650,7 +1666,7 @@ class TableIOMethods(object):
                         target_table, partition
                     )
                     part_expr_map = {
-                        col: "`%s`" % col
+                        col: utils.backquote_string(col)
                         for col in partition_cols
                         if col in temp_table.table_schema
                     }
@@ -1663,7 +1679,9 @@ class TableIOMethods(object):
                     # add an alias for generated columns
                     part_expr_map = {
                         col: (
-                            v if col not in generated_cols else "%s AS `%s`" % (v, col)
+                            v
+                            if col not in generated_cols
+                            else "%s AS %s" % (v, utils.backquote_string(col))
                         )
                         for col, v in part_expr_map.items()
                     }
@@ -1672,9 +1690,9 @@ class TableIOMethods(object):
                     part_selections = [
                         part_expr_map[col_name] for col_name in partition_cols
                     ]
-                    part_distinct_sql = "SELECT DISTINCT %s FROM `%s`" % (
+                    part_distinct_sql = "SELECT DISTINCT %s FROM %s" % (
                         ", ".join(part_selections),
-                        temp_table_name,
+                        utils.backquote_string(temp_table_name),
                     )
                     distinct_inst = odps.execute_sql(part_distinct_sql)
                     trunc_part_specs = []
@@ -1691,10 +1709,12 @@ class TableIOMethods(object):
                                 trunc_part_specs.append(local_part_str)
                     target_table.truncate(trunc_part_specs)
 
-            col_selection = ", ".join("`%s`" % s for s in (target_columns + dyn_parts))
-            sql_stmt = "INSERT %s `%s` %s (%s) SELECT %s FROM %s" % (
+            col_selection = ", ".join(
+                utils.backquote_string(s) for s in (target_columns + dyn_parts)
+            )
+            sql_stmt = "INSERT %s %s %s (%s) SELECT %s FROM %s" % (
                 insert_mode,
-                table_name,
+                utils.backquote_string(table_name),
                 part_clause,
                 col_selection,
                 col_selection,

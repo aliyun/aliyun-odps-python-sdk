@@ -742,13 +742,13 @@ def test_instance_result_to_result_frame(odps):
 
 def test_instance_logview(odps):
     try:
-        options.use_legacy_logview = None
+        options.use_legacy_logview = True
         instance = odps.run_sql("drop table if exists non_exist_table_name")
         addr = odps.get_logview_address(instance.id, 12)
         assert isinstance(addr, six.string_types)
         assert "logview" in addr
     finally:
-        options.use_legacy_logview = True
+        options.use_legacy_logview = None
 
 
 def test_instance_job_insight(odps):
@@ -761,7 +761,7 @@ def test_instance_job_insight(odps):
         addr = new_odps.get_logview_address(instance.id, 12)
         assert "job-insight" in addr
     finally:
-        options.use_legacy_logview = True
+        options.use_legacy_logview = None
 
 
 @flaky(max_runs=3)

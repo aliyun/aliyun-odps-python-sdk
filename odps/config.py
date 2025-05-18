@@ -446,12 +446,13 @@ default_options.register_option("quota_name", None)
 default_options.register_option("local_timezone", None)
 default_options.register_option("use_legacy_parsedate", False)
 default_options.register_option("allow_antique_date", False)
+default_options.register_option("signature_prefix", None)
 default_options.register_option(
     "user_agent_pattern",
     "$pyodps_version $python_version $os_version $maxframe_version",
 )
 default_options.register_option(
-    "use_legacy_logview", True, validator=any_validator(is_bool, is_null)
+    "use_legacy_logview", None, validator=any_validator(is_bool, is_null)
 )
 default_options.register_option("logview_host", None)
 default_options.register_option("logview_hours", 24 * 30, validator=is_integer)
@@ -497,7 +498,7 @@ default_options.register_option(
     "progress_time_interval", 5 * 60, validator=any_validator(is_float, is_integer)
 )
 default_options.register_option("progress_percentage_gap", 5, validator=is_integer)
-default_options.register_option("enable_v4_sign", False, validator=is_bool)
+default_options.register_option("enable_v4_sign", True, validator=is_bool)
 default_options.register_option("align_supported_python_tag", True, validator=is_bool)
 
 # c or python mode, use for UT, in other cases, please do not modify the value

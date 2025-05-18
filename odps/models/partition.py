@@ -130,9 +130,9 @@ class Partition(LazyLoad):
         return str(self.partition_spec)
 
     def __repr__(self):
-        return "<Partition %s.`%s`(%s)>" % (
+        return "<Partition %s.%s(%s)>" % (
             str(self.table.project.name),
-            str(self.table.name),
+            str(utils.backquote_string(self.table.name)),
             str(self.partition_spec),
         )
 

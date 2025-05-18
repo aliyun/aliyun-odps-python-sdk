@@ -565,7 +565,7 @@ class OdpsSQLCompiler(Backend):
                 table_parts.append(schema.name)
 
             if options.df.quote:
-                table_parts.append("`%s`" % source_data.name)
+                table_parts.append(utils.backquote_string(source_data.name))
             else:
                 table_parts.append(source_data.name)
 
@@ -1239,7 +1239,7 @@ class OdpsSQLCompiler(Backend):
 
     def _quote(self, compiled):
         if options.df.quote:
-            return '`{0}`'.format(compiled)
+            return utils.backquote_string(compiled)
         else:
             return compiled
 

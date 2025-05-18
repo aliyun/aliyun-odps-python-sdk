@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@ from copy import deepcopy
 
 import pytest
 
-from ..accounts import AliyunAccount
+from ..accounts import CloudAccount
 from ..config import (
     Config,
     OptionError,
@@ -51,7 +51,7 @@ def test_options():
         assert local_options.console.max_lines is None
         assert local_options.console.max_width is None
 
-        local_options.account = AliyunAccount("test", "")
+        local_options.account = CloudAccount("test", "")
         assert local_options.account.access_id == "test"
 
         local_options.register_option(

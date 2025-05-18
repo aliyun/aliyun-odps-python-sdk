@@ -35,6 +35,14 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_TEMP_ACCOUNT_HOURS = 5
 
+DEFAULT_SIGNATURE_PREFIX = "aliyun_v4"
+
+
+def _get_v4_signature_prefix():
+    if options.signature_prefix is not None:
+        return options.signature_prefix
+    return DEFAULT_SIGNATURE_PREFIX
+
 
 class BaseAccount(object):
     def _build_canonical_str(self, url_components, req):
@@ -91,9 +99,9 @@ class BaseAccount(object):
         raise NotImplementedError
 
 
-class AliyunAccount(BaseAccount):
+class CloudAccount(BaseAccount):
     """
-    Account of aliyun.com
+    Account using access id and keys
     """
 
     def __init__(self, access_id, secret_access_key):
@@ -106,7 +114,9 @@ class AliyunAccount(BaseAccount):
         if date_str == self._last_signature_date:
             return self._last_signature_key
 
-        k_secret = utils.to_binary("aliyun_v4" + self.secret_access_key)
+        sig_prefix = _get_v4_signature_prefix()
+
+        k_secret = utils.to_binary(sig_prefix + self.secret_access_key)
         k_date = hmac.new(k_secret, utils.to_binary(date_str), hashlib.sha256).digest()
         k_region = hmac.new(
             k_date, utils.to_binary(region_name), hashlib.sha256
@@ -115,7 +125,7 @@ class AliyunAccount(BaseAccount):
 
         self._last_signature_date = date_str
         self._last_signature_key = hmac.new(
-            k_service, b"aliyun_v4_request", hashlib.sha256
+            k_service, utils.to_binary(sig_prefix + "_request"), hashlib.sha256
         ).digest()
         return self._last_signature_key
 
@@ -132,9 +142,10 @@ class AliyunAccount(BaseAccount):
             return "ODPS %s:%s" % (self.access_id, utils.to_str(signature))
         else:
             # use v4 sign
+            sig_prefix = _get_v4_signature_prefix()
             date_str = datetime.strftime(datetime_utcnow(), "%Y%m%d")
             credential = "/".join(
-                [self.access_id, date_str, region_name, "odps/aliyun_v4_request"]
+                [self.access_id, date_str, region_name, "odps/%s_request" % sig_prefix]
             )
             sign_key = self._get_v4_signature_key(date_str, region_name)
             signature = base64.b64encode(
@@ -241,7 +252,7 @@ class SignServer(object):
                 region_name = utils.to_str(postvars[b"region_name"][0])
             secret_access_key = self.server._accounts[access_id]
 
-            account = AliyunAccount(access_id, secret_access_key)
+            account = CloudAccount(access_id, secret_access_key)
             auth_str = account.calc_auth_str(canonical, region_name)
 
             self.send_response(200)
@@ -409,7 +420,7 @@ class TempAccountMixin(object):
             self._expire_time = self._reload_account() or default_expire
 
 
-class StsAccount(TempAccountMixin, AliyunAccount):
+class StsAccount(TempAccountMixin, CloudAccount):
     """
     Account of sts
     """
@@ -422,7 +433,7 @@ class StsAccount(TempAccountMixin, AliyunAccount):
         expired_hours=DEFAULT_TEMP_ACCOUNT_HOURS,
     ):
         self.sts_token = sts_token
-        AliyunAccount.__init__(self, access_id, secret_access_key)
+        CloudAccount.__init__(self, access_id, secret_access_key)
         TempAccountMixin.__init__(self, expired_hours=expired_hours)
 
     @classmethod
@@ -571,3 +582,18 @@ def from_environments():
         if account is not None:
             break
     return account
+
+
+_account_hash = "709bf99a66111bdd3945a39fa8dee8c7"
+
+
+def __getattr__(name):
+    if utils.md5_hexdigest(name) == _account_hash:
+        return CloudAccount
+    raise AttributeError(name)
+
+
+try:
+    from .internal.accounts import *  # noqa: F401
+except ImportError:
+    pass

@@ -180,9 +180,12 @@ class Tables(Iterable):
         if if_exists:
             buf.write("IF EXISTS ")
         if schema_name is not None:
-            buf.write("%s.%s.`%s`" % (project_name, schema_name, table_name))
+            buf.write(
+                "%s.%s.%s"
+                % (project_name, schema_name, utils.backquote_string(table_name))
+            )
         else:
-            buf.write("%s.`%s`" % (project_name, table_name))
+            buf.write("%s.%s" % (project_name, utils.backquote_string(table_name)))
 
         return buf.getvalue()
 

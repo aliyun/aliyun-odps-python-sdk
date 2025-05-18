@@ -925,10 +925,18 @@ def test_write_pandas_with_arrow_complex_type(odps):
 @pyarrow_case
 @pandas_case
 @odps2_typed_case
-def test_write_pandas_with_complex_type_and_mapping(odps):
+@pytest.mark.parametrize(
+    "infer_type_with_arrow, test_incompatible",
+    [(False, False), (True, True), (True, False)],
+)
+def test_write_pandas_with_complex_type_and_mapping(
+    odps, infer_type_with_arrow, test_incompatible
+):
     if Version(pa.__version__) < Version("1.0.0"):
         pytest.skip("casting nested type is not supported in arrow < 1.0.0")
-    test_table_name = tn("pyodps_t_tmp_write_pd_complex_type")
+    test_table_name = tn(
+        "pyodps_t_tmp_write_pd_complex_type_" + get_test_unique_name(5)
+    )
     odps.delete_table(test_table_name, if_exists=True)
 
     data = pd.DataFrame(
@@ -956,24 +964,53 @@ def test_write_pandas_with_complex_type_and_mapping(odps):
         ],
         columns=["idx", "list_data", "list_struct_data", "map_data"],
     )
+
+    if infer_type_with_arrow and not test_incompatible:
+        # map_data cannot be inferred by pyarrow with dicts
+        data = data.drop("map_data", axis=1)
+
     try:
-        type_mapping = {
-            "list_data": "array<bigint>",
-            "list_struct_data": "array<struct<name:string, val: bigint>>",
-            "map_data": "map<string, bigint>",
-        }
+        type_mapping = (
+            {
+                "list_data": "array<bigint>",
+                "list_struct_data": "array<struct<name:string, val: bigint>>",
+                "map_data": "map<string, bigint>",
+            }
+            if not infer_type_with_arrow
+            else None
+        )
         table_kwargs = {
             "table_properties": {"columnar.nested.type": "true"},
         }
-        odps.write_table(
-            test_table_name,
-            data,
-            type_mapping=type_mapping,
-            create_table=True,
-            lifecycle=1,
-            table_kwargs=table_kwargs,
-        )
+        try:
+            odps.write_table(
+                test_table_name,
+                data,
+                type_mapping=type_mapping,
+                create_table=True,
+                lifecycle=1,
+                table_kwargs=table_kwargs,
+                infer_type_with_arrow=infer_type_with_arrow,
+            )
+        except ValueError:
+            if not test_incompatible:
+                raise
+            return
+
         table = odps.get_table(test_table_name)
+        assert table.table_schema["list_data"].type == odps_types.validate_data_type(
+            "array<bigint>"
+        )
+        assert table.table_schema[
+            "list_struct_data"
+        ].type == odps_types.validate_data_type(
+            "array<struct<name:string, val: bigint>>"
+        )
+        if "map_data" in table.table_schema:
+            assert table.table_schema["map_data"].type == odps_types.validate_data_type(
+                "map<string, bigint>"
+            )
+
         pd.testing.assert_frame_equal(
             data.sort_values("idx").reset_index(drop=True),
             table.to_pandas().sort_values("idx").reset_index(drop=True),

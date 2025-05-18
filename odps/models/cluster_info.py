@@ -14,6 +14,7 @@
 
 from .. import serializers
 from ..compat import Enum, six
+from ..utils import backquote_string
 
 
 class ClusterType(Enum):
@@ -52,11 +53,12 @@ class ClusterInfo(serializers.JSONSerializableModel):
             cluster_type_str = u"RANGE "
         else:
             cluster_type_str = u""
-        cluster_cols = u", ".join(u"`%s`" % col for col in self.cluster_cols)
+        cluster_cols = u", ".join(backquote_string(col) for col in self.cluster_cols)
         sio.write("%sCLUSTERED BY (%s)" % (cluster_type_str, cluster_cols))
         if self.sort_cols:
             sort_cols = u", ".join(
-                u"`%s` %s" % (c.name, c.order.value) for c in self.sort_cols
+                u"%s %s" % (backquote_string(c.name), c.order.value)
+                for c in self.sort_cols
             )
             sio.write(u" SORTED BY (%s)" % sort_cols)
         if self.bucket_num:

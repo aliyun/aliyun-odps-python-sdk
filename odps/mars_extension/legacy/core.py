@@ -26,7 +26,7 @@ import numpy as np
 import pandas as pd
 from cupid.config import options as cupid_options
 
-from ...accounts import AliyunAccount
+from ...accounts import CloudAccount
 from ...config import options as odps_options
 from ...models import TableSchema
 from ...types import PartitionSpec
@@ -312,7 +312,7 @@ def to_mars_dataframe(
     )
     odps_params = dict(project=odps.project, endpoint=runtime_endpoint)
 
-    if isinstance(odps.account, AliyunAccount):
+    if isinstance(odps.account, CloudAccount):
         odps_params.update(
             dict(
                 access_id=odps.account.access_id,
@@ -492,7 +492,7 @@ def persist_mars_dataframe(
         or odps.endpoint
     )
     odps_params = dict(project=odps.project, endpoint=runtime_endpoint)
-    if isinstance(odps.account, AliyunAccount):
+    if isinstance(odps.account, CloudAccount):
         odps_params.update(
             dict(
                 access_id=odps.account.access_id,
