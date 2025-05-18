@@ -28,7 +28,7 @@ import warnings
 from ....compat import six
 from ....config import options
 from ....errors import ODPSError, NoPermission, ConnectTimeout, ParseError
-from ....utils import TEMP_TABLE_PREFIX, get_supported_python_tag
+from ....utils import TEMP_TABLE_PREFIX, backquote_string, get_supported_python_tag
 from ....models import Table, TableSchema
 from ....models.partition import Partition
 from ....tempobj import register_temp_table
@@ -530,9 +530,9 @@ class ODPSSQLEngine(Engine):
         if project is None:
             table_name = name
         elif schema is None:
-            table_name = '%s.`%s`' % (project, name)
+            table_name = '%s.%s' % (project, backquote_string(name))
         else:
-            table_name = '%s.%s.`%s`' % (project, schema, name)
+            table_name = '%s.%s.%s' % (project, schema, backquote_string(name))
 
         project_obj = self._odps.get_project(project)
         if partitions is None and partition is None:

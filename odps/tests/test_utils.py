@@ -105,6 +105,10 @@ def test_split_sql():
             "parts": ["select * from pyodps_iris"],
         },
         {
+            "sql": " select * from pyodps_iris; -- no means",
+            "parts": ["select * from pyodps_iris;"],
+        },
+        {
             "sql": """
             @val1 = select *
             from pyodps_iris; ; -- first stmt;
@@ -129,12 +133,45 @@ def test_split_sql():
             """,
             "parts": [
                 """
-                @val1 = (select category as `category;`,
+                @val1 = (select category as `category;`, /* omitting
+                stuff; */
                 from pyodps_iris) union
                 (select category2 as `category;` from pyodps_iris2);
                 """,
                 r"select *, '\';' as semicolon from @val1;",
             ],
+        },
+        {
+            "sql": r"""
+                    -- This is a comment before all statements
+                    @var1 = SELECT /*+ HINT_A */ col1
+                    FROM table1
+                    WHERE id = 1; -- comment for statement 1
+                    /*
+                      Multi-line comment
+                      between statements
+                    */
+                    SELECT col2, -- inline comment for col2
+                           col3 /* block comment for col3 */
+                    FROM table2;
+                    -- Another comment
+                    """,
+            "parts": [
+                """
+                @var1 = SELECT /*+ HINT_A */ col1
+                FROM table1
+                WHERE id = 1;
+                """,
+                """
+                SELECT col2, -- inline comment for col2
+                       col3 /* block comment for col3 */
+                FROM table2;
+                """,
+            ],
+        },
+        {
+            "sql": ";",
+            "parts": [],
         },
     ]
     for case in cases:
@@ -324,6 +361,9 @@ def test_split_backquoted():
 
     res = utils.split_backquoted("ab", ".")
     assert res == ["ab"]
+
+    res = utils.split_backquoted("ab cd")
+    assert res == ["ab", "cd"]
 
     res = utils.split_backquoted("`ab.c.de`", ".")
     assert res == ["`ab.c.de`"]

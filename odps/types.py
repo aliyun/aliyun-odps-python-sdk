@@ -138,11 +138,19 @@ class Column(object):
         sio = six.StringIO()
         if self.generate_expression:
             sio.write(
-                u"  %s AS `%s`" % (utils.to_text(self.generate_expression), self.name)
+                u"  %s AS %s"
+                % (
+                    utils.to_text(self.generate_expression),
+                    utils.backquote_string(self.name),
+                )
             )
         else:
             sio.write(
-                u"  `%s` %s" % (utils.to_text(self.name), utils.to_text(self.type))
+                u"  %s %s"
+                % (
+                    utils.to_text(utils.backquote_string(self.name)),
+                    utils.to_text(self.type),
+                )
             )
             if not self.nullable and not options.sql.ignore_fields_not_null:
                 sio.write(u" NOT NULL")
@@ -1804,7 +1812,8 @@ class Struct(CompositeDataType):
     @property
     def name(self):
         parts = ",".join(
-            "`%s`:%s" % (k, v.name) for k, v in six.iteritems(self.field_types)
+            "%s:%s" % (utils.backquote_string(k), v.name)
+            for k, v in six.iteritems(self.field_types)
         )
         return "{0}<{1}>".format(type(self).__name__.lower(), parts)
 

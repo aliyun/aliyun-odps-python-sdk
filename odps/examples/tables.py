@@ -1,5 +1,5 @@
 # encoding: utf-8
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -577,7 +577,7 @@ def create_dow_jones(odps, table_name, tunnel=None, project=None):
 20 Newsgroups
 """
 
-NEWSGROUP_URL = "http://repo.aliyun.com/shared_data/20news-bydate.tar.gz"
+NEWSGROUP_URL = "http://qwone.com/~jason/20Newsgroups/20news-bydate.tar.gz"
 NEWSGROUP_DATA_NAME = "20news-bydate"
 NEWSGROUP_ARCHIVE_NAME = "20news-bydate.tar.gz"
 NEWSGROUP_CACHE_NAME = "20news-bydate.pkz"
@@ -669,7 +669,7 @@ def create_newsgroup_table(
 MNIST
 """
 
-MNIST_PICKLED_URL = "http://repo.aliyun.com/shared_data/mnist.pkl.gz"
+MNIST_PICKLED_URL = "https://github.com/mnielsen/neural-networks-and-deep-learning/raw/refs/heads/master/data/mnist.pkl.gz"
 MNIST_FILE = "mnist.pkl.gz"
 mnist_unpickled = None
 

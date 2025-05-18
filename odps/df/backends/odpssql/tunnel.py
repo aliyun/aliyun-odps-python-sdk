@@ -220,15 +220,13 @@ class TunnelEngine(object):
                 return
         else:
             logger.info(
-                'Try fetching data from tunnel. If it takes a long time, please try running your code '
-                'with distributed capabilities, see related section in '
-                'https://www.alibabacloud.com/help/en/maxcompute/use-cases/use-a-pyodps-node-to-download'
-                '-data-to-a-local-directory-for-processing-or-to-process-data-online for more details.'
+                'Try fetching data from tunnel. If it takes a long time, please try distributing '
+                'your code instead of downloading data with tunnel.'
             )
             ui.status('Try to download data with tunnel...', clear_keys=True)
             if isinstance(expr, SliceCollectionExpr):
                 if expr.start:
-                    raise ExpressionError('For ODPS backend, slice\'s start cannot be specified')
+                    raise ExpressionError("For ODPS backend, slice's start cannot be specified")
                 count = expr.stop
             try:
                 data = []

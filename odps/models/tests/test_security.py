@@ -1,4 +1,4 @@
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -213,8 +213,8 @@ def test_user_role(config, project):
 
 
 def test_security_query(odps, project):
-    assert "ALIYUN" in odps.run_security_query("LIST ACCOUNTPROVIDERS")
-    assert "ALIYUN" in odps.execute_security_query("LIST ACCOUNTPROVIDERS")
+    assert "RAM" in odps.run_security_query("LIST ACCOUNTPROVIDERS")
+    assert "RAM" in odps.execute_security_query("LIST ACCOUNTPROVIDERS")
 
     inst = odps.run_security_query(
         "INSTALL PACKAGE %s.non_exist_package" % project.name

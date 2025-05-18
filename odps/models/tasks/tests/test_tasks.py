@@ -104,8 +104,8 @@ mf_ray_cluster_init_template = """<?xml version="1.0" encoding="utf-8"?>
       <Value>{"odps.maxframe.output_format": "maxframe_v1"}</Value>
     </Property>
     <Property>
-      <Name>aliyunId</Name>
-      <Value>%(aliyun_id)s</Value>
+      <Name>cloudId</Name>
+      <Value>%(cloud_id)s</Value>
     </Property>
     <Property>
       <Name>regionId</Name>
@@ -240,16 +240,16 @@ def test_maxframe_task_to_xml(odps):
 
 def test_ray_cluster_init(odps):
     task = MaxFrameTask(command=MaxFrameTask.CommandType.RAY_CLUSTER_INIT)
-    aliyun_id = "test-aliyunid"
+    cloud_id = "test-cloudid"
     region_id = "test-regionId"
     quota_nick = "test-quotaNick"
     task.update_settings({"odps.maxframe.output_format": "maxframe_v1"})
-    task.set_property("aliyunId", aliyun_id)
+    task.set_property("cloudId", cloud_id)
     task.set_property("regionId", region_id)
     task.set_property("quotaNick", quota_nick)
     to_xml = task.serialize()
     right_xml = mf_ray_cluster_init_template % {
-        "aliyun_id": aliyun_id,
+        "cloud_id": cloud_id,
         "region_id": region_id,
         "quota_nick": quota_nick,
     }

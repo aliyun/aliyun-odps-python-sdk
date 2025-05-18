@@ -29,8 +29,8 @@ import requests
 
 from .. import ODPS, errors, options
 from ..accounts import (
-    AliyunAccount,
     BearerTokenAccount,
+    CloudAccount,
     CredentialProviderAccount,
     SignServer,
     SignServerAccount,
@@ -53,6 +53,21 @@ def clear_global_accounts():
         yield
     finally:
         options.account = options.default_project = options.endpoint = None
+
+
+@pytest.fixture
+def use_legacy_logview(odps):
+    from ..core import _jobinsight_host_cache
+
+    old_job_insight_host = odps._job_insight_host
+    try:
+        _jobinsight_host_cache.clear()
+        options.use_legacy_logview = True
+        odps._job_insight_host = odps.get_job_insight_host()
+        yield
+    finally:
+        odps._job_insight_host = old_job_insight_host
+        options.use_legacy_logview = None
 
 
 def test_sign_server_account(odps):
@@ -151,7 +166,7 @@ def test_sts_account(odps):
 
 
 @pytest.mark.skipif(cupid_context is None, reason="cannot import cupid context")
-def test_bearer_token_account(odps):
+def test_bearer_token_account(odps, use_legacy_logview):
     inst = odps.run_sql("select count(*) from dual")
     inst.wait_for_completion()
     task_name = inst.get_task_names()[0]
@@ -177,7 +192,7 @@ def test_bearer_token_account(odps):
         )
 
 
-def test_fake_bearer_token(odps):
+def test_fake_bearer_token(odps, use_legacy_logview):
     fake_token_account = BearerTokenAccount(token="fake-token")
     bearer_token_odps = ODPS(
         None,
@@ -194,7 +209,7 @@ def test_fake_bearer_token(odps):
         )
 
 
-def test_bearer_token_load_and_update(odps):
+def test_bearer_token_load_and_update(odps, use_legacy_logview):
     token = "fake-token"
     tmp_path = tempfile.mkdtemp(prefix="tmp_pyodps_")
     os.environ["ODPS_BEARER_TOKEN_HOURS"] = "0"
@@ -249,7 +264,7 @@ def test_v4_signature_fallback(odps):
         if odps.endpoint not in self._endpoints_without_v4_sign:
             raise errors.InternalServerError(
                 "ODPS-0010000:System internal error - Error occurred while getting access key for "
-                "'%s', AliyunV4 request need ak v3 support" % odps.account.access_id
+                "'%s', CloudV4 request need ak v3 support" % odps.account.access_id
             )
         return resp.ok
 
@@ -262,6 +277,7 @@ def test_v4_signature_fallback(odps):
 
     old_enable_v4_sign = options.enable_v4_sign
     try:
+        odps.rest._region_name = "mock_region"
         options.enable_v4_sign = True
         RestClient._endpoints_without_v4_sign.clear()
         with mock.patch("odps.rest.RestClient.is_ok", new=_new_is_ok):
@@ -278,11 +294,12 @@ def test_v4_signature_fallback(odps):
             odps.delete_table(tn("test_sign_account_table"), if_exists=True)
             assert odps.endpoint in RestClient._endpoints_without_v4_sign
     finally:
+        odps.rest._region_name = odps.region_name
         RestClient._endpoints_without_v4_sign.difference_update([odps.endpoint])
         options.enable_v4_sign = old_enable_v4_sign
 
 
-def test_auth_expire_reload(odps):
+def test_auth_expire_reload(odps, use_legacy_logview):
     inst = odps.run_sql("select count(*) from dual")
     inst.wait_for_completion()
 
@@ -321,13 +338,13 @@ def test_auth_expire_reload(odps):
 
 
 def test_rest_none_header_check(odps):
-    old_sign_request = AliyunAccount.sign_request
+    old_sign_request = CloudAccount.sign_request
 
     def new_sign_request(self, req, *args, **kwargs):
         req.headers["x-pyodps-fake-header"] = None
         return old_sign_request(self, req, *args, **kwargs)
 
-    with mock.patch("odps.accounts.AliyunAccount.sign_request", new=new_sign_request):
+    with mock.patch("odps.accounts.CloudAccount.sign_request", new=new_sign_request):
         with pytest.raises(TypeError) as ex_info:
             next(odps.list_tables())
         assert "x-pyodps-fake-header" in str(ex_info.value)

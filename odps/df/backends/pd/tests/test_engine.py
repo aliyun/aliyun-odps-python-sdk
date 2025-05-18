@@ -49,7 +49,9 @@ TEMP_FILE_RESOURCE = tn('pyodps_t_tmp_file_resource')
 TEMP_TABLE = tn('pyodps_t_tmp_table')
 TEMP_TABLE_RESOURCE = tn('pyodps_t_tmp_table_resource')
 
-_pypi_index = os.environ.get("PYPI_INDEX") or "http://mirrors.aliyun.com/pypi/simple"
+_pypi_index = os.environ.get("PIP_INDEX_URL")
+if not _pypi_index:
+    _pypi_index = "https://pypi.org/simple"
 _pypi_prefix = _pypi_index.rstrip("/").rsplit("/", 1)[0]
 
 

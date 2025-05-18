@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import math
+import warnings
 from collections import OrderedDict
 from datetime import datetime, date
 from decimal import Decimal
@@ -27,6 +28,10 @@ try:
     import pandas as pd
 except (ImportError, ValueError):
     pd = None
+try:
+    import pyarrow as pa
+except ImportError:
+    pa = None
 try:
     from pandas.api.extensions import ExtensionDtype
 except ImportError:
@@ -83,7 +88,9 @@ _pd_ext_type_name_to_df_type = {
 }
 
 
-def np_type_to_df_type(dtype, arr=None, unknown_as_string=False, name=None):
+def np_type_to_df_type(
+    dtype, arr=None, unknown_as_string=False, name=None, infer_with_arrow=False
+):
     from ..odpssql.types import odps_type_to_df_type
 
     if dtype in _np_to_df_types:
@@ -102,6 +109,18 @@ def np_type_to_df_type(dtype, arr=None, unknown_as_string=False, name=None):
         if dtype == np.dtype(object) and unknown_as_string:
             return types.string
         raise TypeError('Unknown dtype: %s%s' % (dtype, name))
+
+    if infer_with_arrow:
+        if pa is None:  # pragma: no cover
+            raise ValueError('Arrow is not installed, cannot infer type with arrow')
+        try:
+            arrow_array = pa.array(arr)
+            return odps_type_to_df_type(arrow_type_to_odps_type(arrow_array.type))
+        except Exception as exc:
+            warnings.warn(
+                'Failed to infer arrow type from data, fallback to numpy type '
+                'inference%s. Error: %s' % (name, exc)
+            )
 
     for it in arr:
         if it is None or is_na_func(it):
@@ -123,10 +142,12 @@ def np_type_to_df_type(dtype, arr=None, unknown_as_string=False, name=None):
 
     if unknown_as_string:
         return types.string
-    raise TypeError('Unknown dtype: %s' % dtype)
+    raise TypeError('Unknown dtype: %s%s' % (dtype, name))
 
 
-def pd_to_df_schema(pd_df, unknown_as_string=False, as_type=None, type_mapping=None):
+def pd_to_df_schema(
+    pd_df, unknown_as_string=False, as_type=None, type_mapping=None, infer_type_with_arrow=False
+):
     from ..odpssql.types import odps_type_to_df_type
 
     type_mapping = type_mapping or {}
@@ -138,7 +159,6 @@ def pd_to_df_schema(pd_df, unknown_as_string=False, as_type=None, type_mapping=N
 
     df_types = []
     for i in range(len(dtypes)):
-        arr = pd_df.iloc[:, i]
         if as_type and names[i] in as_type:
             df_types.append(as_type[names[i]])
             continue
@@ -150,9 +170,15 @@ def pd_to_df_schema(pd_df, unknown_as_string=False, as_type=None, type_mapping=N
                 df_type = types.validate_data_type(type_mapping[names[i]])
             df_types.append(df_type)
             continue
-        df_types.append(np_type_to_df_type(dtypes.iloc[i], arr,
-                                           unknown_as_string=unknown_as_string,
-                                           name=names[i]))
+        arr = pd_df.iloc[:, i]
+        df_types.append(
+            np_type_to_df_type(
+                dtypes.iloc[i], arr,
+                unknown_as_string=unknown_as_string,
+                name=names[i],
+                infer_with_arrow=infer_type_with_arrow
+            )
+        )
 
     return TableSchema.from_lists(names, df_types)
 

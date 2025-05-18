@@ -33,7 +33,7 @@ from ..serializers import (
     JSONSerializableModel,
 )
 from ..types import is_record, validate_data_type, validate_value
-from ..utils import to_odps_scalar
+from ..utils import backquote_string, to_odps_scalar
 from .functions import ExprFunction
 
 _name_to_expr_clses = {}
@@ -160,7 +160,7 @@ class LeafExprDesc(Expression):
             val = validate_value(self.constant, self.type)
             return to_odps_scalar(val)
         elif self.reference:
-            default_str = "`%s`" % self.reference.name
+            default_str = backquote_string(self.reference.name)
             return ref_to_str.get(self.reference.name, default_str)
         else:
             raise NotImplementedError("Expression cannot be accepted")

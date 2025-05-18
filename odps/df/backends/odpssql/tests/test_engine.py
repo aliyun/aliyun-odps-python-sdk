@@ -58,7 +58,9 @@ def _reloader():
     cfg = get_config()
     cfg.tunnel = TableTunnel(cfg.odps, endpoint=cfg.odps._tunnel_endpoint)
 
-_pypi_index = os.environ.get("PYPI_INDEX") or "http://mirrors.aliyun.com/pypi/simple"
+_pypi_index = os.environ.get("PIP_INDEX_URL")
+if not _pypi_index:
+    _pypi_index = "https://pypi.org/simple"
 _pypi_prefix = _pypi_index.rstrip("/").rsplit("/", 1)[0]
 
 py_and_c_deco = py_and_c([

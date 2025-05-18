@@ -29,7 +29,7 @@ import time
 import uuid
 
 from . import utils
-from .accounts import AliyunAccount
+from .accounts import CloudAccount
 from .compat import builtins, futures, pickle, six
 from .config import options
 from .errors import NoSuchObject
@@ -464,7 +464,7 @@ def _put_objects(odps, objs):
     biz_id = options.biz_id if options.biz_id else "default"
     ObjectRepositoryLib.add_biz_id(biz_id)
     if odps_key not in _obj_repos:
-        if isinstance(odps.account, AliyunAccount):
+        if isinstance(odps.account, CloudAccount):
             ObjectRepositoryLib.add_odps_info(odps)
         file_dir = os.path.join(TEMP_ROOT, biz_id, odps_key)
         try:

@@ -202,7 +202,7 @@ def test_create_table_ddl(odps):
         "test_external_table",
         schema,
         comment="TEST_COMMENT",
-        storage_handler="com.aliyun.odps.CsvStorageHandler",
+        storage_handler="CsvStorageHandler",
         serde_properties=OrderedDict([("name1", "value1"), ("name2", "value2")]),
         location="oss://mock_endpoint/mock_bucket/mock_path/",
     )
@@ -218,7 +218,7 @@ def test_create_table_ddl(odps):
     PARTITIONED BY (
       `ds` STRING
     )
-    STORED BY 'com.aliyun.odps.CsvStorageHandler'
+    STORED BY 'CsvStorageHandler'
     WITH SERDEPROPERTIES (
       'name1' = 'value1',
       'name2' = 'value2'
