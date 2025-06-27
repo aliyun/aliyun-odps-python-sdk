@@ -13,12 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import codecs
-import glob
 import gzip
 import os
-import shutil
-import tarfile
 import warnings
 from collections import OrderedDict
 from itertools import groupby, product
@@ -571,98 +567,6 @@ def create_dow_jones(odps, table_name, tunnel=None, project=None):
             yield ldata
 
     odps.write_table(table_name, iter_lines())
-
-
-"""
-20 Newsgroups
-"""
-
-NEWSGROUP_URL = "http://qwone.com/~jason/20Newsgroups/20news-bydate.tar.gz"
-NEWSGROUP_DATA_NAME = "20news-bydate"
-NEWSGROUP_ARCHIVE_NAME = "20news-bydate.tar.gz"
-NEWSGROUP_CACHE_NAME = "20news-bydate.pkz"
-NEWSGROUP_TRAIN_DIR = "20news-bydate-train"
-NEWSGROUP_TEST_DIR = "20news-bydate-test"
-NEWSGROUP_TRAIN_FOLDER = "20news-bydate-train"
-NEWSGROUP_TEST_FOLDER = "20news-bydate-test"
-
-
-def download_newsgroup(target_dir, cache_dir):
-    target_tar = os.path.join(os.path.expanduser("~"), NEWSGROUP_ARCHIVE_NAME)
-    urlretrieve(NEWSGROUP_URL, target_tar)
-    cache_newsgroup_tar(target_tar, target_dir, cache_dir)
-
-
-def cache_newsgroup_tar(target_tar, target_dir, cache_dir):
-    tarfile.open(target_tar, "r:gz").extractall(path=target_dir)
-    os.unlink(target_tar)
-
-    if not os.path.exists(target_dir):
-        os.makedirs(target_dir)
-
-    train_path = os.path.join(target_dir, NEWSGROUP_TRAIN_FOLDER)
-    test_path = os.path.join(target_dir, NEWSGROUP_TEST_FOLDER)
-    cache_path = os.path.join(cache_dir, NEWSGROUP_CACHE_NAME)
-
-    if not os.path.exists(cache_dir):
-        os.makedirs(cache_dir)
-
-    def load_files(path, encoding):
-        objs = []
-        for fn in glob.glob(os.path.join(path, "*")):
-            file_cat = os.path.basename(os.path.normpath(fn))
-            for sfn in glob.glob(os.path.join(fn, "*")):
-                file_id = os.path.basename(os.path.normpath(sfn))
-                with open(sfn, "rb") as f:
-                    objs.append((file_id, file_cat, f.read().decode(encoding)))
-
-        return objs
-
-    # Store a zipped pickle
-    cache = dict(
-        train=load_files(train_path, encoding="latin1"),
-        test=load_files(test_path, encoding="latin1"),
-    )
-    compressed_content = codecs.encode(pickle.dumps(cache), "zlib_codec")
-    with open(cache_path, "wb") as f:
-        f.write(compressed_content)
-
-    shutil.rmtree(target_dir)
-
-
-@table_creator
-def create_newsgroup_table(
-    odps, table_name, tunnel=None, data_part="train", project=None
-):
-    cache_file = os.path.join(USER_DATA_REPO, NEWSGROUP_CACHE_NAME)
-    if not os.path.exists(USER_DATA_REPO):
-        os.makedirs(USER_DATA_REPO)
-    if not os.path.exists(cache_file):
-        warnings.warn("We need to download data from " + NEWSGROUP_URL + ".")
-        download_newsgroup(
-            os.path.join(USER_DATA_REPO, NEWSGROUP_DATA_NAME), USER_DATA_REPO
-        )
-
-    with open(cache_file, "rb") as f:
-        cache = pickle.loads(codecs.decode(f.read(), "zlib_codec"))
-
-    if tunnel is None:
-        tunnel = TableTunnel(odps, project=project)
-
-    odps.delete_table(table_name, if_exists=True, project=project)
-    odps.create_table(
-        table_name, "id string, category string, message string", project=project
-    )
-
-    upload_ss = tunnel.create_upload_session(table_name)
-    writer = upload_ss.open_record_writer(0)
-
-    for line in cache[data_part]:
-        rec = upload_ss.new_record()
-        [rec.set(i, six.text_type(val)) for i, val in enumerate(line)]
-        writer.write(rec)
-    writer.close()
-    upload_ss.commit([0])
 
 
 """

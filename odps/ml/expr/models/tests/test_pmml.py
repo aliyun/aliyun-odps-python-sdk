@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 TREE_XML = """
 <?xml version="1.0" encoding="utf-8"?>
 <PMML xmlns="http://www.dmg.org/PMML-4_2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="4.2" xsi:schemaLocation="http://www.dmg.org/PMML-4_2 http://www.dmg.org/v4-2/pmml-4-2.xsd">
-  <Header copyright="Copyright (c) 2014, Alibaba Inc." description="">
+  <Header copyright="Copyright (c) 2014." description="">
     <Application name="ODPS/PMML" version="0.1.0"/>
     <Timestamp>Wed, 22 Mar 2017 09:35:38 GMT</Timestamp>
   </Header>
@@ -152,7 +152,7 @@ TREE_XML = """
 REGRESSION_XML = """
 <?xml version="1.0" encoding="utf-8"?>
 <PMML xmlns="http://www.dmg.org/PMML-4_2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="4.2" xsi:schemaLocation="http://www.dmg.org/PMML-4_2 http://www.dmg.org/v4-2/pmml-4-2.xsd">
-  <Header copyright="Copyright (c) 2014, Alibaba Inc." description="">
+  <Header copyright="Copyright (c) 2014." description="">
     <Application name="ODPS/PMML" version="0.1.0"/>
     <Timestamp>Wed, 22 Mar 2017 09:35:38 GMT</Timestamp>
   </Header>

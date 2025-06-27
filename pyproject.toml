@@ -9,7 +9,7 @@ requires = [
     "oldest-supported-numpy; (python_version>'3.7' or platform_machine=='aarch64') and python_version<'3.9'",
     # Force numpy higher than 2.0, so that built wheels are compatible
     # with both numpy 1 and 2
-    "numpy>=2.0.0; python_version>='3.9'",
+    "numpy>=2.0.0,<2.3.0; python_version>='3.9'",
     "cython>=3.0,<3.1; platform_system!='Windows'",
 ]
 

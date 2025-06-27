@@ -2677,6 +2677,7 @@ def test_persist(odps, setup):
     base_table_name = tn('pyodps_test_pd_engine_persist_table')
     try:
         options.tunnel.write_row_batch_size = 1
+        options.df.writer_count_limit = 2
         run_sub_tests_in_parallel(
             10,
             [
@@ -2686,6 +2687,7 @@ def test_persist(odps, setup):
         )
     finally:
         options.tunnel.write_row_batch_size = 1024
+        options.df.writer_count_limit = 50
 
 
 def test_append_id(odps, setup):

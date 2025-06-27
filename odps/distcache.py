@@ -1,4 +1,4 @@
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,6 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+
+"""
+This module provides stubs for resource references in SQL UDFs.
+Actual implementations are provided by MaxCompute SQL Engine
+which are NOT available within PyODPS code base. DO NOT USE
+these methods in your local environments or environments other
+than MaxCompute SQL UDFs as they will NEVER be functional.
+"""
 
 
 def get_cache_file(name):

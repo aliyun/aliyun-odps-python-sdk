@@ -184,9 +184,7 @@ def _get_cached_writer(writer_cache, table, partition=None):
     writer_key = (table.name, partition)
     if writer_key not in writer_cache:
         if len(writer_cache) >= options.df.writer_count_limit:
-            writer = writer_cache.popitem(last=False)
-            writer.close()
-
+            writer_cache.popitem(last=False)
         writer = writer_cache[writer_key] = table.open_writer(
             partition=partition
         )

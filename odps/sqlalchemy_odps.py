@@ -71,7 +71,7 @@ _odps_type_to_sqlalchemy_type = {
     types.Date: sa_types.Date,
     types.Datetime: sa_types.DateTime,
     types.Timestamp: sa_types.TIMESTAMP,
-    types.Binary: sa_types.String,
+    types.Binary: sa_types.BINARY,
     types.Array: sa_types.String,
     types.Map: sa_types.String,
     types.Struct: sa_types.String,
@@ -273,6 +273,10 @@ class ODPSDialect(default.DefaultDialect):
 
     @classmethod
     def dbapi(cls):
+        return cls.import_dbapi()
+
+    @classmethod
+    def import_dbapi(cls):
         from . import dbapi
 
         return dbapi

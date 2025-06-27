@@ -334,11 +334,9 @@ class _FixedOffset(datetime.tzinfo):
 
 
 try:
-    import zoneinfo
-
-    utc = zoneinfo.ZoneInfo("UTC")
+    utc = datetime.timezone.utc
     FixedOffset = _FixedOffset
-except ImportError:
+except AttributeError:
     try:
         import pytz
 

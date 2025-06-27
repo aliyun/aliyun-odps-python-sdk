@@ -1372,10 +1372,11 @@ class Instance(LazyLoad):
         except ImportError:
             pa = None
 
+        arrow = (pa is not None) and kwargs.pop("arrow", True)
         kw = dict(
             limit=limit,
             columns=columns,
-            arrow=pa is not None,
+            arrow=arrow,
             quota_name=quota_name,
             tags=tags,
             **kwargs

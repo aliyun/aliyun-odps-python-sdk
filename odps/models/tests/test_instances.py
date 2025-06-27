@@ -423,6 +423,9 @@ def test_instance_to_pandas(odps):
     result = instance.to_pandas(columns=["a", "b"])
     pd.testing.assert_frame_equal(result, data[["a", "b"]])
 
+    result = instance.to_pandas(columns=["a", "b"], arrow=False)
+    pd.testing.assert_frame_equal(result, data[["a", "b"]])
+
     # test fallback when arrow format not supported
     raised_list = [False]
 
@@ -752,15 +755,27 @@ def test_instance_logview(odps):
 
 
 def test_instance_job_insight(odps):
+    from ... import core
+
     try:
         options.use_legacy_logview = False
-        new_odps = ODPS(
-            account=odps.account, project=odps.project, endpoint=odps.endpoint
-        )
-        instance = odps.run_sql("drop table if exists non_exist_table_name")
-        addr = new_odps.get_logview_address(instance.id, 12)
+
+        def _new_get_job_insight_from_request(self):
+            return "https://maxcompute.mock.host.com"
+
+        with mock.patch(
+            "odps.core.ODPS._get_job_insight_from_request",
+            new=_new_get_job_insight_from_request,
+        ):
+            new_odps = ODPS(
+                account=odps.account, project=odps.project, endpoint=odps.endpoint
+            )
+            instance = odps.run_sql("drop table if exists non_exist_table_name")
+
+            addr = new_odps.get_logview_address(instance.id, 12)
         assert "job-insight" in addr
     finally:
+        core._jobinsight_host_cache.clear()
         options.use_legacy_logview = None
 
 

@@ -335,6 +335,9 @@ def test_table_to_pandas(odps):
     pd_data = table.to_pandas(columns=["num"], start=10, count=20)
     assert len(pd_data) == 20
 
+    pd_data = table.to_pandas(columns=["num"], start=10, count=20, arrow=False)
+    assert len(pd_data) == 20
+
     pd_data = table.to_pandas(columns=["num"], start=10)
     assert len(pd_data) == 990
 
@@ -361,6 +364,11 @@ def test_partition_to_pandas(odps):
         writer.write(pd.DataFrame({"num": np.random.randint(0, 1000, 1000)}))
 
     pd_data = table.to_pandas(partition="pt=00", columns=["num"], start=10, count=20)
+    assert len(pd_data) == 20
+
+    pd_data = table.to_pandas(
+        partition="pt=00", columns=["num"], start=10, count=20, arrow=False
+    )
     assert len(pd_data) == 20
 
     pd_data = table.partitions["pt=00"].to_pandas(columns=["num"], start=10)

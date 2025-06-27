@@ -1,4 +1,4 @@
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,8 +18,8 @@ from odps import ODPS
 from odps.apis.storage_api import *
 
 o = ODPS(
-    os.getenv("ALIBABA_CLOUD_ACCESS_KEY_ID"),
-    os.getenv("ALIBABA_CLOUD_ACCESS_KEY_SECRET"),
+    os.getenv("CLOUD_ACCESS_KEY_ID"),
+    os.getenv("CLOUD_ACCESS_KEY_SECRET"),
     project="your-default-project",
     endpoint="your-end-point",
 )

@@ -692,7 +692,7 @@ def test_alter_table_options(odps):
     test_table.touch()
     assert last_modify_time != test_table.last_data_modified_time
 
-    test_table.set_lifecycle(1)
+    test_table.set_lifecycle(1, instance_project=odps.project)
     assert 1 == test_table.lifecycle
     test_table.reload()
     assert 1 == test_table.lifecycle
