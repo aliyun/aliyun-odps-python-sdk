@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""UDF runners implementing the local run framework."""
+"""
+UDF runners implementing the local test framework. NOT ACTUAL udf runners.
+"""
 
 import csv
 import re

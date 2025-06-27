@@ -235,7 +235,7 @@ if BaseTunnelRecordReader is None:
             elif data_type == types.interval_year_month:
                 l_val = self._reader.read_sint64()
                 self._crc.update_long(l_val)
-                return compat.Monthdelta(l_val)
+                val = compat.Monthdelta(l_val)
             elif data_type == types.json:
                 sval = self._reader.read_string()
                 val = json.loads(sval)

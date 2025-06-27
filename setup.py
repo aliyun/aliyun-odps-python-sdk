@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -149,12 +149,6 @@ try:
     has_jupyter = True
 except ImportError:
     has_jupyter = False
-try:
-    from jupyterlab import __version__
-
-    has_jupyterlab = True
-except ImportError:
-    has_jupyterlab = False
 
 if len(sys.argv) > 1 and sys.argv[1] == "clean":
     build_cmd = sys.argv[1]
@@ -317,6 +311,9 @@ if build_cmd != "clean" and has_jupyter:
 
         def run(self):
             src_dir = os.path.join(repo_root, "odps", "static", "ui", "target")
+            if not os.path.exists(src_dir):
+                return
+
             dest_dir = os.path.join(jupyter_data_dir(), "nbextensions", "pyodps")
             if os.path.exists(dest_dir):
                 shutil.rmtree(dest_dir)
@@ -346,7 +343,11 @@ if build_cmd != "clean" and has_jupyter:
 
             cwd = os.getcwd()
 
-            os.chdir(os.path.join(os.path.abspath(os.getcwd()), "odps", "static", "ui"))
+            ui_path = os.path.join(os.path.abspath(os.getcwd()), "odps", "static", "ui")
+            if not os.path.exists(ui_path):
+                return
+
+            os.chdir(ui_path)
             cmd = "npm install"
             if getattr(self, "registry", None):
                 cmd += " --registry=" + self.registry

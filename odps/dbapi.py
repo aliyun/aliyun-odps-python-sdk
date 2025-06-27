@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import base64
 import functools
 import warnings
 
@@ -38,6 +39,14 @@ class State(enum.Enum):
     NONE = 0
     RUNNING = 1
     FINISHED = 2
+
+
+class Binary(object):
+    def __init__(self, value):
+        self.value = value
+
+    def __str__(self):
+        return "unbase64('%s')" % base64.b64encode(self.value).decode()
 
 
 def connect(*args, **kwargs):

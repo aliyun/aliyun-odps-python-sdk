@@ -25,6 +25,7 @@ from datetime import date, datetime
 from .. import options, types
 from ..compat import DECIMAL_TYPES
 from ..compat import decimal as _decimal
+from ..lib.ext_types import Monthdelta
 from .utils_c cimport to_lower_str
 
 
@@ -47,6 +48,8 @@ cdef:
     int64_t BIGINT_TYPE_ID = types.bigint._type_id
     int64_t BINARY_TYPE_ID = types.binary._type_id
     int64_t TIMESTAMP_TYPE_ID = types.timestamp._type_id
+    int64_t INTERVAL_DAY_TIME_TYPE_ID = types.interval_day_time._type_id
+    int64_t INTERVAL_YEAR_MONTH_TYPE_ID = types.interval_year_month._type_id
     int64_t JSON_TYPE_ID = types.Json._type_id
     int64_t DECIMAL_TYPE_ID = types.Decimal._type_id
     int64_t ARRAY_TYPE_ID = types.Array._type_id
@@ -220,6 +223,53 @@ cdef class TimestampValidator(TypeValidator):
         if isinstance(val, (bytes, unicode)):
             return pd_ts_strptime(val, "%Y-%m-%d %H:%M:%S")
         raise TypeError("Invalid data type: expect timestamp, got %s" % type(val))
+
+
+pd_td = None
+
+
+cdef class IntervalDayTimeValidator(TypeValidator):
+    cdef object validate(self, object val, int64_t max_field_size):
+        global pd_td
+
+        if self.nullable and val is None:
+            return val
+
+        if pd_td is None:
+            try:
+                import pandas as pd
+
+                pd_td = pd.Timedelta
+            except (ImportError, ValueError):
+                raise ImportError(
+                    "To use INTERVAL_DAY_TIME in pyodps, you need to install pandas."
+                )
+
+        if isinstance(val, pd_td):
+            return val
+        elif isinstance(val, (int, float)):
+            return pd_td(seconds=val)
+        elif isinstance(val, (bytes, unicode)):
+            return pd_td(val)
+        else:
+            raise TypeError(
+                "Invalid data type: cannot accept %r for interval day time type" % val
+            )
+
+
+cdef class IntervalYearMonthValidator(TypeValidator):
+    cdef object validate(self, object val, int64_t max_field_size):
+        if self.nullable and val is None:
+            return val
+
+        if isinstance(val, Monthdelta):
+            return val
+        elif isinstance(val, (int, long, bytes, unicode)):
+            return Monthdelta(val)
+        else:
+            raise TypeError(
+                "Invalid data type: cannot accept %r for interval year month type" % val
+            )
 
 
 cdef class JsonValidator(TypeValidator):
@@ -540,6 +590,10 @@ cdef object _build_type_validator(int type_id, object data_type, bint nullable):
         return BinaryValidator(nullable=nullable)
     elif type_id == TIMESTAMP_TYPE_ID:
         return TimestampValidator(nullable=nullable)
+    elif type_id == INTERVAL_DAY_TIME_TYPE_ID:
+        return IntervalDayTimeValidator(nullable=nullable)
+    elif type_id == INTERVAL_YEAR_MONTH_TYPE_ID:
+        return IntervalYearMonthValidator(nullable=nullable)
     elif type_id == JSON_TYPE_ID:
         return JsonValidator(nullable=nullable)
     elif type_id == DECIMAL_TYPE_ID:

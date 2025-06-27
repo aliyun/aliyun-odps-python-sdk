@@ -116,7 +116,7 @@ class CloudAccount(BaseAccount):
 
         sig_prefix = _get_v4_signature_prefix()
 
-        k_secret = utils.to_binary(sig_prefix + self.secret_access_key)
+        k_secret = utils.to_binary(sig_prefix + utils.to_str(self.secret_access_key))
         k_date = hmac.new(k_secret, utils.to_binary(date_str), hashlib.sha256).digest()
         k_region = hmac.new(
             k_date, utils.to_binary(region_name), hashlib.sha256
@@ -184,9 +184,10 @@ class AppAccount(BaseAccount):
                 hashlib.sha1,
             ).digest()
         )
+        provider = _get_v4_signature_prefix().rsplit("_", 1)[0]
         app_auth_str = (
             "account_provider:%s,signature_method:%s,access_id:%s,signature:%s"
-            % ("aliyun", "hmac-sha1", self.access_id, utils.to_str(signature))
+            % (provider, "hmac-sha1", self.access_id, utils.to_str(signature))
         )
         req.headers["application-authentication"] = app_auth_str
         logger.debug("headers after app signing: %r", req.headers)

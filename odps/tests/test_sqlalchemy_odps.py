@@ -26,6 +26,7 @@ from .. import ODPS, errors, options
 from ..accounts import BearerTokenAccount
 from ..dbapi import connect as dbapi_connect
 from ..df import DataFrame
+from ..tests.core import tn
 from ..utils import to_str
 
 try:
@@ -474,7 +475,7 @@ def test_reflect_select(engine, connection):
     assert isinstance(one_row_complex.c.double.type, types.Float)
     assert isinstance(one_row_complex.c.string.type, types.String)
     assert isinstance(one_row_complex.c.timestamp.type, types.TIMESTAMP)
-    assert isinstance(one_row_complex.c.binary.type, types.String)
+    assert isinstance(one_row_complex.c.binary.type, types.BINARY)
     assert isinstance(one_row_complex.c.array.type, types.String)
     assert isinstance(one_row_complex.c.map.type, types.String)
     assert isinstance(one_row_complex.c.struct.type, types.String)
@@ -607,3 +608,37 @@ def test_do_ping(engine, connection):
         ):
             engine.dialect.do_ping(engine.raw_connection())
         assert not isinstance(ex_data.value, RuntimeError)
+
+
+def test_orm_with_binary(engine):
+    from sqlalchemy import Column, Integer, LargeBinary, String
+    from sqlalchemy.ext.declarative import declarative_base
+    from sqlalchemy.orm import sessionmaker
+
+    Base = declarative_base()
+
+    try:
+
+        class User(Base):
+            __tablename__ = tn("test_sa_orm_with_binary")
+            id = Column(Integer, primary_key=True)
+            name = Column(String)
+            pickle = Column(LargeBinary)
+
+        Base.metadata.create_all(engine)
+
+        Session = sessionmaker(bind=engine)
+        session = Session()
+
+        sample_data = [
+            User(id=1, name="Alice", pickle=b"pickle_data_alice"),
+        ]
+        session.add_all(sample_data)
+        session.commit()
+
+        result = session.query(User).filter_by(name="Alice").first()
+        assert result.id == 1
+        assert result.name == "Alice"
+        assert result.pickle == b"pickle_data_alice"
+    finally:
+        Base.metadata.drop_all(engine)

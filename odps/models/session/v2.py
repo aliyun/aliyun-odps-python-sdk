@@ -1,4 +1,4 @@
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
 
 import re
 
+from ...errors import ODPSError
 from ...rest import RestClient
 
 _inst_url_regex = re.compile("/instances(?:$|/)")
@@ -56,9 +57,15 @@ class McqaV2Methods(object):
         if quota_name in odps._quota_to_mcqa_odps:
             return odps._quota_to_mcqa_odps[quota_name]
 
-        conn_header = odps.get_quota(
+        maxqa_quota = odps.get_quota(
             quota_name, tenant_id=odps.default_tenant.tenant_id
-        ).mcqa_conn_header
+        )
+        conn_header = maxqa_quota.mcqa_conn_header
+        if conn_header is None:
+            raise ODPSError(
+                "x-odps-mcqa-conn not available with quota %s" % maxqa_quota._name(),
+                request_id=maxqa_quota._last_reload_request_id,
+            )
 
         odps._quota_to_mcqa_odps[quota_name] = ODPS(
             account=odps.account,

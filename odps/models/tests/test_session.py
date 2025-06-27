@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -37,7 +37,7 @@ except ImportError:
 from ... import ODPS, errors
 from ...errors import InvalidStateSetting, ODPSError
 from ...tests.core import get_test_unique_name, tn
-from .. import Instance, Record, TableSchema
+from .. import Instance, Quota, Record, TableSchema
 from ..session import FallbackMode, FallbackPolicy
 
 logger = logging.getLogger(__name__)
@@ -454,6 +454,23 @@ def test_mcqa_v2_session(odps_with_mcqa2):
 
     with table.open_writer() as writer:
         writer.write(test_data)
+
+    raw_reload = Quota.reload
+
+    def _mock_quota_reload(self):
+        res = raw_reload(self)
+        self._mcqa_conn_header = None
+        # make sure fields can be loaded again
+        self._loaded = False
+        return res
+
+    with mock.patch("odps.models.quota.Quota.reload", new=_mock_quota_reload):
+        with pytest.raises(ODPSError) as exc_info:
+            odps.execute_sql_interactive(
+                "select * from %s where id is not null" % table_name, use_mcqa_v2=True
+            )
+        assert odps_with_mcqa2.quota_name in str(exc_info.value)
+        assert exc_info.value.request_id is not None
 
     inst = odps.execute_sql_interactive(
         "select * from %s where id is not null" % table_name, use_mcqa_v2=True

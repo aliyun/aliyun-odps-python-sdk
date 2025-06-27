@@ -29,7 +29,6 @@ from .tempobj import clean_stored_objects
 DEFAULT_ENDPOINT = "http://service.odps.aliyun.com/api"
 DEFAULT_REGION_NAME = "cn"
 LOGVIEW_HOST_DEFAULT = "http://logview.aliyun.com"
-JOB_INSIGHT_HOST_DEFAULT = "https://maxcompute.console.aliyun.com"
 
 _ALTER_TABLE_REGEX = re.compile(
     r"^\s*(drop|alter)\s+table\s*(|if\s+exists)\s+(?P<table_name>[^\s;]+)", re.I
@@ -2164,22 +2163,22 @@ class ODPS(object):
 
         job_insight_released = utils.is_job_insight_released(self.endpoint)
         # when use_legacy_logview is enforced as False, we still use job insight
-        if job_insight_released is False and options.use_legacy_logview is not False:
+        if not job_insight_released and options.use_legacy_logview is not False:
             return None
 
+        jobinsight_host = self._get_job_insight_from_request()
+        if jobinsight_host:
+            _jobinsight_host_cache[self.endpoint] = jobinsight_host
+        return jobinsight_host
+
+    def _get_job_insight_from_request(self):
         try:
             jobinsight_host = utils.to_str(
                 self.rest.get(self.endpoint + "/webconsole/host").content
             )
-            jobinsight_host = jobinsight_host.strip() or None
+            return jobinsight_host.strip() or None
         except:
-            jobinsight_host = None
-        if not jobinsight_host and job_insight_released is True:
-            jobinsight_host = JOB_INSIGHT_HOST_DEFAULT
-
-        if jobinsight_host:
-            _jobinsight_host_cache[self.endpoint] = jobinsight_host
-        return jobinsight_host
+            return None
 
     def get_logview_address(
         self, instance_id, hours=None, project=None, use_legacy=None

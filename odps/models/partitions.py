@@ -207,7 +207,9 @@ class Partitions(Iterable):
             )
 
     @with_wait_argument
-    def create(self, partition_spec, if_not_exists=False, async_=False, hints=None):
+    def create(
+        self, partition_spec, if_not_exists=False, async_=False, hints=None, **inst_kw
+    ):
         if isinstance(partition_spec, Partition):
             partition_spec = partition_spec.partition_spec
         else:
@@ -218,7 +220,7 @@ class Partitions(Iterable):
 
         sql = self.parent._build_alter_table_ddl(action)
         instance = self.parent.parent._run_table_sql(
-            sql, "SQLAddPartitionTask", hints=hints, wait=not async_
+            sql, "SQLAddPartitionTask", hints=hints, wait=not async_, **inst_kw
         )
 
         if not async_:
@@ -227,7 +229,9 @@ class Partitions(Iterable):
             return instance
 
     @with_wait_argument
-    def delete(self, partition_spec, if_exists=False, async_=False, hints=None):
+    def delete(
+        self, partition_spec, if_exists=False, async_=False, hints=None, **inst_kw
+    ):
         if isinstance(partition_spec, Partition):
             partition_spec = partition_spec.partition_spec
         else:
@@ -238,5 +242,5 @@ class Partitions(Iterable):
 
         sql = self.parent._build_alter_table_ddl(action)
         return self.parent.parent._run_table_sql(
-            sql, "SQLDropPartitionTask", hints=hints, wait=not async_
+            sql, "SQLDropPartitionTask", hints=hints, wait=not async_, **inst_kw
         )

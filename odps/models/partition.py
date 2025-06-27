@@ -323,10 +323,16 @@ class Partition(LazyLoad):
         :param bool append_partitions: if True, partition values will be
             appended to the output
         """
+        try:
+            import pyarrow as pa
+        except ImportError:
+            pa = None
+
+        arrow = (pa is not None) and kwargs.pop("arrow", True)
         return self.table.to_pandas(
             partition=self.partition_spec,
             columns=columns,
-            arrow=True,
+            arrow=arrow,
             quota_name=quota_name,
             tags=tags,
             n_process=n_process,

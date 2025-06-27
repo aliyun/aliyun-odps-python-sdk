@@ -1,10 +1,5 @@
-# ODPS Python SDK and data analysis framework
+# ODPS Python SDK
 
-[![PyPI version](https://img.shields.io/pypi/v/pyodps.svg?style=flat-square)](https://pypi.python.org/pypi/pyodps) [![Docs](https://img.shields.io/badge/docs-latest-brightgreen.svg?style=flat-square)](http://pyodps.readthedocs.org/) [![License](https://img.shields.io/pypi/l/pyodps.svg?style=flat-square)](https://github.com/aliyun/aliyun-odps-python-sdk/blob/master/License) ![Implementation](https://img.shields.io/pypi/implementation/pyodps.svg?style=flat-square)
-
-<div align="center">
-  <img src="http://pyodps.readthedocs.org/zh_CN/latest/_static/PyODPS.png"><br><br>
-</div>
 -----------------
 
 Elegent way to access ODPS API. [Documentation](http://pyodps.readthedocs.org/)
@@ -49,12 +44,12 @@ $ pip install git+https://github.com/aliyun/aliyun-odps-python-sdk.git
 ```python
 >>> import os
 >>> from odps import ODPS
->>> # Make sure environment variable ALIBABA_CLOUD_ACCESS_KEY_ID already set to Access Key ID of user
->>> # while environment variable ALIBABA_CLOUD_ACCESS_KEY_SECRET set to Access Key Secret of user.
+>>> # Make sure environment variable CLOUD_ACCESS_KEY_ID already set to Access Key ID of user
+>>> # while environment variable CLOUD_ACCESS_KEY_SECRET set to Access Key Secret of user.
 >>> # Not recommended to hardcode Access Key ID or Access Key Secret in your code.
 >>> o = ODPS(
->>>     os.getenv('ALIBABA_CLOUD_ACCESS_KEY_ID'),
->>>     os.getenv('ALIBABA_CLOUD_ACCESS_KEY_SECRET'),
+>>>     os.getenv('CLOUD_ACCESS_KEY_ID'),
+>>>     os.getenv('CLOUD_ACCESS_KEY_SECRET'),
 >>>     project='**your-project**',
 >>>     endpoint='**your-endpoint**',
 >>> )
@@ -91,37 +86,6 @@ False
  <column c_bool_b, type boolean>,
  <column c_datetime_a, type datetime>,
  <column c_datetime_b, type datetime>]
-```
-
-## DataFrame API
-
-```python
->>> from odps.df import DataFrame
->>> df = DataFrame(o.get_table('pyodps_iris'))
->>> df.dtypes
-odps.Schema {
-  sepallength           float64
-  sepalwidth            float64
-  petallength           float64
-  petalwidth            float64
-  name                  string
-}
->>> df.head(5)
-|==========================================|   1 /  1  (100.00%)         0s
-   sepallength  sepalwidth  petallength  petalwidth         name
-0          5.1         3.5          1.4         0.2  Iris-setosa
-1          4.9         3.0          1.4         0.2  Iris-setosa
-2          4.7         3.2          1.3         0.2  Iris-setosa
-3          4.6         3.1          1.5         0.2  Iris-setosa
-4          5.0         3.6          1.4         0.2  Iris-setosa
->>> df[df.sepalwidth > 3]['name', 'sepalwidth'].head(5)
-|==========================================|   1 /  1  (100.00%)        12s
-          name  sepalwidth
-0  Iris-setosa         3.5
-1  Iris-setosa         3.2
-2  Iris-setosa         3.1
-3  Iris-setosa         3.6
-4  Iris-setosa         3.9
 ```
 
 ## Command-line and IPython enhancement
@@ -172,14 +136,6 @@ For a development install, clone the repository and then install from source:
 git clone https://github.com/aliyun/aliyun-odps-python-sdk.git
 cd pyodps
 pip install -r requirements.txt -e .
-```
-
-If you need to modify the frontend code, you need to install [nodejs/npm](https://www.npmjs.com/). To build and
-install your frontend code, use
-
-```
-python setup.py build_js
-python setup.py install_js
 ```
 
 ## License

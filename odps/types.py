@@ -1934,6 +1934,13 @@ class Json(DataType):
         return value
 
 
+@_primitive_doc
+class Geography(OdpsPrimitive):
+    __slots__ = ()
+    _type_id = 14
+    _max_length = 8 * 1024 * 1024  # 8M
+
+
 tinyint = Tinyint()
 smallint = Smallint()
 int_ = Int()
@@ -1950,6 +1957,7 @@ interval_day_time = IntervalDayTime()
 interval_year_month = IntervalYearMonth()
 date = Date()
 json = Json()
+geography = Geography()
 
 _odps_primitive_data_types = dict(
     [
@@ -1971,6 +1979,7 @@ _odps_primitive_data_types = dict(
             interval_day_time,
             interval_year_month,
             json,
+            geography,
         )
     ]
 )

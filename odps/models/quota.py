@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -28,7 +28,10 @@ class Quota(LazyLoad):
 
     VERSION = "wlm"
 
-    __slots__ = ("_mcqa_conn_header",)
+    __slots__ = (
+        "_last_reload_request_id",
+        "_mcqa_conn_header",
+    )
     _root = "Quota"
 
     class Strategy(Enum):
@@ -136,6 +139,7 @@ class Quota(LazyLoad):
     def __init__(self, *args, **kwds):
         super(Quota, self).__init__(*args, **kwds)
         self._mcqa_conn_header = None
+        self._last_reload_request_id = None
 
     def _name(self):
         return self._getattr("nickname")
@@ -164,6 +168,7 @@ class Quota(LazyLoad):
         resp = self._client.get(self.resource(), params=params)
         self.parse(self._client, resp, obj=self)
         self._mcqa_conn_header = resp.headers.get("x-odps-mcqa-conn")
+        self._last_reload_request_id = resp.headers.get("x-odps-request-id")
         self._loaded = True
 
     def is_interactive_quota(self):

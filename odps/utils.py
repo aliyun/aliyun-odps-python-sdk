@@ -16,6 +16,7 @@
 
 from __future__ import absolute_import, print_function
 
+import base64
 import bisect
 import calendar
 import codecs
@@ -794,6 +795,8 @@ def to_odps_scalar(s):
         return "NULL"
     if isinstance(s, six.string_types):
         return "'%s'" % escape_odps_string(s)
+    elif isinstance(s, (six.binary_type, bytearray)):
+        return "unbase64('%s')" % base64.b64encode(s).decode()
     elif isinstance(s, (datetime, pd_Timestamp)):
         microsec = s.microsecond
         nanosec = getattr(s, "nanosecond", 0)
@@ -1305,21 +1308,13 @@ _host_end_hashes = (
 
 
 def is_job_insight_released(odps_endpoint):
-    """
-    Check if job insight is released for the given endpoint. If True or False
-    is returned, it means the release state of job insight for current endpoint
-    is certain, and default endpoint should be used if it is available and
-    address of web console cannot be found. If None is returned, it means the
-    release state of job insight for current endpoint is unknown, and default
-    endpoint should not be used when web console address cannot be found.
-    """
     try:
         if odps_endpoint is None:
-            return None
+            return False
 
         parsed_host = compat.urlparse(odps_endpoint).hostname
         if parsed_host is None:
-            return None
+            return False
         hashed_host = md5_hexdigest(to_binary(parsed_host))
         host_tail = ".".join(parsed_host.split(".")[-2:])
         if md5_hexdigest(host_tail) in _host_end_hashes:
@@ -1327,9 +1322,9 @@ def is_job_insight_released(odps_endpoint):
         elif re.match(r"[^v]\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}", parsed_host):
             return False
         else:
-            return None
+            return True
     except:
-        return None
+        return True
 
 
 def _import_version_function():
