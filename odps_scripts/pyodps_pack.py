@@ -22,9 +22,9 @@ from collections import defaultdict
 _DEFAULT_PYABI = "cp37-cp37m"
 _MCPY27_PYABI = "cp27-cp27m"
 _DWPY27_PYABI = "cp27-cp27mu"
-_DEFAULT_DOCKER_IMAGE_X64 = "quay.io/pypa/manylinux2014_x86_64"
-_DEFAULT_DOCKER_IMAGE_ARM64 = "quay.io/pypa/manylinux2014_aarch64"
-_LEGACY_DOCKER_IMAGE_X64 = "quay.io/pypa/manylinux1_x86_64"
+_DEFAULT_DOCKER_IMAGE_X64 = "quay.io/pypa/manylinux2014_x86_64:2024.12.28-1"
+_DEFAULT_DOCKER_IMAGE_ARM64 = "quay.io/pypa/manylinux2014_aarch64:2024.12.28-1"
+_LEGACY_DOCKER_IMAGE_X64 = "quay.io/pypa/manylinux1_x86_64:2024-04-29-76807b8"
 _DEFAULT_PACKAGE_SITE = "packages"
 _DEFAULT_OUTPUT_FILE = "packages.tar.gz"
 _REQUIREMENT_FILE_NAME = "requirements-extra.txt"
@@ -1107,6 +1107,8 @@ def _main(parsed_args):
             parsed_args.legacy_image or parsed_args.mcpy27 or parsed_args.dwpy27
         )
         default_image = _get_default_image(use_legacy_image, parsed_args.arch)
+        if parsed_args.use_default_image_tag:
+            default_image, _ = default_image.rsplit(":", 1)
         docker_image = docker_image_env or default_image
 
         minikube_mount_proc = None
@@ -1415,6 +1417,14 @@ def main():
         help="Architecture of target package, x86_64 by default. Currently only x86_64 "
         "and aarch64 supported. Do not use this argument if you are not running "
         "your code in a proprietary cloud.",
+    )
+    parser.add_argument(
+        "--use-default-image-tag",
+        action="store_true",
+        default=None,
+        help="Once specified, default versions of default images are used. Enabling "
+        "this option can help utilizing existing images locally without downloading "
+        "again.",
     )
     parser.add_argument(
         "--python-version",

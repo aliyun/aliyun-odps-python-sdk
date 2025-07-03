@@ -838,20 +838,22 @@ class BaseArrowWriter(object):
         return mappers
 
     def _convert_df_types(self, df):
-        dest_df = df.copy()
         lower_to_df_name = {utils.to_lower_str(s): s for s in df.columns}
-        new_fields = []
+        new_cols = []
         for name, typ in zip(self._arrow_schema.names, self._arrow_schema.types):
             df_name = lower_to_df_name[name.lower()]
-            new_fields.append(pa.field(df_name, typ))
             if df_name not in df.columns:
-                dest_df[df_name] = None
-                continue
-            if name.lower() not in self._pd_mappers:
-                continue
-            dest_df[df_name] = df[df_name].map(self._pd_mappers[name.lower()])
-        df_arrow_schema = pa.schema(new_fields)
-        return pa.Table.from_pandas(dest_df, df_arrow_schema)
+                new_cols.append(pa.array([None] * len(df), type=typ))
+            elif name.lower() not in self._pd_mappers:
+                data = pa.Array.from_pandas(df[df_name])
+                new_cols.append(data)
+            else:
+                new_cols.append(
+                    pa.Array.from_pandas(
+                        df[df_name].map(self._pd_mappers[name.lower()]), type=typ
+                    )
+                )
+        return pa.Table.from_arrays(new_cols, names=self._arrow_schema.names)
 
     def write(self, data):
         """

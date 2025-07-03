@@ -951,35 +951,49 @@ def test_write_pandas_with_complex_type_and_mapping(
         [
             [
                 "05ac09c4",
+                "2023-01-02",
                 [134, 256],
                 [None, {"name": "col1", "val": 134}],
                 {"name": 1234},
             ],
-            ["cfae9054", [5431], [{"name": "col2", "val": 2345}], {"abc": 456}],
+            [
+                "cfae9054",
+                "2023-01-03",
+                [5431],
+                [{"name": "col2", "val": 2345}],
+                {"abc": 456},
+            ],
             [
                 "6029501d",
+                "2023-01-04",
                 [145, None, 561],
                 [{"name": "ddd", "val": 2341}, {"name": None, "val": None}],
                 {"fasd": 234},
             ],
             [
                 "c653e520",
+                "2023-01-05",
                 [7412, 234],
                 [None, {"name": "uvw", "val": None}],
                 {"asfgsdf": None},
             ],
-            ["59caed0d", [295, 1674], None, None],
+            ["59caed0d", "2023-01-06", [295, 1674], None, None],
         ],
-        columns=["idx", "list_data", "list_struct_data", "map_data"],
+        columns=["idx", "out_dt", "list_data", "list_struct_data", "map_data"],
     )
 
     if infer_type_with_arrow and not test_incompatible:
         # map_data cannot be inferred by pyarrow with dicts
         data = data.drop("map_data", axis=1)
+    if sys.version_info[:2] <= (3, 7):
+        # date conversion not supported in lower pyarrow versions,
+        #  thus skip the test
+        data = data.drop("out_dt", axis=1)
 
     try:
         type_mapping = (
             {
+                "out_dt": "date",
                 "list_data": "array<bigint>",
                 "list_struct_data": "array<struct<name:string, val: bigint>>",
                 "map_data": "map<string, bigint>",
@@ -987,6 +1001,10 @@ def test_write_pandas_with_complex_type_and_mapping(
             if not infer_type_with_arrow
             else None
         )
+        if type_mapping and sys.version_info[:2] <= (3, 7):
+            # date conversion not supported in lower pyarrow versions,
+            #  thus skip the test
+            type_mapping.pop("out_dt", None)
         table_kwargs = {
             "table_properties": {"columnar.nested.type": "true"},
         }
@@ -1019,9 +1037,12 @@ def test_write_pandas_with_complex_type_and_mapping(
                 "map<string, bigint>"
             )
 
+        res = table.to_pandas()
+        if "out_dt" in res.columns and not infer_type_with_arrow:
+            res["out_dt"] = res["out_dt"].map(lambda x: x.strftime("%Y-%m-%d"))
         pd.testing.assert_frame_equal(
             data.sort_values("idx").reset_index(drop=True),
-            table.to_pandas().sort_values("idx").reset_index(drop=True),
+            res.sort_values("idx").reset_index(drop=True),
         )
     finally:
         odps.delete_table(test_table_name, if_exists=True)
