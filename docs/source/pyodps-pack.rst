@@ -382,6 +382,10 @@ Docker Desktop / Rancher Desktop 已经安装了跨平台打包所需的 ``binfm
   当需要打包的本地代码需要依赖 Git 等版本管理工具上的 Tag 作为版本信息（例如使用 ``setuptools_scm`` 管理版本号）\
   且 Python 包根目录与代码根目录不一致时，该选项能自动向上找到版本管理工具中代码的根目录。
 
+- ``--use-default-image-tag``
+
+  指定后，默认镜像将使用默认 tag，以避免重复下载镜像。
+
 - ``--debug``
 
   指定后，将输出命令运行的详细信息，用于排查问题。
