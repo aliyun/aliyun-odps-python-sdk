@@ -1,8 +1,6 @@
 ODPS Python SDK
 ===============
 
---------------
-
 Elegent way to access ODPS API.
 `Documentation <http://pyodps.readthedocs.org/>`__
 
