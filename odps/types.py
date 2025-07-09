@@ -1486,6 +1486,7 @@ class Decimal(CompositeDataType):
         self._scale_decimal = _decimal.Decimal(
             "1e%d" % -(scale if scale is not None else self._default_scale)
         )
+        self._no_decimal_check = options.tunnel.no_decimal_check
 
     @property
     def name(self):
@@ -1524,6 +1525,8 @@ class Decimal(CompositeDataType):
     def validate_value(self, val, max_field_size=None):
         if val is None and self.nullable:
             return True
+        if self._no_decimal_check:
+            return True
 
         if (
             self._has_other_decimal_type
@@ -1539,11 +1542,13 @@ class Decimal(CompositeDataType):
         scaled_val = val.quantize(
             self._scale_decimal, _decimal.ROUND_HALF_UP, self._decimal_ctx
         )
-        int_len = len(str(scaled_val)) - scale - 1
+        if scaled_val < 0:
+            scaled_val = -scaled_val
+        int_len = len(str(scaled_val).lstrip("0")) - 1
         if int_len > precision:
             raise ValueError(
                 "decimal value %s overflow, max integer digit number is %s."
-                % (val, precision)
+                % (val, precision - scale)
             )
         return True
 

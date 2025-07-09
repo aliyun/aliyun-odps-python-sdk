@@ -580,6 +580,7 @@ default_options.register_option(
 default_options.register_option(
     "tunnel.enable_client_metrics", False, validator=any_validator(is_null, is_bool)
 )
+default_options.register_option("tunnel.no_decimal_check", False, validator=is_bool)
 default_options.register_option("tunnel.compress.enabled", False, validator=is_bool)
 default_options.register_option(
     "tunnel.compress.algo", None, validator=any_validator(is_null, is_string)

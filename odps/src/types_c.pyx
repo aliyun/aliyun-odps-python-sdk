@@ -319,6 +319,7 @@ cdef class BoolValidator(TypeValidator):
 
 cdef class DecimalValidator(TypeValidator):
     cdef int precision, scale
+    cdef bint _no_decimal_check
     cdef object _decimal_ctx, _scale_decimal
 
     def __init__(self, dec_type, bint nullable = True):
@@ -328,10 +329,12 @@ cdef class DecimalValidator(TypeValidator):
         self.scale = dec_type.scale or dec_type._default_scale
         self._scale_decimal = dec_type._scale_decimal
         self._decimal_ctx = dec_type._decimal_ctx
+        self._no_decimal_check = options.tunnel.no_decimal_check
 
     cdef object validate(self, object val, int64_t max_field_size):
         cdef int int_len
         cdef object scaled_val
+        cdef str scaled_val_str
 
         if self.nullable and val is None:
             return val
@@ -347,14 +350,22 @@ cdef class DecimalValidator(TypeValidator):
                 val = (<bytes>val).decode("utf-8")
             val = _decimal_type(val)
 
+        if self._no_decimal_check:
+            return val
+
         scaled_val = val.quantize(
             self._scale_decimal, _decimal_ROUND_HALF_UP, self._decimal_ctx
         )
-        int_len = len(<str> str(scaled_val)) - self.scale - 1
+        scaled_val_str = str(scaled_val)
+        if scaled_val_str.startswith("-"):
+            scaled_val_str = scaled_val_str[1:]
+        if scaled_val_str.startswith("0"):
+            scaled_val_str = scaled_val_str[1:]
+        int_len = len(scaled_val_str) - 1
         if int_len > self.precision:
             raise ValueError(
                 "decimal value %s overflow, max integer digit number is %s."
-                % (val, self.precision)
+                % (val, self.precision - self.scale)
             )
         return val
 

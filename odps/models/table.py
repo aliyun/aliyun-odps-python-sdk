@@ -1113,7 +1113,7 @@ class Table(LazyLoad):
 
         if partition and not isinstance(partition, odps_types.PartitionSpec):
             partition = odps_types.PartitionSpec(partition)
-        if create_partition and not self.exist_partition(create_partition):
+        if create_partition and not self.exist_partition(partition):
             self.create_partition(partition, if_not_exists=True)
 
         tunnel = self._create_table_tunnel(endpoint=endpoint, quota_name=quota_name)
