@@ -591,6 +591,7 @@ def test_field_size_limit(use_binary):
         r[1] = _c("1" * 1023 + "测")
 
 
+@py_and_c_deco
 def test_validate_decimal():
     with pytest.raises(ValueError):
         odps_types.Decimal(32, 60)
@@ -606,10 +607,47 @@ def test_validate_decimal():
 
     decimal_type = odps_types.Decimal(10, 5)
     decimal_type.validate_value(None)
-    decimal_type.validate_value(_decimal.Decimal("123456789.1"))
-    decimal_type.validate_value(_decimal.Decimal("123456789.12345"))
+    decimal_type.validate_value(_decimal.Decimal("12345.06789"))
     with pytest.raises(ValueError):
-        decimal_type.validate_value(_decimal.Decimal("12345678901.12"))
+        decimal_type.validate_value(_decimal.Decimal("123456789.1"))
+
+    decimal_type = odps_types.Decimal(1, 1)
+    decimal_type.validate_value(_decimal.Decimal("0.1"))
+    decimal_type.validate_value(_decimal.Decimal("-0.1"))
+    with pytest.raises(ValueError):
+        decimal_type.validate_value(_decimal.Decimal("1.1"))
+    with pytest.raises(ValueError):
+        decimal_type.validate_value(_decimal.Decimal("-1.1"))
+
+    s = TableSchema.from_lists(
+        ["dec_col", "dec_col2"], ["decimal(10, 5)", "decimal(1, 1)"]
+    )
+    s.build_snapshot()
+    r = Record(schema=s)
+    r[0] = "12345.06789"
+    with pytest.raises(ValueError):
+        r[0] = "123456789.1"
+    r[1] = _decimal.Decimal("0.1")
+    r[1] = _decimal.Decimal("-0.1")
+    with pytest.raises(ValueError):
+        r[1] = _decimal.Decimal("1.1")
+    with pytest.raises(ValueError):
+        r[1] = _decimal.Decimal("-1.1")
+
+    try:
+        options.tunnel.no_decimal_check = True
+        s = TableSchema.from_lists(
+            ["dec_col", "dec_col2"], ["decimal(10, 5)", "decimal(1, 1)"]
+        )
+        s.build_snapshot()
+        r = Record(schema=s)
+
+        r[0] = "123456789.1"
+        r[1] = _decimal.Decimal("-1.1")
+        assert r[0] == _decimal.Decimal("123456789.1")
+        assert r[1] == _decimal.Decimal("-1.1")
+    finally:
+        options.tunnel.no_decimal_check = False
 
 
 @pandas_case

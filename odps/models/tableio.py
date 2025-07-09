@@ -1550,7 +1550,7 @@ class TableIOMethods(object):
                     ),
                 )
                 odps.execute_sql(sql_stmt, **sql_kwargs)
-                tmp_schema = odps.get_table(temp_table_name).table_schema
+                tmp_schema = odps.get_table(temp_table_name, schema=schema).table_schema
                 out_table_schema = cls._resolve_schema(
                     data_schema=tmp_schema,
                     partition=partition,
@@ -1581,7 +1581,7 @@ class TableIOMethods(object):
                 partition=partition,
             )
 
-            temp_table = odps.get_table(temp_table_name)
+            temp_table = odps.get_table(temp_table_name, schema=schema)
             union_cols, diff_cols = cls._calc_schema_diff(
                 temp_table.table_schema,
                 target_table.table_schema,
