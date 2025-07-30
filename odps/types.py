@@ -327,7 +327,7 @@ class Schema(object):
     def __eq__(self, other):
         if not isinstance(other, Schema):
             return False
-        return self.names == other.names and self.types == self.types
+        return self.names == other.names and self.types == other.types
 
     def get_type(self, name):
         return self.types[self._name_indexes[utils.to_lower_str(name)]]
@@ -907,6 +907,9 @@ class DataType(object):
 
     def can_explicit_cast(self, other):
         return self.can_implicit_cast(other)
+
+    def __reduce__(self):
+        return validate_data_type, (str(self),)
 
     def validate_value(self, val, max_field_size=None):
         # directly return True means without checking
