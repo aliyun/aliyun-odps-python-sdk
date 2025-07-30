@@ -221,7 +221,8 @@ class SessionInstance(Instance):
                 RuntimeWarning,
             )
             return False
-        return splited[-1].lower().strip(" \t\r\n(").startswith("select")
+        striped = splited[-1].lower().strip(" \t\r\n(")
+        return striped.startswith("select") or striped.startswith("with")
 
     def _create_internal_instance(self, task=None):
         project_name = self._project.name

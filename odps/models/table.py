@@ -1113,7 +1113,7 @@ class Table(LazyLoad):
 
         if partition and not isinstance(partition, odps_types.PartitionSpec):
             partition = odps_types.PartitionSpec(partition)
-        if create_partition and not self.exist_partition(create_partition):
+        if create_partition and not self.exist_partition(partition):
             self.create_partition(partition, if_not_exists=True)
 
         tunnel = self._create_table_tunnel(endpoint=endpoint, quota_name=quota_name)
@@ -1269,7 +1269,7 @@ class Table(LazyLoad):
 
     @utils.with_wait_argument
     def create_partition(
-        self, partition_spec, if_not_exists=False, async_=False, hints=None
+        self, partition_spec, if_not_exists=False, async_=False, hints=None, **inst_kw
     ):
         """
         Create a partition within the table.
@@ -1282,12 +1282,16 @@ class Table(LazyLoad):
         :rtype: odps.models.partition.Partition
         """
         return self.partitions.create(
-            partition_spec, if_not_exists=if_not_exists, hints=hints, async_=async_
+            partition_spec,
+            if_not_exists=if_not_exists,
+            hints=hints,
+            async_=async_,
+            **inst_kw
         )
 
     @utils.with_wait_argument
     def delete_partition(
-        self, partition_spec, if_exists=False, async_=False, hints=None
+        self, partition_spec, if_exists=False, async_=False, hints=None, **inst_kw
     ):
         """
         Delete a partition within the table.
@@ -1298,7 +1302,7 @@ class Table(LazyLoad):
         :param async_:
         """
         return self.partitions.delete(
-            partition_spec, if_exists=if_exists, hints=hints, async_=async_
+            partition_spec, if_exists=if_exists, hints=hints, async_=async_, **inst_kw
         )
 
     def exist_partition(self, partition_spec):
