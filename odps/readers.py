@@ -34,6 +34,10 @@ class AbstractRecordReader(object):
     def __next__(self):
         raise NotImplementedError
 
+    def __del__(self):
+        if hasattr(self, "close"):
+            self.close()
+
     next = __next__
 
     @classmethod

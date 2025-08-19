@@ -401,6 +401,22 @@ class RequestTimeTooSkewed(ServerDefinedException):
 RequestTimeTooSkewd = RequestTimeTooSkewed
 
 
+class RequestQuotaExceeded(ServerDefinedException):
+    pass
+
+
+class SlotExceeded(RequestQuotaExceeded):
+    pass
+
+
+class QPSExceeded(RequestQuotaExceeded):
+    pass
+
+
+class FlowExceeded(RequestQuotaExceeded):
+    pass
+
+
 class NotSupportedError(ODPSError):
     pass
 

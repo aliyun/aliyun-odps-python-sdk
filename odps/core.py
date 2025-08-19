@@ -1951,6 +1951,7 @@ class ODPS(object):
         """
         project = self.get_project(name=project)
         xflow_project = xflow_project or project
+        priority = priority if priority is not None else options.priority
         if isinstance(xflow_project, models.Project):
             xflow_project = xflow_project.name
         return project.xflows.run_xflow(

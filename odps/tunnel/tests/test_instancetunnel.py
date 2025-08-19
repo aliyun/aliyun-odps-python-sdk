@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -79,14 +79,27 @@ def _upload_data(tunnel, test_table, records, compress=False, **kw):
 
 
 def _download_instance_data(
-    instance_tunnel, test_instance, compress=False, columns=None, **kw
+    instance_tunnel,
+    test_instance,
+    compress=False,
+    columns=None,
+    buffered=False,
+    buffer_size=None,
+    row_batch_size=None,
+    **kw
 ):
     count = kw.pop("count", 3)
     download_ss = instance_tunnel.create_download_session(test_instance, **kw)
     # make sure session reprs work well
     repr(download_ss)
+    down_kw = {}
+    down_kw["buffered"] = buffered
+    if buffer_size is not None:
+        down_kw["buffer_size"] = buffer_size
+    if row_batch_size is not None:
+        down_kw["row_batch_size"] = row_batch_size
     with download_ss.open_record_reader(
-        0, count, compress=compress, columns=columns
+        0, count, compress=compress, columns=columns, **down_kw
     ) as reader:
         # test use right py or c writer
         assert get_code_mode() == reader._mode()
@@ -188,6 +201,22 @@ def test_download_by_raw_tunnel(config, instance_tunnel):
     _upload_data(config.tunnel, test_table_name, data)
     inst = config.odps.execute_sql("select * from %s" % test_table_name)
     records = _download_instance_data(instance_tunnel, inst)
+    assert list(data) == list(records)
+
+    _delete_table(config.odps, test_table_name)
+
+
+@py_and_c_deco
+def test_download_by_buffered_tunnel(config, instance_tunnel):
+    test_table_name = tn("pyodps_test_raw_inst_tunnel")
+    _create_table(config.odps, test_table_name)
+    data = _gen_data()
+
+    _upload_data(config.tunnel, test_table_name, data)
+    inst = config.odps.execute_sql("select * from %s" % test_table_name)
+    records = _download_instance_data(
+        instance_tunnel, inst, buffered=True, row_batch_size=2
+    )
     assert list(data) == list(records)
 
     _delete_table(config.odps, test_table_name)

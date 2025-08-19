@@ -39,8 +39,9 @@ DEFAULT_SIGNATURE_PREFIX = "aliyun_v4"
 
 
 def _get_v4_signature_prefix():
-    if options.signature_prefix is not None:
-        return options.signature_prefix
+    opt_prefix = options.signature_prefix
+    if opt_prefix is not None:
+        return opt_prefix
     return DEFAULT_SIGNATURE_PREFIX
 
 
@@ -558,6 +559,7 @@ class BearerTokenAccount(TempAccountMixin, BaseAccount):
 class CredentialProviderAccount(StsAccount):
     def __init__(self, credential_provider):
         self.provider = credential_provider
+        self._lock = threading.Lock()
         super(CredentialProviderAccount, self).__init__(None, None, None)
 
     def _refresh_credential(self):
@@ -566,15 +568,29 @@ class CredentialProviderAccount(StsAccount):
         except:
             credential = self.provider.get_credentials()
 
-        self.access_id = credential.get_access_key_id()
-        self.secret_access_key = credential.get_access_key_secret()
-        self.sts_token = credential.get_security_token()
+        access_id = credential.get_access_key_id()
+        secret_access_key = credential.get_access_key_secret()
+        sts_token = credential.get_security_token()
+
+        with self._lock:
+            if self.access_id and access_id == self.access_id:
+                return
+
+            # invalidate signature date only when token changed
+            self._last_signature_date = None
+
+            self.access_id = access_id
+            self.secret_access_key = secret_access_key
+            self.sts_token = sts_token
 
     def sign_request(self, req, endpoint, region_name=None):
         utils.call_with_retry(self._refresh_credential)
-        return super(CredentialProviderAccount, self).sign_request(
-            req, endpoint, region_name=region_name
-        )
+
+        with self._lock:
+            # need to lock to make sure keys are consistent
+            return super(CredentialProviderAccount, self).sign_request(
+                req, endpoint, region_name=region_name
+            )
 
 
 def from_environments():

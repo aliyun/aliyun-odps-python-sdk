@@ -380,6 +380,7 @@ def test_split_backquoted():
 
 def test_call_with_retry():
     retry_idx_list = [0]
+    ret_exc_list = [None]
 
     def func(delay=0):
         if delay:
@@ -421,3 +422,28 @@ def test_call_with_retry():
     )
     assert isinstance(exc_info[1], ValueError)
     assert retry_idx_list[0] == 2
+
+    def on_exception_func(ex, ret_val=True):
+        ret_exc_list[0] = ex
+        return ret_val
+
+    with pytest.raises(ValueError):
+        retry_idx_list[0] = 0
+        utils.call_with_retry(
+            delay_func,
+            retry_times=None,
+            retry_timeout=0.7,
+            on_exception_func=on_exception_func,
+        )
+    assert isinstance(ret_exc_list[0], ValueError)
+    assert retry_idx_list[0] == 2
+
+    retry_idx_list[0] = 0
+    utils.call_with_retry(
+        delay_func,
+        retry_times=None,
+        retry_timeout=0.7,
+        on_exception_func=functools.partial(on_exception_func, ret_val=False),
+    )
+    assert isinstance(ret_exc_list[0], ValueError)
+    assert retry_idx_list[0] == 3

@@ -327,7 +327,7 @@ class Schema(object):
     def __eq__(self, other):
         if not isinstance(other, Schema):
             return False
-        return self.names == other.names and self.types == self.types
+        return self.names == other.names and self.types == other.types
 
     def get_type(self, name):
         return self.types[self._name_indexes[utils.to_lower_str(name)]]
@@ -907,6 +907,9 @@ class DataType(object):
 
     def can_explicit_cast(self, other):
         return self.can_implicit_cast(other)
+
+    def __reduce__(self):
+        return validate_data_type, (str(self),)
 
     def validate_value(self, val, max_field_size=None):
         # directly return True means without checking
@@ -1946,6 +1949,11 @@ class Geography(OdpsPrimitive):
     _max_length = 8 * 1024 * 1024  # 8M
 
 
+@_primitive_doc
+class Blob(OdpsPrimitive):
+    _type_id = 15
+
+
 tinyint = Tinyint()
 smallint = Smallint()
 int_ = Int()
@@ -1963,6 +1971,7 @@ interval_year_month = IntervalYearMonth()
 date = Date()
 json = Json()
 geography = Geography()
+blob = Blob()
 
 _odps_primitive_data_types = dict(
     [
@@ -1985,6 +1994,7 @@ _odps_primitive_data_types = dict(
             interval_year_month,
             json,
             geography,
+            blob,
         )
     ]
 )

@@ -1,4 +1,4 @@
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -107,12 +107,20 @@ class TunnelReaderMixin(object):
 
 
 class TunnelRecordReader(TunnelReaderMixin, AbstractRecordReader):
-    def __init__(self, parent, download_session, columns=None, append_partitions=None):
+    def __init__(
+        self,
+        parent,
+        download_session,
+        columns=None,
+        append_partitions=None,
+        **reader_kw
+    ):
         self._it = iter(self)
         self._parent = parent
         self._download_session = download_session
         self._column_names = columns
         self._append_partitions = append_partitions
+        self._reader_kw = reader_kw
 
     @property
     def download_id(self):
@@ -172,6 +180,7 @@ class TunnelRecordReader(TunnelReaderMixin, AbstractRecordReader):
             compress=compress,
             columns=columns,
             append_partitions=append_partitions,
+            **self._reader_kw
         ) as reader:
             for record in reader[::step]:
                 counter[0] += step
@@ -247,12 +256,20 @@ class TunnelRecordReader(TunnelReaderMixin, AbstractRecordReader):
 
 
 class TunnelArrowReader(TunnelReaderMixin):
-    def __init__(self, parent, download_session, columns=None, append_partitions=False):
+    def __init__(
+        self,
+        parent,
+        download_session,
+        columns=None,
+        append_partitions=False,
+        **reader_kw
+    ):
         self._it = iter(self)
         self._parent = parent
         self._download_session = download_session
         self._column_names = columns
         self._append_partitions = append_partitions
+        self._reader_kw = reader_kw
 
     @property
     def download_id(self):
@@ -293,6 +310,7 @@ class TunnelArrowReader(TunnelReaderMixin):
             compress=compress,
             columns=columns,
             append_partitions=append_partitions,
+            **self._reader_kw
         ) as reader:
             while True:
                 batch = reader.read_next_batch()

@@ -37,9 +37,10 @@ cdef class BaseTunnelRecordReader:
     cdef SchemaSnapshot _schema_snapshot
     cdef list _partition_vals
     cdef bint _append_partitions
+    cdef object _on_exception
 
     cdef public bytes _server_metrics_string
-    cdef bint _enable_client_metrics
+    cdef public bint _enable_client_metrics
     cdef long _c_local_wall_time_ms
     cdef long _c_acc_network_time_ms
 
