@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -55,6 +55,10 @@ cdef class CDecoder:
         self._begin = self._buffer
         self._end = self._begin + len(self._buffer)
         self._is_source_eof = False
+
+    def close(self):
+        if hasattr(self._stream, "close"):
+            self._stream.close()
 
     cdef int32_t read_field_number(self, int32_t * p_wire_type) except? -1 nogil:
         if self._end - self._begin < _MIN_SERIALIZED_INT_SIZE:
@@ -186,6 +190,9 @@ cdef class CDecoder:
 cdef class Decoder:
     def __init__(self, stream):
         self._decoder = CDecoder(stream)
+
+    def close(self):
+        self._decoder.close()
 
     def __len__(self):
         return self._decoder.position()

@@ -26,7 +26,7 @@ from ..config import options
 from ..models import Projects, TableSchema
 from .base import TUNNEL_VERSION, BaseTunnel
 from .errors import TunnelError
-from .io.reader import TunnelArrowReader, TunnelRecordReader
+from .io.reader import BufferedRecordReader, TunnelArrowReader, TunnelRecordReader
 from .io.stream import CompressOption, get_decompress_stream
 
 try:
@@ -74,6 +74,9 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
     count = serializers.JSONNodeField("RecordCount")
     schema = serializers.JSONNodeReferenceField(TableSchema, "Schema")
     quota_name = serializers.JSONNodeField("QuotaName")
+    support_read_by_raw_size = serializers.JSONNodeField(
+        "SupportReadByRawSize", default=None
+    )
 
     def __init__(
         self,
@@ -203,7 +206,7 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
             self.status = InstanceDownloadSession.Status.Normal
 
     def _build_input_stream(
-        self, start, count, compress=False, columns=None, arrow=False
+        self, start, count, compress=False, columns=None, arrow=False, raw_size=None
     ):
         compress_option = self._compress_option or CompressOption()
 
@@ -232,6 +235,8 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
 
         if arrow:
             params["arrow"] = ""
+        if raw_size:
+            params["raw_size"] = str(raw_size)
 
         url = self._instance.resource()
         resp = self._client.get(url, stream=True, params=params, headers=headers)
@@ -263,18 +268,30 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
         return get_decompress_stream(resp, option)
 
     def _open_reader(
-        self, start, count, compress=False, columns=None, arrow=False, reader_cls=None
+        self,
+        start,
+        count,
+        compress=False,
+        columns=None,
+        arrow=False,
+        on_exception=None,
+        reader_cls=None,
+        **kw
     ):
         stream_kw = dict(compress=compress, columns=columns, arrow=arrow)
         initial_stream_cache = [None]
 
-        def stream_creator(cursor, cache=False):
+        def stream_creator(cursor, cache=False, row_number=None, raw_size=None):
             if cursor == 0 and initial_stream_cache[0] is not None:
                 initial_stream_cache[0], stream = None, initial_stream_cache[0]
                 return stream
             attempt_count = count - cursor if count is not None else None
+            if attempt_count <= 0:
+                return None
+            if row_number is not None:
+                attempt_count = min(attempt_count, row_number)
             stream = self._build_input_stream(
-                start + cursor, attempt_count, **stream_kw
+                start + cursor, attempt_count, raw_size=raw_size, **stream_kw
             )
             if cache:
                 initial_stream_cache[0] = stream
@@ -283,36 +300,76 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
         # for MCQA we must obtain schema from the first stream, hence the first reader
         # must be created beforehand and then cached for the reader class
         stream_creator(0, True)
-        return reader_cls(self.schema, stream_creator, columns=columns)
+        return reader_cls(
+            self.schema,
+            stream_creator,
+            columns=columns,
+            on_exception=on_exception,
+            **kw
+        )
 
-    def open_record_reader(self, start, count, compress=False, columns=None, **_):
+    def open_record_reader(
+        self,
+        start,
+        count,
+        compress=False,
+        columns=None,
+        buffered=False,
+        buffer_size=None,
+        row_batch_size=None,
+        on_exception=None,
+        **_
+    ):
         """
         Open a reader to read data as records from the tunnel.
 
         :param int start: start row index
         :param int count: number of rows to read
         :param bool compress: whether to compress data
-        :columns: list of column names to read
+        :param columns: list of column names to read
+        :param bool buffered: whether to use buffered reader
+        :param int buffer_size: download buffer size in bytes. Num of rows read in every batch
+            will be limited by this parameter as well as `row_batch_size`.
+        :param bool row_batch_size: number of rows to read per batch. Num of rows read in every
+            batch will be limited by this parameter as well as `buffer_size`.
+        :param on_exception: custom error handling function accepting
+            an Exception instance as input. If return value is True,
+            error will be raised. Otherwise retry will continue.
 
         :return: a record reader
         :rtype: :class:`TunnelRecordReader`
         """
+        reader_cls = BufferedRecordReader if buffered else TunnelRecordReader
+        kw = {}
+        if buffer_size:
+            kw["buffer_size"] = buffer_size
+        if row_batch_size:
+            kw["row_batch_size"] = row_batch_size
+        if buffered:
+            kw["session_with_byte_size_limit"] = self.support_read_by_raw_size
         return self._open_reader(
             start,
             count,
             compress=compress,
             columns=columns,
-            reader_cls=TunnelRecordReader,
+            on_exception=on_exception,
+            reader_cls=reader_cls,
+            **kw
         )
 
-    def open_arrow_reader(self, start, count, compress=False, columns=None, **_):
+    def open_arrow_reader(
+        self, start, count, compress=False, columns=None, on_exception=None, **_
+    ):
         """
         Open a reader to read data as arrow format from the tunnel.
 
         :param int start: start row index
         :param int count: number of rows to read
         :param bool compress: whether to compress data
-        :columns: list of column names to read
+        :param columns: list of column names to read
+        :param on_exception: custom error handling function accepting
+            an Exception instance as input. If return value is True,
+            error will be raised. Otherwise retry will continue.
 
         :return: an arrow reader
         :rtype: :class:`TunnelArrowReader`
@@ -323,6 +380,7 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
             compress=compress,
             columns=columns,
             arrow=True,
+            on_exception=on_exception,
             reader_cls=TunnelArrowReader,
         )
 

@@ -133,6 +133,18 @@ class Tables(Iterable):
         **kw
     ):
         project_name = self._parent.project.name
+
+        # pass kwargs for instance creation to _run_table_sql
+        inst_kw = {}
+        for key in (
+            "instance_project",
+            "priority",
+            "running_cluster",
+            "unique_identifier_id",
+        ):
+            if key in kw:
+                inst_kw[key] = kw.pop(key)
+
         schema_name = self._get_schema_name()
         sql = Table.gen_create_table_sql(
             table_name,
@@ -152,7 +164,7 @@ class Tables(Iterable):
         if storage_tier:
             hints["odps.tiered.storage.enable"] = "true"
         instance = self._run_table_sql(
-            sql, task_name="SQLCreateTableTask", hints=hints, wait=not async_
+            sql, task_name="SQLCreateTableTask", hints=hints, wait=not async_, **inst_kw
         )
         if not async_:
             return self[table_name]

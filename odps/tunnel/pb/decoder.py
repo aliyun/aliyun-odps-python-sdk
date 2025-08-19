@@ -37,6 +37,9 @@ class Decoder(object):
         """Returns the 0-indexed position in |s|."""
         return self._stream.position()
 
+    def close(self):
+        self._stream.close()
+
     @property
     def network_wall_time_ms(self):
         return self._stream.network_wall_time_ms

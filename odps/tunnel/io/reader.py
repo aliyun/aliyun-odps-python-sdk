@@ -67,6 +67,7 @@ except ImportError as e:
     BaseTunnelRecordReader = convert_legacy_decimal_bytes = None
 
 MICRO_SEC_PER_SEC = 1000000
+MIN_RAW_BATCH_SIZE = 1024**2
 
 if BaseTunnelRecordReader is None:
 
@@ -78,6 +79,7 @@ if BaseTunnelRecordReader is None:
             columns=None,
             partition_spec=None,
             append_partitions=False,
+            on_exception=None,
         ):
             self._schema = schema
             if columns is None:
@@ -98,7 +100,6 @@ if BaseTunnelRecordReader is None:
             self._curr_cursor = 0
             self._stream_creator = stream_creator
             self._reader = None
-            self._reopen_reader()
 
             if self._enable_client_metrics:
                 ts = monotonic()
@@ -129,6 +130,12 @@ if BaseTunnelRecordReader is None:
                     MICRO_SEC_PER_SEC * (monotonic() - ts)
                 )
 
+            self._on_exception = on_exception
+
+        def close(self):
+            if self._reader is not None:
+                self._reader.close()
+
         def _mode(self):
             return "py"
 
@@ -143,11 +150,10 @@ if BaseTunnelRecordReader is None:
         def _inject_error(self, cursor, exc):
             self._injected_error = (cursor, exc)
 
-        def _reopen_reader(self):
+        def _reopen_reader(self, row_number=None, raw_size=None):
             if self._enable_client_metrics:
                 ts = monotonic()
 
-            stream = self._stream_creator(self._curr_cursor)
             if self._enable_client_metrics:
                 self._acc_network_time_ms += compat.long_type(
                     MICRO_SEC_PER_SEC * (monotonic() - ts)
@@ -155,13 +161,25 @@ if BaseTunnelRecordReader is None:
                 if self._reader is not None:
                     self._acc_network_time_ms += self._reader.network_wall_time_ms
 
-            self._last_n_bytes = len(self._reader) if self._curr_cursor != 0 else 0
-            self._reader = Decoder(
-                stream, record_network_time=self._enable_client_metrics
+            if self._reader is not None:
+                self._reader.close()
+
+            self._last_n_bytes = (
+                self._get_attempt_bytes() if self._curr_cursor != 0 else 0
             )
             self._crc = Checksum()
             self._crccrc = Checksum()
             self._attempt_row_count = 0
+
+            stream = self._stream_creator(
+                self._curr_cursor, row_number=row_number, raw_size=raw_size
+            )
+            if stream is None:
+                self._reader = None
+            else:
+                self._reader = Decoder(
+                    stream, record_network_time=self._enable_client_metrics
+                )
 
             if self._enable_client_metrics:
                 self._local_wall_time_ms += compat.long_type(
@@ -290,6 +308,9 @@ if BaseTunnelRecordReader is None:
                 self._injected_error = None
                 raise self._injected_error[1]
 
+            if self._reader is None:
+                return None
+
             if self._read_limit is not None and self.count >= self._read_limit:
                 warnings.warn(
                     "Number of lines read via tunnel already reaches the limitation.",
@@ -376,8 +397,14 @@ if BaseTunnelRecordReader is None:
         def read(self):
             if self._enable_client_metrics:
                 ts = monotonic()
+
+            if self._reader is None:
+                self._reopen_reader()
+
             result = utils.call_with_retry(
-                self._read_single_record, reset_func=self._reopen_reader
+                self._read_single_record,
+                reset_func=self._reopen_reader,
+                on_exception_func=self._on_exception,
             )
             if self._enable_client_metrics:
                 self._local_wall_time_ms += int(MICRO_SEC_PER_SEC * (monotonic() - ts))
@@ -388,7 +415,12 @@ if BaseTunnelRecordReader is None:
 
         @property
         def n_bytes(self):
+            if self._reader is None:
+                return self._last_n_bytes
             return self._last_n_bytes + len(self._reader)
+
+        def _get_attempt_bytes(self):
+            return len(self._reader) if self._reader is not None else 0
 
         def get_total_bytes(self):
             return self.n_bytes
@@ -438,6 +470,8 @@ class TunnelRecordReader(BaseTunnelRecordReader, AbstractRecordReader):
         )
 
     def close(self):
+        if self._reader is not None:
+            self._reader.close()
         if hasattr(self._schema, "close"):
             self._schema.close()
 
@@ -457,6 +491,133 @@ try:
     """
 except:
     pass
+
+
+class BufferedRecordReader(TunnelRecordReader):
+    def __init__(
+        self,
+        schema,
+        stream_creator,
+        columns=None,
+        partition_spec=None,
+        append_partitions=False,
+        buffer_size=None,
+        row_batch_size=None,
+        session_with_byte_size_limit=False,
+        on_exception=None,
+    ):
+        self._row_batch_size = row_batch_size or options.tunnel.read_row_batch_size
+        self._buffer_size = buffer_size or options.tunnel.block_buffer_size
+
+        self._record_cache = []
+        self._record_idx = 0
+        self._is_eof = False
+
+        self._buffer_exceed_warned = False
+        self._session_with_byte_size_limit = session_with_byte_size_limit
+
+        super(BufferedRecordReader, self).__init__(
+            schema,
+            stream_creator,
+            columns=columns,
+            partition_spec=partition_spec,
+            append_partitions=append_partitions,
+            on_exception=on_exception,
+        )
+
+        if not self._enable_client_metrics:
+            self._accumulated_metrics = None
+        else:
+            self._accumulated_metrics = TunnelMetrics(type(self).__name__)
+
+    def _collect_metrics(self):
+        if not self._enable_client_metrics:
+            return
+
+        if self._server_metrics_string is not None:
+            self._accumulated_metrics += TunnelMetrics.from_server_json(
+                type(self).__name__,
+                self._server_metrics_string,
+                self._local_wall_time_ms,
+                self._network_wall_time_ms,
+            )
+        self._server_metrics_string = None
+        self._local_wall_time_ms = 0
+
+    def _reopen_reader(self, row_number=None, raw_size=None):
+        self._collect_metrics()
+        if not self._session_with_byte_size_limit:
+            raw_size = None
+        if raw_size:
+            raw_size = max(MIN_RAW_BATCH_SIZE, raw_size)
+        return super(BufferedRecordReader, self)._reopen_reader(
+            row_number=row_number, raw_size=raw_size
+        )
+
+    def _read_next_row_block(self):
+        if not self._is_eof:
+            self._reopen_reader(
+                row_number=self._row_batch_size, raw_size=self._buffer_size
+            )
+        else:
+            self._reader = None
+        if self._reader is None:
+            self._is_eof = True
+            self._record_cache = []
+            self._record_idx = 0
+            return
+
+        # add a guardian row to make sure metrics obtained correctly
+        record_cache = [None] * (1 + self._row_batch_size)
+        read_idx = 0
+
+        while read_idx < len(record_cache):
+            if (
+                not self._session_with_byte_size_limit
+                or self._buffer_size < MIN_RAW_BATCH_SIZE
+            ) and self._get_attempt_bytes() > self._buffer_size:
+                if self._enable_client_metrics and not self._buffer_exceed_warned:
+                    self._buffer_exceed_warned = True
+                    warnings.warn(
+                        "Bytes of buffered records (%d) exceeds buffer_size (%d). "
+                        "Tunnel metrics cannot be obtained correctly. To retrieve "
+                        "correct metrics, you may increase the buffer size by "
+                        "setting options.tunnel.block_buffer_size or decrease "
+                        "the size of row batch by setting options.tunnel."
+                        "read_row_batch_size (currently %d)."
+                        % (
+                            self._get_attempt_bytes(),
+                            self._buffer_size,
+                            options.tunnel.read_row_batch_size,
+                        ),
+                        UserWarning,
+                    )
+                break
+            record = super(BufferedRecordReader, self).read()
+            if record is None:
+                break
+            record_cache[read_idx] = record
+            read_idx += 1
+
+        self._record_cache = record_cache[:read_idx]
+        self._record_idx = 0
+        if self._reader is not None:
+            self._reader.close()
+            self._collect_metrics()
+
+    def read(self):
+        if not self._record_cache or self._record_idx >= len(self._record_cache):
+            self._read_next_row_block()
+
+        if not self._record_cache:
+            return None
+        record = self._record_cache[self._record_idx]
+        self._record_idx += 1
+        return record
+
+    @property
+    def metrics(self):
+        return self._accumulated_metrics
 
 
 class ArrowStreamReader(IOBase):
@@ -579,6 +740,7 @@ class TunnelArrowReader(object):
         partition_spec=None,
         append_partitions=False,
         use_ipc_stream=False,
+        on_exception=None,
     ):
         if pa is None:
             raise ValueError("To use arrow reader you need to install pyarrow")
@@ -627,6 +789,7 @@ class TunnelArrowReader(object):
                 self._coerce_numpy_columns.add(col.name)
 
         self._injected_error = None
+        self._on_exception = on_exception
 
     def _reopen_reader(self):
         self._last_n_bytes = len(self._reader) if self._pos != 0 else 0
@@ -740,7 +903,9 @@ class TunnelArrowReader(object):
             return None
 
         batch = utils.call_with_retry(
-            self._read_next_raw_batch, reset_func=self._reopen_reader
+            self._read_next_raw_batch,
+            reset_func=self._reopen_reader,
+            on_exception_func=self._on_exception,
         )
         if batch is None:
             return None

@@ -112,19 +112,19 @@ def _get_localzone(_root='/'):
                 if data[:5] == b'TZif2':
                     continue
 
-                etctz = data.strip().decode()
+                etctz = data.strip(b"/ \t\r\n").decode()
                 if not etctz:
                     # Empty file, skip
                     continue
-                for etctz in data.decode().splitlines():
+                for _etctz in etctz.splitlines():
                     # Get rid of host definitions and comments:
-                    if ' ' in etctz:
-                        etctz, dummy = etctz.split(' ', 1)
-                    if '#' in etctz:
-                        etctz, dummy = etctz.split('#', 1)
-                    if not etctz:
+                    if ' ' in _etctz:
+                        _etctz, _ = _etctz.split(' ', 1)
+                    if '#' in _etctz:
+                        _etctz, _ = _etctz.split('#', 1)
+                    if not _etctz:
                         continue
-                    return utils.get_tz(etctz.replace(' ', '_'))
+                    return utils.get_tz(_etctz.replace(' ', '_'))
         except IOError:
             # File doesn't exist or is a directory
             continue

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -37,6 +37,7 @@ class TunnelMetrics(object):
         storage_cost=0,
         server_total_cost=0,
         server_io_cost=0,
+        rate_limit_cost=0,
     ):
         self.owner = owner
         self.network_wall_cost = network_wall_cost
@@ -45,6 +46,7 @@ class TunnelMetrics(object):
         self.storage_cost = storage_cost
         self.server_total_cost = server_total_cost
         self.server_io_cost = server_io_cost
+        self.rate_limit_cost = rate_limit_cost
 
     @classmethod
     def from_server_json(cls, owner, server_json, local_wall_time, network_wall_time):
@@ -52,14 +54,19 @@ class TunnelMetrics(object):
         storage_cost = server_json_obj["PanguIOCost"]
         server_io_cost = server_json_obj["ServerIOCost"]
         server_total_cost = server_json_obj["ServerTotalCost"]
+        rate_limit_cost = server_json_obj.get("RateLimitCost") or 0
         return TunnelMetrics(
             owner,
             network_wall_cost=network_wall_time,
             client_process_cost=local_wall_time - network_wall_time,
-            tunnel_process_cost=server_total_cost - server_io_cost - storage_cost,
+            tunnel_process_cost=server_total_cost
+            - server_io_cost
+            - storage_cost
+            - rate_limit_cost,
             storage_cost=storage_cost,
             server_total_cost=server_total_cost,
             server_io_cost=server_io_cost,
+            rate_limit_cost=rate_limit_cost,
         )
 
     def to_dict(self):
@@ -71,6 +78,7 @@ class TunnelMetrics(object):
             "storage_cost": self.storage_cost,
             "server_total_cost": self.server_total_cost,
             "server_io_cost": self.server_io_cost,
+            "rate_limit_cost": self.rate_limit_cost,
         }
 
     def __repr__(self):
@@ -90,14 +98,21 @@ class TunnelMetrics(object):
             client_process_cost=self.client_process_cost + other.client_process_cost,
             tunnel_process_cost=self.tunnel_process_cost + other.tunnel_process_cost,
             storage_cost=self.storage_cost + other.storage_cost,
-            server_total_cost=self.server_total_cost,
-            server_io_cost=self.server_io_cost,
+            server_total_cost=self.server_total_cost + other.server_total_cost,
+            server_io_cost=self.server_io_cost + other.server_io_cost,
+            rate_limit_cost=self.rate_limit_cost + other.rate_limit_cost,
         )
 
 
 class BaseTunnel(object):
     def __init__(
-        self, odps=None, client=None, project=None, endpoint=None, quota_name=None
+        self,
+        odps=None,
+        client=None,
+        project=None,
+        endpoint=None,
+        quota_name=None,
+        namespace=None,
     ):
         self._client = odps.rest if odps is not None else client
         self._account = self._client.account
@@ -112,6 +127,13 @@ class BaseTunnel(object):
             self._project = odps.get_project()
         else:
             self._project = project
+
+        if namespace is not None:
+            self._namespace = namespace
+        elif odps is not None:
+            self._namespace = odps.namespace
+        else:
+            self._namespace = None
 
         self._quota_name = quota_name or options.tunnel.quota_name
         if quota_name is not None:
@@ -159,7 +181,7 @@ class BaseTunnel(object):
         if self._tunnel_rest is not None:
             return self._tunnel_rest
 
-        kw = dict(tag="TUNNEL")
+        kw = dict(tag="TUNNEL", namespace=self._namespace)
         if options.data_proxy is not None:
             kw["proxy"] = options.data_proxy
         if getattr(self._client, "app_account", None) is not None:

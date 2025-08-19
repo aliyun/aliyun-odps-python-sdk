@@ -28,7 +28,12 @@ from ..models import Projects, Record, TableSchema
 from ..types import Column
 from .base import TUNNEL_VERSION, BaseTunnel
 from .errors import TunnelError, TunnelReadTimeout, TunnelWriteTimeout
-from .io.reader import ArrowRecordReader, TunnelArrowReader, TunnelRecordReader
+from .io.reader import (
+    ArrowRecordReader,
+    BufferedRecordReader,
+    TunnelArrowReader,
+    TunnelRecordReader,
+)
 from .io.stream import CompressOption, get_decompress_stream
 from .io.writer import (
     ArrowWriter,
@@ -181,6 +186,9 @@ class TableDownloadSession(BaseTableTunnelSession):
     count = serializers.JSONNodeField("RecordCount")
     schema = serializers.JSONNodeReferenceField(TableSchema, "Schema")
     quota_name = serializers.JSONNodeField("QuotaName")
+    support_read_by_raw_size = serializers.JSONNodeField(
+        "SupportReadByRawSize", default=False
+    )
 
     def __init__(
         self,
@@ -281,7 +289,7 @@ class TableDownloadSession(BaseTableTunnelSession):
             self.schema.build_snapshot()
 
     def _build_input_stream(
-        self, start, count, compress=False, columns=None, arrow=False
+        self, start, count, compress=False, columns=None, arrow=False, raw_size=None
     ):
         compress_option = self._compress_option or CompressOption()
 
@@ -300,6 +308,8 @@ class TableDownloadSession(BaseTableTunnelSession):
 
         if arrow:
             actions.append("arrow")
+        if raw_size:
+            params["raw_size"] = str(raw_size)
 
         url = self._table.table_resource()
         resp = self._client.get(
@@ -330,6 +340,7 @@ class TableDownloadSession(BaseTableTunnelSession):
         compress=None,
         columns=None,
         arrow=False,
+        on_exception=None,
         reader_cls=None,
         **kw
     ):
@@ -345,13 +356,37 @@ class TableDownloadSession(BaseTableTunnelSession):
 
         stream_kw = dict(compress=compress, columns=reader_cols, arrow=arrow)
 
-        def stream_creator(cursor):
-            return self._build_input_stream(start + cursor, count - cursor, **stream_kw)
+        def stream_creator(cursor, row_number=None, raw_size=None):
+            if cursor >= count:
+                return None
 
-        return reader_cls(self.schema, stream_creator, columns=columns, **kw)
+            if row_number is None:
+                row_number = count - cursor
+            else:
+                row_number = min(row_number, count - cursor)
+            return self._build_input_stream(
+                start + cursor, row_number, raw_size=raw_size, **stream_kw
+            )
+
+        return reader_cls(
+            self.schema,
+            stream_creator,
+            columns=columns,
+            on_exception=on_exception,
+            **kw
+        )
 
     def open_record_reader(
-        self, start, count, compress=False, columns=None, append_partitions=True
+        self,
+        start,
+        count,
+        compress=False,
+        columns=None,
+        append_partitions=True,
+        buffered=False,
+        buffer_size=None,
+        row_batch_size=None,
+        on_exception=None,
     ):
         """
         Open a reader to read data as records from the tunnel.
@@ -359,12 +394,30 @@ class TableDownloadSession(BaseTableTunnelSession):
         :param int start: start row index
         :param int count: number of rows to read
         :param bool compress: whether to compress data
-        :columns: list of column names to read
-        :append_partitions: whether to append partition values as columns
+        :param columns: list of column names to read
+        :param append_partitions: whether to append partition values as columns
+        :param bool buffered: whether to use buffered reader
+        :param int buffer_size: download buffer size in bytes. Num of rows read
+            in every batch will be limited by this parameter as well as
+            `row_batch_size`.
+        :param bool row_batch_size: number of rows to read per batch. Num of
+            rows read in every batch will be limited by this parameter as well
+            as `buffer_size`.
+        :param on_exception: custom error handling function accepting
+            an Exception instance as input. If return value is True,
+            error will be raised. Otherwise retry will continue.
 
         :return: a record reader
         :rtype: :class:`TunnelRecordReader`
         """
+        reader_cls = BufferedRecordReader if buffered else TunnelRecordReader
+        kw = {}
+        if buffer_size:
+            kw["buffer_size"] = buffer_size
+        if row_batch_size:
+            kw["row_batch_size"] = row_batch_size
+        if buffered:
+            kw["session_with_byte_size_limit"] = self.support_read_by_raw_size
         return self._open_reader(
             start,
             count,
@@ -372,11 +425,20 @@ class TableDownloadSession(BaseTableTunnelSession):
             columns=columns,
             append_partitions=append_partitions,
             partition_spec=self._partition_spec,
-            reader_cls=TunnelRecordReader,
+            on_exception=on_exception,
+            reader_cls=reader_cls,
+            **kw
         )
 
     def open_arrow_reader(
-        self, start, count, compress=False, columns=None, append_partitions=False
+        self,
+        start,
+        count,
+        compress=False,
+        columns=None,
+        append_partitions=False,
+        on_exception=None,
+        buffered=False,
     ):
         """
         Open a reader to read data as Arrow format from the tunnel.
@@ -384,12 +446,17 @@ class TableDownloadSession(BaseTableTunnelSession):
         :param int start: start row index
         :param int count: number of rows to read
         :param bool compress: whether to compress data
-        :columns: list of column names to read
-        :append_partitions: whether to append partition values as columns
+        :param columns: list of column names to read
+        :param append_partitions: whether to append partition values
+            as columns
+        :param on_exception: custom error handling function accepting
+            an Exception instance as input. If return value is True,
+            error will be raised. Otherwise retry will continue.
 
         :return: an Arrow reader
         :rtype: :class:`TunnelArrowReader`
         """
+        assert not buffered, "Buffered mode is not supported for Arrow reader."
         return self._open_reader(
             start,
             count,
@@ -398,6 +465,7 @@ class TableDownloadSession(BaseTableTunnelSession):
             arrow=True,
             append_partitions=append_partitions,
             partition_spec=self._partition_spec,
+            on_exception=on_exception,
             reader_cls=TunnelArrowReader,
         )
 
@@ -539,6 +607,7 @@ class TableUploadSession(BaseTableTunnelSession):
         writer_cls=None,
         initial_block_id=None,
         block_id_gen=None,
+        on_exception=None,
     ):
         compress_option = self._compress_option or CompressOption()
 
@@ -581,7 +650,9 @@ class TableUploadSession(BaseTableTunnelSession):
                         url, data=to_upload, params=params, headers=headers
                     )
 
-                return utils.call_with_retry(upload_func)
+                return utils.call_with_retry(
+                    upload_func, on_exception_func=on_exception
+                )
 
             if writer_cls is ArrowWriter:
                 writer_cls = BufferedArrowWriter
@@ -615,6 +686,7 @@ class TableUploadSession(BaseTableTunnelSession):
         block_id=None,
         compress=False,
         buffer_size=None,
+        on_exception=None,
         initial_block_id=None,
         block_id_gen=None,
     ):
@@ -625,6 +697,9 @@ class TableUploadSession(BaseTableTunnelSession):
             a :class:`BufferedRecordWriter` will be created.
         :param int buffer_size: size of the buffer to use for buffered writers.
         :param bool compress: whether to compress data
+        :param on_exception: custom error handling function accepting
+            an Exception instance as input. If return value is True,
+            error will be raised. Otherwise retry will continue.
 
         :return: a record writer
         :rtype: :class:`RecordWriter` or :class:`BufferedRecordWriter`
@@ -633,6 +708,7 @@ class TableUploadSession(BaseTableTunnelSession):
             block_id=block_id,
             compress=compress,
             buffer_size=buffer_size,
+            on_exception=on_exception,
             initial_block_id=initial_block_id,
             block_id_gen=block_id_gen,
             writer_cls=RecordWriter,
@@ -643,6 +719,7 @@ class TableUploadSession(BaseTableTunnelSession):
         block_id=None,
         compress=False,
         buffer_size=None,
+        on_exception=None,
         initial_block_id=None,
         block_id_gen=None,
     ):
@@ -653,6 +730,9 @@ class TableUploadSession(BaseTableTunnelSession):
             a :class:`BufferedArrowWriter` will be created.
         :param int buffer_size: size of the buffer to use for buffered writers.
         :param bool compress: whether to compress data
+        :param on_exception: custom error handling function accepting
+            an Exception instance as input. If return value is True,
+            error will be raised. Otherwise retry will continue.
 
         :return: an Arrow writer
         :rtype: :class:`ArrowWriter` or :class:`BufferedArrowWriter`
@@ -661,6 +741,7 @@ class TableUploadSession(BaseTableTunnelSession):
             block_id=block_id,
             compress=compress,
             buffer_size=buffer_size,
+            on_exception=on_exception,
             initial_block_id=initial_block_id,
             block_id_gen=block_id_gen,
             writer_cls=ArrowWriter,

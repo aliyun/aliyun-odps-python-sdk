@@ -166,3 +166,6 @@ class InputStream(object):
                 NANO_SEC_PER_SEC * (monotonic() - ts)
             )
         return result
+
+    def close(self):
+        self._input.close()

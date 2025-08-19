@@ -1025,6 +1025,7 @@ def call_with_retry(func, *args, **kwargs):
     retry_timeout = kwargs.pop("retry_timeout", None)
     delay = kwargs.pop("delay", options.retry_delay)
     reset_func = kwargs.pop("reset_func", None)
+    on_exception_func = kwargs.pop("on_exception_func", None)
     exc_type = kwargs.pop("exc_type", BaseException)
     allow_interrupt = kwargs.pop("allow_interrupt", True)
     no_raise = kwargs.pop("no_raise", False)
@@ -1043,11 +1044,15 @@ def call_with_retry(func, *args, **kwargs):
                 and start_time is not None
                 and monotonic() - start_time > retry_timeout
             ):
-                if no_raise:
-                    return sys.exc_info()
-                raise
+                if not callable(on_exception_func) or on_exception_func(ex):
+                    if no_raise:
+                        return sys.exc_info()
+                    raise
             if callable(reset_func):
                 reset_func()
+        except Exception as ex:
+            if not callable(on_exception_func) or on_exception_func(ex):
+                raise
 
 
 def get_id(n):

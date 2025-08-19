@@ -537,6 +537,8 @@ class SimpleInputStream(object):
         return self._closed
 
     def close(self):
+        if self._input:
+            self._input.close()
         self._closed = True
 
 

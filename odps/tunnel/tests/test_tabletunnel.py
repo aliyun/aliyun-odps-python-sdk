@@ -72,11 +72,17 @@ _TUNNEL_VERSION_NO_METRICS = 5
 @pytest.fixture(autouse=True)
 def check_malicious_requests(odps):
     def _new_throw_if_parsable(resp, *args, **kw):
-        if resp.status_code in (400, 404) and not resp.url.startswith(odps.endpoint):
+        if (
+            resp.status_code in (400, 404)
+            and not resp.url.startswith(odps.endpoint)
+            and "streams" not in resp.url
+            and "downloadid" not in resp.url
+            and "uploadid" not in resp.url
+        ):
             try:
                 throw_if_parsable(resp, *args, **kw)
             except:
-                raise AssertionError("Malicious request detected.")
+                raise AssertionError("Malicious request detected: %s" % resp.url)
         else:
             throw_if_parsable(resp, *args, **kw)
 
@@ -296,7 +302,9 @@ class TunnelTestUtil(object):
             self._check_metrics(writer.metrics)
         upload_ss.commit([0])
 
-    def stream_upload_data(self, test_table, records, compress=False, **kw):
+    def stream_upload_data(
+        self, test_table, records, compress=False, check_metrics=False, **kw
+    ):
         upload_ss = self.tunnel.create_stream_upload_session(test_table, **kw)
         # make sure session reprs work well
         repr(upload_ss)
@@ -313,6 +321,8 @@ class TunnelTestUtil(object):
                 record[i] = it
             writer.write(record)
         writer.close()
+        if check_metrics:
+            self._check_metrics(writer.metrics)
         upload_ss.abort()
 
     def buffered_upload_data(
@@ -353,6 +363,9 @@ class TunnelTestUtil(object):
         columns=None,
         append_partitions=None,
         check_metrics=False,
+        buffered=False,
+        buffer_size=None,
+        row_batch_size=None,
         **kw
     ):
         count = kw.pop("count", None)
@@ -365,6 +378,11 @@ class TunnelTestUtil(object):
             if append_partitions is not None
             else {}
         )
+        down_kw["buffered"] = buffered
+        if buffer_size is not None:
+            down_kw["buffer_size"] = buffer_size
+        if row_batch_size is not None:
+            down_kw["row_batch_size"] = row_batch_size
         with download_ss.open_record_reader(
             0, count, compress=compress, columns=columns, **down_kw
         ) as reader:
@@ -470,9 +488,11 @@ class TunnelTestUtil(object):
 
 def _reloader():
     from ...conftest import get_config
+    from ...models import Record, table
 
     cfg = get_config()
     cfg.tunnel = TableTunnel(cfg.odps, endpoint=cfg.odps._tunnel_endpoint)
+    table.Record = Record
 
 
 py_and_c_deco = py_and_c(
@@ -596,12 +616,31 @@ def test_stream_upload_and_download_tunnel(odps, setup, allow_schema_mismatch):
     setup.delete_table(test_table_name)
 
 
+@pytest.mark.parametrize("config_metrics", [True], indirect=True)
+def test_stream_upload_and_download_with_metrics(odps, setup, config_metrics):
+    test_table_name = tn("pyodps_test_stream_upload_metrics_" + get_test_unique_name(5))
+    odps.delete_table(test_table_name, if_exists=True)
+    setup.create_table(test_table_name)
+    data = setup.gen_data()
+
+    setup.stream_upload_data(
+        test_table_name,
+        data,
+        allow_schema_mismatch=True,
+        check_metrics=config_metrics,
+    )
+    records = setup.download_data(test_table_name)
+    assert list(data) == list(records)
+
+    setup.delete_table(test_table_name)
+
+
 @py_and_c_deco
 @pytest.mark.parametrize("config_metrics", [False, True], indirect=True)
 def test_buffered_upload_and_download_by_raw_tunnel(setup, config_metrics):
     table, data = setup.gen_table(size=10)
     setup.buffered_upload_data(table, data, check_metrics=config_metrics)
-    records = setup.download_data(table, check_metrics=config_metrics)
+    records = setup.download_data(table, check_metrics=config_metrics, buffered=True)
     setup.assert_reads_data_equal(records, data)
     setup.delete_table(table)
 
@@ -609,8 +648,21 @@ def test_buffered_upload_and_download_by_raw_tunnel(setup, config_metrics):
     setup.buffered_upload_data(
         table, data, buffer_size=1024, check_metrics=config_metrics
     )
-    records = setup.download_data(table, check_metrics=config_metrics)
+
+    records = setup.download_data(
+        table, check_metrics=config_metrics, buffered=True, row_batch_size=3
+    )
     setup.assert_reads_data_equal(records, data)
+
+    if config_metrics:
+        # test metrics warning only when metrics enabled
+        with warnings.catch_warnings(record=True) as warning_records:
+            records = setup.download_data(
+                table, check_metrics=False, buffered=True, buffer_size=2048
+            )
+        assert len(warning_records) >= 1
+        assert any("buffer_size" in str(rec.message) for rec in warning_records)
+        setup.assert_reads_data_equal(records, data)
     setup.delete_table(table)
 
 

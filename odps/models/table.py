@@ -1012,6 +1012,9 @@ class Table(LazyLoad):
 
         from ..tunnel.tabletunnel import TableDownloadSession
 
+        on_exception = kw.pop("on_exception", None)
+        buffered = kw.pop("buffered", False)
+
         if self.is_transactional and self.primary_key:
             # currently acid 2.0 table can only be read through select statement
             sql_stmt = "SELECT * FROM %s" % self.full_table_name
@@ -1063,7 +1066,15 @@ class Table(LazyLoad):
             if append_partitions is not None
             else {}
         )
-        return reader_cls(self, download_session, partition, columns=columns, **kw)
+        return reader_cls(
+            self,
+            download_session,
+            partition,
+            columns=columns,
+            on_exception=on_exception,
+            buffered=buffered,
+            **kw
+        )
 
     def open_writer(
         self,
@@ -1078,6 +1089,7 @@ class Table(LazyLoad):
         quota_name=None,
         tags=None,
         mp_context=None,
+        on_exception=None,
         **kw
     ):
         """
@@ -1173,6 +1185,7 @@ class Table(LazyLoad):
             commit=commit,
             on_close=_writer_on_close,
             mp_context=mp_context,
+            on_exception=on_exception,
         )
 
     def to_pandas(
@@ -1269,7 +1282,7 @@ class Table(LazyLoad):
 
     @utils.with_wait_argument
     def create_partition(
-        self, partition_spec, if_not_exists=False, async_=False, hints=None
+        self, partition_spec, if_not_exists=False, async_=False, hints=None, **inst_kw
     ):
         """
         Create a partition within the table.
@@ -1282,12 +1295,16 @@ class Table(LazyLoad):
         :rtype: odps.models.partition.Partition
         """
         return self.partitions.create(
-            partition_spec, if_not_exists=if_not_exists, hints=hints, async_=async_
+            partition_spec,
+            if_not_exists=if_not_exists,
+            hints=hints,
+            async_=async_,
+            **inst_kw
         )
 
     @utils.with_wait_argument
     def delete_partition(
-        self, partition_spec, if_exists=False, async_=False, hints=None
+        self, partition_spec, if_exists=False, async_=False, hints=None, **inst_kw
     ):
         """
         Delete a partition within the table.
@@ -1298,7 +1315,7 @@ class Table(LazyLoad):
         :param async_:
         """
         return self.partitions.delete(
-            partition_spec, if_exists=if_exists, hints=hints, async_=async_
+            partition_spec, if_exists=if_exists, hints=hints, async_=async_, **inst_kw
         )
 
     def exist_partition(self, partition_spec):

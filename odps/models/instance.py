@@ -132,17 +132,17 @@ class SpawnedInstanceReaderMixin(object):
 
 
 class InstanceRecordReader(SpawnedInstanceReaderMixin, TunnelRecordReader):
-    def __init__(self, instance, download_session, columns=None):
+    def __init__(self, instance, download_session, columns=None, **reader_kw):
         super(InstanceRecordReader, self).__init__(
-            instance, download_session, columns=columns
+            instance, download_session, columns=columns, **reader_kw
         )
         self._schema = download_session.schema
 
 
 class InstanceArrowReader(SpawnedInstanceReaderMixin, TunnelArrowReader):
-    def __init__(self, instance, download_session, columns=None):
+    def __init__(self, instance, download_session, columns=None, **reader_kw):
         super(InstanceArrowReader, self).__init__(
-            instance, download_session, columns=columns
+            instance, download_session, columns=columns, **reader_kw
         )
         self._schema = download_session.schema
 
@@ -470,10 +470,11 @@ class Instance(LazyLoad):
         self._client.put(self.resource(), xml_content, headers=headers)
 
     @staticmethod
-    def _call_with_retry(func, retry=False, retry_timeout=None):
+    def _call_with_retry(func, retry=False, retry_timeout=None, on_exception=None):
         retry_kw = {
             "retry_times": options.retry_times if retry else 0,
             "exc_type": (errors.InternalServerError, errors.RequestTimeTooSkewed),
+            "on_exception_func": on_exception,
         }
         if retry and retry_timeout is not None:
             # use retry timeout instead of retry count
@@ -556,18 +557,21 @@ class Instance(LazyLoad):
                 return summary
 
     @_with_status_api_lock
-    def get_task_statuses(self, retry=True, timeout=None):
+    def get_task_statuses(self, retry=True, timeout=None, on_exception=None):
         """
         Get all tasks' statuses
 
-        :return: a dict which key is the task name and value is the :class:`odps.models.Instance.Task` object
+        :return: a dict which key is the task name and value is
+            the :class:`odps.models.Instance.Task` object
         :rtype: dict
         """
 
         def _get_resp():
             return self._client.get(self.resource(), action="taskstatus")
 
-        resp = self._call_with_retry(_get_resp, retry=retry, retry_timeout=timeout)
+        resp = self._call_with_retry(
+            _get_resp, retry=retry, retry_timeout=timeout, on_exception=on_exception
+        )
         self.parse(self._client, resp, obj=self)
         return dict([(task.name, task) for task in self._tasks])
 
@@ -674,7 +678,8 @@ class Instance(LazyLoad):
     def get_task_quota(self, task_name=None):
         """
         Get queueing info of the task.
-        Note that time between two calls should larger than 30 seconds, otherwise empty dict is returned.
+        Note that time between two calls should larger than 30 seconds, otherwise
+        empty dict is returned.
 
         :param task_name: name of the task
         :return: quota info in dict format
@@ -714,7 +719,9 @@ class Instance(LazyLoad):
     def status(self):
         return self._get_status()
 
-    def is_terminated(self, retry=True, blocking=False, retry_timeout=None):
+    def is_terminated(
+        self, retry=True, blocking=False, retry_timeout=None, on_exception=None
+    ):
         """
         If this instance has finished or not.
 
@@ -725,9 +732,12 @@ class Instance(LazyLoad):
             lambda: self._get_status(blocking) == Instance.Status.TERMINATED,
             retry=retry,
             retry_timeout=retry_timeout,
+            on_exception=on_exception,
         )
 
-    def is_running(self, retry=True, blocking=False, retry_timeout=None):
+    def is_running(
+        self, retry=True, blocking=False, retry_timeout=None, on_exception=None
+    ):
         """
         If this instance is still running.
 
@@ -738,9 +748,10 @@ class Instance(LazyLoad):
             lambda: self._get_status(blocking) == Instance.Status.RUNNING,
             retry=retry,
             retry_timeout=retry_timeout,
+            on_exception=on_exception,
         )
 
-    def is_successful(self, retry=True, retry_timeout=None):
+    def is_successful(self, retry=True, retry_timeout=None, on_exception=None):
         """
         If the instance runs successfully.
 
@@ -752,14 +763,17 @@ class Instance(LazyLoad):
             return False
 
         def _get_successful():
-            statuses = self.get_task_statuses()
+            statuses = self.get_task_statuses(on_exception=on_exception)
             return all(
                 task.status == Instance.Task.TaskStatus.SUCCESS
                 for task in statuses.values()
             )
 
         return self._call_with_retry(
-            _get_successful, retry=retry, retry_timeout=retry_timeout
+            _get_successful,
+            retry=retry,
+            retry_timeout=retry_timeout,
+            on_exception=on_exception,
         )
 
     @property
@@ -822,7 +836,12 @@ class Instance(LazyLoad):
             pass
 
     def wait_for_completion(
-        self, interval=1, timeout=None, max_interval=None, blocking=True
+        self,
+        interval=1,
+        timeout=None,
+        max_interval=None,
+        blocking=True,
+        on_exception=None,
     ):
         """
         Wait for the instance to complete, and neglect the consequence.
@@ -831,15 +850,21 @@ class Instance(LazyLoad):
         :param max_interval: if specified, next check interval will be
             multiplied by 2 till max_interval is reached.
         :param timeout: time
-        :param blocking: whether to block waiting at server side. Note that this option does
-            not affect client behavior.
+        :param blocking: whether to block waiting at server side. Note that
+            this option does not affect client behavior.
+        :param on_exception: custom error handling function accepting
+            an Exception instance as input. If return value is True,
+            error will be raised. Otherwise retry will continue.
         :return: None
         """
 
         start_time = check_time = self._last_progress_time = monotonic()
         self._last_progress_value = 0
         while not self.is_terminated(
-            retry=True, blocking=blocking, retry_timeout=_STATUS_QUERY_TIMEOUT
+            retry=True,
+            blocking=blocking,
+            retry_timeout=_STATUS_QUERY_TIMEOUT,
+            on_exception=on_exception,
         ):
             try:
                 sleep_interval_left = interval - (monotonic() - check_time)
@@ -861,7 +886,12 @@ class Instance(LazyLoad):
         self._dump_instance_progress(start_time, check_time, final=True)
 
     def wait_for_success(
-        self, interval=1, timeout=None, max_interval=None, blocking=True
+        self,
+        interval=1,
+        timeout=None,
+        max_interval=None,
+        blocking=True,
+        on_exception=None,
     ):
         """
         Wait for instance to complete, and check if the instance is successful.
@@ -870,8 +900,11 @@ class Instance(LazyLoad):
         :param max_interval: if specified, next check interval will be
             multiplied by 2 till max_interval is reached.
         :param timeout: time
-        :param blocking: whether to block waiting at server side. Note that this option does
-            not affect client behavior.
+        :param blocking: whether to block waiting at server side. Note that
+            this option does not affect client behavior.
+        :param on_exception: custom error handling function accepting
+            an Exception instance as input. If return value is True,
+            error will be raised. Otherwise retry will continue.
         :return: None
         :raise: :class:`odps.errors.ODPSError` if the instance failed
         """
@@ -881,10 +914,13 @@ class Instance(LazyLoad):
             max_interval=max_interval,
             timeout=timeout,
             blocking=blocking,
+            on_exception=on_exception,
         )
 
-        if not self.is_successful(retry=True):
-            for task_name, task in six.iteritems(self.get_task_statuses()):
+        if not self.is_successful(retry=True, on_exception=on_exception):
+            for task_name, task in six.iteritems(
+                self.get_task_statuses(on_exception=on_exception)
+            ):
                 exc = None
                 if task.status == Instance.Task.TaskStatus.FAILED:
                     exc = errors.parse_instance_error(self.get_task_result(task_name))
@@ -1195,6 +1231,8 @@ class Instance(LazyLoad):
         quota_name = kw.pop("quota_name", None)
         arrow = kw.pop("arrow", False)
         columns = kw.pop("columns", None)
+        on_exception = kw.pop("on_exception", None)
+        buffered = kw.pop("buffered", False)
 
         tunnel = self._create_instance_tunnel(endpoint=endpoint, quota_name=quota_name)
         download_id = self._download_id if not reopen else None
@@ -1215,10 +1253,14 @@ class Instance(LazyLoad):
 
         self._download_id = download_session.id
 
-        if arrow:
-            return InstanceArrowReader(self, download_session, columns=columns)
-        else:
-            return InstanceRecordReader(self, download_session, columns=columns)
+        reader_cls = InstanceArrowReader if arrow else InstanceRecordReader
+        return reader_cls(
+            self,
+            download_session,
+            columns=columns,
+            on_exception=on_exception,
+            buffered=buffered,
+        )
 
     def open_reader(self, *args, **kwargs):
         """

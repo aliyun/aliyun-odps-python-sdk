@@ -568,17 +568,19 @@ class BufferedRecordWriter(BaseRecordWriter):
         self._buffer.close()
 
     def _collect_metrics(self):
-        if self._enable_client_metrics:
-            if self._server_metrics_string is not None:
-                self._accumulated_metrics += TunnelMetrics.from_server_json(
-                    type(self).__name__,
-                    self._server_metrics_string,
-                    self._local_wall_time_ms,
-                    self._network_wall_time_ms,
-                )
-            self._server_metrics_string = None
-            self._local_wall_time_ms = 0
-            self._network_wall_time_ms = 0
+        if not self._enable_client_metrics:
+            return
+
+        if self._server_metrics_string is not None:
+            self._accumulated_metrics += TunnelMetrics.from_server_json(
+                type(self).__name__,
+                self._server_metrics_string,
+                self._local_wall_time_ms,
+                self._network_wall_time_ms,
+            )
+        self._server_metrics_string = None
+        self._local_wall_time_ms = 0
+        self._network_wall_time_ms = 0
 
     def _reset_writer(self, write_response):
         self._collect_metrics()
@@ -680,10 +682,23 @@ class StreamRecordWriter(BufferedRecordWriter):
         self._record_count = 0
         slot_server = write_response.headers["odps-tunnel-routed-server"]
         slot_num = int(write_response.headers["odps-tunnel-slot-num"])
+
+        if self._enable_client_metrics:
+            ts = monotonic()
+
         self.session.reload_slots(self.slot, slot_server, slot_num)
+
+        if self._enable_client_metrics:
+            time_cost = int(MICRO_SEC_PER_SEC * (monotonic() - ts))
+            self._local_wall_time_ms += time_cost
+            self._network_wall_time_ms += time_cost
+
         super(StreamRecordWriter, self)._reset_writer(write_response)
 
     def _send_buffer(self):
+        if self._enable_client_metrics:
+            ts = monotonic()
+
         def gen():  # synchronize chunk upload
             data = self._buffer.getvalue()
             chunk_size = options.chunk_size
@@ -692,7 +707,13 @@ class StreamRecordWriter(BufferedRecordWriter):
                 data = data[chunk_size:]
                 yield to_send
 
-        return self._request_callback(gen())
+        try:
+            return self._request_callback(gen())
+        finally:
+            if self._enable_client_metrics:
+                self._network_wall_time_ms += int(
+                    MICRO_SEC_PER_SEC * (monotonic() - ts)
+                )
 
 
 class BaseArrowWriter(object):

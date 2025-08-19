@@ -85,6 +85,7 @@ cdef class BaseTunnelRecordReader:
         object columns=None,
         object partition_spec=None,
         bint append_partitions=True,
+        object on_exception=None,
     ):
         cdef double ts
 
@@ -129,7 +130,6 @@ cdef class BaseTunnelRecordReader:
         self._curr_cursor = 0
         self._stream_creator = stream_creator
         self._reader = None
-        self._reopen_reader()
 
         if self._enable_client_metrics:
             ts = monotonic()
@@ -143,16 +143,20 @@ cdef class BaseTunnelRecordReader:
 
         self._n_injected_error_cursor = -1
         self._injected_error_exc = None
+        self._on_exception = on_exception
+
+    def close(self):
+        if self._reader is not None:
+            self._reader.close()
 
     @cython.cdivision(True)
-    def _reopen_reader(self):
+    def _reopen_reader(self, row_number=None, raw_size=None):
         cdef object stream
         cdef double ts
 
         if self._enable_client_metrics:
             ts = monotonic()
 
-        stream = self._stream_creator(self._curr_cursor)
         if self._enable_client_metrics:
             self._c_acc_network_time_ms += <long>(
                 MICRO_SEC_PER_SEC * (<double>monotonic() - ts)
@@ -162,11 +166,27 @@ cdef class BaseTunnelRecordReader:
                     self._reader._network_wall_time_ns // 1000
                 )
 
-        self._reader = CDecoder(stream, record_network_time=self._enable_client_metrics)
-        self._last_n_bytes = self._reader.position() if self._curr_cursor != 0 else 0
+        if self._reader is not None:
+            self._reader.close()
+
+        self._last_n_bytes = (
+            self._reader.position()
+            if self._curr_cursor != 0 and self._reader is not None
+            else 0
+        )
         self._crc = Checksum()
         self._crccrc = Checksum()
         self._attempt_row_count = 0
+
+        stream = self._stream_creator(
+            self._curr_cursor, row_number=row_number, raw_size=raw_size
+        )
+        if stream is None:
+            self._reader = None
+        else:
+            self._reader = CDecoder(
+                stream, record_network_time=self._enable_client_metrics
+            )
 
         if self._enable_client_metrics:
             self._c_local_wall_time_ms += <long>(
@@ -203,6 +223,9 @@ cdef class BaseTunnelRecordReader:
         if self._n_injected_error_cursor == self._curr_cursor:
             self._n_injected_error_cursor = -1
             raise self._injected_error_exc
+
+        if self._reader is None:
+            return None
 
         if self._curr_cursor >= self._read_limit > 0:
             warnings.warn(
@@ -285,6 +308,9 @@ cdef class BaseTunnelRecordReader:
 
         if self._enable_client_metrics:
             ts = monotonic()
+        if self._reader is None:
+            self._reopen_reader()
+
         while True:
             try:
                 result = self._read()
@@ -293,10 +319,11 @@ cdef class BaseTunnelRecordReader:
                         MICRO_SEC_PER_SEC * (<double>monotonic() - ts)
                     )
                 return result
-            except:
+            except Exception as ex:
                 retry_num += 1
                 if retry_num > options.retry_times:
-                    raise
+                    if not callable(self._on_exception) or self._on_exception(ex):
+                        raise
                 self._reopen_reader()
 
     def reads(self):
@@ -304,7 +331,12 @@ cdef class BaseTunnelRecordReader:
 
     @property
     def n_bytes(self):
+        if self._reader is None:
+            return self._last_n_bytes
         return self._last_n_bytes + self._reader.position()
+
+    def _get_attempt_bytes(self):
+        return self._reader.position() if self._reader is not None else 0
 
     def get_total_bytes(self):
         return self.n_bytes
@@ -312,6 +344,10 @@ cdef class BaseTunnelRecordReader:
     @property
     def _local_wall_time_ms(self):
         return self._c_local_wall_time_ms
+
+    @_local_wall_time_ms.setter
+    def _local_wall_time_ms(self, value):
+        self._c_local_wall_time_ms = value
 
     @property
     @cython.cdivision(True)

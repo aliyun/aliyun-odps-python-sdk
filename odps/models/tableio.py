@@ -186,12 +186,14 @@ class TableRecordReader(SpawnedTableReaderMixin, TunnelRecordReader):
         partition_spec=None,
         columns=None,
         append_partitions=True,
+        **reader_kw
     ):
         super(TableRecordReader, self).__init__(
             table,
             download_session,
             columns=columns,
             append_partitions=append_partitions,
+            **reader_kw
         )
         self._partition_spec = partition_spec
 
@@ -204,12 +206,14 @@ class TableArrowReader(SpawnedTableReaderMixin, TunnelArrowReader):
         partition_spec=None,
         columns=None,
         append_partitions=False,
+        **reader_kw
     ):
         super(TableArrowReader, self).__init__(
             table,
             download_session,
             columns=columns,
             append_partitions=append_partitions,
+            **reader_kw
         )
         self._partition_spec = partition_spec
 
@@ -367,6 +371,8 @@ class AbstractTableWriter(object):
 
         for block in upload_session.blocks or ():
             self._blocks_writes[self._blocks.index(block)] = True
+
+        self._on_exception = kwargs.pop("on_exception", None)
 
         # buffered writer options
         self._thread_to_buffered_writers = dict()
@@ -645,12 +651,13 @@ class TableRecordWriter(ToRecordsMixin, AbstractTableWriter):
                 compress=compress,
                 initial_block_id=self._gen_next_block_id(),
                 block_id_gen=self._gen_next_block_id,
+                on_exception=self._on_exception,
             )
             thread_ident = threading.current_thread().ident
             self._thread_to_buffered_writers[thread_ident] = writer
         else:
             writer = self._upload_session.open_record_writer(
-                block_id, compress=compress
+                block_id, compress=compress, on_exception=self._on_exception
             )
             self._blocks_writers[block_id] = writer
         return writer
@@ -670,11 +677,14 @@ class TableArrowWriter(AbstractTableWriter):
                 compress=compress,
                 initial_block_id=self._gen_next_block_id(),
                 block_id_gen=self._gen_next_block_id,
+                on_exception=self._on_exception,
             )
             thread_ident = threading.current_thread().ident
             self._thread_to_buffered_writers[thread_ident] = writer
         else:
-            writer = self._upload_session.open_arrow_writer(block_id, compress=compress)
+            writer = self._upload_session.open_arrow_writer(
+                block_id, compress=compress, on_exception=self._on_exception
+            )
             self._blocks_writers[block_id] = writer
         return writer
 
