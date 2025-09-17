@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,10 +18,10 @@ import json
 
 from ... import errors, serializers
 from ...compat import six
-from ..core import Iterable, LazyLoad
+from ..core import XMLIterable, XMLLazyLoad
 
 
-class Role(LazyLoad):
+class Role(XMLLazyLoad):
     __slots__ = ("_policy_cache",)
     name = serializers.XMLNodeField("Name")
     comment = serializers.XMLNodeField("Comment")
@@ -76,7 +76,7 @@ class Role(LazyLoad):
         self.project.run_security_query("revoke %s from %s" % (self.name, name))
 
 
-class Roles(Iterable):
+class Roles(XMLIterable):
     __slots__ = ("_iter_local",)
     roles = serializers.XMLNodesReferencesField(Role, "Role")
 

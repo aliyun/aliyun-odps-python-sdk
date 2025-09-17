@@ -16,12 +16,12 @@
 
 from .. import serializers
 from ..compat import Enum
-from .core import LazyLoad
+from .core import XMLLazyLoad
 
 _MCQA_VERSION = "mcqaVersion"
 
 
-class Quota(LazyLoad):
+class Quota(XMLLazyLoad):
     """
     Quota provides information about computational resources.
     """

@@ -32,16 +32,16 @@ Or from source code (not recommended for production use):
 Dependencies
 ------------
 
--  Python (>=2.7), including Python 3+, pypy, Python 3.7 recommended
--  setuptools (>=3.0)
+- Python (>=2.7), including Python 3+, pypy, Python 3.7 recommended
+- setuptools (>=3.0)
 
 Run Tests
 ---------
 
--  install pytest
--  copy conf/test.conf.template to odps/tests/test.conf, and fill it
-   with your account
--  run ``pytest odps``
+- install pytest
+- copy conf/test.conf.template to odps/tests/test.conf, and fill it with
+  your account
+- run ``pytest odps``
 
 Usage
 -----

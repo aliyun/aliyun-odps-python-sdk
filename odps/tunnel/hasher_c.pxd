@@ -59,7 +59,8 @@ cdef class RecordHasher:
         list _idx_to_hash_fun
         CMillisecondsConverter _mills_converter
 
-    cpdef int32_t hash(self, BaseRecord record)
+    cpdef int32_t hash_record(self, BaseRecord record)
+    cpdef int32_t hash_list(self, list record, bint need_index = *)
 
 
 cpdef int32_t hash_value(hasher_type, data_type, value)

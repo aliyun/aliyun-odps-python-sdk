@@ -319,7 +319,7 @@ class VolumeDownloadSession(BaseVolumeTunnelSession):
             % (self.id, self.project_name, self.volume_name, self.partition_spec)
         )
 
-    def resource(self, client=None, endpoint=None):
+    def resource(self, client=None, endpoint=None, with_schema=False):
         endpoint = (
             endpoint if endpoint is not None else (client or self._client).endpoint
         )
@@ -655,7 +655,7 @@ class VolumeUploadSession(BaseVolumeTunnelSession):
             % (self.id, self.project_name, self.volume_name, self.partition_spec)
         )
 
-    def resource(self, client=None, endpoint=None):
+    def resource(self, client=None, endpoint=None, with_schema=False):
         endpoint = (
             endpoint if endpoint is not None else (client or self._client).endpoint
         )

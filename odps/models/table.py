@@ -30,7 +30,7 @@ from ..compat import Enum, dir2, six
 from ..config import options
 from ..expressions import parse as parse_expression
 from .cluster_info import ClusterInfo
-from .core import JSONRemoteModel, LazyLoad
+from .core import JSONRemoteModel, XMLLazyLoad
 from .partitions import Partitions
 from .record import Record
 from .storage_tier import StorageTier, StorageTierInfo
@@ -181,7 +181,7 @@ class TableSchema(odps_types.OdpsSchema, JSONRemoteModel):
         return sorted(set(dir2(self)) - set(type(self)._parent_attrs))
 
 
-class Table(LazyLoad):
+class Table(XMLLazyLoad):
     """
     Table means the same to the RDBMS table, besides, a table can consist of partitions.
 

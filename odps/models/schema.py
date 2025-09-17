@@ -1,4 +1,4 @@
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,8 +19,9 @@ from .. import serializers
 from ..compat import Enum
 from ..errors import InvalidParameter, MethodNotAllowed
 from ..utils import parse_rfc822, with_wait_argument
-from .core import JSONRemoteModel, LazyLoad
+from .core import JSONRemoteModel, XMLLazyLoad
 from .functions import Functions
+from .ml import Models
 from .resources import Resources
 from .tables import Tables
 from .volumes import Volumes
@@ -53,7 +54,7 @@ class SchemaDescription(JSONRemoteModel):
     )
 
 
-class Schema(LazyLoad):
+class Schema(XMLLazyLoad):
     default_schema_name = "DEFAULT"
 
     _root = "Schema"
@@ -112,7 +113,11 @@ class Schema(LazyLoad):
         )
         return self.last_modified_time
 
-    def resource(self, client=None, endpoint=None):
+    def resource(self, client=None, endpoint=None, with_schema=False):
+        if with_schema:
+            return super(Schema, self).resource(
+                client, endpoint=endpoint, with_schema=with_schema
+            )
         return self.parent.resource(client, endpoint=endpoint)
 
     @with_wait_argument
@@ -122,6 +127,10 @@ class Schema(LazyLoad):
     @property
     def functions(self):
         return Functions(client=self._client, parent=self)
+
+    @property
+    def models(self):
+        return Models(client=self.project.odps.catalog_rest, parent=self)
 
     @property
     def resources(self):

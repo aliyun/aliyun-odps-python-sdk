@@ -116,9 +116,9 @@ def test_default_hasher(hasher_mod, pd):
     col_names = [c.name for c in schema.columns]
     rec_hasher = hasher_mod.RecordHasher(schema, "default", col_names)
     if pd is not None:
-        assert rec_hasher.hash(rec) == 91440730
+        assert rec_hasher.hash_record(rec) == 91440730
     else:
-        assert rec_hasher.hash(rec) == 99191800
+        assert rec_hasher.hash_record(rec) == 99191800
 
     assert hasher_mod.hash_value("default", "decimal(4,2)", Decimal("0")) == 0
     assert hasher_mod.hash_value("default", "decimal(4,2)", Decimal("-1")) == 1405574141
@@ -173,9 +173,13 @@ def test_legacy_hasher(hasher_mod, pd):
     col_names = [c.name for c in schema.columns]
     rec_hasher = hasher_mod.RecordHasher(schema, "legacy", col_names)
     if pd is not None:
-        assert rec_hasher.hash(rec) == 1171650329
+        assert rec_hasher.hash_record(rec) == 1171650329
+        assert rec_hasher.hash_list(list(rec.values), need_index=False) == 1171650329
+        assert rec_hasher.hash_list(list(rec.values), need_index=True) == 1171650329
     else:
-        assert rec_hasher.hash(rec) == 1259167848
+        assert rec_hasher.hash_record(rec) == 1259167848
+        assert rec_hasher.hash_list(list(rec.values), need_index=False) == 1259167848
+        assert rec_hasher.hash_list(list(rec.values), need_index=True) == 1259167848
 
     assert hasher_mod.hash_value("legacy", "decimal(4,2)", Decimal("0")) == 0
     assert hasher_mod.hash_value("legacy", "decimal(4,2)", Decimal("-1")) == 99

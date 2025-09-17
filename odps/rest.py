@@ -369,7 +369,7 @@ class RestClient(object):
 
     def upload_survey_log(self):
         try:
-            from .models.core import RestModel
+            from .models.core import XMLRestModel
 
             survey = get_survey_calls()
             clear_survey_calls()
@@ -378,7 +378,7 @@ class RestClient(object):
             if self.project is None:
                 return
             url = "/".join(
-                [self.endpoint, "projects", RestModel._encode(self.project), "logs"]
+                [self.endpoint, "projects", XMLRestModel._encode(self.project), "logs"]
             )
             self.put(url, json.dumps(survey))
         except:

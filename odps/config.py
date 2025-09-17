@@ -502,7 +502,7 @@ default_options.register_option("progress_percentage_gap", 5, validator=is_integ
 default_options.register_option("enable_v4_sign", True, validator=is_bool)
 default_options.register_option("align_supported_python_tag", True, validator=is_bool)
 
-# c or python mode, use for UT, in other cases, please do not modify the value
+# c or python mode for UT only. In other cases, please do not modify the value
 default_options.register_option("force_c", False, validator=is_integer)
 default_options.register_option("force_py", False, validator=is_integer)
 
@@ -610,6 +610,14 @@ default_options.register_option(
 default_options.register_option("sql.ignore_fields_not_null", False, validator=is_bool)
 default_options.register_option(
     "sql.use_odps2_extension", None, validator=any_validator(is_null, is_bool)
+)
+
+# Catalog API
+default_options.register_option(
+    "catalog.endpoint", None, validator=any_validator(is_null, is_string)
+)
+default_options.register_option(
+    "catalog.url_prefix", "/api/catalog/v1alpha", validator=is_string
 )
 
 # sqlalchemy

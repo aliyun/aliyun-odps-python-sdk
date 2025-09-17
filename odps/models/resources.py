@@ -16,13 +16,13 @@
 
 from .. import errors, serializers
 from ..compat import six
-from .core import Iterable
+from .core import XMLIterable
 from .resource import FileResource, Resource
 
 DEFAULT_RESOURCE_CHUNK_SIZE = 64 << 20
 
 
-class Resources(Iterable):
+class Resources(XMLIterable):
     marker = serializers.XMLNodeField("Marker")
     max_items = serializers.XMLNodeField("MaxItems")
     resources = serializers.XMLNodesReferencesField(Resource, "Resource")

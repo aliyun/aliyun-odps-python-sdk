@@ -14,6 +14,7 @@
 
 import datetime
 import email.header
+import importlib
 import inspect
 import json
 import re
@@ -156,7 +157,26 @@ class HasSubModelField(SerializeField):
             self._model_cls = model
             self._model_str = None
 
+        self._ref_module = None
+        if self._model_str is not None:
+            for stack in inspect.stack():
+                module = stack[0].f_locals.get("__module__")
+                if module and module != __name__:
+                    self._ref_module = module
+                    break
+
         super(HasSubModelField, self).__init__(*args, **kwargs)
+
+    def _iter_possible_globs(self):
+        if self._ref_module:
+            try:
+                mod = importlib.import_module(self._ref_module).__dict__
+            except:
+                mod = None
+            if mod:
+                yield mod
+        for stack in inspect.stack():
+            yield stack[0].f_globals
 
     @property
     def _model(self):
@@ -167,8 +187,7 @@ class HasSubModelField(SerializeField):
         model_name = models[0]
 
         module = None
-        for stack in inspect.stack():
-            globs = stack[0].f_globals
+        for globs in self._iter_possible_globs():
             if model_name in globs:
                 possible_module = globs[model_name]
                 if inspect.isclass(possible_module) and issubclass(
@@ -180,12 +199,9 @@ class HasSubModelField(SerializeField):
         if module is None:
             raise ValueError("Unknown model name: %s" % self._model_str)
 
-        res = None
+        res = module
         for model in models[1:]:
-            if res is None:
-                res = getattr(module, model)
-            else:
-                res = getattr(res, model)
+            res = getattr(res, model)
 
         self._model_cls = res
         return res

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,10 +16,10 @@
 
 from ... import errors, serializers
 from ...compat import six
-from ..core import Iterable, LazyLoad
+from ..core import XMLIterable, XMLLazyLoad
 
 
-class User(LazyLoad):
+class User(XMLLazyLoad):
     id = serializers.XMLNodeField("ID")
     display_name = serializers.XMLNodeField("DisplayName")
     comment = serializers.XMLNodeField("Comment")
@@ -63,7 +63,7 @@ class User(LazyLoad):
         self.project.run_security_query("revoke %s from %s" % (name, self.display_name))
 
 
-class Users(Iterable):
+class Users(XMLIterable):
     __slots__ = ("_iter_local",)
     users = serializers.XMLNodesReferencesField(User, "User")
 

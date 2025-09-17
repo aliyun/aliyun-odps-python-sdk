@@ -197,7 +197,7 @@ class TableBatchScanRequest(serializers.JSONSerializableModel):
 
 
 class TableBatchScanResponse(serializers.JSONSerializableModel):
-    __slots__ = ["status", "request_id"]
+    __slots__ = ("status", "request_id")
 
     session_id = serializers.JSONNodeField("SessionId")
     session_type = serializers.JSONNodeField("SessionType")
@@ -655,8 +655,9 @@ class StorageApiClient(object):
         self._tunnel_rest = tunnel.tunnel_rest
         return self._tunnel_rest
 
-    def _get_resource(self, *args) -> str:
-        endpoint = self.tunnel_rest.endpoint + URL_PREFIX
+    def _get_resource(self, *args, url_prefix=None) -> str:
+        url_prefix = url_prefix or URL_PREFIX
+        endpoint = self.tunnel_rest.endpoint + url_prefix
         url = self._table.table_resource(endpoint=endpoint, force_schema=True)
         return "/".join([url] + list(args))
 
@@ -917,6 +918,16 @@ class StorageApiClient(object):
         return response
 
 
+try:
+    from ...internal.apis.storage_api.storage_api import InternalStorageAPIClientMixin
+
+    StorageApiClient = type(
+        "StorageApiClient", (InternalStorageAPIClientMixin, StorageApiClient), {}
+    )
+except ImportError:
+    pass
+
+
 class StorageApiArrowClient(StorageApiClient):
     """Arrow batch client to bundle configuration needed for API requests."""
 
@@ -951,3 +962,14 @@ class StorageApiArrowClient(StorageApiClient):
             )
 
         return ArrowWriter(self.write_rows_stream(request), request.compression)
+
+
+try:
+    from ...internal.apis.storage_api.storage_api import (  # noqa: F401
+        CloseBlobWriterRequest,
+        CreateBlobWriterRequest,
+        ReadBlobRequest,
+        WriteBlobRequest,
+    )
+except ImportError:
+    pass

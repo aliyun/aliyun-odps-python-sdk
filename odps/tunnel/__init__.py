@@ -39,6 +39,11 @@ from .volumetunnel import (
     VolumeUploadSession,
 )
 
+try:
+    from .hasher_c import RecordHasher
+except ImportError:
+    from .hasher import RecordHasher
+
 TableUploadStatus = TableUploadSession.Status
 TableDownloadStatus = TableDownloadSession.Status
 VolumeUploadStatus = VolumeUploadSession.Status

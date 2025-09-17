@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,11 +16,11 @@
 
 from .. import errors, serializers
 from ..compat import six
-from .core import Container
+from .core import XMLContainer
 from .project import Project
 
 
-class Projects(Container):
+class Projects(XMLContainer):
     __slots__ = ("_odps_ref",)
 
     marker = serializers.XMLNodeField("Marker")

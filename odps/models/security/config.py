@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,10 +15,10 @@
 # limitations under the License.
 
 from ... import serializers
-from ..core import LazyLoad
+from ..core import XMLLazyLoad
 
 
-class SecurityConfiguration(LazyLoad):
+class SecurityConfiguration(XMLLazyLoad):
     _root = "SecurityConfiguration"
 
     class ProjectProtection(serializers.XMLSerializableModel):
