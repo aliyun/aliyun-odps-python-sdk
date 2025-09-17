@@ -21,14 +21,14 @@ from collections import OrderedDict
 
 from .. import compat, errors, options, serializers
 from ..compat import six
-from .core import Iterable, XMLRemoteModel
+from .core import XMLIterable, XMLRemoteModel
 from .instance import Instance
 from .xflow import XFlow
 
 logger = logging.getLogger(__name__)
 
 
-class XFlows(Iterable):
+class XFlows(XMLIterable):
     marker = serializers.XMLNodeField("Marker")
     max_items = serializers.XMLNodeField("MaxItems")
     xflows = serializers.XMLNodesReferencesField(XFlow, "odpsalgo")

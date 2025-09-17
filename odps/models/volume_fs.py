@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,11 +17,11 @@
 from .. import errors, serializers, utils
 from ..compat import long_type, six
 from .cache import cache_parent
-from .core import Iterable, LazyLoad, cache
+from .core import XMLIterable, XMLLazyLoad, cache
 from .volumes import Volume
 
 
-class FSVolumeObject(LazyLoad):
+class FSVolumeObject(XMLLazyLoad):
     __slots__ = ("_volume_fs_tunnel",)
     _type_indicator = "_isdir"
     _cache_name_arg = "path"
@@ -434,7 +434,7 @@ class FSVolumeFile(FSVolumeObject):
         return tunnel.open_writer(self.parent, path, replication=replication, **kw)
 
 
-class FSVolumeObjects(Iterable):
+class FSVolumeObjects(XMLIterable):
     marker = serializers.XMLNodeField("Marker")
     max_items = serializers.XMLNodeField("MaxItems", parse_callback=int)
     objects = serializers.XMLNodesReferencesField(FSVolumeObject, "Item")

@@ -1,4 +1,4 @@
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import sys
 
 import pytest
@@ -42,8 +43,9 @@ def storage_api_client(odps):
         ("a BIGINT, b BIGINT, c BIGINT, d BIGINT", "pt string"),
         if_not_exists=True,
     )
+    api_endpoint = os.getenv("ODPS_STORAGE_API_ENDPOINT")
     try:
-        yield StorageApiArrowClient(odps, table)
+        yield StorageApiArrowClient(odps, table, rest_endpoint=api_endpoint)
     finally:
         table.drop(async_=True)
         options.enable_schema = False

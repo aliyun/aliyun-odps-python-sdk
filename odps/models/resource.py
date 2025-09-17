@@ -22,7 +22,7 @@ from .. import compat, errors, serializers, types, utils
 from ..compat import Enum, six
 from ..config import options
 from .cache import cache, cache_parent
-from .core import LazyLoad
+from .core import XMLLazyLoad
 from .volumes import Volume
 
 _RESOURCE_SPLITTER = "/resources/"
@@ -34,7 +34,7 @@ else:
     _StringIOType = (compat.StringIO, compat.BytesIO)
 
 
-class Resource(LazyLoad):
+class Resource(XMLLazyLoad):
     """
     Resource is useful when writing UDF or MapReduce. This is an abstract class.
 

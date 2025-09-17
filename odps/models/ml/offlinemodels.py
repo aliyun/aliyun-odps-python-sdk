@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,11 +16,11 @@
 
 from ... import errors, serializers
 from ...compat import six
-from ..core import Iterable
+from ..core import XMLIterable
 from .offlinemodel import OfflineModel
 
 
-class OfflineModels(Iterable):
+class OfflineModels(XMLIterable):
     marker = serializers.XMLNodeField("Marker")
     max_items = serializers.XMLNodeField("MaxItems", parse_callback=int)
     offline_models = serializers.XMLNodesReferencesField(OfflineModel, "OfflineModel")

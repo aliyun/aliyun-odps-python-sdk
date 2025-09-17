@@ -21,10 +21,10 @@ from .. import errors, serializers, utils
 from ..compat import Enum, six
 from ..errors import InternalServerError
 from .cache import cache
-from .core import Iterable, LazyLoad
+from .core import XMLIterable, XMLLazyLoad
 
 
-class Volume(LazyLoad):
+class Volume(XMLLazyLoad):
     """
     Volume is the file-accessing object provided by ODPS.
     """
@@ -135,7 +135,7 @@ class Volume(LazyLoad):
         )
 
 
-class Volumes(Iterable):
+class Volumes(XMLIterable):
     marker = serializers.XMLNodeField("Marker")
     volumes = serializers.XMLNodesReferencesField(Volume, "Volume")
 

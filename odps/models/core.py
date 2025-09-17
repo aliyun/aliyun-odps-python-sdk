@@ -72,7 +72,7 @@ class JSONRemoteModel(serializers.JSONSerializableModel):
         return super(JSONRemoteModel, cls).parse(response, obj=obj, **kw)
 
 
-class RestModel(XMLRemoteModel):
+class RestModelMixin:
     def _name(self):
         return type(self).__name__.lower()
 
@@ -84,15 +84,25 @@ class RestModel(XMLRemoteModel):
         name = quote_plus(name).replace("+", "%20")
         return name
 
-    def resource(self, client=None, endpoint=None):
+    def resource(self, client=None, endpoint=None, with_schema=False, url_prefix=None):
         parent = self._parent
+        client = client or self._client
         if parent is None:
             if endpoint is None:
-                endpoint = (client or self._client).endpoint
+                endpoint = client.endpoint
             parent_res = endpoint
         else:
-            parent_res = parent.resource(client=client, endpoint=endpoint)
+            if client is not None:
+                endpoint = endpoint or client.endpoint
+            parent_res = parent.resource(
+                client=client, endpoint=endpoint, with_schema=with_schema
+            )
         name = self._name()
+        if url_prefix is not None:
+            parent_path = parent_res[len(endpoint) :]
+            if not parent_path.startswith(url_prefix):
+                parent_path = url_prefix + parent_path
+            parent_res = endpoint + parent_path
         if name is None:
             return parent_res
         return "/".join([parent_res, self._encode(name)])
@@ -113,9 +123,11 @@ class RestModel(XMLRemoteModel):
         if self._schema_name is not utils.notset:
             return self._schema_name
 
-        if isinstance(self._parent, LazyLoad):
+        if isinstance(self._parent, XMLLazyLoad):
             schema = self._parent.get_schema()
-        elif isinstance(self._parent, Container) and self._parent._parent is not None:
+        elif (
+            isinstance(self._parent, XMLContainer) and self._parent._parent is not None
+        ):
             schema = self._parent._parent.get_schema()
         else:
             schema = None
@@ -123,18 +135,22 @@ class RestModel(XMLRemoteModel):
         return self._schema_name
 
 
-class LazyLoad(RestModel):
-    __slots__ = ("_loaded",)
+class XMLRestModel(RestModelMixin, XMLRemoteModel):
+    pass
 
-    @cache
-    def __new__(cls, *args, **kwargs):
-        return object.__new__(cls)
 
-    def __init__(self, **kwargs):
-        self._loaded = False
-        kwargs.pop("no_cache", None)
-        super(LazyLoad, self).__init__(**kwargs)
+class JSONRestModel(RestModelMixin, JSONRemoteModel):
+    def resource(self, client=None, endpoint=None, with_schema=False, url_prefix=None):
+        url_prefix = url_prefix or options.catalog.url_prefix
+        return super(JSONRestModel, self).resource(
+            client=client,
+            endpoint=endpoint,
+            with_schema=with_schema,
+            url_prefix=url_prefix,
+        )
 
+
+class LazyLoadMixin:
     def _name(self):
         return self._getattr("name")
 
@@ -181,7 +197,7 @@ class LazyLoad(RestModel):
         if r:
             return r
         else:
-            return super(LazyLoad, self).__repr__()
+            return super(LazyLoadMixin, self).__repr__()
 
     def _repr(self):
         name = self._name()
@@ -235,13 +251,33 @@ class LazyLoad(RestModel):
         return self.get_schema()
 
 
-class Container(RestModel):
-    skip_null = False
+class XMLLazyLoad(LazyLoadMixin, XMLRestModel):
+    __slots__ = ("_loaded",)
 
     @cache
     def __new__(cls, *args, **kwargs):
         return object.__new__(cls)
 
+    def __init__(self, **kwargs):
+        self._loaded = False
+        kwargs.pop("no_cache", None)
+        super(XMLLazyLoad, self).__init__(**kwargs)
+
+
+class JSONLazyLoad(LazyLoadMixin, JSONRestModel):
+    __slots__ = ("_loaded",)
+
+    @cache
+    def __new__(cls, *args, **kwargs):
+        return object.__new__(cls)
+
+    def __init__(self, **kwargs):
+        self._loaded = False
+        kwargs.pop("no_cache", None)
+        super(JSONLazyLoad, self).__init__(**kwargs)
+
+
+class ContainerMixin:
     def _get(self, item):
         raise NotImplementedError
 
@@ -277,11 +313,19 @@ class Container(RestModel):
         self.__init__(_parent=parent, _client=client)
 
 
-class Iterable(Container):
+class XMLContainer(ContainerMixin, XMLRestModel):
+    skip_null = False
+
+    @cache
+    def __new__(cls, *args, **kwargs):
+        return object.__new__(cls)
+
+
+class XMLIterable(XMLContainer):
     __slots__ = ("_iter",)
 
     def __init__(self, **kwargs):
-        super(Iterable, self).__init__(**kwargs)
+        super(XMLIterable, self).__init__(**kwargs)
         self._iter = iter(self)
 
     def __iter__(self):
@@ -291,3 +335,18 @@ class Iterable(Container):
         return next(self._iter)
 
     next = __next__
+
+
+class JSONContainer(ContainerMixin, JSONRestModel):
+    skip_null = False
+
+    @cache
+    def __new__(cls, *args, **kwargs):
+        return object.__new__(cls)
+
+
+# make sure legacy codes can still import these names
+RestModel = XMLRestModel
+Container = XMLContainer
+Iterable = XMLIterable
+LazyLoad = XMLRestModel

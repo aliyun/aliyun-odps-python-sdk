@@ -21,13 +21,13 @@ from datetime import datetime
 from .. import errors, serializers, utils
 from ..compat import six
 from ..config import options
-from .core import Iterable
+from .core import XMLIterable
 from .instance import Instance
 from .job import Job
 from .session import SessionInstance
 
 
-class BaseInstances(Iterable):
+class BaseInstances(XMLIterable):
     def _get(self, name):
         return Instance(client=self._client, parent=self, name=name)
 

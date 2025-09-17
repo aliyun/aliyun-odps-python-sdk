@@ -19,7 +19,7 @@ from collections import OrderedDict, defaultdict
 from .. import errors, serializers, types
 from ..compat import six
 from ..utils import with_wait_argument
-from .core import Iterable
+from .core import XMLIterable
 from .partition import Partition
 
 
@@ -80,7 +80,7 @@ class PartitionSpecCondition(object):
         return True
 
 
-class Partitions(Iterable):
+class Partitions(XMLIterable):
     marker = serializers.XMLNodeField("Marker")
     max_items = serializers.XMLNodeField("MaxItems")
     partitions = serializers.XMLNodesReferencesField(Partition, "Partition")

@@ -18,11 +18,11 @@ import warnings
 from datetime import datetime
 
 from .. import serializers, types, utils
-from .core import JSONRemoteModel, LazyLoad, XMLRemoteModel
+from .core import JSONRemoteModel, XMLLazyLoad, XMLRemoteModel
 from .storage_tier import StorageTierInfo
 
 
-class Partition(LazyLoad):
+class Partition(XMLLazyLoad):
     """
     A partition is a collection of rows in a table whose partition columns are equal to specific
     values.

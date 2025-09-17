@@ -1310,7 +1310,7 @@ class Upsert(object):
     def _write(self, record, op, valid_columns=None):
         self._check_status()
 
-        bucket = self._hasher.hash(record) % len(self._bucket_writers)
+        bucket = self._hasher.hash_record(record) % len(self._bucket_writers)
         if bucket not in self._bucket_writers:
             raise TunnelError(
                 "Tunnel internal error! Do not have bucket for hash key " + bucket

@@ -55,11 +55,17 @@ def parse_response(resp, endpoint=None, tag=None):
             request_id = resp.headers.get("x-odps-request-id", None)
             if len(resp.content) > 0:
                 obj = json.loads(resp.text)
-                msg = obj["Message"]
-                code = obj.get("Code")
-                host_id = obj.get("HostId")
-                if request_id is None:
-                    request_id = obj.get("RequestId")
+                if tag == "Catalog":
+                    msg = obj["message"]
+                    reason = obj.get("reason")
+                    code = _CATALOG_ERROR_MAPPING.get(reason, reason)
+                    host_id = None
+                else:
+                    msg = obj["Message"]
+                    code = obj.get("Code")
+                    host_id = obj.get("HostId")
+                    if request_id is None:
+                        request_id = obj.get("RequestId")
             else:
                 raise
         clz = globals().get(code, ODPSError)
@@ -124,6 +130,10 @@ _SQA_CODE_MAPPING = {
     "ODPS-184": "SQAServiceUnavailable",
     "ODPS-185": "SQAUnsupportedFeature",
     "ODPS-186": "SQAQueryTimedout",
+}
+
+_CATALOG_ERROR_MAPPING = {
+    "NotFound": "NoSuchObject",
 }
 
 _nginx_bad_gateway_message = "the page you are looking for is currently unavailable"

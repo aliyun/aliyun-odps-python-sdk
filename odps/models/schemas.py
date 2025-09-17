@@ -1,4 +1,4 @@
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ from ..errors import (
     NoSuchObject,
 )
 from ..utils import with_wait_argument
-from .core import Iterable
+from .core import XMLIterable
 from .schema import Schema
 
 logger = logging.getLogger(__name__)
@@ -70,7 +70,7 @@ def with_schema_api_fallback(fallback_fun, is_iter=False):
     return decorator
 
 
-class Schemas(Iterable):
+class Schemas(XMLIterable):
     marker = serializers.XMLNodeField("Marker")
     max_items = serializers.XMLNodeField("MaxItems")
     schemas = serializers.XMLNodesReferencesField(Schema, "Schema")
@@ -78,7 +78,11 @@ class Schemas(Iterable):
     def __iter__(self):
         return self.iterate()
 
-    def resource(self, client=None, endpoint=None):
+    def resource(self, client=None, endpoint=None, with_schema=False):
+        if with_schema:
+            return super(Schemas, self).resource(
+                client, endpoint=endpoint, with_schema=with_schema
+            )
         return self.parent.resource(client, endpoint=endpoint)
 
     def _check_schema_api(self):

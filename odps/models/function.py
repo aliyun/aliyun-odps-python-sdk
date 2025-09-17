@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,11 +15,11 @@
 # limitations under the License.
 
 from .. import serializers, utils
-from .core import LazyLoad
+from .core import XMLLazyLoad
 from .resource import Resource
 
 
-class Function(LazyLoad):
+class Function(XMLLazyLoad):
     """
     Function can be used in UDF when user writes a SQL.
     """

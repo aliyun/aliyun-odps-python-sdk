@@ -16,11 +16,11 @@
 
 from .. import errors, serializers, utils
 from ..compat import six
-from .core import Iterable
+from .core import XMLIterable
 from .table import Table
 
 
-class Tables(Iterable):
+class Tables(XMLIterable):
     marker = serializers.XMLNodeField("Marker")
     max_items = serializers.XMLNodeField("MaxItems", parse_callback=int)
     tables = serializers.XMLNodesReferencesField(Table, "Table")

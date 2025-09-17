@@ -1,4 +1,4 @@
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -93,7 +93,7 @@ class Tenant(JSONRemoteModel):
         )
         return self.creation_time
 
-    def resource(self, client=None, endpoint=None):
+    def resource(self, client=None, endpoint=None, with_schema=False):
         endpoint = (
             endpoint if endpoint is not None else (client or self._client).endpoint
         )

@@ -101,7 +101,7 @@ class ObjectCache(object):
         return obj
 
     def del_item_cache(self, obj, item):
-        from .core import LazyLoad
+        from .core import XMLLazyLoad
 
         try:
             item = obj._get_parent_typed(item)
@@ -118,38 +118,42 @@ class ObjectCache(object):
             if cache_key in self._caches:
                 # make sure original object will be reloaded
                 obj = self._caches[cache_key]
-                if isinstance(obj, LazyLoad):
+                if isinstance(obj, XMLLazyLoad):
                     obj.reset()
 
                 del self._caches[cache_key]
 
 
 _object_cache = ObjectCache()
+_cls_bases_cache = dict()
 
 
 def cache(func):
+    @six.wraps(func)
     def inner(cls, **kwargs):
-        bases = [base.__name__ for base in inspect.getmro(cls)]
-        if "LazyLoad" in bases:
+        try:
+            bases_set = _cls_bases_cache[cls]
+        except KeyError:
+            bases_set = set(base.__name__ for base in inspect.getmro(cls))
+            _cls_bases_cache[cls] = bases_set
+
+        if "XMLLazyLoad" in bases_set:
             return _object_cache.cache_lazyload(func, cls, **kwargs)
-        elif "Container" in bases:
+        elif "XMLContainer" in bases_set:
             return _object_cache.cache_container(func, cls, **kwargs)
 
         return func(cls, **kwargs)
 
-    inner.__name__ = func.__name__
-    inner.__doc__ = func.__doc__
     return inner
 
 
 def del_cache(func):
+    @six.wraps(func)
     def inner(obj, item):
         if func.__name__ == "__delitem__":
             _object_cache.del_item_cache(obj, item)
         return func(obj, item)
 
-    inner.__name__ = func.__name__
-    inner.__doc__ = func.__doc__
     inner._cache_maker = True
     return inner
 

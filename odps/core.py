@@ -29,6 +29,7 @@ from .tempobj import clean_stored_objects
 DEFAULT_ENDPOINT = "http://service.odps.aliyun.com/api"
 DEFAULT_REGION_NAME = "cn"
 LOGVIEW_HOST_DEFAULT = "http://logview.aliyun.com"
+CATALOG_API_ENDPOINT_DEFAULT = "https://catalogapi.{region}.maxcompute.aliyun.com"
 
 _ALTER_TABLE_REGEX = re.compile(
     r"^\s*(drop|alter)\s+table\s*(|if\s+exists)\s+(?P<table_name>[^\s;]+)", re.I
@@ -104,6 +105,7 @@ class ODPS(object):
         region_name=None,
         quota_name=None,
         namespace=None,
+        catalog_endpoint=None,
         **kw
     ):
         # avoid polluted copy sources :(
@@ -114,6 +116,7 @@ class ODPS(object):
         schema = utils.strip_if_str(schema)
         logview_host = utils.strip_if_str(logview_host)
         tunnel_endpoint = utils.strip_if_str(tunnel_endpoint)
+        catalog_endpoint = utils.strip_if_str(catalog_endpoint)
         region_name = utils.strip_if_str(region_name)
         quota_name = utils.strip_if_str(quota_name)
         namespace = utils.strip_if_str(namespace)
@@ -133,6 +136,7 @@ class ODPS(object):
             app_account=app_account,
             logview_host=logview_host,
             tunnel_endpoint=tunnel_endpoint,
+            catalog_endpoint=catalog_endpoint,
             region_name=region_name,
             quota_name=quota_name,
             namespace=namespace,
@@ -178,7 +182,11 @@ class ODPS(object):
         self.project = (
             project or options.default_project or os.getenv("ODPS_PROJECT_NAME")
         )
-        self.region_name = region_name or self._get_region_from_endpoint(self.endpoint)
+        self.region_name = (
+            region_name
+            or os.getenv("ODPS_REGION_NAME")
+            or self._get_region_from_endpoint(self.endpoint)
+        )
         self.namespace = (
             namespace or options.default_namespace or os.getenv("ODPS_NAMESPACE")
         )
@@ -205,6 +213,32 @@ class ODPS(object):
             or options.tunnel.endpoint
             or os.getenv("ODPS_TUNNEL_ENDPOINT")
         )
+
+        self._catalog_endpoint = (
+            kw.pop("catalog_endpoint", None)
+            or options.catalog.endpoint
+            or os.getenv("ODPS_CATALOG_ENDPOINT")
+            or (
+                CATALOG_API_ENDPOINT_DEFAULT.format(region=self.region_name)
+                if self.region_name and CATALOG_API_ENDPOINT_DEFAULT
+                else None
+            )
+        )
+        if self._catalog_endpoint is None:
+            self.catalog_rest = None
+        else:
+            self.catalog_rest = rest_client_cls(
+                self.account,
+                self._catalog_endpoint.rstrip("/"),
+                project,
+                schema,
+                app_account=self.app_account,
+                proxy=options.api_proxy,
+                region_name=self.region_name,
+                namespace=self.namespace,
+                tag="Catalog",
+                **rest_client_kwargs
+            )
 
         self._logview_host = (
             kw.pop("logview_host", None)
@@ -506,6 +540,7 @@ class ODPS(object):
         # use _schema to avoid requesting for tenant options
         proj._default_schema = default_schema or self._schema
         proj._quota_name = self._quota_name
+        proj._catalog_endpoint = self._catalog_endpoint
 
         proj_ref = weakref.ref(proj)
 
@@ -2137,6 +2172,45 @@ class ODPS(object):
             if not if_exists:
                 raise
 
+    def list_models(self, project=None, schema=None):
+        """
+        List models of project by optional filter conditions including prefix and owner.
+
+        :param project: project name, if not provided, will be the default project
+        :param str schema: schema name, if not provided, will be the default schema
+        :return: models
+        :rtype: list
+        """
+        parent = self._get_project_or_schema(project, schema)
+        return parent.models.iterate()
+
+    def get_model(self, name, project=None, schema=None):
+        """
+        Get model by given name
+
+        :param name: model name
+        :param project: project name, if not provided, will be the default project
+        :param str schema: schema name, if not provided, will be the default schema
+        :return: model
+        :rtype: :class:`odps.models.ml.Model`
+        :raise: :class:`odps.errors.NoSuchObject` if not exists
+        """
+        parent = self._get_project_or_schema(project, schema)
+        return parent.models[name]
+
+    def exist_model(self, name, project=None, schema=None):
+        """
+        If the model with given name exists or not.
+
+        :param name: model's name
+        :param project: project name, if not provided, will be the default project
+        :param str schema: schema name, if not provided, will be the default schema
+        :return: True if model exists else False
+        :rtype: bool
+        """
+        parent = self._get_project_or_schema(project, schema)
+        return name in parent.models
+
     def get_logview_host(self):
         """
         Get logview host address.
@@ -2514,7 +2588,8 @@ def _get_odps_from_model(self):
     return cur.odps if cur else None
 
 
-models.RestModel.odps = property(fget=_get_odps_from_model)
+models.JSONRestModel.odps = property(fget=_get_odps_from_model)
+models.XMLRestModel.odps = property(fget=_get_odps_from_model)
 del _get_odps_from_model
 
 try:

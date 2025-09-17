@@ -229,19 +229,35 @@ class RecordHasher(object):
         self._hasher = get_hasher(hasher_type)
         self._hash_keys = hash_keys
 
+        self._key_to_idx = {
+            c.name: idx for idx, c in enumerate(self._schema.simple_columns)
+        }
+
         self._column_hash_appenders = []
         for col_name in hash_keys:
             col = self._schema.get_column(col_name)
             self._column_hash_appenders.append(_get_hash_func(col.type))
 
-    def hash(self, record):
+    def _hash_list(self, record, idx_list):
         hash_sum = 0
-        for idx, key in enumerate(self._hash_keys):
-            if record[key] is None:
+        for idx, data_idx in enumerate(idx_list):
+            if record[data_idx] is None:
                 continue
-            hash_sum += self._column_hash_appenders[idx](self._hasher, record[key])
+            hash_sum += self._column_hash_appenders[idx](self._hasher, record[data_idx])
         hash_sum = ctypes.c_int32(hash_sum).value
         return hash_sum ^ (hash_sum >> 8)
+
+    def hash_record(self, record):
+        idx_list = [self._key_to_idx[k] for k in self._hash_keys]
+        return self._hash_list(record, idx_list)
+
+    def hash_list(self, record, need_index=True):
+        idx_list = (
+            [self._key_to_idx[k] for k in self._hash_keys]
+            if need_index
+            else range(len(record))
+        )
+        return self._hash_list(record, idx_list)
 
 
 def hash_value(hasher_type, data_type, value):

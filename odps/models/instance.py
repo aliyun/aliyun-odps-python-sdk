@@ -35,7 +35,7 @@ from ..compat import Enum, six
 from ..lib.monotonic import monotonic
 from ..lib.tblib import pickling_support
 from ..utils import to_str
-from .core import JSONRemoteModel, LazyLoad, XMLRemoteModel
+from .core import JSONRemoteModel, XMLLazyLoad, XMLRemoteModel
 from .job import Job
 from .readers import TunnelArrowReader, TunnelRecordReader
 from .tasks import SQLTask
@@ -147,7 +147,7 @@ class InstanceArrowReader(SpawnedInstanceReaderMixin, TunnelArrowReader):
         self._schema = download_session.schema
 
 
-class Instance(LazyLoad):
+class Instance(XMLLazyLoad):
     """
     Instance means that a ODPS task will sometimes run as an instance.
 

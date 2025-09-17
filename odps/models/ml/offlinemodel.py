@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 
 from ... import serializers, utils
 from ...compat import urlparse
-from ..core import LazyLoad
+from ..core import XMLLazyLoad
 
 
 class OfflineModelInfo(serializers.XMLSerializableModel):
@@ -35,7 +35,7 @@ class OfflineModelInfo(serializers.XMLSerializableModel):
     dest_model = serializers.XMLNodeField("DestModel")
 
 
-class OfflineModel(LazyLoad):
+class OfflineModel(XMLLazyLoad):
     """
     Representing an ODPS offline model.
     """

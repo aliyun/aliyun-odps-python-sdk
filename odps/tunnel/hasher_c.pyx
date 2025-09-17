@@ -379,15 +379,20 @@ cdef class RecordHasher:
                     % self._schema_snapshot._col_types[i]
                 )
 
-    cpdef int32_t hash(self, BaseRecord record):
-        cdef int i
+    cpdef int32_t hash_record(self, BaseRecord record):
+        return self.hash_list(record._c_values, need_index=True)
+
+    cpdef int32_t hash_list(self, list record, bint need_index = True):
+        cdef int i, idx
         cdef int32_t hash_sum = 0
 
+        assert need_index or self._col_ids.size() == len(record)
         for i in range(self._col_ids.size()):
-            if record._c_values[<int>self._col_ids[i]] is None:
+            idx = <int>self._col_ids[i] if need_index else i
+            if record[idx] is None:
                 continue
             hash_sum += (<FieldHasher>self._idx_to_hash_fun[i]).hash_object(
-                record._c_values[i]
+                record[idx]
             )
         return hash_sum ^ (hash_sum >> 8)
 

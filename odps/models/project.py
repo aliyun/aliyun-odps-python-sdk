@@ -19,13 +19,12 @@ import time
 import warnings
 import weakref
 
-from .. import serializers, utils
+from .. import errors, serializers, utils
 from ..compat import Enum, six
-from ..errors import SecurityQueryError
-from .core import LazyLoad, XMLRemoteModel
+from .core import XMLLazyLoad, XMLRemoteModel
 from .functions import Functions
 from .instances import CachedInstances, Instances
-from .ml import OfflineModels
+from .ml import Models, OfflineModels
 from .resources import Resources
 from .schemas import Schemas
 from .security.roles import Roles
@@ -36,7 +35,7 @@ from .volumes import Volumes
 from .xflows import XFlows
 
 
-class Project(LazyLoad):
+class Project(XMLLazyLoad):
     """
     Project is the counterpart of **database** in a RDBMS.
 
@@ -68,6 +67,7 @@ class Project(LazyLoad):
         "_extended_props_loaded",
         "_odps_ref",
         "_schema_namespace_enabled",
+        "_catalog_endpoint",
     )
 
     class Cluster(XMLRemoteModel):
@@ -153,7 +153,9 @@ class Project(LazyLoad):
             if status.status == Project.AuthQueryStatus.TERMINATED:
                 return json.loads(status.result) if self.output_json else status.result
             else:
-                raise SecurityQueryError("Authorization query failed: " + status.result)
+                raise errors.SecurityQueryError(
+                    "Authorization query failed: " + status.result
+                )
 
         def query_status(self):
             resource = self.project.auth_resource() + "/" + self.instance_id
@@ -205,6 +207,7 @@ class Project(LazyLoad):
         self._odps_ref = None
         self._logview_host = None
         self._schema_namespace_enabled = None
+        self._catalog_endpoint = None
         super(Project, self).__init__(*args, **kwargs)
 
     def reload(self, all_props=False):
@@ -266,16 +269,17 @@ class Project(LazyLoad):
             return self._schema_namespace_enabled
         return self.odps.is_schema_namespace_enabled()
 
-    def _get_collection_with_schema(self, iter_cls):
+    def _get_collection_with_schema(self, iter_cls, require=False, use_catalog=False):
         schema = self._default_schema
-        if self._is_schema_namespace_enabled():
+        if self._is_schema_namespace_enabled() or require:
             schema = schema or "default"
 
-        if self._default_schema is not None:
+        if schema is not None:
             parent = self.schemas[schema]
         else:
             parent = self
-        return iter_cls(client=self._client, parent=parent)
+        client = self.odps.catalog_rest if use_catalog else self._client
+        return iter_cls(client=client, parent=parent)
 
     @property
     def tables(self):
@@ -300,6 +304,10 @@ class Project(LazyLoad):
     @property
     def volumes(self):
         return self._get_collection_with_schema(Volumes)
+
+    @property
+    def models(self):
+        return self._get_collection_with_schema(Models, require=True, use_catalog=True)
 
     @property
     def xflows(self):
@@ -355,6 +363,7 @@ class Project(LazyLoad):
             schema=client.schema,
             tunnel_endpoint=self._tunnel_endpoint,
             logview_host=self._logview_host,
+            catalog_endpoint=self._catalog_endpoint,
             app_account=getattr(client, "app_account", None),
             overwrite_global=False,
         )
@@ -448,7 +457,7 @@ class Project(LazyLoad):
 
     def generate_auth_token(self, policy, type, expire_hours):
         if type.lower() != "bearer":
-            raise SecurityQueryError("Unsupported token type " + type)
+            raise errors.SecurityQueryError("Unsupported token type " + type)
 
         url = self.auth_resource()
         headers = {"Content-Type": "application/json"}

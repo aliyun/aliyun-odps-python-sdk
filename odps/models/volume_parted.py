@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
 from .. import errors, serializers, utils
 from ..compat import Enum, six
 from .cache import cache_parent
-from .core import Iterable, LazyLoad, XMLRemoteModel
+from .core import XMLIterable, XMLLazyLoad, XMLRemoteModel
 from .volumes import Volume
 
 
@@ -72,7 +72,7 @@ class VolumePartitionMeta(XMLRemoteModel):
         self.parse(self._client, resp, obj=self)
 
 
-class VolumePartition(LazyLoad):
+class VolumePartition(XMLLazyLoad):
     """
     Represents a partition in a volume.
     """
@@ -329,7 +329,7 @@ class PartedVolume(Volume):
     PartedVolume represents the old-fashioned partitioned volume in ODPS.
     """
 
-    class Partitions(Iterable):
+    class Partitions(XMLIterable):
         _root = "Volume"
 
         marker = serializers.XMLNodeField("Marker")
