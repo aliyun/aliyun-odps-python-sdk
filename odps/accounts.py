@@ -562,6 +562,9 @@ class CredentialProviderAccount(StsAccount):
         self._lock = threading.Lock()
         super(CredentialProviderAccount, self).__init__(None, None, None)
 
+    def __reduce__(self):
+        return CredentialProviderAccount, (self.provider,)
+
     def _refresh_credential(self):
         try:
             credential = self.provider.get_credential()
