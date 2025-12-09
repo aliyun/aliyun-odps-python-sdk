@@ -18,7 +18,7 @@ jobs:
           - os: ubuntu-latest
             arch: aarch64
           - os: macos-15-intel
-            arch: universal2
+            arch: auto
 
     steps:
       - name: Check out code
