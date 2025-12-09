@@ -18,6 +18,7 @@ import copy
 import datetime
 import json
 import os
+import pickle
 import shutil
 import tempfile
 import time
@@ -78,6 +79,12 @@ def test_sign_server_account(odps):
         account = SignServerAccount(
             odps.account.access_id, server.server.server_address
         )
+
+        reloaded = pickle.loads(pickle.dumps(account))
+        assert reloaded.access_id == account.access_id
+        assert reloaded.sign_endpoint == account.sign_endpoint
+        assert reloaded.token == account.token
+
         odps = odps.as_account(account=account)
         odps.delete_table(tn("test_sign_account_table"), if_exists=True)
         t = odps.create_table(tn("test_sign_account_table"), "col string", lifecycle=1)
@@ -120,6 +127,12 @@ def test_sts_account(odps):
         token_account = StsAccount(
             odps.account.access_id, odps.account.secret_access_key, "token"
         )
+
+        reloaded = pickle.loads(pickle.dumps(token_account))
+        assert reloaded.access_id == token_account.access_id
+        assert reloaded.secret_access_key == token_account.secret_access_key
+        assert reloaded.sts_token == token_account.sts_token
+
         cp_req = copy.deepcopy(req)
         token_account.sign_request(cp_req, odps.endpoint)
         assert "token" == cp_req.headers["authorization-sts-token"]
@@ -174,6 +187,10 @@ def test_bearer_token_account(odps, use_legacy_logview):
     logview_address = inst.get_logview_address()
     token = logview_address[logview_address.find("token=") + len("token=") :]
     bearer_token_account = BearerTokenAccount(token=token)
+
+    reloaded = pickle.loads(pickle.dumps(bearer_token_account))
+    assert reloaded.token == bearer_token_account.token
+
     bearer_token_odps = ODPS(
         None, None, odps.project, odps.endpoint, account=bearer_token_account
     )
@@ -385,6 +402,13 @@ class MockCredentialProvider2(object):
 )
 def test_credential_provider_account(odps, provider_cls):
     account = CredentialProviderAccount(provider_cls(odps))
+
+    reloaded = pickle.loads(pickle.dumps(account))
+    assert (
+        reloaded.provider._odps.account.access_id
+        == account.provider._odps.account.access_id
+    )
+
     cred_odps = ODPS(account, None, odps.project, odps.endpoint)
 
     table_name = tn("test_bearer_token_account_table")
