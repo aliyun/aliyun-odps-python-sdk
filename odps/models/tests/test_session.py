@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -464,13 +464,34 @@ def test_mcqa_v2_session(odps_with_mcqa2):
         self._loaded = False
         return res
 
-    with mock.patch("odps.models.quota.Quota.reload", new=_mock_quota_reload):
+    def _mock_init_mcqa_quota_by_connection_api(self, quota_name, project):
+        raise errors.MethodNotAllowed("Intentional")
+
+    # test quota not available
+    with mock.patch(
+        "odps.models.quota.Quota.reload", new=_mock_quota_reload
+    ), mock.patch(
+        "odps.models.session.v2.McqaV2Methods._init_mcqa_quota_by_connection_api",
+        new=_mock_init_mcqa_quota_by_connection_api,
+    ):
         with pytest.raises(ODPSError) as exc_info:
             odps.execute_sql_interactive(
                 "select * from %s where id is not null" % table_name, use_mcqa_v2=True
             )
         assert odps_with_mcqa2.quota_name in str(exc_info.value)
         assert exc_info.value.request_id is not None
+
+    # test legacy interface
+    with mock.patch(
+        "odps.models.session.v2.McqaV2Methods._init_mcqa_quota_by_connection_api",
+        new=_mock_init_mcqa_quota_by_connection_api,
+    ):
+        inst = odps.execute_sql_interactive(
+            "select * from %s where id is not null" % table_name, use_mcqa_v2=True
+        )
+        with inst.open_reader(tunnel=True) as reader:
+            result = [res.values for res in reader]
+        assert result == test_data
 
     inst = odps.execute_sql_interactive(
         "select * from %s where id is not null" % table_name, use_mcqa_v2=True

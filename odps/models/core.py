@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@ from .cache import cache, del_cache
 
 
 class XMLRemoteModel(serializers.XMLSerializableModel):
-    __slots__ = "_parent", "_client", "_schema_name"
+    __slots__ = "_parent", "_resource_cache", "_client", "_schema_name"
 
     def __init__(self, **kwargs):
         if "parent" in kwargs:
@@ -38,6 +38,7 @@ class XMLRemoteModel(serializers.XMLSerializableModel):
                 "%s() meet illegal arguments (%s)"
                 % (type(self).__name__, ", ".join(unexpected))
             )
+        kwargs["_resource_cache"] = {}
         super(XMLRemoteModel, self).__init__(**kwargs)
 
     @classmethod
@@ -51,7 +52,7 @@ class AbstractXMLRemoteModel(XMLRemoteModel):
 
 
 class JSONRemoteModel(serializers.JSONSerializableModel):
-    __slots__ = "_parent", "_client"
+    __slots__ = "_parent", "_resource_cache", "_client"
 
     def __init__(self, **kwargs):
         if "parent" in kwargs:
@@ -64,6 +65,7 @@ class JSONRemoteModel(serializers.JSONSerializableModel):
                 "%s() meet illegal arguments (%s)"
                 % (type(self).__name__, ", ".join(unexpected))
             )
+        kwargs["_resource_cache"] = {}
         super(JSONRemoteModel, self).__init__(**kwargs)
 
     @classmethod
@@ -85,6 +87,10 @@ class RestModelMixin:
         return name
 
     def resource(self, client=None, endpoint=None, with_schema=False, url_prefix=None):
+        res_key = (id(client), endpoint, with_schema, url_prefix)
+        if res_key in self._resource_cache:
+            return self._resource_cache[res_key]
+
         parent = self._parent
         client = client or self._client
         if parent is None:
@@ -104,8 +110,19 @@ class RestModelMixin:
                 parent_path = url_prefix + parent_path
             parent_res = endpoint + parent_path
         if name is None:
+            self._resource_cache[res_key] = parent_res
             return parent_res
-        return "/".join([parent_res, self._encode(name)])
+        if with_schema:
+            from .project import Project
+            from .schemas import Schemas
+
+            if not isinstance(self, Schemas) and isinstance(parent, Project):
+                res = self._resource_cache[res_key] = "/".join(
+                    [parent_res, "schemas/default", self._encode(name)]
+                )
+                return res
+        res = self._resource_cache[res_key] = "/".join([parent_res, self._encode(name)])
+        return res
 
     def __eq__(self, other):
         if other is None:

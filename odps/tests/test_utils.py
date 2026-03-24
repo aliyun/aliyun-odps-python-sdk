@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -398,6 +398,19 @@ def test_call_with_retry():
     retry_idx_list[0] = 0
     utils.call_with_retry(func, retry_times=3, exc_type=(TypeError, ValueError))
     assert retry_idx_list[0] == 3
+
+    retry_idx_list[0] = 0
+    utils.call_with_retry(
+        func, retry_times=3, exc_type=lambda ex: isinstance(ex, ValueError)
+    )
+    assert retry_idx_list[0] == 3
+
+    retry_idx_list[0] = 0
+    with pytest.raises(ValueError):
+        utils.call_with_retry(
+            func, retry_times=3, exc_type=lambda ex: isinstance(ex, IndexError)
+        )
+    assert retry_idx_list[0] == 1
 
     retry_idx_list[0] = 0
     exc_info = utils.call_with_retry(

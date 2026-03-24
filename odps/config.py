@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -47,11 +47,13 @@ class OptionError(AttributeError):
 
 
 class Redirection(object):
-    def __init__(self, item, warn=None):
+    def __init__(self, item, warn=None, getter=None, setter=None):
         self._items = item.split(".")
         self._warn = warn
         self._warned = True
         self._parent = None
+        self._getter = getter
+        self._setter = setter
 
     def bind(self, attr_dict):
         self._parent = attr_dict
@@ -69,6 +71,8 @@ class Redirection(object):
         conf = self._parent.root
         for it in self._items:
             conf = getattr(conf, it)
+        if callable(self._getter):
+            conf = self._getter(conf)
         return conf
 
     def setvalue(self, value, silent=False):
@@ -78,6 +82,8 @@ class Redirection(object):
         conf = self._parent.root
         for it in self._items[:-1]:
             conf = getattr(conf, it)
+        if callable(self._setter):
+            value = self._setter(value)
         setattr(conf, self._items[-1], value)
 
 
@@ -279,8 +285,15 @@ class Config(object):
         if value is not None:
             redir.setvalue(value)
 
-    def redirect_option(self, option, target, warn=_DEFAULT_REDIRECT_WARN):
-        redir = Redirection(target, warn=warn.format(source=option, target=target))
+    def redirect_option(
+        self, option, target, warn=_DEFAULT_REDIRECT_WARN, getter=None, setter=None
+    ):
+        redir = Redirection(
+            target,
+            warn=warn.format(source=option, target=target),
+            getter=getter,
+            setter=setter,
+        )
         self.register_option(option, redir)
 
     def unregister_option(self, option):
@@ -446,6 +459,7 @@ default_options.register_option("region_name", None)
 default_options.register_option("quota_name", None)
 default_options.register_option("local_timezone", None)
 default_options.register_option("use_legacy_parsedate", False)
+default_options.register_option("use_legacy_xml_unescape", False)
 default_options.register_option("allow_antique_date", False)
 default_options.register_option("signature_prefix", None)
 default_options.register_option(
@@ -501,6 +515,9 @@ default_options.register_option(
 default_options.register_option("progress_percentage_gap", 5, validator=is_integer)
 default_options.register_option("enable_v4_sign", True, validator=is_bool)
 default_options.register_option("align_supported_python_tag", True, validator=is_bool)
+default_options.register_option(
+    "custom_headers", None, validator=any_validator(is_null, is_dict)
+)
 
 # c or python mode for UT only. In other cases, please do not modify the value
 default_options.register_option("force_c", False, validator=is_integer)
@@ -611,6 +628,7 @@ default_options.register_option("sql.ignore_fields_not_null", False, validator=i
 default_options.register_option(
     "sql.use_odps2_extension", None, validator=any_validator(is_null, is_bool)
 )
+default_options.register_option("sql.parse_set_as_hints", True, validator=is_bool)
 
 # Catalog API
 default_options.register_option(

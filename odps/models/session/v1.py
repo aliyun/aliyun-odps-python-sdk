@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import warnings
 from ... import errors, readers, utils
 from ...compat import enum, six
 from ...lib.monotonic import monotonic
+from ...utils import call_with_retry
 from .. import tasks
 from ..instance import Instance, InstanceArrowReader, InstanceRecordReader
 
@@ -36,6 +37,7 @@ PUBLIC_SESSION_NAME = "public.default"
 _SUBQUERY_ID_PATTERN = re.compile(r"[\d\D]*_query_(\d+)_[\d\D]*")
 _SESSION_FILE_PREFIX = "mcqa-session-"
 _SESSION_FILE_EXPIRE_TIME = 3600 * 24
+_ERR_MESSAGE_LOG_PREFIX = re.compile(r"^\[[^\]]+\]")
 
 
 class FallbackMode(enum.Enum):
@@ -132,12 +134,20 @@ def _task_status_value_to_enum(task_status):
     return TASK_STATUS_VALUES.get(task_status, SessionTaskStatus.Unknown)
 
 
-def _get_session_failure_info(task_results):
-    try:
+def _get_session_failure_info(inst):
+    def get_info():
+        task_results = inst.get_task_results()
         taskname, result_txt = list(task_results.items())[0]
+        if not result_txt:
+            raise ValueError("No task result found.")
+        while _ERR_MESSAGE_LOG_PREFIX.search(result_txt):
+            result_txt = _ERR_MESSAGE_LOG_PREFIX.sub("", result_txt).strip()
+        return result_txt
+
+    try:
+        return call_with_retry(get_info, delay=0.1)
     except BaseException:
         return ""
-    return result_txt
 
 
 class SessionInstance(Instance):
@@ -283,7 +293,7 @@ class SessionInstance(Instance):
             self._parse_result_session_name(poll_result["result"])
             session_status = _task_status_value_to_enum(poll_result["status"])
         except BaseException:
-            error_string = _get_session_failure_info(self.get_task_results())
+            error_string = _get_session_failure_info(self)
             if error_string:
                 self._status = Instance.Status.TERMINATED
                 six.raise_from(errors.parse_instance_error(error_string), None)
@@ -294,11 +304,11 @@ class SessionInstance(Instance):
         if session_status == SessionTaskStatus.Running:
             self._status = Instance.Status.RUNNING
         elif session_status == SessionTaskStatus.Cancelled:
-            error_string = _get_session_failure_info(self.get_task_results())
+            error_string = _get_session_failure_info(self)
             self._status = Instance.Status.TERMINATED
             raise errors.parse_instance_error(error_string)
         elif session_status == SessionTaskStatus.Failed:
-            error_string = _get_session_failure_info(self.get_task_results())
+            error_string = _get_session_failure_info(self)
             self._status = Instance.Status.TERMINATED
             raise errors.parse_instance_error(error_string)
         elif poll_result["status"] == SessionTaskStatus.Terminated:
@@ -740,15 +750,26 @@ class McqaV1Methods(object):
         }
         if session_name:
             session_hints["odps.sql.session.name"] = session_name
+            session_hints["odps.sql.session.share.id"] = session_name
         if worker_spare_span:
             session_hints["odps.sql.session.worker.sparespan"] = worker_spare_span
         task = tasks.SQLRTTask(name=task_name)
         task.update_sql_rt_settings(hints)
         task.update_sql_rt_settings(session_hints)
         project = odps.get_project()
-        return project.instances.create(
-            task=task, session_project=project, session_name=session_name
-        )
+        try:
+            return project.instances.create(
+                task=task, session_project=project, session_name=session_name
+            )
+        except errors.InvalidParameter:
+            session_name = session_name or PUBLIC_SESSION_NAME
+            session_hints["odps.sql.session.name"] = session_name
+            session_hints["odps.sql.session.share.id"] = session_name
+            task.update_sql_rt_settings(hints)
+            task.update_sql_rt_settings(session_hints)
+            return project.instances.create(
+                task=task, session_project=project, session_name=session_name
+            )
 
     @classmethod
     def _get_mcqa_session_file(cls, odps):

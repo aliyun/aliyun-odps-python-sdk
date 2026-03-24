@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -233,6 +233,7 @@ class TableBatchWriteRequest(serializers.JSONSerializableModel):
     overwrite = serializers.JSONNodeField("Overwrite")
     partition_spec = serializers.JSONNodeField("PartitionSpec")
     support_write_cluster = serializers.JSONNodeField("SupportWriteCluster")
+    enhance_write_check = serializers.JSONNodeField("EnhanceWriteCheck")
 
     def __init__(self, **kwargs):
         super(TableBatchWriteRequest, self).__init__(**kwargs)
@@ -244,6 +245,9 @@ class TableBatchWriteRequest(serializers.JSONSerializableModel):
         )
         self.overwrite = self.overwrite if self.overwrite is not None else True
         self.support_write_cluster = self.support_write_cluster or False
+        self.enhance_write_check = (
+            self.enhance_write_check if self.enhance_write_check is not None else True
+        )
 
 
 class TableBatchWriteResponse(serializers.JSONSerializableModel):

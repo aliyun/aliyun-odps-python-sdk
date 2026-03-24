@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -58,27 +58,25 @@ else:
 
 
 def odps_type_to_arrow_type(odps_type):
-    from ... import types
-
     if odps_type in _ODPS_TO_ARROW_TYPE:
         col_type = _ODPS_TO_ARROW_TYPE[odps_type]
     else:
-        if isinstance(odps_type, types.Array):
+        if isinstance(odps_type, odps_types.Array):
             col_type = pa.list_(odps_type_to_arrow_type(odps_type.value_type))
-        elif isinstance(odps_type, types.Map):
+        elif isinstance(odps_type, odps_types.Map):
             col_type = pa.map_(
                 odps_type_to_arrow_type(odps_type.key_type),
                 odps_type_to_arrow_type(odps_type.value_type),
             )
-        elif isinstance(odps_type, types.Decimal):
-            precision = odps_type.precision or types.Decimal._default_precision
-            scale = odps_type.scale or types.Decimal._default_scale
+        elif isinstance(odps_type, odps_types.Decimal):
+            precision = odps_type.precision or odps_types.Decimal._default_precision
+            scale = odps_type.scale or odps_types.Decimal._default_scale
             if odps_type.precision is None and not hasattr(pa, "decimal256"):
                 # need to be less than minimal allowed digits of pa.decimal128
                 precision = min(precision, 38)
             decimal_cls = getattr(pa, "decimal256") if precision > 38 else pa.decimal128
             col_type = decimal_cls(precision, scale)
-        elif isinstance(odps_type, types.Struct):
+        elif isinstance(odps_type, odps_types.Struct):
             fields = [
                 (k, odps_type_to_arrow_type(v))
                 for k, v in odps_type.field_types.items()
@@ -86,6 +84,8 @@ def odps_type_to_arrow_type(odps_type):
             col_type = pa.struct(fields)
         elif isinstance(odps_type, odps_types.IntervalDayTime):
             col_type = pa.struct([("sec", pa.int64()), ("nano", pa.int32())])
+        elif isinstance(odps_type, (odps_types.Char, odps_types.Varchar)):
+            col_type = pa.string()
         else:
             raise TypeError("Unsupported type: {}".format(odps_type))
     return col_type
@@ -102,8 +102,6 @@ def odps_schema_to_arrow_schema(odps_schema):
 
 
 def arrow_type_to_odps_type(arrow_type):
-    from ... import types
-
     arrow_decimal_types = (pa.Decimal128Type,)
     if hasattr(pa, "Decimal256Type"):
         arrow_decimal_types += (pa.Decimal256Type,)
@@ -112,33 +110,31 @@ def arrow_type_to_odps_type(arrow_type):
         col_type = _ARROW_TO_ODPS_TYPE[arrow_type]
     else:
         if isinstance(arrow_type, pa.ListType):
-            col_type = types.Array(arrow_type_to_odps_type(arrow_type.value_type))
+            col_type = odps_types.Array(arrow_type_to_odps_type(arrow_type.value_type))
         elif isinstance(arrow_type, pa.MapType):
-            col_type = types.Map(
+            col_type = odps_types.Map(
                 arrow_type_to_odps_type(arrow_type.key_type),
                 arrow_type_to_odps_type(arrow_type.item_type),
             )
         elif isinstance(arrow_type, arrow_decimal_types):
-            precision = arrow_type.precision or types.Decimal._default_precision
-            scale = arrow_type.scale or types.Decimal._default_scale
-            col_type = types.Decimal(precision, scale)
+            precision = arrow_type.precision or odps_types.Decimal._default_precision
+            scale = arrow_type.scale or odps_types.Decimal._default_scale
+            col_type = odps_types.Decimal(precision, scale)
         elif isinstance(arrow_type, pa.StructType):
             fields = [
                 (arrow_type[idx].name, arrow_type_to_odps_type(arrow_type[idx].type))
                 for idx in range(arrow_type.num_fields)
             ]
-            col_type = types.Struct(fields)
+            col_type = odps_types.Struct(fields)
         else:
             raise TypeError("Unsupported type: {}".format(arrow_type))
     return col_type
 
 
 def arrow_schema_to_odps_schema(arrow_schema):
-    from ... import types
-
     odps_cols = []
     for col_name, pa_type in zip(arrow_schema.names, arrow_schema.types):
         col_type = arrow_type_to_odps_type(pa_type)
-        odps_cols.append(types.Column(col_name, col_type))
+        odps_cols.append(odps_types.Column(col_name, col_type))
 
-    return types.OdpsSchema(odps_cols)
+    return odps_types.OdpsSchema(odps_cols)

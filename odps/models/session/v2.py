@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,10 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import re
 
-from ...errors import ODPSError
+from ... import errors, serializers
 from ...rest import RestClient
+from ..quota import Quota
 
 _inst_url_regex = re.compile("/instances(?:$|/)")
 
@@ -44,43 +46,93 @@ class McqaV2RestClient(RestClient):
         return super(McqaV2RestClient, self).is_ok(resp)
 
 
+class MCQAConnectionInfo(serializers.JSONSerializableModel):
+    conn_info = serializers.JSONNodeField("connInfo")
+    quota_nick_name = serializers.JSONNodeField("quotaNickName")
+    quota_type = serializers.JSONNodeField(
+        "quotaType",
+        parse_callback=lambda x: Quota.ResourceSystemType(x.upper()) if x else None,
+    )
+
+
 class McqaV2Methods(object):
     @classmethod
     def _patch_odps(cls, odps):
         odps._quota_to_mcqa_odps = getattr(odps, "_quota_to_mcqa_odps", {})
 
     @classmethod
-    def _load_mcqa_conn(cls, odps, quota_name):
-        from ...core import ODPS
+    def _init_mcqa_quota_by_connection_api(cls, odps, quota_name=None, project=None):
+        conn_params = {"project": project or odps.project}
+        if quota_name:
+            conn_params["quota"] = quota_name
+        resp = odps.rest.get(
+            odps.endpoint.rstrip("/") + "/connection/mcqa", params=conn_params
+        )
+        info = MCQAConnectionInfo()
+        info = info.parse(resp, obj=info)
+        return info
 
-        cls._patch_odps(odps)
-        if quota_name in odps._quota_to_mcqa_odps:
-            return odps._quota_to_mcqa_odps[quota_name]
-
+    @classmethod
+    def _init_mcqa_quota_by_quota_api(cls, odps, quota_name=None):
         maxqa_quota = odps.get_quota(
             quota_name, tenant_id=odps.default_tenant.tenant_id
         )
         conn_header = maxqa_quota.mcqa_conn_header
         if conn_header is None:
-            raise ODPSError(
+            raise errors.ODPSError(
                 "x-odps-mcqa-conn not available with quota %s" % maxqa_quota._name(),
                 request_id=maxqa_quota._last_reload_request_id,
             )
+        return MCQAConnectionInfo(
+            conn_info=conn_header,
+            quota_nick_name=maxqa_quota.nickname,
+            quota_type=maxqa_quota.resource_system_type,
+        )
+
+    @classmethod
+    def _init_mcqa_quota(cls, odps, quota_name=None, project=None):
+        try:
+            return cls._init_mcqa_quota_by_connection_api(odps, quota_name, project)
+        except (errors.MethodNotAllowed, errors.NoSuchObject, errors.InvalidParameter):
+            return cls._init_mcqa_quota_by_quota_api(odps, quota_name)
+
+    @classmethod
+    def _load_mcqa_conn(cls, odps, quota_name, project=None):
+        from ...core import ODPS
+
+        cls._patch_odps(odps)
+        project = project or odps.project
+        if quota_name in odps._quota_to_mcqa_odps:
+            return odps._quota_to_mcqa_odps[quota_name]
+
+        quota_info = cls._init_mcqa_quota(odps, quota_name, project)
 
         odps._quota_to_mcqa_odps[quota_name] = ODPS(
             account=odps.account,
-            project=odps.project,
+            project=project,
             endpoint=odps.endpoint,
             rest_client_cls=McqaV2RestClient,
-            rest_client_kwargs={"conn_header": conn_header},
+            rest_client_kwargs={"conn_header": quota_info.conn_info},
         )
         return odps._quota_to_mcqa_odps[quota_name]
 
     @classmethod
     def run_sql_interactive(cls, odps, sql, hints=None, quota_name=None, **kwargs):
         cls._patch_odps(odps)
-        mcqa_odps = cls._load_mcqa_conn(odps, quota_name)
-        return mcqa_odps.run_sql(sql, hints=hints, **kwargs)
+        mcqa_odps = cls._load_mcqa_conn(odps, quota_name, project=kwargs.get("project"))
+        fallback = kwargs.pop("fallback", None)
+        if not fallback:
+            extra_headers = None
+        else:
+            offline_quota_name = kwargs.pop("offline_quota_name", None)
+            fb_info = {"Fallback": "true"}
+            if offline_quota_name:
+                fb_info["FallBackQuota"] = offline_quota_name
+            header_txt = json.dumps(fb_info)
+            extra_headers = {"x-odps-fallback-infos": header_txt}
+        return mcqa_odps.run_sql(
+            sql, hints=hints, extra_headers=extra_headers, **kwargs
+        )
 
     @classmethod
     def execute_sql_interactive(cls, odps, sql, hints=None, quota_name=None, **kwargs):

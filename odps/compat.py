@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -136,6 +136,15 @@ if six.PY3:
         from distutils.version import LooseVersion as Version
 
     from threading import Semaphore
+
+    try:
+        from html import unescape as html_unescape
+    except ImportError:  # pragma: no cover
+        from html.parser import HTMLParser
+
+        def html_unescape(s):
+            return HTMLParser().unescape(s)
+
 else:
     lrange = range
     lzip = zip
@@ -225,6 +234,11 @@ else:
                     self.__value -= 1
                     rc = True
             return rc
+
+    from HTMLParser import HTMLParser
+
+    def html_unescape(s):
+        return HTMLParser().unescape(s)
 
 
 if LESS_PY32:
@@ -391,6 +405,7 @@ __all__ = [
     "datetime_utcnow",
     "decimal",
     "dictconfig",
+    "html_unescape",
     "logging.config",
     "parse_qsl",
     "parsedate_to_datetime",

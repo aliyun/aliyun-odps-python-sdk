@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -66,13 +66,16 @@ except ImportError:
 try:
     from .src.utils_c import (
         CMillisecondsConverter,
+        ceildiv,
         to_binary,
         to_lower_str,
         to_str,
         to_text,
     )
 except ImportError:
-    CMillisecondsConverter = to_str = to_text = to_binary = to_lower_str = None
+    CMillisecondsConverter = None
+    to_str = to_text = to_binary = to_lower_str = None
+    ceildiv = lambda a, b: -(-a // b)
 
 TEMP_TABLE_PREFIX = "tmp_pyodps_"
 if six.PY3:  # make flake8 happy
@@ -597,9 +600,9 @@ def str_to_bool(s):
     if isinstance(s, bool) or s is None:
         return s
     s = s.lower().strip()
-    if s == "true":
+    if s in ("true", "1"):
         return True
-    elif s == "false":
+    elif s in ("false", "0"):
         return False
     else:
         raise ValueError(s)
@@ -1020,23 +1023,90 @@ def thread_local_attribute(thread_local_name, default_value=None):
 
 
 def call_with_retry(func, *args, **kwargs):
+    """
+    Execute a function with retry logic in case of exceptions.
+
+    This function attempts to call the provided function with given arguments,
+    and retries the call if exceptions occur, according to the specified
+    retry parameters.
+
+    Parameters
+    ----------
+    func : callable
+        The function to execute with retry logic.
+    *args : tuple
+        Positional arguments to pass to the function.
+    **kwargs : dict
+        Keyword arguments to pass to the function. Special keyword arguments
+        controlling the retry behavior are extracted and handled internally:
+
+        retry_times : int, optional
+            Maximum number of retry attempts (default comes from options.retry_times).
+        retry_timeout : float, optional
+            Maximum time in seconds to spend retrying (default is None, meaning no timeout).
+        delay : float, optional
+            Delay in seconds between retries (default comes from options.retry_delay). If
+            delay_backoff_factor is set, this parameter is ignored.
+        delay_backoff_factor : float, optional
+            Factor by which the delay increases after each retry (default is None).
+        delay_backoff_max : float, optional
+            Maximum delay in seconds when using exponential backoff (default is None).
+        reset_func : callable, optional
+            Function to call before each retry attempt to reset state.
+        on_exception_func : callable, optional
+            Function to call when an exception occurs; receives the exception as argument.
+        exc_type : Exception class or callable, optional
+            Type of exception to catch, or a callable that determines if an exception
+            should be retried (default is BaseException).
+        allow_interrupt : bool, optional
+            Whether to allow KeyboardInterrupt to interrupt the retry loop (default is True).
+        no_raise : bool, optional
+            If True, suppress exceptions and return sys.exc_info() instead of raising (default is False).
+
+    Returns
+    -------
+    object
+        The return value of the executed function.
+
+    Raises
+    ------
+    Exception
+        Re-raises the last exception encountered if all retry attempts fail
+        and no_raise is False.
+    """
     retry_num = 0
     retry_times = kwargs.pop("retry_times", options.retry_times)
     retry_timeout = kwargs.pop("retry_timeout", None)
     delay = kwargs.pop("delay", options.retry_delay)
+    delay_backoff_factor = kwargs.pop("delay_backoff_factor", None)
+    delay_backoff_max = kwargs.pop("delay_backoff_max", 120)
     reset_func = kwargs.pop("reset_func", None)
     on_exception_func = kwargs.pop("on_exception_func", None)
     exc_type = kwargs.pop("exc_type", BaseException)
     allow_interrupt = kwargs.pop("allow_interrupt", True)
     no_raise = kwargs.pop("no_raise", False)
 
+    exc_type_func = None
+    if not isinstance(exc_type, BaseException) and callable(exc_type):
+        exc_type_func, exc_type = exc_type, BaseException
+
     start_time = monotonic() if retry_timeout is not None else None
     while True:
         try:
             return func(*args, **kwargs)
         except exc_type as ex:
+            if exc_type_func is not None and not exc_type_func(ex):
+                if not callable(on_exception_func) or on_exception_func(ex):
+                    raise
+                return sys.exc_info()
             retry_num += 1
-            time.sleep(delay)
+            if delay_backoff_factor and delay_backoff_max:
+                cur_delay = min(
+                    delay_backoff_factor * 2 ** (retry_num - 1), delay_backoff_max
+                )
+            else:
+                cur_delay = delay
+            time.sleep(cur_delay)
             if allow_interrupt and isinstance(ex, KeyboardInterrupt):
                 raise
             if (retry_times is not None and retry_num > retry_times) or (
@@ -1053,6 +1123,7 @@ def call_with_retry(func, *args, **kwargs):
         except Exception as ex:
             if not callable(on_exception_func) or on_exception_func(ex):
                 raise
+            return sys.exc_info()
 
 
 def get_id(n):
@@ -1135,10 +1206,14 @@ def split_sql_by_semicolon(sql_statement):
     """
     sql_statement = sql_statement.replace("\r\n", "\n").replace("\r", "\n")
     left_brackets = {"}": "{", "]": "[", ")": "("}
+    if isinstance(sql_statement, six.text_type):
+        cat_ch, newline_ch = u"", u"\n"
+    else:
+        cat_ch, newline_ch = b"", b"\n"
 
     def cut_statement(stmt_start, stmt_end=None):
         stmt_end = stmt_end or len(sql_statement)
-        stmt_writer = compat.StringIO()
+        stmt_parts = []
 
         left = stmt_start
         has_statement = False
@@ -1149,17 +1224,17 @@ def split_sql_by_semicolon(sql_statement):
                 break
 
             segment = sql_statement[left:comm_start]
-            stmt_writer.write(segment)
+            stmt_parts.append(segment)
             if segment.strip():
                 has_statement = True
 
             if has_statement:
-                stmt_writer.write(sql_statement[comm_start:comm_end])
+                stmt_parts.append(sql_statement[comm_start:comm_end])
             left = comm_end
 
-        stmt_writer.write(sql_statement[left:stmt_end])
-        return "\n".join(
-            line.rstrip() for line in stmt_writer.getvalue().splitlines()
+        stmt_parts.append(sql_statement[left:stmt_end])
+        return newline_ch.join(
+            line.rstrip() for line in cat_ch.join(stmt_parts).splitlines()
         ).strip()
 
     start, pos = 0, 0

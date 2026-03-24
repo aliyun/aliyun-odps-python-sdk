@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -312,3 +312,9 @@ cpdef str to_lower_str(s, encoding="utf-8"):
         return <str>(to_text(s, encoding).lower())
     else:
         return <str>(to_binary(s, encoding).lower())
+
+
+@cython.nonecheck(False)
+@cython.cdivision(True)
+cpdef long long ceildiv(long long x, long long y) nogil:
+    return x // y + (x % y != 0)

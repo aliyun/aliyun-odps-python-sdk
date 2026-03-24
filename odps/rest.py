@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -56,16 +56,12 @@ try:
 except ImportError:
     pass
 
-try:
-    from urllib3.util import Retry
-except ImportError:
-    try:
-        from requests.packages.urllib3.util import Retry
-    except ImportError:
-        Retry = None
-
-
 logger = logging.getLogger(__name__)
+
+_RETRY_BACKOFF_FACTOR = 0.1
+_RETRY_METHODS = ("GET", "HEAD", "DELETE")
+_RETRY_STATUS_FORCELIST = [502, 503, 504]
+_RETRY_BACKOFF_MAX = 120
 
 _default_user_agent = None
 
@@ -185,21 +181,10 @@ class RestClient(object):
         except KeyError:
             pass
 
-        try:
-            retries = Retry(
-                total=options.retry_times,
-                backoff_factor=0.1,
-                allowed_methods={"DELETE", "GET", "HEAD"},
-                status_forcelist=[502, 503, 504],
-            )
-        except:
-            retries = options.retry_times
-
         parsed_url = urlparse(self._endpoint)
         adapter_options = dict(
             pool_connections=options.pool_connections,
             pool_maxsize=options.pool_maxsize,
-            max_retries=retries,
         )
         if parsed_url.scheme == "http+unix":
             session = requests_unixsocket.Session()
@@ -228,7 +213,7 @@ class RestClient(object):
         while True:
             kwargs["region_name"] = sign_region_name
             try:
-                return self._request(url, method, stream=stream, **kwargs)
+                return self._request_with_retry(url, method, stream=stream, **kwargs)
             except errors.InternalServerError as ex:
                 ex_msg = str(ex).lower()
                 if sign_region_name is None or all(
@@ -268,6 +253,25 @@ class RestClient(object):
                 self.account.reload(True)
                 auth_expire_retried = True
 
+    def _request_with_retry(self, url, method, stream=False, **kwargs):
+        def exc_filter(ex):
+            if method.upper() not in _RETRY_METHODS or not isinstance(
+                ex, errors.ODPSError
+            ):
+                return False
+            return ex.status_code in _RETRY_STATUS_FORCELIST
+
+        return utils.call_with_retry(
+            self._request,
+            url,
+            method,
+            stream=stream,
+            exc_type=exc_filter,
+            delay_backoff_factor=_RETRY_BACKOFF_FACTOR,
+            delay_backoff_max=_RETRY_BACKOFF_MAX,
+            **kwargs
+        )
+
     def _request(self, url, method, stream=False, **kwargs):
         self.upload_survey_log()
 
@@ -280,7 +284,8 @@ class RestClient(object):
                 logger.debug("%s: %s", k, v)
 
         # Construct user agent without handling the letter case.
-        headers = kwargs.get("headers", {})
+        headers = dict(options.custom_headers or {})
+        headers.update(kwargs.get("headers", {}))
         headers = {k: str(v) for k, v in six.iteritems(headers)}
         headers["User-Agent"] = self._user_agent
         if self.namespace:

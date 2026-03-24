@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -114,7 +114,7 @@ class SpawnedInstanceReaderMixin(object):
                 logger.exception("Failed to write in process %d", idx)
                 raise
 
-    def _get_process_split_reader(self, columns=None, append_partitions=None):  # noqa
+    def _get_split_reader(self, columns=None, append_partitions=None):  # noqa
         rest_client = self._parent._client
         project = self._parent.project.name
         tunnel_endpoint = self._parent.project._tunnel_endpoint

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -40,7 +40,7 @@ except ImportError:
 from .. import errors
 from .. import types as odps_types
 from .. import utils
-from ..compat import Iterable, six
+from ..compat import Iterable, futures, six
 from ..config import options
 from ..dag import DAG
 from ..lib import cloudpickle
@@ -146,15 +146,20 @@ class SpawnedTableReaderMixin(object):
                         return reader.to_pandas()
 
             data = utils.call_with_retry(_data_to_pandas)
-            conn.send((idx, data, True))
+            if conn is not None:
+                conn.send((idx, data, True))
+            else:
+                return idx, data
         except:
+            if conn is None:
+                raise
             try:
                 conn.send((idx, sys.exc_info(), False))
             except:
-                logger.exception("Failed to write in process %d", idx)
+                logger.exception("Failed to send exception back in process %d", idx)
                 raise
 
-    def _get_process_split_reader(self, columns=None, append_partitions=None):
+    def _get_split_reader(self, columns=None, append_partitions=None):
         rest_client = self._parent._client
         table_name = self._parent.name
         schema_name = self._parent.get_schema()
@@ -1160,6 +1165,47 @@ class TableIOMethods(object):
         return parted_data
 
     @classmethod
+    def _write_table_in_threads(cls, writer, data, n_threads=1):
+        if (
+            n_threads > 1
+            and (not pa or not isinstance(data, (pa.Table, pa.RecordBatch)))
+            and (not pd or not isinstance(data, pd.DataFrame))
+        ):
+            warnings.warn("Only supports multi-threaded upload for pandas or pyarrow")
+            n_threads = 1
+
+        group_rows = None
+        if pd and isinstance(data, pd.DataFrame):
+            n_threads = min(n_threads, len(data))
+            group_rows = utils.ceildiv(len(data), n_threads)
+        elif pa and isinstance(data, (pa.Table, pa.RecordBatch)):
+            n_threads = min(n_threads, data.num_rows)
+            group_rows = utils.ceildiv(data.num_rows, n_threads)
+        else:
+            n_threads = 1
+
+        if n_threads == 1:
+            writer.write(data)
+            return
+
+        futs = []
+        pool = futures.ThreadPoolExecutor(n_threads)
+        assert group_rows is not None
+        if pd and isinstance(data, pd.DataFrame):
+            splits = [
+                data.iloc[i : i + group_rows] for i in range(0, len(data), group_rows)
+            ]
+        else:
+            assert pa and isinstance(data, (pa.Table, pa.RecordBatch))
+            splits = [
+                data.slice(i, group_rows) for i in range(0, data.num_rows, group_rows)
+            ]
+        for sp in splits:
+            futs.append(pool.submit(writer.write, sp))
+        for fut in futs:
+            fut.result()
+
+    @classmethod
     def write_table(cls, odps, name, *block_data, **kw):
         """
         Write records or pandas DataFrame into given table.
@@ -1258,6 +1304,7 @@ class TableIOMethods(object):
         append_missing_cols = kw.pop("append_missing_cols", False)
         infer_type_with_arrow = kw.pop("infer_type_with_arrow", False)
         overwrite = kw.pop("overwrite", False)
+        n_threads = kw.pop("n_threads", None) or 1
 
         single_block_types = (Iterable,)
         if pa is not None:
@@ -1413,7 +1460,7 @@ class TableIOMethods(object):
             ) as writer:
                 if blocks is None:
                     for data in data_list:
-                        writer.write(data)
+                        cls._write_table_in_threads(writer, data, n_threads=n_threads)
                 else:
                     for block, data in zip(blocks, data_list):
                         writer.write(block, data)

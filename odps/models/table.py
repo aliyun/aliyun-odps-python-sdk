@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -1014,6 +1014,8 @@ class Table(XMLLazyLoad):
 
         on_exception = kw.pop("on_exception", None)
         buffered = kw.pop("buffered", False)
+        if "partition_spec" in kw and partition is None:
+            partition = kw.pop("partition_spec")
 
         if self.is_transactional and self.primary_key:
             # currently acid 2.0 table can only be read through select statement
@@ -1123,6 +1125,9 @@ class Table(XMLLazyLoad):
 
         from ..tunnel.tabletunnel import TableUploadSession
 
+        if "partition_spec" in kw and partition is None:
+            partition = kw.pop("partition_spec")
+
         if partition and not isinstance(partition, odps_types.PartitionSpec):
             partition = odps_types.PartitionSpec(partition)
         if create_partition and not self.exist_partition(partition):
@@ -1195,6 +1200,7 @@ class Table(XMLLazyLoad):
         start=None,
         count=None,
         n_process=1,
+        n_thread=1,
         quota_name=None,
         append_partitions=None,
         tags=None,
@@ -1231,7 +1237,9 @@ class Table(XMLLazyLoad):
             tags=tags,
             **kwargs
         ) as reader:
-            return reader.to_pandas(start=start, count=count, n_process=n_process)
+            return reader.to_pandas(
+                start=start, count=count, n_process=n_process, n_thread=n_thread
+            )
 
     def iter_pandas(
         self,

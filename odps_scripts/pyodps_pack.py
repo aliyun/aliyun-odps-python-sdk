@@ -1,4 +1,18 @@
 #!/usr/bin/env python
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from __future__ import print_function
 
 import argparse
@@ -558,7 +572,10 @@ def _copy_to_workdir(src_path, work_dir):
     path_base_name = os.path.basename(src_path.rstrip("/").rstrip("\\"))
     dest_dir = os.path.join(work_dir, "build", path_base_name)
 
-    shutil.copytree(src_path, dest_dir)
+    if os.path.isdir(src_path):
+        shutil.copytree(src_path, dest_dir)
+    else:
+        shutil.copyfile(src_path, dest_dir)
 
 
 def _find_source_vcs_root(package_path):
@@ -589,6 +606,7 @@ def _copy_package_paths(
     remained = []
     rel_dirs = []
     for package_path in package_paths or ():
+        package_path = os.path.expanduser(package_path)
         if find_vcs_root:
             real_root, rel_install_path = _find_source_vcs_root(package_path)
         else:
@@ -596,11 +614,11 @@ def _copy_package_paths(
             rel_install_path = os.path.basename(package_path.rstrip("/"))
         rel_dirs.append(rel_install_path)
 
-        base_name = os.path.basename(real_root.rstrip("/").rstrip("\\"))
+        src_path = real_root.rstrip("/").rstrip("\\")
         abs_path = os.path.abspath(real_root)
         if not skip_user_path or not abs_path.startswith(os.path.expanduser("~")):
             # not on user path, copy it into build path
-            _copy_to_workdir(base_name, work_dir)
+            _copy_to_workdir(src_path, work_dir)
         else:
             remained.append(abs_path)
     return remained, rel_dirs

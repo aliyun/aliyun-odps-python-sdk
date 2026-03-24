@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,8 +19,9 @@ import email.header
 import textwrap
 import time
 
-from .. import utils
-from ..serializers import *
+from .. import serializers, utils
+from ..config import option_context
+from ..models.tasks.core import format_cdata
 
 expected_xml_template = """<?xml version="1.0" encoding="utf-8"?>
 <Example type="ex">
@@ -75,8 +76,23 @@ LIST_OBJ_LAST_TMPL = """<?xml version="1.0" ?>
 </objs>
 """
 
+DATA_WITH_BODY_TMPL = """<?xml version="1.0" encoding="utf-8"?>
+<DataWithBody>
+  <Body><![CDATA[{text_to_repl};]]></Body>
+</DataWithBody>
+"""
+DATA_WITH_BODY_TMPL2 = """<?xml version="1.0" encoding="utf-8"?>
+<DataWithBody><Body><![CDATA[{text_to_repl};]]></Body></DataWithBody>
+""".strip()
 
-class Example(XMLSerializableModel):
+DATA_WITH_BODY_LEGACY = """<?xml version="1.0" encoding="utf-8"?>
+<DataWithBody>
+  <Body><![CDATA['"content"';]]></Body>
+</DataWithBody>
+"""
+
+
+class Example(serializers.XMLSerializableModel):
     __slots__ = (
         "name",
         "type",
@@ -93,16 +109,16 @@ class Example(XMLSerializableModel):
 
     _root = "Example"
 
-    class Teacher(XMLSerializableModel):
-        name = XMLNodeField("Name")
-        tag = XMLTagField(".")
+    class Teacher(serializers.XMLSerializableModel):
+        name = serializers.XMLNodeField("Name")
+        tag = serializers.XMLTagField(".")
 
         def __eq__(self, other):
             return isinstance(other, Example.Teacher) and self.name == other.name
 
-    class Student(XMLSerializableModel):
-        name = XMLNodeAttributeField(attr="name")
-        content = XMLNodeField(".")
+    class Student(serializers.XMLSerializableModel):
+        name = serializers.XMLNodeAttributeField(attr="name")
+        content = serializers.XMLNodeField(".")
 
         def __eq__(self, other):
             return (
@@ -111,37 +127,39 @@ class Example(XMLSerializableModel):
                 and self.content == other.content
             )
 
-    class Json(JSONSerializableModel):
+    class Json(serializers.JSONSerializableModel):
         __slots__ = "label", "tags", "nest", "nests"
 
-        class Nest(JSONSerializableModel):
-            name = JSONNodeField("name")
+        class Nest(serializers.JSONSerializableModel):
+            name = serializers.JSONNodeField("name")
 
             def __eq__(self, other):
                 return isinstance(other, Example.Json.Nest) and self.name == other.name
 
-        label = JSONNodeField("label")
-        tags = JSONNodesField("tags", "tag")
-        nest = JSONNodeReferenceField(Nest, "nest")
-        nests = JSONNodesReferencesField(Nest, "nests", "nest")
+        label = serializers.JSONNodeField("label")
+        tags = serializers.JSONNodesField("tags", "tag")
+        nest = serializers.JSONNodeReferenceField(Nest, "nest")
+        nests = serializers.JSONNodesReferencesField(Nest, "nests", "nest")
 
-    name = XMLNodeField("Name")
-    type = XMLNodeAttributeField(".", attr="type")
-    date = XMLNodeField("Created", type="rfc822l")
-    bool_true = XMLNodeField("Enabled", type="bool")
-    bool_false = XMLNodeField("Disabled", type="bool")
-    lessons = XMLNodesField("Lessons", "Lesson")
-    teacher = XMLNodeReferenceField(Teacher, "Teacher")
-    student = XMLNodeReferenceField(Student, "Student")
-    professors = XMLNodesReferencesField(Teacher, "Professors", "Professor")
-    properties = XMLNodePropertiesField(
+    name = serializers.XMLNodeField("Name")
+    type = serializers.XMLNodeAttributeField(".", attr="type")
+    date = serializers.XMLNodeField("Created", type="rfc822l")
+    bool_true = serializers.XMLNodeField("Enabled", type="bool")
+    bool_false = serializers.XMLNodeField("Disabled", type="bool")
+    lessons = serializers.XMLNodesField("Lessons", "Lesson")
+    teacher = serializers.XMLNodeReferenceField(Teacher, "Teacher")
+    student = serializers.XMLNodeReferenceField(Student, "Student")
+    professors = serializers.XMLNodesReferencesField(Teacher, "Professors", "Professor")
+    properties = serializers.XMLNodePropertiesField(
         "Config", "Property", key_tag="Name", value_tag="Value"
     )
-    properties2 = XMLNodePropertiesField(
+    properties2 = serializers.XMLNodePropertiesField(
         "Config2", "Property", key_attr="name", value_tag="Value"
     )
-    properties3 = XMLNodePropertiesField("Config3", "Property", key_attr="name")
-    jsn = XMLNodeReferenceField(Json, "json")
+    properties3 = serializers.XMLNodePropertiesField(
+        "Config3", "Property", key_attr="name"
+    )
+    jsn = serializers.XMLNodeReferenceField(Json, "json")
 
 
 def test_serializers():
@@ -241,11 +259,11 @@ def test_property_override():
         else:
             return LIST_OBJ_TMPL % (marker, marker)
 
-    class Objs(XMLSerializableModel):
+    class Objs(serializers.XMLSerializableModel):
         skip_null = False
 
-        marker = XMLNodeField("marker")
-        obj = XMLNodeField("obj")
+        marker = serializers.XMLNodeField("marker")
+        obj = serializers.XMLNodeField("obj")
 
     objs = Objs()
     i = 1
@@ -256,3 +274,32 @@ def test_property_override():
         i += 1
 
     assert i == 3
+
+
+def test_cdata_unescape():
+    class DataWithBody(serializers.XMLSerializableModel):
+        _root = "DataWithBody"
+
+        body = serializers.XMLNodeField(
+            "Body", serialize_callback=lambda x: format_cdata(x, True)
+        )
+
+    obj = DataWithBody(body="'&quot;content&quot;'")
+    assert obj.serialize() == DATA_WITH_BODY_TMPL.replace("{text_to_repl}", obj.body)
+
+    with option_context() as options_ctx:
+        options_ctx.use_legacy_xml_unescape = True
+        assert obj.serialize() == DATA_WITH_BODY_LEGACY
+
+    # long texts are not prettified
+    obj = DataWithBody(body="large_text" * (serializers._MAX_PRETTIFY_SIZE // 4))
+    assert obj.serialize().replace("'", '"') == DATA_WITH_BODY_TMPL2.replace(
+        "{text_to_repl}", obj.body
+    )
+
+    with option_context() as options_ctx:
+        # still prettified with legacy option
+        options_ctx.use_legacy_xml_unescape = True
+        assert obj.serialize() == DATA_WITH_BODY_TMPL.replace(
+            "{text_to_repl}", obj.body
+        )

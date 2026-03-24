@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -392,7 +392,7 @@ def test_partition_to_pandas(odps):
 
 
 @pandas_case
-def test_multi_process_to_pandas(odps):
+def test_to_pandas_with_spawn(odps):
     from ...tunnel.tabletunnel import TableDownloadSession
 
     if pa is None:
@@ -410,6 +410,9 @@ def test_multi_process_to_pandas(odps):
     with table.open_reader() as reader:
         pd_data = reader.to_pandas(n_process=2)
         assert len(pd_data) == 1000
+    with table.open_reader() as reader:
+        pd_data = reader.to_pandas(n_thread=2)
+        assert len(pd_data) == 1000
 
     original_meth = TableDownloadSession.open_record_reader
 
@@ -418,19 +421,45 @@ def test_multi_process_to_pandas(odps):
             raise ValueError("Intentional error")
         return original_meth(self, start, *args, **kwargs)
 
-    with pytest.raises(ValueError):
-        with mock.patch(
-            "odps.tunnel.tabletunnel.TableDownloadSession.open_record_reader",
-            new=patched,
-        ):
-            with table.open_reader() as reader:
-                reader.to_pandas(n_process=2)
+    with pytest.raises(ValueError), mock.patch(
+        "odps.tunnel.tabletunnel.TableDownloadSession.open_record_reader",
+        new=patched,
+    ):
+        with table.open_reader() as reader:
+            reader.to_pandas(n_process=2)
+    with pytest.raises(ValueError), mock.patch(
+        "odps.tunnel.tabletunnel.TableDownloadSession.open_record_reader",
+        new=patched,
+    ):
+        with table.open_reader() as reader:
+            reader.to_pandas(n_thread=2)
 
     with table.open_reader(arrow=True) as reader:
         pd_data = reader.to_pandas(n_process=2)
         assert len(pd_data) == 1000
 
     table.drop()
+
+
+@pandas_case
+def test_multi_process_to_pandas_parted(odps):
+    if pa is None:
+        pytest.skip("Need pyarrow to run the test.")
+
+    test_table_name = tn("pyodps_t_tmp_mproc_read_table_parted")
+    schema = TableSchema.from_lists(["num"], ["bigint"], ["pt"], ["string"])
+
+    odps.delete_table(test_table_name, if_exists=True)
+
+    table = odps.create_table(test_table_name, schema, lifecycle=1)
+    with table.open_writer(
+        partition_spec="pt=20250213", arrow=True, create_partition=True
+    ) as writer:
+        writer.write(pd.DataFrame({"num": np.random.randint(0, 1000, 1000)}))
+
+    with table.open_reader(partition_spec="pt=20250213", arrow=True) as reader:
+        pd_data = reader.to_pandas(n_process=2)
+        assert len(pd_data) == 1000
 
 
 @pandas_case
@@ -750,6 +779,7 @@ def test_multi_process_pool_write(odps):
 @pandas_case
 @pyarrow_case
 @pytest.mark.parametrize("data_mode", ["pd", "pd_ext", "pd_arrow", "arrow"])
+@odps2_typed_case
 def test_write_table_with_pandas_or_arrow(odps, data_mode):
     if data_mode == "pd_ext" and (
         not hasattr(pd, "StringDtype") or not hasattr(pd, "Int64Dtype")
@@ -763,8 +793,13 @@ def test_write_table_with_pandas_or_arrow(odps, data_mode):
 
     data = pd.DataFrame(
         pd.DataFrame(
-            [["falcon", 2, 2], ["dog", 4, 0], ["cat", 4, 0], ["ant", 6, 0]],
-            columns=["names", "num_legs", "num_wings"],
+            [
+                ["falcon", 2, pd.Timestamp("2025-04-03 11:32:21.231451247")],
+                ["dog", 4, pd.Timestamp("2025-04-03 09:12:21.231451247")],
+                ["cat", 4, pd.Timestamp("2025-04-03 13:37:21.231451247")],
+                ["ant", 6, pd.Timestamp("2025-04-05 12:32:21.231451247")],
+            ],
+            columns=["names", "num_legs", "timestamp"],
         )
     )
 
@@ -780,7 +815,6 @@ def test_write_table_with_pandas_or_arrow(odps, data_mode):
                 {
                     "names": pd.StringDtype(),
                     "num_legs": pd.Int64Dtype(),
-                    "num_wings": pd.Int64Dtype(),
                 }
             )
         elif data_mode == "pd_arrow":
@@ -1073,9 +1107,12 @@ def test_write_pandas_with_decimal(odps):
     )
 
     try:
-        odps.write_table(test_table_name, data)
+        odps.write_table(test_table_name, data, n_threads=2)
         fetched = odps.get_table(test_table_name).to_pandas()
-        pd.testing.assert_frame_equal(fetched.applymap(str), data)
+        pd.testing.assert_frame_equal(
+            fetched.applymap(str).sort_values("idx").reset_index(drop=True),
+            data.sort_values("idx").reset_index(drop=True),
+        )
     finally:
         table.drop()
 
@@ -1372,6 +1409,23 @@ def test_write_table_with_generate_cols_and_parts(odps_daily):
     assert tb.exist_partition(pt_spec)
     with tb.open_reader(pt_spec) as reader:
         assert reader.count == 5
+
+
+@pandas_case
+def test_write_empty_to_existing_table(odps):
+    test_table_name = tn("pyodps_t_tmp_write_empty_to_existing_table")
+    odps.delete_table(test_table_name, if_exists=True)
+    tb = odps.create_table(
+        test_table_name,
+        "c1 bigint, c2 string, c3 double, c4 datetime",
+        lifecycle=1,
+    )
+    try:
+        df = pd.DataFrame([[None] * 4] * 5, columns=["c1", "c2", "c3", "c4"])
+        odps.write_table(test_table_name, df)
+        pd.testing.assert_frame_equal(tb.to_pandas(), df, check_dtype=False)
+    finally:
+        tb.drop()
 
 
 def test_write_sql_to_simple_table(odps):

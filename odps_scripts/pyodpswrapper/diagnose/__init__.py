@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,8 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-version_info = (0, 12, 6)
-_num_index = max(idx if isinstance(v, int) else 0 for idx, v in enumerate(version_info))
-__version__ = ".".join(map(str, version_info[: _num_index + 1])) + "".join(
-    version_info[_num_index + 1 :]
+from .diagnose import (
+    config_warning_messages,
+    diagnose_exit_code,
+    diagnose_pyodps_errors,
+    log_dev_project_warning,
+    log_python2_deprecation_warning,
+    log_reload_usage_warning,
+    log_replaced_vars,
 )

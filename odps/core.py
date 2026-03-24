@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -34,12 +34,14 @@ CATALOG_API_ENDPOINT_DEFAULT = "https://catalogapi.{region}.maxcompute.aliyun.co
 _ALTER_TABLE_REGEX = re.compile(
     r"^\s*(drop|alter)\s+table\s*(|if\s+exists)\s+(?P<table_name>[^\s;]+)", re.I
 )
+_SET_HINTS_REGEX = re.compile(r"set\s+([a-z0-9\.]+)\s*=\s*([^;]+)", re.I)
 _ENDPOINT_HOST_WITH_REGION_REGEX = re.compile(
     r"service\.([^\.]+)\.([a-z]{4,10})\.[a-z]{6}(|-inc)\.com", re.I
 )
 
 _logview_host_cache = dict()
 _jobinsight_host_cache = dict()
+_catalog_host_cache = dict()
 
 
 def _wrap_model_func(func):
@@ -116,10 +118,10 @@ class ODPS(object):
         schema = utils.strip_if_str(schema)
         logview_host = utils.strip_if_str(logview_host)
         tunnel_endpoint = utils.strip_if_str(tunnel_endpoint)
-        catalog_endpoint = utils.strip_if_str(catalog_endpoint)
-        region_name = utils.strip_if_str(region_name)
-        quota_name = utils.strip_if_str(quota_name)
-        namespace = utils.strip_if_str(namespace)
+        catalog_endpoint = utils.strip_if_str(catalog_endpoint) or None
+        region_name = utils.strip_if_str(region_name) or None
+        quota_name = utils.strip_if_str(quota_name) or None
+        namespace = utils.strip_if_str(namespace) or None
 
         if isinstance(access_id, accounts.BaseAccount):
             assert (
@@ -184,7 +186,7 @@ class ODPS(object):
         )
         self.region_name = (
             region_name
-            or os.getenv("ODPS_REGION_NAME")
+            or (os.getenv("ODPS_REGION_NAME") or None)
             or self._get_region_from_endpoint(self.endpoint)
         )
         self.namespace = (
@@ -193,9 +195,9 @@ class ODPS(object):
         self._quota_name = kw.pop("quota_name", None)
         self._schema = schema
 
-        rest_client_cls = kw.pop("rest_client_cls", None) or RestClient
-        rest_client_kwargs = kw.pop("rest_client_kwargs", {})
-        self.rest = rest_client_cls(
+        self._rest_client_cls = kw.pop("rest_client_cls", None) or RestClient
+        self._rest_client_kwargs = kw.pop("rest_client_kwargs", {})
+        self.rest = self._rest_client_cls(
             self.account,
             self.endpoint,
             project,
@@ -205,45 +207,26 @@ class ODPS(object):
             region_name=self.region_name,
             namespace=self.namespace,
             tag="ODPS",
-            **rest_client_kwargs
+            **self._rest_client_kwargs
         )
 
         self._tunnel_endpoint = (
             kw.pop("tunnel_endpoint", None)
             or options.tunnel.endpoint
-            or os.getenv("ODPS_TUNNEL_ENDPOINT")
+            or (os.getenv("ODPS_TUNNEL_ENDPOINT") or None)
         )
 
         self._catalog_endpoint = (
             kw.pop("catalog_endpoint", None)
             or options.catalog.endpoint
-            or os.getenv("ODPS_CATALOG_ENDPOINT")
-            or (
-                CATALOG_API_ENDPOINT_DEFAULT.format(region=self.region_name)
-                if self.region_name and CATALOG_API_ENDPOINT_DEFAULT
-                else None
-            )
+            or (os.getenv("ODPS_CATALOG_ENDPOINT") or None)
         )
-        if self._catalog_endpoint is None:
-            self.catalog_rest = None
-        else:
-            self.catalog_rest = rest_client_cls(
-                self.account,
-                self._catalog_endpoint.rstrip("/"),
-                project,
-                schema,
-                app_account=self.app_account,
-                proxy=options.api_proxy,
-                region_name=self.region_name,
-                namespace=self.namespace,
-                tag="Catalog",
-                **rest_client_kwargs
-            )
+        self._catalog_rest = None
 
         self._logview_host = (
             kw.pop("logview_host", None)
             or options.logview_host
-            or os.getenv("ODPS_LOGVIEW_HOST")
+            or (os.getenv("ODPS_LOGVIEW_HOST") or None)
             or self.get_logview_host()
         )
         self._job_insight_host = (
@@ -446,6 +429,35 @@ class ODPS(object):
         for cb in self._property_update_callbacks:
             cb(self)
 
+    @property
+    def catalog_endpoint(self):
+        if self._catalog_endpoint is not None:
+            return self._catalog_endpoint
+        self._catalog_endpoint = self.get_catalog_host()
+        return self._catalog_endpoint
+
+    @property
+    def catalog_rest(self):
+        if self._catalog_rest is not None:
+            return self._catalog_rest
+
+        if self.catalog_endpoint is None:
+            self._catalog_rest = None
+        else:
+            self._catalog_rest = self._rest_client_cls(
+                self.account,
+                self.catalog_endpoint.rstrip("/"),
+                self.project,
+                self.schema,
+                app_account=self.app_account,
+                proxy=options.api_proxy,
+                region_name=self.region_name,
+                namespace=self.namespace,
+                tag="Catalog",
+                **self._rest_client_kwargs
+            )
+        return self._catalog_rest
+
     def list_projects(
         self,
         owner=None,
@@ -525,8 +537,9 @@ class ODPS(object):
             the schema specified in ODPS object
         :return: the right project
         :rtype: :class:`odps.models.Project`
-        :raise: :class:`odps.errors.NoSuchObject` if not exists
 
+        .. note:: if the project does not exist, no errors will be raised unless
+            ``reload`` method is called or some field of the object is accessed.
         .. seealso:: :class:`odps.models.Project`
         """
 
@@ -697,8 +710,9 @@ class ODPS(object):
         :param str schema: schema name, if not provided, will be the default schema
         :return: the right table
         :rtype: :class:`odps.models.Table`
-        :raise: :class:`odps.errors.NoSuchObject` if not exists
 
+        .. note:: if the table does not exist, no errors will be raised unless
+            ``reload`` method is called or some field of the object is accessed.
         .. seealso:: :class:`odps.models.Table`
         """
 
@@ -940,8 +954,9 @@ class ODPS(object):
         :param str schema: schema name, if not provided, will be the default schema
         :return: the right resource
         :rtype: :class:`odps.models.Resource`
-        :raise: :class:`odps.errors.NoSuchObject` if not exists
 
+        .. note:: if the resource does not exist, no errors will be raised unless
+            ``reload`` method is called or some field of the object is accessed.
         .. seealso:: :class:`odps.models.Resource`
         """
 
@@ -1118,8 +1133,9 @@ class ODPS(object):
         :param str project: project name, if not provided, will be the default project
         :param str schema: schema name, if not provided, will be the default schema
         :return: the right function
-        :raise: :class:`odps.errors.NoSuchObject` if not exists
 
+        .. note:: if the function does not exist, no errors will be raised unless
+            ``reload`` method is called or some field of the object is accessed.
         .. seealso:: :class:`odps.models.Function`
         """
 
@@ -1249,8 +1265,9 @@ class ODPS(object):
         :param project: project name, if not provided, will be the default project
         :return: the right instance
         :rtype: :class:`odps.models.Instance`
-        :raise: :class:`odps.errors.NoSuchObject` if not exists
 
+        .. note:: if the instance does not exist, no errors will be raised unless
+            ``reload`` method is called or some field of the object is accessed.
         .. seealso:: :class:`odps.models.Instance`
         """
 
@@ -1368,7 +1385,21 @@ class ODPS(object):
         .. seealso:: :class:`odps.models.Instance`
         """
         on_instance_create = kwargs.pop("on_instance_create", None)
+        extra_headers = kwargs.pop("extra_headers", None)
         sql = utils.to_text(sql)
+
+        if options.sql.parse_set_as_hints and _SET_HINTS_REGEX.search(sql):
+            code_hints = {}
+            try:
+                for sql_part in utils.split_sql_by_semicolon(sql):
+                    set_match = _SET_HINTS_REGEX.match(sql_part.strip())
+                    if set_match:
+                        hint, val = set_match.group(1), set_match.group(2)
+                        code_hints[hint.strip()] = val.strip()
+                code_hints.update(hints or {})
+                hints = code_hints
+            except Exception as ex:
+                warnings.warn("Failed to parse hints from SQL: %s" % ex, RuntimeWarning)
 
         alter_table_match = _ALTER_TABLE_REGEX.match(sql)
         if alter_table_match:
@@ -1426,6 +1457,7 @@ class ODPS(object):
                 running_cluster=running_cluster,
                 unique_identifier_id=unique_identifier_id,
                 create_callback=on_instance_create,
+                extra_headers=extra_headers,
             )
         except errors.ParseError as ex:
             ex.statement = sql
@@ -1935,8 +1967,9 @@ class ODPS(object):
         :param project: project name, if not provided, will be the default project
         :return: xflow
         :rtype: :class:`odps.models.XFlow`
-        :raise: :class:`odps.errors.NoSuchObject` if not exists
 
+        .. note:: if the xflow does not exist, no errors will be raised unless
+            ``reload`` method is called or some field of the object is accessed.
         .. seealso:: :class:`odps.models.XFlow`
         """
 
@@ -2121,7 +2154,9 @@ class ODPS(object):
         :param project: project name, if not provided, will be the default project
         :return: offline model
         :rtype: :class:`odps.models.ml.OfflineModel`
-        :raise: :class:`odps.errors.NoSuchObject` if not exists
+
+        .. note:: if the model does not exist, no errors will be raised unless
+            ``reload`` method is called or some field of the object is accessed.
         """
 
         project = self.get_project(name=project)
@@ -2193,7 +2228,9 @@ class ODPS(object):
         :param str schema: schema name, if not provided, will be the default schema
         :return: model
         :rtype: :class:`odps.models.ml.Model`
-        :raise: :class:`odps.errors.NoSuchObject` if not exists
+
+        .. note:: if the model does not exist, no errors will be raised unless
+            ``reload`` method is called or some field of the object is accessed.
         """
         parent = self._get_project_or_schema(project, schema)
         return parent.models[name]
@@ -2245,6 +2282,27 @@ class ODPS(object):
         if jobinsight_host:
             _jobinsight_host_cache[self.endpoint] = jobinsight_host
         return jobinsight_host
+
+    def get_catalog_host(self):
+        if self.endpoint in _catalog_host_cache:
+            return _catalog_host_cache[self.endpoint]
+
+        try:
+            catalog_host = utils.to_str(
+                self.rest.get(self.endpoint + "/catalogapi").content
+            )
+        except:
+            catalog_host = None
+
+        if not catalog_host:
+            catalog_host = (
+                CATALOG_API_ENDPOINT_DEFAULT.format(region=self.region_name)
+                if self.region_name and CATALOG_API_ENDPOINT_DEFAULT
+                else None
+            )
+        if catalog_host:
+            _catalog_host_cache[self.endpoint] = catalog_host
+        return catalog_host
 
     def _get_job_insight_from_request(self):
         try:
@@ -2543,8 +2601,10 @@ class ODPS(object):
         try:
             project = os.getenv("ODPS_PROJECT_NAME")
             endpoint = os.environ["ODPS_ENDPOINT"]
-            tunnel_endpoint = os.getenv("ODPS_TUNNEL_ENDPOINT")
-            namespace = os.getenv("ODPS_NAMESPACE")
+            tunnel_endpoint = os.getenv("ODPS_TUNNEL_ENDPOINT") or None
+            catalog_endpoint = os.getenv("ODPS_CATALOG_ENDPOINT") or None
+            namespace = os.getenv("ODPS_NAMESPACE") or None
+            region_name = os.getenv("ODPS_REGION_NAME") or None
             return cls(
                 None,
                 None,
@@ -2553,6 +2613,8 @@ class ODPS(object):
                 endpoint=endpoint,
                 tunnel_endpoint=tunnel_endpoint,
                 namespace=namespace,
+                region_name=region_name,
+                catalog_endpoint=catalog_endpoint,
             )
         except KeyError:
             return None

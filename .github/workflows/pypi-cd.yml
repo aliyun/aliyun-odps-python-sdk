@@ -38,7 +38,7 @@ jobs:
           CIBW_MANYLINUX_X86_64_IMAGE: manylinux1
           CIBW_MANYLINUX_AARCH64_IMAGE: manylinux2014
 
-      - name: "Build wheels (Python >= 3.9)"
+      - name: "Build wheels (Python >= 3.9, <3.13)"
         uses: pypa/cibuildwheel@v2.16.5
         env:
           CIBW_BEFORE_BUILD: git reset --hard && pip install --prefer-binary -r requirements-wheel.txt && rm -rf pyproject.toml
@@ -46,6 +46,16 @@ jobs:
           CIBW_SKIP: pp* *-musllinux* *i686 cp36-* cp37-* cp38-*
           CIBW_MANYLINUX_X86_64_IMAGE: manylinux2014
           CIBW_MANYLINUX_AARCH64_IMAGE: manylinux2014
+
+      - name: "Build wheels (Python >= 3.13)"
+        uses: pypa/cibuildwheel@v3.4.0
+        env:
+          # allow building with cython on Windows
+          CIBW_BEFORE_BUILD: git reset --hard && bash .github/workflows/allow-cython-in-windows.sh
+          CIBW_ARCHS: ${{ matrix.arch }}
+          CIBW_SKIP: "*-musllinux* *i686 cp38-* cp39-* cp310-* cp311-* cp312-* cp313t-* cp314t-*"
+          CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
+          CIBW_MANYLINUX_AARCH64_IMAGE: manylinux_2_28
 
       - name: Install Python
         uses: actions/setup-python@v4

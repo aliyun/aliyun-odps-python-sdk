@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -76,6 +76,7 @@ def parse_response(resp, endpoint=None, tag=None):
             host_id=host_id,
             endpoint=endpoint,
             tag=tag,
+            status_code=resp.status_code,
             response_headers=resp.headers,
         )
     except:
@@ -87,22 +88,39 @@ def parse_response(resp, endpoint=None, tag=None):
         msg = "Not found error reported by server."
         if endpoint:
             msg += " Endpoint %s might be malfunctioning." % endpoint
-        return NoSuchObject(msg, endpoint=endpoint, tag=tag)
+        return NoSuchObject(
+            msg, endpoint=endpoint, tag=tag, status_code=resp.status_code
+        )
     elif resp.status_code == 401:
-        return Unauthorized("Unauthorized.", endpoint=endpoint, tag=tag)
+        return Unauthorized(
+            "Unauthorized.", endpoint=endpoint, tag=tag, status_code=resp.status_code
+        )
     else:
         text = resp.content.decode() if six.PY3 else resp.content
         if text:
             if resp.status_code == 502 and _nginx_bad_gateway_message in text:
                 return BadGatewayError(
-                    text, code=str(resp.status_code), endpoint=endpoint, tag=tag
+                    text,
+                    code=str(resp.status_code),
+                    endpoint=endpoint,
+                    tag=tag,
+                    status_code=resp.status_code,
                 )
             else:
                 return ODPSError(
-                    text, code=str(resp.status_code), endpoint=endpoint, tag=tag
+                    text,
+                    code=str(resp.status_code),
+                    endpoint=endpoint,
+                    tag=tag,
+                    status_code=resp.status_code,
                 )
         else:
-            return ODPSError(str(resp.status_code), endpoint=endpoint, tag=tag)
+            return ODPSError(
+                str(resp.status_code),
+                endpoint=endpoint,
+                tag=tag,
+                status_code=resp.status_code,
+            )
 
 
 def throw_if_parsable(resp, endpoint=None, tag=None):
@@ -189,6 +207,7 @@ class BaseODPSError(Exception):
         endpoint=None,
         tag=None,
         response_headers=None,
+        status_code=None,
     ):
         super(BaseODPSError, self).__init__(msg)
         self.request_id = request_id
@@ -197,6 +216,7 @@ class BaseODPSError(Exception):
         self.host_id = host_id
         self.endpoint = endpoint
         self.tag = tag
+        self.status_code = status_code
 
     def __str__(self):
         message = self.args[0]

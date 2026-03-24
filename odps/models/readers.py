@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,7 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ..compat import six
+import sys
+import threading
+
+from ..compat import futures, six
 from ..config import options
 from ..errors import ODPSClientError
 from ..lib.tblib import pickling_support
@@ -27,18 +30,12 @@ class TunnelReaderMixin(object):
     def count(self):
         raise NotImplementedError
 
-    def _to_pandas_with_processes(
-        self, start=None, count=None, columns=None, append_partitions=None, n_process=1
+    def _spawn_reader_in_process(
+        self, session_id, start, split_count, split_id, **get_split_reader_kw
     ):
         import multiprocessing
         from multiprocessing import Pipe
 
-        import pandas as pd
-
-        session_id = self._download_session.id
-        start = start or 0
-        count = count or self._download_session.count
-        count = min(count, self._download_session.count - start)
         try:
             _mp_context = multiprocessing.get_context("fork")
         except ValueError:
@@ -47,38 +44,97 @@ class TunnelReaderMixin(object):
             # for py27 compatibility
             _mp_context = multiprocessing
 
-        n_process = min(count, n_process)
-        split_count = count // n_process + (count % n_process != 0)
-        conns = []
-        for i in range(n_process):
-            parent_conn, child_conn = Pipe()
+        parent_conn, child_conn = Pipe()
 
-            p = _mp_context.Process(
-                target=self._get_process_split_reader(
-                    columns=columns, append_partitions=append_partitions
-                ),
-                args=(child_conn, session_id, start, split_count, i),
+        p = _mp_context.Process(
+            target=self._get_split_reader(**get_split_reader_kw),
+            args=(child_conn, session_id, start, split_count, split_id),
+        )
+        p.start()
+
+        def waiter():
+            try:
+                idx, data, is_success = parent_conn.recv()
+            except EOFError:
+                six.raise_from(
+                    ODPSClientError(
+                        "Read process ended unexpectedly. Try finding errors "
+                        "outputed above."
+                    ),
+                    None,
+                )
+            if not is_success:
+                six.reraise(*data)
+            return idx, data
+
+        return waiter
+
+    def _spawn_reader_in_thread(
+        self, session_id, start, split_count, split_id, **get_split_reader_kw
+    ):
+        fut = futures.Future()
+
+        def thread_runner():
+            func = self._get_split_reader(**get_split_reader_kw)
+            try:
+                fut.set_result(func(None, session_id, start, split_count, split_id))
+            except:
+                ex_info = sys.exc_info()
+                if sys.version_info[0] == 2:
+                    fut.set_exception_info(ex_info[1], ex_info[2])
+                else:
+                    fut.set_exception(ex_info[1])
+
+        thread = threading.Thread(target=thread_runner)
+        thread.start()
+        return fut.result
+
+    def _to_pandas_with_spawn(
+        self,
+        start=None,
+        count=None,
+        columns=None,
+        append_partitions=None,
+        n_process=1,
+        n_thread=1,
+    ):
+        import pandas as pd
+
+        if n_process > 1 and n_thread > 1:
+            raise ODPSClientError(
+                "Tunnel reader does not support multiprocessing with multiple threads."
             )
-            p.start()
+        elif n_thread > 1:
+            spawn_func = self._spawn_reader_in_thread
+        else:
+            spawn_func = self._spawn_reader_in_process
+
+        session_id = self._download_session.id
+        start = start or 0
+        count = count or self._download_session.count
+        count = min(count, self._download_session.count - start)
+
+        n_spawn = min(count, max(n_process, n_thread))
+        split_count = count // n_spawn + (count % n_spawn != 0)
+        waiters = []
+        for i in range(n_spawn):
+            waiters.append(
+                spawn_func(
+                    session_id,
+                    start,
+                    split_count,
+                    i,
+                    columns=columns,
+                    append_partitions=append_partitions,
+                )
+            )
             start += split_count
-            conns.append(parent_conn)
 
-        try:
-            results = [c.recv() for c in conns]
-        except EOFError:
-            six.raise_from(
-                ODPSClientError(
-                    "Read process ended unexpectedly. Try finding errors outputed above."
-                ),
-                None,
-            )
+        results = [waiter() for waiter in waiters]
         splits = sorted(results, key=lambda x: x[0])
-        if any(not d[2] for d in splits):
-            exc_info = next(d[1] for d in splits if not d[2])
-            six.reraise(*exc_info)
         return pd.concat([d[1] for d in splits]).reset_index(drop=True)
 
-    def _get_process_split_reader(self, columns=None, append_partitions=None):
+    def _get_split_reader(self, columns=None, append_partitions=None):
         raise NotImplementedError
 
     def _open_and_iter_reader(
@@ -222,7 +278,13 @@ class TunnelRecordReader(TunnelReaderMixin, AbstractRecordReader):
             yield record
 
     def to_pandas(
-        self, start=None, count=None, columns=None, append_partitions=None, n_process=1
+        self,
+        start=None,
+        count=None,
+        columns=None,
+        append_partitions=None,
+        n_process=1,
+        n_thread=1,
     ):
         columns = columns or self._column_names
         append_partitions = (
@@ -232,7 +294,7 @@ class TunnelRecordReader(TunnelReaderMixin, AbstractRecordReader):
         )
         if not append_partitions and columns is None:
             columns = [c.name for c in self.schema.simple_columns]
-        if n_process == 1 or self._download_session.count == 0:
+        if (n_process == 1 and n_thread == 1) or self._download_session.count == 0:
             return super(TunnelRecordReader, self).to_pandas(
                 start=start,
                 count=count,
@@ -240,12 +302,13 @@ class TunnelRecordReader(TunnelReaderMixin, AbstractRecordReader):
                 append_partitions=append_partitions,
             )
         else:
-            return self._to_pandas_with_processes(
+            return self._to_pandas_with_spawn(
                 start=start,
                 count=count,
                 columns=columns,
                 append_partitions=append_partitions,
                 n_process=n_process,
+                n_thread=n_thread,
             )
 
     def __enter__(self):
@@ -372,7 +435,13 @@ class TunnelArrowReader(TunnelReaderMixin):
             return reader.read()
 
     def to_pandas(
-        self, start=None, count=None, columns=None, append_partitions=None, n_process=1
+        self,
+        start=None,
+        count=None,
+        columns=None,
+        append_partitions=None,
+        n_process=1,
+        n_thread=1,
     ):
         start = start or 0
         count = count if count is not None else self.count - start
@@ -383,7 +452,7 @@ class TunnelArrowReader(TunnelReaderMixin):
             else self._append_partitions
         )
 
-        if n_process == 1:
+        if n_process == 1 and n_thread == 1:
             if count == 0:
                 from ..tunnel.io.types import odps_schema_to_arrow_schema
 
@@ -395,12 +464,13 @@ class TunnelArrowReader(TunnelReaderMixin):
             ) as reader:
                 return reader.to_pandas()
         else:
-            return self._to_pandas_with_processes(
+            return self._to_pandas_with_spawn(
                 start=start,
                 count=count,
                 columns=columns,
                 append_partitions=append_partitions,
                 n_process=n_process,
+                n_thread=n_thread,
             )
 
     def __enter__(self):

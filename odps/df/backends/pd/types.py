@@ -72,6 +72,8 @@ if np is not None:
 
     _np_to_df_types[np.dtype(np.bool_)] = types.boolean
     _np_to_df_types[np.dtype(np.str_)] = types.string
+    _np_to_df_types[np.dtype("<M8[ms]")] = types.datetime
+    _np_to_df_types[np.dtype("<M8[ns]")] = types.timestamp
 
     _df_to_np_types = dict((v, k) for k, v in six.iteritems(_np_to_df_types))
 

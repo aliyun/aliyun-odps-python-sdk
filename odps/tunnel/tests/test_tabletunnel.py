@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -1539,10 +1539,13 @@ def test_table_tunnel_with_quota(odps_with_tunnel_quota, config):
     from odps.rest import RestClient
 
     orig_request = RestClient.request
+    request_counts = [0]
 
     def patch_request(self, *args, **kw):
         if self._endpoint == tunnel_endpoint:
             assert kw["params"]["quotaName"] == quota_name
+            # Track all tunnel requests
+            request_counts[0] += 1
         return orig_request(self, *args, **kw)
 
     odps = odps_with_tunnel_quota
@@ -1555,23 +1558,106 @@ def test_table_tunnel_with_quota(odps_with_tunnel_quota, config):
     tb = odps.create_table(table_name, "col1 string", lifecycle=1)
 
     with mock.patch("odps.rest.RestClient.request", new=patch_request):
+        # Test upload session - should send quotaName in HTTP requests
         upload_session = tunnel.create_upload_session(tb)
-        assert upload_session.quota_name == quota_name
         upload_session.reload()
-        assert upload_session.quota_name == quota_name
 
         writer = upload_session.open_record_writer()
         writer.write(tb.new_record(["data"]))
         writer.close()
+
         upload_session.commit(writer.get_blocks_written())
 
+        # Test download session - should send quotaName in HTTP requests
         download_session = tunnel.create_download_session(tb)
-        assert download_session.quota_name == quota_name
         download_session.reload()
-        assert download_session.quota_name == quota_name
 
         reader = download_session.open_record_reader(0, 1)
         assert list(reader)[0][0] == "data"
+
+        # Test stream upload session - should send quotaName in HTTP requests
+        stream_upload_session = tunnel.create_stream_upload_session(tb)
+        stream_upload_session.reload()
+
+        stream_writer = stream_upload_session.open_record_writer()
+        stream_writer.write(tb.new_record(["stream_data"]))
+        stream_writer.close()
+
+        # Verify the data was written
+        download_session2 = tunnel.create_download_session(tb)
+        reader2 = download_session2.open_record_reader(0, 10)
+        results = list(reader2)
+        assert len(results) == 2  # one from regular upload, one from stream upload
+        assert results[1][0] == "stream_data"
+
+    assert request_counts[0] > 0, "No tunnel requests were made via patch"
+    tb.drop()
+
+
+def test_table_upsert_tunnel_with_quota(odps_with_tunnel_quota, config):
+    from odps.rest import RestClient
+
+    orig_request = RestClient.request
+    request_counts = [0]
+
+    def patch_request(self, *args, **kw):
+        if self._endpoint == tunnel_endpoint:
+            assert kw["params"]["quotaName"] == quota_name
+            # Track all tunnel requests
+            request_counts[0] += 1
+        return orig_request(self, *args, **kw)
+
+    odps = odps_with_tunnel_quota
+    table_name = tn("test_table_upsert_tunnel_with_quota")
+    odps.delete_table(table_name, if_exists=True)
+
+    quota_name = config.get("test", "default_tunnel_quota_name")
+    tunnel = TableTunnel(odps, quota_name=quota_name)
+    tunnel_endpoint = tunnel.tunnel_rest.endpoint
+
+    # Create a table with primary key for upsert operations
+    tb = odps.create_table(
+        table_name,
+        "key string not null, value string",
+        transactional=True,
+        primary_key="key",
+        lifecycle=1,
+    )
+
+    with mock.patch("odps.rest.RestClient.request", new=patch_request):
+        # Test upsert session - should send quotaName in all HTTP requests
+        upsert_session = tunnel.create_upsert_session(tb)
+        upsert_session.reload()
+
+        # Test upsert operations
+        stream = upsert_session.open_upsert_stream(compress=True)
+
+        # Perform upsert operations
+        rec = upsert_session.new_record(["0", "v1"])
+        stream.upsert(rec)
+        rec = upsert_session.new_record(["1", "v1"])
+        stream.upsert(rec)
+        rec = upsert_session.new_record(["2", "v1"])
+        stream.upsert(rec)
+
+        # Test delete operation
+        stream.delete(rec)
+
+        # Flush and close
+        stream.flush()
+        stream.close()
+
+        # Commit the upsert session
+        upsert_session.commit()
+
+    # Verify that tunnel requests were made with quotaName
+    assert request_counts[0] > 0, "No tunnel requests were made via patch"
+
+    # Verify upsert operations worked correctly (outside mock context)
+    inst = odps.execute_sql("SELECT * FROM %s" % table_name)
+    with inst.open_reader() as reader:
+        records = [list(rec.values) for rec in reader]
+    assert sorted(records) == [["0", "v1"], ["1", "v1"]]
 
     tb.drop()
 

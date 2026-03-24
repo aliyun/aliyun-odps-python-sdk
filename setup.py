@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -227,6 +227,7 @@ setup_options = dict(
         "console_scripts": [
             "pyou = odps_scripts.pyou:main",
             "pyodps-pack = odps_scripts.pyodps_pack:main",
+            "pyodpswrapper = odps_scripts.pyodpswrapper.__main__:main",
         ],
     },
 )

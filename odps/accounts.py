@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -523,7 +523,10 @@ class BearerTokenAccount(TempAccountMixin, BaseAccount):
             with open(token_file_name, "r") as token_file:
                 return token_file.read().strip()
         else:  # pragma: no cover
-            from cupid.runtime import RuntimeContext, context
+            try:
+                from cupid.runtime import RuntimeContext, context
+            except ImportError:
+                return
 
             if not RuntimeContext.is_context_ready():
                 return

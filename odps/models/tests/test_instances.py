@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -300,6 +300,13 @@ def test_create_instance(odps):
 
     instance = odps.execute_sql("select id `中文标题` from %s" % test_table)
     assert instance.is_successful() is True
+
+    instance = odps.execute_sql(
+        "set PARAM.KEY=VALUE; select id `中文标题` from %s" % test_table,
+        hints={"odps.sql.submit.mode": "script"},
+    )
+    assert instance.is_successful() is True
+    assert json.loads(instance.tasks[0].properties["settings"])["PARAM.KEY"] == "VALUE"
 
     instance = odps.execute_sql("drop table %s" % test_table)
     assert instance.is_successful() is True

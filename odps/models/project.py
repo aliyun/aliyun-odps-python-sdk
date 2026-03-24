@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -73,13 +73,6 @@ class Project(XMLLazyLoad):
     class Cluster(XMLRemoteModel):
         name = serializers.XMLNodeField("Name")
         quota_id = serializers.XMLNodeField("QuotaID")
-
-        @classmethod
-        def deserial(cls, content, obj=None, **kw):
-            ret = super(Project.Cluster, cls).deserial(content, obj=obj, **kw)
-            if not getattr(ret, "name", None) or not getattr(ret, "quota_id", None):
-                raise ValueError("Missing arguments: name or quotaID")
-            return ret
 
     class ExtendedProperties(XMLRemoteModel):
         _extended_properties = serializers.XMLNodePropertiesField(

@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,7 +24,11 @@ from xml.dom import minidom
 import requests
 
 from . import utils
-from .compat import BytesIO, ElementTree, long_type, six
+from .compat import BytesIO, ElementTree, html_unescape, long_type, six
+from .config import options
+
+_CDATA_REGEX = re.compile(r"&lt;!\[CDATA\[.*\]\]&gt;", (re.M | re.S))
+_MAX_PRETTIFY_SIZE = 1024 * 100
 
 
 def _route_xml_path(root, *keys, **kw):
@@ -390,7 +394,12 @@ class SerializableModel(six.with_metaclass(SerializableModelMetaClass)):
         for attr, prop in six.iteritems(getattr(self, "__fields")):
             if isinstance(prop, SerializeField):
                 try:
-                    prop.serialize(root, object.__getattribute__(self, attr))
+                    if prop.set_to_parent:
+                        prop.serialize(
+                            root, object.__getattribute__(self._parent, attr)
+                        )
+                    else:
+                        prop.serialize(root, object.__getattribute__(self, attr))
                 except NotImplementedError:
                     continue
 
@@ -418,20 +427,10 @@ class XMLSerializableModel(SerializableModel):
             response = response.content.decode() if six.PY3 else response.content
         return cls.deserial(response, obj=obj, **kw)
 
-    def serialize(self):
-        root = self.serial()
-
-        sio = BytesIO()
-        ElementTree.ElementTree(root).write(sio, encoding="utf-8", xml_declaration=True)
-        xml_content = sio.getvalue()
-
-        prettified_xml = minidom.parseString(xml_content).toprettyxml(
-            indent=" " * 2, encoding="utf-8"
-        )
-        prettified_xml = utils.to_text(prettified_xml, encoding="utf-8")
-
-        cdata_re = re.compile(r"&lt;!\[CDATA\[.*\]\]&gt;", (re.M | re.S))
-        for src_cdata in cdata_re.finditer(prettified_xml):
+    @classmethod
+    def _restore_cdata_legacy(cls, src_xml):
+        # potential issue exists: &quot; in CDATA section might be unescaped twice
+        for src_cdata in _CDATA_REGEX.finditer(src_xml):
             src_cdata = src_cdata.group(0)
             dest_cdata = (
                 src_cdata.replace("&amp;", "&")
@@ -439,9 +438,55 @@ class XMLSerializableModel(SerializableModel):
                 .replace("&quot;", '"')
                 .replace("&gt;", ">")
             )
-            prettified_xml = prettified_xml.replace(src_cdata, dest_cdata)
+            src_xml = src_xml.replace(src_cdata, dest_cdata)
+        return src_xml.replace("&quot;", '"')
 
-        return prettified_xml.replace("&quot;", '"')
+    @classmethod
+    def _restore_cdata(cls, src_xml):
+        segments = []
+        last_pos = 0
+        for src_cdata in _CDATA_REGEX.finditer(src_xml):
+            group_start, group_end = src_cdata.span()
+            # unquote &quot; outside cdata
+            segments.append(src_xml[last_pos:group_start].replace("&quot;", '"'))
+            last_pos = group_end
+
+            src_cdata = src_cdata.group(0)
+            # unescape with html_unescape to ensure correct unescape behavior
+            dest_cdata = html_unescape(src_cdata)
+            segments.append(dest_cdata)
+        # unquote &quot; in rest part of data
+        segments.append(src_xml[last_pos:].replace("&quot;", '"'))
+        return "".join(segments)
+
+    def serialize(self):
+        root = self.serial()
+
+        sio = BytesIO()
+        ElementTree.ElementTree(root).write(sio, encoding="utf-8", xml_declaration=True)
+        xml_content = sio.getvalue()
+
+        prettified_xml = None
+        if (
+            not options.use_legacy_xml_unescape
+            and len(xml_content) > _MAX_PRETTIFY_SIZE
+        ):
+            try:
+                prettified_xml = utils.to_text(xml_content, encoding="utf-8")
+            except:
+                # we fall back to legacy behavior to reparse and prettify
+                pass
+
+        if prettified_xml is None:
+            prettified_xml = minidom.parseString(xml_content).toprettyxml(
+                indent=" " * 2, encoding="utf-8"
+            )
+            prettified_xml = utils.to_text(prettified_xml, encoding="utf-8")
+
+        if options.use_legacy_xml_unescape:
+            return self._restore_cdata_legacy(prettified_xml)
+        else:
+            return self._restore_cdata(prettified_xml)
 
 
 class JSONSerializableModel(SerializableModel):

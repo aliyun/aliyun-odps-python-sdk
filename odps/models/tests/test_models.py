@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -306,3 +306,43 @@ def test_model_versions_contains_model_object(mock_client, model_versions_contai
     assert mock_model in model_versions_container
     # Should not call _get or reload since we're passing a Model object directly
     mock_model.reload.assert_called_once()
+
+
+def test_model_parse_with_inference_parameters(mock_client):
+    """Test Model object with inferenceParameters field containing roleArn and maxframe"""
+    model = Model(
+        client=mock_client,
+        name="test_model",
+        version_name="v1",
+        inference_parameters={
+            "roleArn": "acs:ram::1234567890123456:role/test-role",
+            "maxframe": '{"temperature": 0.7, "maxTokens": 2048, "topP": 0.9}',
+        },
+    )
+
+    assert model.name == "test_model"
+    assert model.version_name == "v1"
+    assert (
+        model.inference_parameters["roleArn"]
+        == "acs:ram::1234567890123456:role/test-role"
+    )
+    assert (
+        model.inference_parameters["maxframe"]
+        == '{"temperature": 0.7, "maxTokens": 2048, "topP": 0.9}'
+    )
+
+
+def test_model_parse_without_inference_parameters(mock_client):
+    """Test Model object without inferenceParameters field (default None)"""
+    model = Model(
+        client=mock_client,
+        name="test_model",
+        version_name="v1",
+        description="Test model",
+    )
+
+    with patch.object(model, "reload"):
+        assert model.name == "test_model"
+        assert model.version_name == "v1"
+        assert model.inference_parameters is None
+        assert model.description == "Test model"

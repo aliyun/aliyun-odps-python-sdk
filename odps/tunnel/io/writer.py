@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -908,10 +908,14 @@ class BaseArrowWriter(object):
                     )
 
                 if isinstance(tp, pa.TimestampType):
+                    col = column_dict[lower_name]
+                    if not isinstance(col.type, pa.TimestampType):
+                        col = col.cast(pa.timestamp(tp.unit))
+
                     if self._schema[lower_name].type == types.timestamp_ntz:
-                        col = self._localize_timezone(column_dict[lower_name], "UTC")
+                        col = self._localize_timezone(col, "UTC")
                     else:
-                        col = self._localize_timezone(column_dict[lower_name])
+                        col = self._localize_timezone(col)
                     column_dict[lower_name] = col.cast(
                         pa.timestamp(tp.unit, col.type.tz)
                     )

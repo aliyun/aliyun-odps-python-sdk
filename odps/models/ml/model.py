@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -33,9 +33,9 @@ class ModelFieldSchema(serializers.JSONSerializableModel):
     type_category = serializers.JSONNodeField("typeCategory")
     mode = serializers.JSONNodeField(
         "mode",
-        parse_callback=lambda s: ModelFieldSchema.ModelFieldSchemaMode(s.upper())
-        if s is not None
-        else None,
+        parse_callback=lambda s: (
+            ModelFieldSchema.ModelFieldSchemaMode(s.upper()) if s is not None else None
+        ),
     )
     fields = serializers.JSONNodesReferencesField("ModelFieldSchema", "fields")
     description = serializers.JSONNodeField("description")
@@ -70,9 +70,11 @@ class ModelFieldSchema(serializers.JSONSerializableModel):
             field_name=odps_column.name,
             type_definition=str(odps_column.type),
             type_category=type(odps_column.type).__name__,
-            mode=ModelFieldSchema.ModelFieldSchemaMode.NULLABLE
-            if odps_column.nullable
-            else ModelFieldSchema.ModelFieldSchemaMode.REQUIRED,
+            mode=(
+                ModelFieldSchema.ModelFieldSchemaMode.NULLABLE
+                if odps_column.nullable
+                else ModelFieldSchema.ModelFieldSchemaMode.REQUIRED
+            ),
             description=odps_column.comment,
             default_value_expression=str(odps_column._generate_expression),
         )
@@ -124,9 +126,9 @@ class Model(JSONLazyLoad):
     )
     source_type = serializers.JSONNodeField(
         "sourceType",
-        parse_callback=lambda s: Model.ModelSourceType(s.upper())
-        if s is not None
-        else None,
+        parse_callback=lambda s: (
+            Model.ModelSourceType(s.upper()) if s is not None else None
+        ),
     )
     type = serializers.JSONNodeField(
         "modelType",
@@ -135,10 +137,14 @@ class Model(JSONLazyLoad):
     _labels = serializers.JSONNodeField("labels")
     path = serializers.JSONNodeField("path", default=None)
     options = serializers.JSONNodeField("options", default=None)
+    inference_parameters = serializers.JSONNodeField(
+        "inferenceParameters", default=None
+    )
     training_info = serializers.JSONNodeField("trainingInfo", default=None)
     _feature_columns = serializers.JSONNodeReferenceField(
         ModelFieldSchema, "featureColumns", default=None
     )
+    tasks = serializers.JSONNodeField("tasks", default=None)
 
     def __repr__(self):
         return "<Model %s version_name=%s>" % (self.name, self.version_name)
