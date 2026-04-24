@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -272,6 +272,8 @@ if BaseTunnelRecordReader is None:
                 val = self._map_dict_hook(zip(keys, values))
             elif isinstance(data_type, types.Struct):
                 val = self._read_struct(data_type)
+            elif isinstance(data_type, types.Vector):
+                val = self._read_vector(data_type)
             else:
                 raise IOError("Unsupported type %s" % data_type)
             return val
@@ -299,6 +301,31 @@ if BaseTunnelRecordReader is None:
                 )
             else:
                 return value_type.namedtuple_type(*res_list)
+
+        def _read_vector(self, data_type):
+            dim = self._reader.read_uint32()
+
+            if dim != data_type.dimension:
+                raise ValueError(
+                    "Vector dimension mismatch: expected %d, got %d"
+                    % (data_type.dimension, dim)
+                )
+
+            result = []
+            for _ in range(dim):
+                elem = self._read_field(data_type.element_type)
+                result.append(elem)
+
+            # Convert to numpy array if available
+            try:
+                import numpy as np
+
+                dtype = (
+                    np.float32 if data_type.element_type == types.float_ else np.float64
+                )
+                return np.array(result, dtype=dtype)
+            except ImportError:
+                return result
 
         def _read_single_record(self):
             if (

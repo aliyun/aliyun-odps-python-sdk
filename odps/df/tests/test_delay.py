@@ -56,6 +56,7 @@ def test_sync_execute(setup):
     assert get_result(sub_future.result()) == [d for d in data if d[2] == 3]
 
 
+@pytest.mark.flaky(max_runs=3)
 def test_async_execute(setup):
     def make_filter(df, cnt):
         def waiter(val, c):

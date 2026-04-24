@@ -16,13 +16,15 @@
 import datetime
 import os
 import sys
+import threading
 import traceback
 
 from ..envs import is_production
 from ..utils import CODE_FILE_NAME, suspend_option_errors, truncate_traceback
 from .messages import *
 
-_tunnel_session_create_timeout_displayed = [False]
+_tunnel_session_create_timeout_displayed = False
+_tunnel_session_create_timeout_displayed_lock = threading.RLock()
 _change_time_threshold_days = 35
 
 
@@ -153,7 +155,7 @@ def diagnose_pyodps_errors(code, exc, tb, logger):
     elif isinstance(exc, (requests.ReadTimeout, requests.ConnectTimeout)) or (
         isinstance(exc, requests.ConnectionError) and "timed out" in exc_str
     ):
-        if not _tunnel_session_create_timeout_displayed[0]:
+        if not _tunnel_session_create_timeout_displayed:
             extra_help_msg = REQUESTS_TIMEOUT_MSG
     elif "bizdate" in exc_str and isinstance(exc, ValueError):
         extra_help_msg = SCHEDULE_ARGS_MSG
@@ -189,12 +191,15 @@ def config_warning_messages(logger):
     from odps import options
 
     def _show_read_timeout_message(*_):
-        if not _tunnel_session_create_timeout_displayed[0]:
+        if not _tunnel_session_create_timeout_displayed:
             logger.error(TUNNEL_TIMEOUT_MSG)
 
     def _show_tunnel_session_create_timeout_message(*_):
-        _tunnel_session_create_timeout_displayed[0] = True
-        logger.error(TUNNEL_SESSION_CREATE_TIMEOUT_MSG)
+        global _tunnel_session_create_timeout_displayed
+        with _tunnel_session_create_timeout_displayed_lock:
+            if not _tunnel_session_create_timeout_displayed:
+                _tunnel_session_create_timeout_displayed = True
+                logger.error(TUNNEL_SESSION_CREATE_TIMEOUT_MSG)
 
     def _on_create_tunnel_session(tunnel_obj):
         from odps.tunnel.instancetunnel import InstanceDownloadSession

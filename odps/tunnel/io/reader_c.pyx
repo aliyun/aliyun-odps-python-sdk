@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ cimport cython
 import decimal
 import json
 import sys
+import threading
 import warnings
 from collections import OrderedDict
 
@@ -28,7 +29,7 @@ from libc.string cimport *
 from ...lib.monotonic import monotonic
 
 from ...src.types_c cimport BaseRecord
-from ...src.utils_c cimport CMillisecondsConverter, to_date
+from ...src.utils_c cimport CMillisecondsConverter, to_date, _load_pandas_type, _load_numpy
 from ..checksum_c cimport Checksum
 from ..pb.decoder_c cimport CDecoder
 
@@ -70,10 +71,7 @@ cdef:
     int64_t ARRAY_TYPE_ID = types.Array._type_id
     int64_t MAP_TYPE_ID = types.Map._type_id
     int64_t STRUCT_TYPE_ID = types.Struct._type_id
-
-cdef:
-    object pd_timestamp = None
-    object pd_timedelta = None
+    int64_t VECTOR_TYPE_ID = types.Vector._type_id
 
 import_datetime()
 
@@ -394,6 +392,8 @@ cdef _build_field_reader(BaseTunnelRecordReader record_reader, object data_type)
         return MapFieldReader(record_reader, data_type)
     elif data_type_id == STRUCT_TYPE_ID:
         return StructFieldReader(record_reader, data_type)
+    elif data_type_id == VECTOR_TYPE_ID:
+        return VectorFieldReader(record_reader, data_type)
     elif isinstance(data_type, (types.Char, types.Varchar)):
         return StringFieldReader(record_reader)
     else:
@@ -537,12 +537,8 @@ cdef class BaseTimestampFieldReader(AbstractFieldReader):
             int64_t val
             int32_t nano_secs
 
-        global pd_timestamp, pd_timedelta
-
-        if pd_timestamp is None:
-            import pandas as pd
-            pd_timestamp = pd.Timestamp
-            pd_timedelta = pd.Timedelta
+        cdef object pd_timestamp = _load_pandas_type("Timestamp")
+        cdef object pd_timedelta = _load_pandas_type("Timedelta")
 
         val = self._record_reader._reader.read_sint64()
         self._record_reader._crc.c_update_long(val)
@@ -576,13 +572,7 @@ cdef class IntervalDayTimeFieldReader(AbstractFieldReader):
             int64_t val
             int32_t nano_secs
 
-        global pd_timestamp, pd_timedelta
-
-        if pd_timedelta is None:
-            import pandas as pd
-
-            pd_timestamp = pd.Timestamp
-            pd_timedelta = pd.Timedelta
+        cdef object pd_timedelta = _load_pandas_type("Timedelta")
 
         val = self._record_reader._reader.read_sint64()
         self._record_reader._crc.c_update_long(val)
@@ -695,6 +685,61 @@ cdef class StructFieldReader(AbstractFieldReader):
             return dict_hook(zip(self._field_keys, res_list))
         else:
             return self._nt_type(*res_list)
+
+
+cdef class VectorFieldReader(AbstractFieldReader):
+    need_validate = True
+    cdef:
+        AbstractFieldReader _element_reader
+        int _dimension
+        object _element_type
+
+    def __init__(self, BaseTunnelRecordReader record_reader, object data_type):
+        super(VectorFieldReader, self).__init__(record_reader)
+        self._element_reader = _build_field_reader(record_reader, data_type.element_type)
+        self._dimension = data_type.dimension
+        self._element_type = data_type.element_type
+
+    cdef _read_raw(self):
+        cdef:
+            uint32_t dim, idx
+            float f_val
+            double d_val
+            float[:] f_view
+            double[:] d_view
+
+        dim = self._record_reader._reader.read_uint32()
+
+        if dim != self._dimension:
+            raise ValueError(
+                "Vector dimension mismatch: expected %d, got %d" % (self._dimension, dim)
+            )
+
+        # Optimized path: read directly into numpy array using typed memoryviews
+        try:
+            np = _load_numpy()
+            if self._element_type == types.float_:
+                # Fast path for float32 - typed memoryview for direct C access
+                f_view = np.empty(dim, dtype=np.float32)
+                for idx in range(dim):
+                    f_val = self._record_reader._reader.read_float()
+                    f_view[idx] = f_val
+                    self._record_reader._crc.c_update_float(f_val)
+                return np.asarray(f_view)
+            else:
+                # Fast path for float64 - typed memoryview for direct C access
+                d_view = np.empty(dim, dtype=np.float64)
+                for idx in range(dim):
+                    d_val = self._record_reader._reader.read_double()
+                    d_view[idx] = d_val
+                    self._record_reader._crc.c_update_double(d_val)
+                return np.asarray(d_view)
+        except ImportError:
+            # Fallback: return Python list
+            res = [None] * dim
+            for idx in range(dim):
+                res[idx] = self._element_reader._read_raw()
+            return res
 
 
 cdef int DECIMAL_FRAC_CNT = 2

@@ -171,20 +171,38 @@ def test_config_with_headers():
 
     # Patch the functions in their original modules
     with mock.patch(
-        'odps_scripts.pyodpswrapper.mars_support.config_mars_version'
-    ) as mock_config_mars, mock.patch(
         'odps_scripts.pyodpswrapper.resource.load_packages_in_subprocess'
     ) as mock_load_packages:
         config_with_headers(code)
 
-        # Check that the mocks were called with correct arguments
-        mock_config_mars.assert_called_once_with("1.0.0")
+        # Check that load_packages mock was called with correct arguments
         mock_load_packages.assert_called_once_with("pack1,pack2")
 
         # Check that flags were set correctly
         assert _run_flags["dump_traceback"] is True
         assert _run_flags["profile"] is False
         assert _run_flags["use_spawn_method"] is True
+
+    _run_flags.clear()
+
+    try:
+        from odps_scripts.pyodpswrapper import mars_support
+
+        with mock.patch(
+            'odps_scripts.pyodpswrapper.mars_support.config_mars_version'
+        ) as mock_config_mars, mock.patch(
+            'odps_scripts.pyodpswrapper.resource.load_packages_in_subprocess'
+        ):
+            config_with_headers(code)
+
+            # Check that the mocks were called with correct arguments
+            # config_mars_version may or may not be called depending on availability
+            mock_config_mars.assert_called_once_with("1.0.0")
+        del mars_support
+    except ImportError:
+        pass
+    finally:
+        _run_flags.clear()
 
 
 @pytest.fixture(autouse=True)

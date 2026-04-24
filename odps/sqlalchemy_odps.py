@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -80,6 +80,7 @@ _odps_type_to_sqlalchemy_type = {
     types.TimestampNTZ: sa_types.TIMESTAMP,
 }
 
+_sqlalchemy_cache_lock = threading.RLock()
 _sqlalchemy_global_reusable_odps = {}
 
 _sqlalchemy_obj_list_cache = {}
@@ -364,25 +365,29 @@ class ODPSDialect(default.DefaultDialect):
             kwargs["logview_host"] = logview_host
 
         if cache_names:
-            _sqlalchemy_obj_list_cache[url_string] = ObjectCache(expire=cache_seconds)
+            with _sqlalchemy_cache_lock:
+                _sqlalchemy_obj_list_cache[url_string] = ObjectCache(
+                    expire=cache_seconds
+                )
 
         if reuse_odps:
             # the odps object can only be reused only if it will be identical
-            if (
-                url_string in _sqlalchemy_global_reusable_odps
-                and _sqlalchemy_global_reusable_odps.get(url_string) is not None
-            ):
-                kwargs["odps"] = _sqlalchemy_global_reusable_odps.get(url_string)
-                kwargs["access_id"] = None
-                kwargs["secret_access_key"] = None
-            else:
-                _sqlalchemy_global_reusable_odps[url_string] = ODPS(
-                    access_id=access_id,
-                    secret_access_key=secret_access_key,
-                    project=project,
-                    endpoint=endpoint,
-                    logview_host=logview_host,
-                )
+            with _sqlalchemy_cache_lock:
+                if (
+                    url_string in _sqlalchemy_global_reusable_odps
+                    and _sqlalchemy_global_reusable_odps.get(url_string) is not None
+                ):
+                    kwargs["odps"] = _sqlalchemy_global_reusable_odps.get(url_string)
+                    kwargs["access_id"] = None
+                    kwargs["secret_access_key"] = None
+                else:
+                    _sqlalchemy_global_reusable_odps[url_string] = ODPS(
+                        access_id=access_id,
+                        secret_access_key=secret_access_key,
+                        project=project,
+                        endpoint=endpoint,
+                        logview_host=logview_host,
+                    )
 
         return [], kwargs
 
@@ -402,16 +407,18 @@ class ODPSDialect(default.DefaultDialect):
     @classmethod
     def get_list_cache(cls, url, key):
         url = str(url)
-        if url not in _sqlalchemy_obj_list_cache:
-            return None
-        return _sqlalchemy_obj_list_cache[url].get(key)
+        with _sqlalchemy_cache_lock:
+            if url not in _sqlalchemy_obj_list_cache:
+                return None
+            return _sqlalchemy_obj_list_cache[url].get(key)
 
     @classmethod
     def put_list_cache(cls, url, key, value):
         url = str(url)
-        if url not in _sqlalchemy_obj_list_cache:
-            return
-        _sqlalchemy_obj_list_cache[url][key] = value
+        with _sqlalchemy_cache_lock:
+            if url not in _sqlalchemy_obj_list_cache:
+                return
+            _sqlalchemy_obj_list_cache[url][key] = value
 
     def get_schema_names(self, connection, **kw):
         conn = self._get_dbapi_connection(connection)

@@ -499,9 +499,30 @@ class ExprDAG(DAG):
 
 
 class ExprDictionary(dict):
+    def __init__(self, *args, **kwargs):
+        super(ExprDictionary, self).__init__(*args, **kwargs)
+        # cache for ExprProxy to make sure hashes are not recomputed
+        self._ref_cache_self = weakref.WeakKeyDictionary()
+        self._ref_cache_none = weakref.WeakKeyDictionary()
+
     def _ref(self, obj, ref_self=False):
-        r = self if ref_self else None
-        return obj if isinstance(obj, ExprProxy) else ExprProxy(obj, d=r)
+        if ref_self:
+            r = self
+            cache = self._ref_cache_self
+        else:
+            r = None
+            cache = self._ref_cache_none
+
+        if isinstance(obj, ExprProxy):
+            return obj
+        if obj in cache:
+            return cache[obj]
+        cache[obj] = ExprProxy(obj, d=r)
+        return cache[obj]
+
+    def _del_cache(self, obj):
+        self._ref_cache_none.pop(obj, None)
+        self._ref_cache_self.pop(obj, None)
 
     def __getitem__(self, item):
         if item is None:
@@ -520,12 +541,18 @@ class ExprDictionary(dict):
     def __delitem__(self, key):
         if key is None:
             raise KeyError
+        self._del_cache(key)
         return dict.__delitem__(self, self._ref(key))
 
     def __contains__(self, item):
         if item is None:
             return False
         return dict.__contains__(self, self._ref(item))
+
+    def clear(self):
+        self._ref_cache_none.clear()
+        self._ref_cache_self.clear()
+        dict.clear(self)
 
     def get(self, k, d=None):
         if k is None:
@@ -540,10 +567,12 @@ class ExprDictionary(dict):
     def pop(self, k, d=None):
         if k is None:
             return False
+        self._del_cache(k)
         return dict.pop(self, self._ref(k), d)
 
     def popitem(self):
         k, v = dict.popitem(self)
+        self._del_cache(k)
         return k(), v
 
     def setdefault(self, k, d=None):

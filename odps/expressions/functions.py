@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import datetime
+import threading
 
 try:
     import pyarrow as pa
@@ -26,6 +27,7 @@ except ImportError:
 from ..compat import datetime_utcnow, six
 from ..utils import camel_to_underline
 
+_func_registry_lock = threading.RLock()
 _name_to_funcs = {}
 
 
@@ -35,15 +37,19 @@ class ExprFunction(object):
     @classmethod
     def _load_name_to_funcs(cls):
         if not _name_to_funcs:
-            for val in globals().values():
-                if (
-                    not isinstance(val, type)
-                    or not issubclass(val, ExprFunction)
-                    or val is ExprFunction
-                ):
-                    continue
-                cls_name = getattr(val, "_func_name", camel_to_underline(val.__name__))
-                _name_to_funcs[cls_name.lower()] = val
+            with _func_registry_lock:
+                if not _name_to_funcs:  # Double-check after acquiring lock
+                    for val in globals().values():
+                        if (
+                            not isinstance(val, type)
+                            or not issubclass(val, ExprFunction)
+                            or val is ExprFunction
+                        ):
+                            continue
+                        cls_name = getattr(
+                            val, "_func_name", camel_to_underline(val.__name__)
+                        )
+                        _name_to_funcs[cls_name.lower()] = val
         return _name_to_funcs
 
     @classmethod

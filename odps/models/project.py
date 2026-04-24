@@ -21,6 +21,7 @@ import weakref
 
 from .. import errors, serializers, utils
 from ..compat import Enum, six
+from ..utils import get_instance_lock
 from .core import XMLLazyLoad, XMLRemoteModel
 from .functions import Functions
 from .instances import CachedInstances, Instances
@@ -57,14 +58,17 @@ class Project(XMLLazyLoad):
     """
 
     _user_cache = dict()
+    _user_cache_lock = None
     __slots__ = (
         "_policy_cache",
+        "_policy_lock",
         "_logview_host",
         "_default_schema",
         "_quota_name",
         "_tunnel_endpoint",
         "_all_props_loaded",
         "_extended_props_loaded",
+        "_extended_props_lock",
         "_odps_ref",
         "_schema_namespace_enabled",
         "_catalog_endpoint",
@@ -192,11 +196,16 @@ class Project(XMLLazyLoad):
     cluster_role = serializers.XMLNodeField("ClusterRole")
     job_data_path = serializers.XMLNodeField("JobDataPath")
     zone_id = serializers.XMLNodeField("ZoneId")
+    allow_3_tier = serializers.XMLNodeField("Allow3Tier")
+    is_external_catalog_bound = serializers.XMLNodeField("IsExternalCatalogBound")
 
     def __init__(self, *args, **kwargs):
         self._tunnel_endpoint = None
         self._policy_cache = None
+        self._policy_lock = None
         self._all_props_loaded = False
+        self._extended_props_loaded = False
+        self._extended_props_lock = None
         self._odps_ref = None
         self._logview_host = None
         self._schema_namespace_enabled = None
@@ -226,12 +235,17 @@ class Project(XMLLazyLoad):
         if self._getattr("_extended_props_loaded"):
             return self._getattr("_extended_properties")
 
-        url = self.resource()
-        resp = self._client.get(url, action="extended")
-        Project.ExtendedProperties.parse(self._client, resp, parent=self)
+        with get_instance_lock(self, "_extended_props_lock", lock_type="rlock"):
+            # Double-check after acquiring lock
+            if self._getattr("_extended_props_loaded"):
+                return self._getattr("_extended_properties")
 
-        self._extended_props_loaded = True
-        return self._getattr("_extended_properties")
+            url = self.resource()
+            resp = self._client.get(url, action="extended")
+            Project.ExtendedProperties.parse(self._client, resp, parent=self)
+
+            self._extended_props_loaded = True
+            return self._getattr("_extended_properties")
 
     @property
     def schemas(self):
@@ -386,11 +400,17 @@ class Project(XMLLazyLoad):
     @property
     def policy(self):
         if self._getattr("_policy_cache") is None:
-            params = dict(policy="")
-            resp = self._client.get(self.resource(), params=params)
-            self._policy_cache = resp.content.decode() if six.PY3 else resp.content
-        if self._getattr("_policy_cache"):
-            return json.loads(self._policy_cache)
+            with get_instance_lock(self, "_policy_lock", lock_type="rlock"):
+                # Double-check after acquiring lock
+                if self._getattr("_policy_cache") is None:
+                    params = dict(policy="")
+                    resp = self._client.get(self.resource(), params=params)
+                    self._policy_cache = (
+                        resp.content.decode() if six.PY3 else resp.content
+                    )
+        policy_cache = self._getattr("_policy_cache")
+        if policy_cache:
+            return json.loads(policy_cache)
         else:
             return None
 
@@ -400,7 +420,8 @@ class Project(XMLLazyLoad):
             value = json.dumps(value)
         elif value is None:
             value = ""
-        self._policy_cache = value
+        with get_instance_lock(self, "_policy_lock", lock_type="rlock"):
+            self._policy_cache = value
         params = dict(policy="")
         self._client.put(self.resource(), data=value, params=params)
 
@@ -409,13 +430,17 @@ class Project(XMLLazyLoad):
         user_cache = type(self)._user_cache
         user_key = self._client.account.access_id + "##" + self.name
         if user_key not in user_cache:
-            user = self.run_security_query("whoami")
-            user_cache[user_key] = User(
-                _client=self._client,
-                parent=self.users,
-                id=user["ID"],
-                display_name=user["DisplayName"],
-            )
+            user_cache_lock = get_instance_lock(type(self), "_user_cache_lock", "rlock")
+            with user_cache_lock:
+                # Double-check after acquiring lock
+                if user_key not in user_cache:
+                    user = self.run_security_query("whoami")
+                    user_cache[user_key] = User(
+                        _client=self._client,
+                        parent=self.users,
+                        id=user["ID"],
+                        display_name=user["DisplayName"],
+                    )
         return user_cache[user_key]
 
     def auth_resource(self, client=None):
@@ -472,6 +497,10 @@ class Project(XMLLazyLoad):
         try:
             return self.extended_properties[item]
         except KeyError:
-            if default is utils.notset:
+            if (
+                default is utils.notset
+                or type(default).__name__ == type(utils.notset).__name__
+            ):
+                # in case utils is reloaded
                 raise
             return default

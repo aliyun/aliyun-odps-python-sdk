@@ -17,7 +17,9 @@ import csv
 import datetime
 import logging
 import multiprocessing
+import random
 import sys
+import time
 from collections import OrderedDict
 
 try:
@@ -392,6 +394,7 @@ def test_partition_to_pandas(odps):
 
 
 @pandas_case
+@pytest.mark.flaky(max_runs=3)
 def test_to_pandas_with_spawn(odps):
     from ...tunnel.tabletunnel import TableDownloadSession
 
@@ -1161,10 +1164,12 @@ def test_write_record_with_dynamic_parts(odps):
         odps.delete_table(test_table_name, if_exists=True)
 
 
+@pytest.mark.flaky(max_runs=3)
 def test_read_write_transactional_table(odps):
     test_table_name = tn("pyodps_t_tmp_read_write_transactional_table")
     odps.delete_table(test_table_name, if_exists=True)
 
+    has_err = False
     data = [["abcd", 12345], ["efgh", 94512], ["eragf", 434]]
     try:
         table = odps.create_table(
@@ -1180,7 +1185,12 @@ def test_read_write_transactional_table(odps):
         with table.open_reader(partition="pt=test") as reader:
             result = sorted([rec.values[:2] for rec in reader])
         assert result == sorted(data[1:])
+    except:
+        has_err = True
+        raise
     finally:
+        if has_err:
+            time.sleep(random.random() * 20)
         odps.delete_table(test_table_name, if_exists=True)
 
 

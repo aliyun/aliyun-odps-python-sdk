@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,6 +19,8 @@ from __future__ import print_function
 import warnings
 
 import pytest
+
+from ..volume_fs import FSVolumeObject
 
 try:
     import oss2
@@ -79,6 +81,8 @@ def auto_teardown_volumes(odps):
 
 @pytest.fixture
 def check_experimental(request):
+    if getattr(FSVolumeObject.__init__, "_warn_cache", None):
+        FSVolumeObject.__init__._warn_cache.clear()
     with warnings.catch_warnings(record=True) as record:
         warnings.simplefilter("always", category=FutureWarning)
         yield

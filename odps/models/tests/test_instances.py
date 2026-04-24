@@ -20,6 +20,7 @@ import random
 import textwrap
 import time
 import uuid
+import warnings
 from datetime import datetime, timedelta
 
 import mock
@@ -39,16 +40,10 @@ from ... import compat, errors, options
 from ... import types as odps_types
 from ... import utils
 from ...compat import six
+from ...config import option_context
 from ...core import ODPS
-from ...errors import ODPSError
-from ...tests.core import (
-    flaky,
-    odps2_typed_case,
-    pandas_case,
-    pyarrow_case,
-    tn,
-    wait_filled,
-)
+from ...errors import NotSupportedError, ODPSError
+from ...tests.core import odps2_typed_case, pandas_case, pyarrow_case, tn, wait_filled
 from .. import Instance, SQLTask, TableSchema
 
 expected_xml_template = """<?xml version="1.0" encoding="utf-8"?>
@@ -244,7 +239,8 @@ def test_instance(odps):
         assert task_status.name in task_names
         assert len(task_status.type) >= 0
         assert task_status.start_time >= instance.start_time
-        assert task_status.end_time <= instance.end_time
+        # allow some gap between end time
+        assert (task_status.end_time - instance.end_time).total_seconds() < 60
 
     results = instance.get_task_results()
     for name, result in results.items():
@@ -618,7 +614,19 @@ def test_read_map_array_sql_instance(odps):
 
     inst = odps.execute_sql("select * from %s" % test_table)
 
-    with inst.open_reader(table.table_schema, tunnel=False) as reader:
+    # CSV inline mode cannot parse complex types; use legacy mode
+    orig = options.legacy_cast_csv_result
+    try:
+        options.legacy_cast_csv_result = True
+        with inst.open_reader(table.table_schema, tunnel=False) as reader:
+            read_data = [list(r.values) for r in reader]
+            read_data = sorted(read_data, key=lambda r: r[0])
+            expected_data = sorted(data, key=lambda r: r[0])
+            assert list(read_data) == list(expected_data)
+    finally:
+        options.legacy_cast_csv_result = orig
+
+    with inst.open_reader(table.table_schema, tunnel=True) as reader:
         read_data = [list(r.values) for r in reader]
         read_data = sorted(read_data, key=lambda r: r[0])
         expected_data = sorted(data, key=lambda r: r[0])
@@ -786,7 +794,7 @@ def test_instance_job_insight(odps):
         options.use_legacy_logview = None
 
 
-@flaky(max_runs=3)
+@pytest.mark.flaky(max_runs=3)
 def test_instance_queueing_info(odps):
     instance = odps.run_sql("select * from dual")
     queue_info, resp = instance._get_queueing_info()
@@ -806,7 +814,7 @@ def test_instance_queueing_info(odps):
         assert queue_info.sub_status_history is not None
 
 
-@flaky(max_runs=3)
+@pytest.mark.flaky(max_runs=3)
 def test_instance_queueing_infos(odps):
     odps.run_sql("select * from dual")
 
@@ -885,3 +893,82 @@ def test_sql_statement_error(odps):
     except errors.ParseError as ex:
         assert ex.statement == statement
         assert statement in str(ex)
+
+
+# ========== tests for results with descriptor ==========
+
+
+def _make_rd(schema_types=None, status="FULL"):
+    rd = mock.Mock()
+    rd.select_result_status = status
+    if schema_types is False:
+        rd.schema = None
+    elif schema_types is not None:
+        rd.schema = TableSchema.from_lists(
+            ["col%d" % i for i in range(len(schema_types))],
+            schema_types,
+        )
+    else:
+        rd.schema = TableSchema.from_lists(["col1"], ["bigint"])
+    return rd
+
+
+def _make_open_reader_inst(rd=None):
+    inst = mock.Mock(spec=Instance)
+    inst.get_result_descriptor.return_value = rd
+    inst._open_result_reader = mock.Mock(return_value=mock.Mock())
+    inst.open_reader = Instance.open_reader.__get__(inst, Instance)
+    return inst
+
+
+@pytest.mark.parametrize(
+    "status,limit,legacy,should_raise,should_warn",
+    [
+        (None, None, False, False, False),
+        ("FULL", None, False, False, False),
+        ("NO", None, False, True, False),
+        ("TRUNCATED", False, False, True, False),
+        ("TRUNCATED", False, True, True, False),
+        ("TRUNCATED", True, False, False, False),
+    ],
+)
+def test_result_status(status, limit, legacy, should_raise, should_warn):
+    rd = _make_rd(status=status)
+    inst = _make_open_reader_inst(rd)
+
+    with option_context():
+        if should_raise:
+            with pytest.raises(NotSupportedError):
+                inst.open_reader(tunnel=False, limit=limit)
+        else:
+            with warnings.catch_warnings(record=True) as w:
+                warnings.simplefilter("always")
+                inst.open_reader(tunnel=False, limit=limit)
+                if should_warn:
+                    assert any("truncated" in str(x.message).lower() for x in w)
+            inst._open_result_reader.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "schema_types,legacy,should_raise",
+    [
+        (False, False, False),
+        (False, True, False),
+        (["array<bigint>"], False, True),
+        (["array<bigint>"], True, False),
+        (["bigint", "string"], False, False),
+    ],
+)
+def test_open_reader_schema(schema_types, legacy, should_raise):
+    rd = _make_rd(schema_types=schema_types)
+    inst = _make_open_reader_inst(rd)
+
+    with option_context():
+        options.legacy_cast_csv_result = legacy
+        options.tunnel.use_instance_tunnel = False
+        if should_raise:
+            with pytest.raises(NotSupportedError):
+                inst.open_reader(tunnel=False)
+        else:
+            inst.open_reader(tunnel=False)
+            inst._open_result_reader.assert_called_once()

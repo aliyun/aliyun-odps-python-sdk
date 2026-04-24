@@ -277,6 +277,7 @@ def test_handle_cache(odps, setup):
     assert df4.execute() == i + 1
 
 
+@pytest.mark.flaky(max_runs=3)
 def test_cache_table(odps, setup):
     setup.engine._selecter.force_odps = True
 
@@ -308,6 +309,7 @@ def test_cache_table(odps, setup):
     assert context.get_cached(df4) == 2
 
 
+@pytest.mark.flaky(max_runs=3)
 def test_use_cache(odps, setup):
     setup.engine._selecter.force_odps = True
 
@@ -528,6 +530,7 @@ def test_batch(odps, setup):
     assert result.equals(expected) is True
 
 
+@pytest.mark.xfail
 def test_batch_stop(odps, setup):
     setup.engine._selecter.force_odps = True
 

@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import re
+import threading
 import warnings
 from datetime import datetime
 
@@ -241,6 +242,7 @@ class Table(XMLLazyLoad):
     )
     __slots__ = (
         "_is_extend_info_loaded",
+        "_extend_info_lock",
         "last_meta_modified_time",
         "is_virtual_view",
         "is_materialized_view",
@@ -265,6 +267,11 @@ class Table(XMLLazyLoad):
         OBJECT_TABLE = "OBJECT_TABLE"
         VIRTUAL_VIEW = "VIRTUAL_VIEW"
         MATERIALIZED_VIEW = "MATERIALIZED_VIEW"
+        UNKNOWN = "UNKNOWN"
+
+        @classmethod
+        def _missing_(cls, _value):
+            return cls.UNKNOWN
 
     name = serializers.XMLNodeField("Name")
     table_id = serializers.XMLNodeField("TableId")
@@ -292,6 +299,7 @@ class Table(XMLLazyLoad):
 
     def __init__(self, **kwargs):
         self._is_extend_info_loaded = False
+        self._extend_info_lock = threading.RLock()
         if "schema" in kwargs:
             warnings.warn(
                 "Argument schema is deprecated and will be replaced by table_schema.",
@@ -430,8 +438,12 @@ class Table(XMLLazyLoad):
 
     def __getattribute__(self, attr):
         if attr in type(self)._extended_args:
-            if not self._is_extend_info_loaded:
-                self.reload_extend_info()
+            if not object.__getattribute__(self, "_is_extend_info_loaded"):
+                extend_info_lock = object.__getattribute__(self, "_extend_info_lock")
+                with extend_info_lock:
+                    # Double-check after acquiring lock
+                    if not object.__getattribute__(self, "_is_extend_info_loaded"):
+                        self.reload_extend_info()
 
             if attr == "record_num" and self.table_schema.partitions:
                 warnings.warn(
@@ -1383,6 +1395,8 @@ class Table(XMLLazyLoad):
         )
 
     def _unload_if_async(self, async_=False, reload=True):
+        self._is_extend_info_loaded = False
+        self.reserved = None
         if async_:
             self._loaded = False
         elif reload:
@@ -1649,8 +1663,9 @@ class Table(XMLLazyLoad):
         inst = self.parent._run_table_sql(
             sql, task_name="SQLRenameTask", hints=hints, wait=not async_, **inst_kw
         )
-        self.name = new_name
         del self.parent[self.name]
+        del self.parent[new_name]
+        self.name = new_name
         self._unload_if_async(async_=async_)
         return inst
 

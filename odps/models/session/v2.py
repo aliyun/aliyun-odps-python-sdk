@@ -14,6 +14,7 @@
 
 import json
 import re
+import threading
 
 from ... import errors, serializers
 from ...rest import RestClient
@@ -25,7 +26,7 @@ _inst_url_regex = re.compile("/instances(?:$|/)")
 class McqaV2RestClient(RestClient):
     def __init__(self, *args, **kwargs):
         self._conn_header = kwargs.pop("conn_header", None)
-        self._query_cookie = None
+        self._query_cookie_local = threading.local()
 
         super(McqaV2RestClient, self).__init__(*args, **kwargs)
 
@@ -33,8 +34,9 @@ class McqaV2RestClient(RestClient):
         headers = kwargs.pop("headers", None) or dict()
         if self._conn_header:
             headers["x-odps-mcqa-conn"] = self._conn_header
-        if self._query_cookie is not None:
-            headers["x-odps-mcqa-query-cookie"] = self._query_cookie
+        query_cookie = getattr(self._query_cookie_local, "cookie", None)
+        if query_cookie is not None:
+            headers["x-odps-mcqa-query-cookie"] = query_cookie
         kwargs["headers"] = headers
         if _inst_url_regex.search(url):
             url = self.endpoint + "/mcqa" + url[len(self.endpoint) :]
@@ -42,7 +44,7 @@ class McqaV2RestClient(RestClient):
 
     def is_ok(self, resp):
         if "x-odps-mcqa-query-cookie" in resp.headers:
-            self._query_cookie = resp.headers["x-odps-mcqa-query-cookie"]
+            self._query_cookie_local.cookie = resp.headers["x-odps-mcqa-query-cookie"]
         return super(McqaV2RestClient, self).is_ok(resp)
 
 

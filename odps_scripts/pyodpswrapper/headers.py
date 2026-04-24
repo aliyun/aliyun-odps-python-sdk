@@ -15,6 +15,7 @@
 
 import re
 import sys
+import threading
 
 _re_flag = 0 if sys.version_info[0] == 2 else re.ASCII
 MARS_VERSION_RE = re.compile(
@@ -32,6 +33,7 @@ USE_SPAWN_METHOD_RE = re.compile(
 )
 
 _run_flags = {}
+_run_flags_lock = threading.RLock()
 
 
 def _scan_file_comments(code, *regexes):
@@ -54,16 +56,16 @@ def _scan_file_comments(code, *regexes):
 
 
 def _config_run_flag(flag, config_str, default=False):
-    if config_str is None:
-        _run_flags[flag] = default
-    elif config_str.strip().lower() in ("0", "false"):
-        _run_flags[flag] = False
-    else:
-        _run_flags[flag] = True
+    with _run_flags_lock:
+        if config_str is None:
+            _run_flags[flag] = default
+        elif config_str.strip().lower() in ("0", "false"):
+            _run_flags[flag] = False
+        else:
+            _run_flags[flag] = True
 
 
 def config_with_headers(code):
-    from .mars_support import config_mars_version
     from .resource import load_packages_in_subprocess
 
     file_comments = _scan_file_comments(
@@ -77,7 +79,12 @@ def config_with_headers(code):
 
     # load source headers
     if sys.version_info[0] >= 3:
-        config_mars_version(file_comments[0])
+        try:
+            from .mars_support import config_mars_version
+
+            config_mars_version(file_comments[0])
+        except ImportError:
+            pass
         _config_run_flag("dump_traceback", file_comments[1])
         _config_run_flag("profile", file_comments[2])
         _config_run_flag("use_spawn_method", file_comments[3], default=None)

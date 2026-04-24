@@ -53,7 +53,7 @@ if sys.platform == "darwin":
 repo_root = os.path.dirname(os.path.abspath(__file__))
 
 try:
-    execfile
+    execfile  # noqa
 except NameError:
 
     def execfile(fname, globs, locs=None):
@@ -170,10 +170,6 @@ full_requirements = [
     "ipython<6.0.0; python_version < \"3\"",
     "cython>=0.20; sys_platform != \"win32\"",
 ]
-mars_requirements = [
-    "pymars>=0.5.4",
-    "protobuf>=3.6,<4.0",
-]
 
 long_description = None
 if os.path.exists("README.rst"):
@@ -197,7 +193,6 @@ setup_options = dict(
         "Programming Language :: Python :: 2",
         "Programming Language :: Python :: 2.7",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.4",
         "Programming Language :: Python :: 3.5",
         "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
@@ -205,6 +200,10 @@ setup_options = dict(
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13",
+        "Programming Language :: Python :: 3.14",
+        "Programming Language :: Python :: Free Threading :: 1 - Unstable",
         "Programming Language :: Python :: Implementation :: CPython",
         "Programming Language :: Python :: Implementation :: PyPy",
         "Topic :: Software Development :: Libraries",
@@ -214,7 +213,7 @@ setup_options = dict(
     include_package_data=True,
     install_requires=requirements,
     include_dirs=[],
-    extras_require={"full": full_requirements, "mars": mars_requirements},
+    extras_require={"full": full_requirements},
     entry_points={
         "sqlalchemy.dialects": [
             "odps = odps.sqlalchemy_odps:ODPSDialect",
@@ -244,6 +243,25 @@ if build_cmd != "clean" and not PYPY:  # skip cython in pypy
 
         cythonize_kw = dict(language_level=sys.version_info[0])
         extension_kw = dict(language="c++", include_dirs=[])
+
+        # Detect free-threaded Python and set appropriate flags
+        is_free_threaded = False
+        if sys.version_info >= (3, 13):
+            # Check for free-threaded Python 3.13+
+            is_free_threaded = not getattr(sys, '_is_gil_enabled', lambda: True)()
+
+        # Set up define macros
+        define_macros = list(extension_kw.get('define_macros', []))
+        if is_free_threaded:
+            define_macros.append(('Py_GIL_DISABLED', '1'))
+        extension_kw['define_macros'] = define_macros
+
+        # Set up Cython compiler directives
+        compiler_directives = cythonize_kw.get('compiler_directives', {})
+        if is_free_threaded:
+            compiler_directives['freethreading_compatible'] = True
+        cythonize_kw['compiler_directives'] = compiler_directives
+
         if "MSC" in sys.version:
             extra_compile_args = ["/Ot", "/I" + os.path.join(repo_root, "misc")]
             extension_kw["extra_compile_args"] = extra_compile_args
@@ -252,11 +270,13 @@ if build_cmd != "clean" and not PYPY:  # skip cython in pypy
             extension_kw["extra_compile_args"] = extra_compile_args
 
         if os.environ.get("CYTHON_TRACE"):
-            extension_kw["define_macros"] = [
-                ("CYTHON_TRACE_NOGIL", "1"),
-                ("CYTHON_TRACE", "1"),
-            ]
-            cythonize_kw["compiler_directives"] = {"linetrace": True}
+            extension_kw["define_macros"].extend(
+                [
+                    ("CYTHON_TRACE_NOGIL", "1"),
+                    ("CYTHON_TRACE", "1"),
+                ]
+            )
+            cythonize_kw["compiler_directives"]["linetrace"] = True
 
         extensions = [
             Extension("odps.src.types_c", ["odps/src/types_c.pyx"], **extension_kw),

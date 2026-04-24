@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -32,6 +32,9 @@ cdef class CMillisecondsConverter:
 
 cdef int32_t to_days(date py_date) except? -1
 cdef to_date(int32_t days)
+
+cdef object _load_pandas_type(str type_name, str error_msg=*)
+cdef object _load_numpy()
 
 cpdef inline str to_str(s, encoding=*)
 cpdef inline bytes to_binary(s, encoding=*)

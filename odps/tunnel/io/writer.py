@@ -225,6 +225,7 @@ if BaseRecordWriter is None:
                         types.Array,
                         types.Map,
                         types.Struct,
+                        types.Vector,
                     ),
                 ):
                     self._write_tag(pb_index, WIRETYPE_LENGTH_DELIMITED)
@@ -289,6 +290,14 @@ if BaseRecordWriter is None:
                     self._write_raw_bool(False)
                     self._write_field(value, data_type)
 
+        def _write_vector(self, val, data_type):
+            if val is None:
+                return  # Null vector
+            dim = len(val)
+            self._write_raw_uint(dim)
+            for elem in val:
+                self._write_field(elem, data_type.element_type)
+
         def _write_struct(self, data, data_type):
             if isinstance(data, dict):
                 vals = [None] * len(data)
@@ -343,6 +352,8 @@ if BaseRecordWriter is None:
                 self._write_array(compat.lvalues(val), data_type.value_type)
             elif isinstance(data_type, types.Struct):
                 self._write_struct(val, data_type)
+            elif isinstance(data_type, types.Vector):
+                self._write_vector(val, data_type)
             else:
                 raise IOError("Invalid data type: %s" % data_type)
 
@@ -1307,9 +1318,9 @@ class Upsert(object):
 
     def _check_status(self):
         if self._status == Upsert.Status.CLOSED:
-            raise TunnelError("Stream is closed!")
+            raise TunnelError("Stream is closed")
         elif self._status == Upsert.Status.ERROR:
-            raise TunnelError("Stream has error!")
+            raise TunnelError("Stream has error")
 
     def _write(self, record, op, valid_columns=None):
         self._check_status()

@@ -63,6 +63,7 @@ _RETRY_METHODS = ("GET", "HEAD", "DELETE")
 _RETRY_STATUS_FORCELIST = [502, 503, 504]
 _RETRY_BACKOFF_MAX = 120
 
+_ua_lock = threading.RLock()
 _default_user_agent = None
 
 _v4_sign_fallback_msgs = [
@@ -76,57 +77,62 @@ def default_user_agent():
     if _default_user_agent is not None:
         return _default_user_agent
 
-    py_implementation = platform.python_implementation()
-    py_version = platform.python_version()
-    try:
-        py_system = platform.system()
-        py_release = platform.release()
-    except IOError:
-        py_system = "Unknown"
-        py_release = "Unknown"
+    with _ua_lock:
+        if _default_user_agent is not None:
+            return _default_user_agent
 
-    ua_template = Template(
-        options.user_agent_pattern
-        or os.getenv("PYODPS_USER_AGENT_PATTERN")
-        or "$pyodps_version $mars_version $maxframe_version $python_version $os_version"
-    )
-    substitutes = dict(
-        pyodps_version="%s/%s" % ("pyodps", __version__),
-        python_version="%s/%s" % (py_implementation, py_version),
-        os_version="%s/%s" % (py_system, py_release),
-        mars_version="",
-        maxframe_version="",
-    )
+        py_implementation = platform.python_implementation()
+        py_version = platform.python_version()
+        try:
+            py_system = platform.system()
+            py_release = platform.release()
+        except IOError:
+            py_system = "Unknown"
+            py_release = "Unknown"
 
-    try:
-        from mars import __version__ as mars_version
-    except:
-        mars_version = None
-    if mars_version:
-        substitutes["mars_version"] = "%s/%s" % ("mars", mars_version)
+        ua_template = Template(
+            options.user_agent_pattern
+            or os.getenv("PYODPS_USER_AGENT_PATTERN")
+            or "$pyodps_version $mars_version $maxframe_version $python_version $os_version"
+        )
+        substitutes = dict(
+            pyodps_version="%s/%s" % ("pyodps", __version__),
+            python_version="%s/%s" % (py_implementation, py_version),
+            os_version="%s/%s" % (py_system, py_release),
+            mars_version="",
+            maxframe_version="",
+        )
 
-    try:
-        maxframe_version = get_package_version("maxframe")
-    except:
-        maxframe_version = None
-    if maxframe_version:
-        substitutes["maxframe_version"] = "%s/%s" % ("maxframe", maxframe_version)
+        try:
+            from mars import __version__ as mars_version
+        except:
+            mars_version = None
+        if mars_version:
+            substitutes["mars_version"] = "%s/%s" % ("mars", mars_version)
 
-    _default_user_agent = ua_template.safe_substitute(**substitutes)
-    _default_user_agent = re.sub(" +", " ", _default_user_agent).strip()
+        try:
+            maxframe_version = get_package_version("maxframe")
+        except:
+            maxframe_version = None
+        if maxframe_version:
+            substitutes["maxframe_version"] = "%s/%s" % ("maxframe", maxframe_version)
 
-    try:
-        from .internal.rest import get_internal_user_agent_suffix
+        _default_user_agent = ua_template.safe_substitute(**substitutes)
+        _default_user_agent = re.sub(" +", " ", _default_user_agent).strip()
 
-        _default_user_agent += " " + get_internal_user_agent_suffix()
-    except:
-        pass
-    return _default_user_agent
+        try:
+            from .internal.rest import get_internal_user_agent_suffix
+
+            _default_user_agent += " " + get_internal_user_agent_suffix()
+        except:
+            pass
+        return _default_user_agent
 
 
 class RestClient(object):
     _session_local = threading.local()
     _endpoints_without_v4_sign = set()
+    _endpoint_sign_lock = threading.RLock()
 
     def __init__(
         self,
@@ -202,10 +208,9 @@ class RestClient(object):
 
     def request(self, url, method, stream=False, **kwargs):
         sign_region_name = kwargs.get("region_name") or self._region_name
-        if (
-            self._endpoint in self._endpoints_without_v4_sign
-            or not options.enable_v4_sign
-        ):
+        with self._endpoint_sign_lock:
+            endpoint_no_v4 = self._endpoint in self._endpoints_without_v4_sign
+        if endpoint_no_v4 or not options.enable_v4_sign:
             sign_region_name = None
 
         auth_expire_retried = False
@@ -223,7 +228,8 @@ class RestClient(object):
                 logger.info(
                     "Fallback of V4 signature for %s. Error message: %s", url, ex
                 )
-                self._endpoints_without_v4_sign.add(self._endpoint)
+                with self._endpoint_sign_lock:
+                    self._endpoints_without_v4_sign.add(self._endpoint)
                 sign_region_name = None
             except errors.InvalidParameter as ex:
                 if sign_region_name is None or "ODPS-0410051" not in str(ex):
@@ -232,7 +238,8 @@ class RestClient(object):
                 logger.info(
                     "Fallback of V4 signature for %s. Error message: %s", url, ex
                 )
-                self._endpoints_without_v4_sign.add(self._endpoint)
+                with self._endpoint_sign_lock:
+                    self._endpoints_without_v4_sign.add(self._endpoint)
                 sign_region_name = None
             except errors.AuthorizationRequired as ex:
                 if sign_region_name is None or "invalid or missing" not in str(ex):
@@ -240,7 +247,8 @@ class RestClient(object):
                 logger.info(
                     "Fallback of V4 signature for %s. Error message: %s", url, ex
                 )
-                self._endpoints_without_v4_sign.add(self._endpoint)
+                with self._endpoint_sign_lock:
+                    self._endpoints_without_v4_sign.add(self._endpoint)
                 sign_region_name = None
             except errors.AuthenticationRequestExpired:
                 if not hasattr(self.account, "reload") or auth_expire_retried:
