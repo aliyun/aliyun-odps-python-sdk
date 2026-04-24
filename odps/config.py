@@ -629,6 +629,7 @@ default_options.register_option(
     "sql.use_odps2_extension", None, validator=any_validator(is_null, is_bool)
 )
 default_options.register_option("sql.parse_set_as_hints", True, validator=is_bool)
+default_options.register_option("legacy_cast_csv_result", False, validator=is_bool)
 
 # Catalog API
 default_options.register_option(

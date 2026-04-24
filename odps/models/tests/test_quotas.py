@@ -1,4 +1,4 @@
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,8 +26,12 @@ def test_quotas(odps_daily):
 
     assert not odps.exist_quota("non_exist_quota")
     assert odps.exist_quota(first_quota_nick)
-    assert odps.exist_quota(first_quota_nick.nickname)
+    assert odps.exist_quota(
+        first_quota_nick.nickname, region_id=first_quota_nick.region_id
+    )
 
-    quota_obj = odps.get_quota(first_quota_nick.nickname)
+    quota_obj = odps.get_quota(
+        first_quota_nick.nickname, region_id=first_quota_nick.region_id
+    )
     quota_obj.reload()
     assert quota_obj.nickname == first_quota_nick.nickname

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import json
+import threading
 
 from .. import options
 from ..compat import six, urlparse
@@ -24,6 +25,7 @@ from .errors import TunnelError
 
 TUNNEL_VERSION = 6
 
+_endpoint_cache_lock = threading.RLock()
 _endpoint_cache = dict()
 
 
@@ -143,6 +145,7 @@ class BaseTunnel(object):
                 endpoint or self._project._tunnel_endpoint or options.tunnel.endpoint
             )
         self._tunnel_rest = None
+        self._tunnel_rest_lock = threading.RLock()
 
     @property
     def endpoint(self):
@@ -169,28 +172,33 @@ class BaseTunnel(object):
 
         if self._client.is_ok(resp):
             addr = resp.text
-            server_ep = _endpoint_cache[ep_cache_key] = urlparse(
-                "%s://%s" % (protocol, addr)
-            ).geturl()
+            server_ep = urlparse("%s://%s" % (protocol, addr)).geturl()
+            with _endpoint_cache_lock:
+                _endpoint_cache[ep_cache_key] = server_ep
             return server_ep
         else:
             raise TunnelError("Can't get tunnel server address")
 
     @property
     def tunnel_rest(self):
+        # Double-checked locking pattern
         if self._tunnel_rest is not None:
             return self._tunnel_rest
 
-        kw = dict(tag="TUNNEL", namespace=self._namespace)
-        if options.data_proxy is not None:
-            kw["proxy"] = options.data_proxy
-        if getattr(self._client, "app_account", None) is not None:
-            kw["app_account"] = self._client.app_account
+        with self._tunnel_rest_lock:
+            if self._tunnel_rest is not None:
+                return self._tunnel_rest
 
-        endpoint = self._endpoint
-        if endpoint is None:
-            endpoint = self._get_tunnel_server(self._project)
-        self._tunnel_rest = RestClient(
-            self._account, endpoint, self._client.project, **kw
-        )
-        return self._tunnel_rest
+            kw = dict(tag="TUNNEL", namespace=self._namespace)
+            if options.data_proxy is not None:
+                kw["proxy"] = options.data_proxy
+            if getattr(self._client, "app_account", None) is not None:
+                kw["app_account"] = self._client.app_account
+
+            endpoint = self._endpoint
+            if endpoint is None:
+                endpoint = self._get_tunnel_server(self._project)
+            self._tunnel_rest = RestClient(
+                self._account, endpoint, self._client.project, **kw
+            )
+            return self._tunnel_rest

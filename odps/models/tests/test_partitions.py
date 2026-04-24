@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -199,10 +199,12 @@ def test_tiered_partition(odps_with_storage_tier):
 
     table = odps.create_table(test_table_name, ("col string", "pt string"), lifecycle=1)
     part = table.create_partition("pt=20230711")
+    part.set_storage_tier("lowfrequency")
+    assert part.storage_tier_info.storage_tier == StorageTier.LOWFREQENCY
+    part.set_storage_tier("longterm")
+    assert part.storage_tier_info.storage_tier == StorageTier.LONGTERM
     part.set_storage_tier("standard")
     assert part.storage_tier_info.storage_tier == StorageTier.STANDARD
-    part.set_storage_tier("LowFrequency")
-    assert part.storage_tier_info.storage_tier == StorageTier.LOWFREQENCY
     table.drop()
 
 

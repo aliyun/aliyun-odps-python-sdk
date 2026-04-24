@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import threading
 import warnings
 from datetime import datetime
 
@@ -38,6 +39,7 @@ class Partition(XMLLazyLoad):
         "is_exstore",
         "lifecycle",
         "physical_size",
+        "storage_tier_info",
         "file_num",
         "reserved",
         "cdc_size",
@@ -52,6 +54,7 @@ class Partition(XMLLazyLoad):
         "size",
         "record_num",
         "_is_extend_info_loaded",
+        "_extend_info_lock",
     )
     __slots__ += _extended_args
     _extended_args = set(_extended_args)
@@ -123,6 +126,7 @@ class Partition(XMLLazyLoad):
 
     def __init__(self, **kwargs):
         self._is_extend_info_loaded = False
+        self._extend_info_lock = threading.RLock()
 
         super(Partition, self).__init__(**kwargs)
 
@@ -148,8 +152,16 @@ class Partition(XMLLazyLoad):
 
     def __getattribute__(self, attr):
         if attr in type(self)._extended_args:
-            if not self._is_extend_info_loaded and not self._is_field_set(attr):
-                self.reload_extend_info()
+            if not object.__getattribute__(
+                self, "_is_extend_info_loaded"
+            ) and not self._is_field_set(attr):
+                extend_info_lock = object.__getattribute__(self, "_extend_info_lock")
+                with extend_info_lock:
+                    # Double-check after acquiring lock
+                    if not object.__getattribute__(
+                        self, "_is_extend_info_loaded"
+                    ) and not self._is_field_set(attr):
+                        self.reload_extend_info()
 
             return object.__getattribute__(self, attr)
 
@@ -389,6 +401,7 @@ class Partition(XMLLazyLoad):
 
     def _unload_if_async(self, async_=False, reload=True):
         self._is_extend_info_loaded = False
+        self.reserved = None
         if async_:
             self._loaded = False
         elif reload:

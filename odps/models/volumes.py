@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -37,6 +37,10 @@ class Volume(XMLLazyLoad):
         OLD = "OLD"
         EXTERNAL = "EXTERNAL"
         UNKNOWN = "UNKNOWN"
+
+        @classmethod
+        def _missing_(cls, _value):
+            return cls.UNKNOWN
 
     _root = "Meta"
     _type_indicator = "type"

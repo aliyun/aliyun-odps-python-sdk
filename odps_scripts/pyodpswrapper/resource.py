@@ -23,11 +23,14 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 
 RESOURCE_SIZE_LIMIT = 100 * 1024**2
 
 _tmp_resource_dir = None
+_tmp_resource_dir_lock = threading.RLock()
 _total_resource_size = 0
+_total_resource_size_lock = threading.RLock()
 
 logger = logging.getLogger(__name__)
 
@@ -67,10 +70,16 @@ def load_packages_in_subprocess(res_str):
 
     ret_data = json.loads(proc.stdout.read().strip().splitlines()[-1])
     if ret_data.get("tempdir"):
-        _tmp_resource_dir = ret_data["tempdir"]
-        atexit.register(
-            functools.partial(shutil.rmtree, _tmp_resource_dir, ignore_errors=True)
-        )
+        # Use double-checked locking for thread-safe initialization
+        if _tmp_resource_dir is None:
+            with _tmp_resource_dir_lock:
+                if _tmp_resource_dir is None:
+                    _tmp_resource_dir = ret_data["tempdir"]
+                    atexit.register(
+                        functools.partial(
+                            shutil.rmtree, _tmp_resource_dir, ignore_errors=True
+                        )
+                    )
     sys.path = ret_data["paths"] + sys.path
     os.environ["PYTHONPATH"] = ":".join(sys.path)
     os.environ["PYODPS_RESOURCE_LOADED"] = "true"
@@ -87,12 +96,25 @@ def run_load_resource_command(args, odps_entry):
 
 def _check_resource_limit(increment_size):
     global _total_resource_size
-    if _total_resource_size + increment_size > RESOURCE_SIZE_LIMIT:
-        raise SystemError("Not allowed to load resource packages larger than 100MB")
-    _total_resource_size += increment_size
+    with _total_resource_size_lock:
+        if _total_resource_size + increment_size > RESOURCE_SIZE_LIMIT:
+            raise SystemError("Not allowed to load resource packages larger than 100MB")
+        _total_resource_size += increment_size
 
 
 def load_resource_package(name, odps_entry, project=None, supersede=True):
+    """
+    Load a Python package from MaxCompute resource.
+
+    Note: This function modifies sys.path and sys.meta_path which are process-wide
+    state. It is not thread-safe and should not be called concurrently from multiple
+    threads. Call during initialization before spawning threads.
+
+    :param name: Name of the package
+    :param odps_entry: ODPS entry object
+    :param project: ODPS project of the resource
+    :param supersede: Supersede default libraries
+    """
     import tarfile
     import zipfile
 
@@ -103,15 +125,18 @@ def load_resource_package(name, odps_entry, project=None, supersede=True):
     env = os.getenv("SKYNET_SYSTEM_ENV", "local")
     if env == "local":
         global _tmp_resource_dir
+        # Use double-checked locking for thread-safe initialization
         if _tmp_resource_dir is None:
-            _tmp_resource_dir = tempfile.mkdtemp(prefix="tmp-pyodps-pkg-")
-            if "--load-resource" not in sys.argv:
-                # only recycle temp dir when not spawned
-                atexit.register(
-                    functools.partial(
-                        shutil.rmtree, _tmp_resource_dir, ignore_errors=True
-                    )
-                )
+            with _tmp_resource_dir_lock:
+                if _tmp_resource_dir is None:
+                    _tmp_resource_dir = tempfile.mkdtemp(prefix="tmp-pyodps-pkg-")
+                    if "--load-resource" not in sys.argv:
+                        # only recycle temp dir when not spawned
+                        atexit.register(
+                            functools.partial(
+                                shutil.rmtree, _tmp_resource_dir, ignore_errors=True
+                            )
+                        )
         pkg_dir = _tmp_resource_dir
     else:
         pkg_dir = os.getenv("TASK_EXEC_PATH")

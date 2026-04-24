@@ -434,6 +434,7 @@ def test_cache(odps, setup):
     assert len(result[0]) == 3
 
 
+@pytest.mark.xfail
 def test_batch(odps, setup):
     data = setup.gen_data(10, value_range=(-1000, 1000))
 

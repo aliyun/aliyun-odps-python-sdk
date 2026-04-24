@@ -1,4 +1,4 @@
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -194,8 +194,6 @@ def test_write_rows_without_partition_by_diff_schema_neg1(storage_api_client):
     item = TestDataItem()
     item.load_conf("without_partition")
 
-    req = TableBatchWriteRequest()
-
     assert create_write_session(item, storage_api_client) is True
     assert get_write_session(item, storage_api_client) is True
 
@@ -235,6 +233,10 @@ def test_write_rows_without_partition_by_diff_schema_neg1(storage_api_client):
         logger.info("Write rows failed without partition specified")
         logger.info(write_rows_exception)
 
+    assert create_write_session(item, storage_api_client) is True
+    assert get_write_session(item, storage_api_client) is True
+    req.session_id = item.write_session_id
+
     record_batch = generate_base_table(item)
     start = time.time()
     writer = storage_api_client.write_rows_arrow(req)
@@ -253,6 +255,10 @@ def test_write_rows_without_partition_by_diff_schema_neg1(storage_api_client):
     else:
         end = time.time()
         logger.info("Write rows cost: " + str(end - start) + "s")
+
+    assert create_write_session(item, storage_api_client) is True
+    assert get_write_session(item, storage_api_client) is True
+    req.session_id = item.write_session_id
 
     record_batch = pa.RecordBatch.from_arrays(
         [
@@ -281,6 +287,10 @@ def test_write_rows_without_partition_by_diff_schema_neg1(storage_api_client):
     else:
         end = time.time()
         logger.info("Write rows cost: " + str(end - start) + "s")
+
+    assert create_write_session(item, storage_api_client) is True
+    assert get_write_session(item, storage_api_client) is True
+    req.session_id = item.write_session_id
 
     unique_bigint_list = [10] * item.batch_size
 

@@ -34,6 +34,7 @@ from ..accounts import BearerTokenAccount
 from ..compat import Enum, six
 from ..lib.monotonic import monotonic
 from ..lib.tblib import pickling_support
+from ..readers import CsvRecordReader
 from ..utils import to_str
 from .core import JSONRemoteModel, XMLLazyLoad, XMLRemoteModel
 from .job import Job
@@ -147,6 +148,19 @@ class InstanceArrowReader(SpawnedInstanceReaderMixin, TunnelArrowReader):
         self._schema = download_session.schema
 
 
+def _parse_instance_schema(value):
+    from .table import TableSchema
+
+    if isinstance(value, dict):
+        columns = value.get("Columns", [])
+        if columns:
+            return TableSchema.from_lists(
+                [c["Name"] for c in columns],
+                [c["Type"] for c in columns],
+            )
+    return None
+
+
 class Instance(XMLLazyLoad):
     """
     Instance means that a ODPS task will sometimes run as an instance.
@@ -251,9 +265,20 @@ class Instance(XMLLazyLoad):
                             return text
                     return text
 
+            class TaskResultDescriptor(serializers.JSONSerializableModel):
+                select_result_status = serializers.JSONNodeField("SelectResultStatus")
+                is_select = serializers.JSONNodeField("IsSelect")
+                schema = serializers.JSONNodeField(
+                    "Schema", parse_callback=_parse_instance_schema
+                )
+
             type = serializers.XMLNodeAttributeField(attr="Type")
             name = serializers.XMLNodeField("Name")
             result = serializers.XMLNodeReferenceField(Result, "Result")
+
+            result_descriptor = serializers.XMLNodeReferenceField(
+                TaskResultDescriptor, "ResultDescriptor"
+            )
 
         task_results = serializers.XMLNodesReferencesField(TaskResult, "Tasks", "Task")
 
@@ -482,7 +507,7 @@ class Instance(XMLLazyLoad):
         return utils.call_with_retry(func, **retry_kw)
 
     @_with_status_api_lock
-    def get_task_results_without_format(self, timeout=None, retry=True):
+    def _get_task_results_without_format(self, timeout=None, retry=True):
         if self._is_sync:
             return self._task_results
 
@@ -491,7 +516,16 @@ class Instance(XMLLazyLoad):
 
         resp = self._call_with_retry(_get_resp, retry=retry, retry_timeout=timeout)
         instance_result = Instance.InstanceResult.parse(self._client, resp)
-        return OrderedDict([(r.name, r.result) for r in instance_result.task_results])
+        self._task_results = OrderedDict(
+            [(r.name, r) for r in instance_result.task_results]
+        )
+        return self._task_results
+
+    def get_task_results_without_format(self, timeout=None, retry=True):
+        task_results = self._get_task_results_without_format(
+            timeout=timeout, retry=retry
+        )
+        return OrderedDict([(k, r.result) for k, r in six.iteritems(task_results)])
 
     @_with_status_api_lock
     def get_task_results(self, timeout=None, retry=True):
@@ -501,7 +535,6 @@ class Instance(XMLLazyLoad):
         :return: a dict which key is task name, and value is the task result as string
         :rtype: dict
         """
-
         results = self.get_task_results_without_format(timeout=timeout, retry=retry)
         if options.tunnel.string_as_binary:
             return OrderedDict(
@@ -511,6 +544,14 @@ class Instance(XMLLazyLoad):
             return OrderedDict(
                 [(k, str(result)) for k, result in six.iteritems(results)]
             )
+
+    def get_result_descriptor(self, task_name=None):
+        if task_name is None:
+            task_name = self._get_default_task_name()
+        if self._task_results is None:
+            self._get_task_results_without_format()
+        task_result = (self._task_results or {}).get(task_name)
+        return task_result.result_descriptor if task_result else None
 
     def _get_default_task_name(self):
         job = self._get_job()
@@ -1217,7 +1258,14 @@ class Instance(XMLLazyLoad):
         task_name = self._check_get_task_name(
             "sql", task_name=task_name, err_head="Cannot open reader"
         )
+        logger.debug(
+            "Opening result reader: legacy_cast_csv_result=%s, schema=%s",
+            options.legacy_cast_csv_result,
+            "provided" if schema is not None else "None",
+        )
         result = self.get_task_result(task_name, timeout=timeout)
+        if not result or not result.strip():
+            result = ""
         reader = readers.CsvRecordReader(schema, result, **kw)
         if options.result_reader_create_callback:
             options.result_reader_create_callback(reader)
@@ -1313,20 +1361,21 @@ class Instance(XMLLazyLoad):
             errors.InvalidArgument,
             errors.NoSuchProject,
         )
+
+        # for compatibility
+        if "limit_enabled" in kwargs:
+            kwargs["limit"] = kwargs["limit_enabled"]
+            del kwargs["limit_enabled"]
+
+        if "limit" not in kwargs:
+            kwargs["limit"] = options.tunnel.limit_instance_tunnel
+
+        auto_fallback_protection = False
+        if kwargs["limit"] is None:
+            kwargs["limit"] = False
+            auto_fallback_protection = True
+
         if use_tunnel:
-            # for compatibility
-            if "limit_enabled" in kwargs:
-                kwargs["limit"] = kwargs["limit_enabled"]
-                del kwargs["limit_enabled"]
-
-            if "limit" not in kwargs:
-                kwargs["limit"] = options.tunnel.limit_instance_tunnel
-
-            auto_fallback_protection = False
-            if kwargs["limit"] is None:
-                kwargs["limit"] = False
-                auto_fallback_protection = True
-
             try:
                 return self._open_tunnel_reader(**kwargs)
             except result_fallback_errors:
@@ -1372,6 +1421,39 @@ class Instance(XMLLazyLoad):
                     )
                     kwargs["limit"] = True
                     return self.open_reader(*args, **kwargs)
+
+        rd = self.get_result_descriptor()
+        if rd is None or not rd.is_select:
+            # No ResultDescriptor: offline mode — fall through to legacy inline path
+            return self._open_result_reader(*args, **kwargs)
+
+        status = rd.select_result_status
+        status_upper = status.upper() if isinstance(status, str) else None
+        if status_upper == "NO":
+            raise errors.NotSupportedError(
+                "Result read failed: (SelectResultStatus=%s)." % status
+            )
+        if status_upper == "TRUNCATED":
+            limit = kwargs.get("limit")
+            if limit is None:
+                warnings.warn("Result has been truncated, you may not get all records.")
+            elif not limit:
+                raise errors.NotSupportedError(
+                    "Result has been truncated and limit is not enabled. "
+                    "pass limit=True to accept truncated results."
+                )
+        # Use ResultDescriptor schema for inline reader when not in legacy mode
+        if not options.legacy_cast_csv_result:
+            if rd.schema and any(
+                isinstance(col.type, CsvRecordReader.UNSUPPORTED_TYPES)
+                for col in rd.schema
+            ):
+                raise errors.NotSupportedError(
+                    "Result contains unsupported column types (array, map, struct, "
+                    "binary, blob) that cannot be parsed from CSV. "
+                    "Pass tunnel=True to download data with correct format"
+                )
+            kwargs["schema"] = rd.schema
 
         return self._open_result_reader(*args, **kwargs)
 

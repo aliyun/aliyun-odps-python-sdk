@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,6 +15,15 @@
 import pytest
 
 from odps.tests.core import drop_test_tables, get_config
+
+
+def _is_retryable(err, *_args):
+    from odps.errors import ServerDefinedException
+
+    return issubclass(err[0], ServerDefinedException)
+
+
+pytestmark = pytest.mark.flaky(max_runs=3, rerun_filter=_is_retryable)
 
 
 @pytest.fixture(scope="session")

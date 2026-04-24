@@ -397,12 +397,20 @@ class Expr(Node):
             # Due to current complexity of parent's eq,
             # by now, every expression is unequal
             return self is other
+        except TypeError:
+            if self._eq is None:
+                return self is other
+            raise
 
     def __ne__(self, other):
         try:
             return self._ne(other)
         except AttributeError:
             return not super(Expr, self).__eq__(other)
+        except TypeError:
+            if self._ne is None:
+                return not super(Expr, self).__eq__(other)
+            raise
 
     def __lt__(self, other):
         return self._lt(other)

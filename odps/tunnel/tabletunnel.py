@@ -14,8 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import itertools
 import logging
-import random
 import sys
 import time
 
@@ -862,31 +862,29 @@ class TableStreamUploadSession(BaseTableTunnelSession):
     class Slots(object):
         def __init__(self, slot_elements):
             self._slots = []
-            self._cur_index = -1
             for value in slot_elements:
                 if len(value) != 2:
                     raise TunnelError("Invalid slot routes")
                 self._slots.append(Slot(value[0], value[1]))
 
+            # Use itertools.cycle for thread-safe iteration
             if len(self._slots) > 0:
-                self._cur_index = random.randint(0, len(self._slots))
-            self._iter = iter(self)
+                self._cycle = itertools.cycle(self._slots)
+            else:
+                self._cycle = None
 
         def __len__(self):
             return len(self._slots)
 
         def __next__(self):
-            return next(self._iter)
+            if self._cycle is None:
+                return None
+            return next(self._cycle)
 
         def __iter__(self):
-            while True:
-                if self._cur_index < 0:
-                    yield None
-                else:
-                    self._cur_index += 1
-                    if self._cur_index >= len(self._slots):
-                        self._cur_index = 0
-                    yield self._slots[self._cur_index]
+            if self._cycle is None:
+                return iter(())
+            return self._cycle
 
     schema = serializers.JSONNodeReferenceField(TableSchema, "schema")
     id = serializers.JSONNodeField("session_name")

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -240,6 +240,14 @@ class AbstractRecordReader(object):
 class CsvRecordReader(AbstractRecordReader):
     NULL_TOKEN = "\\N"
     BACK_SLASH_ESCAPE = "\\x%02x" % ord("\\")
+    UNSUPPORTED_TYPES = (
+        types.Array,
+        types.Map,
+        types.Struct,
+        types.Binary,
+        types.Blob,
+        types.Vector,
+    )
 
     def __init__(self, schema, stream, **kwargs):
         # shift csv field limit size to match table field size
@@ -305,58 +313,63 @@ class CsvRecordReader(AbstractRecordReader):
     def _readline(self):
         try:
             values = next(self._csv)
-            res = []
-
-            read_binary = options.tunnel.string_as_binary
-            if read_binary:
-                unescape_csv = self._unescape_csv_bin
-            else:
-                unescape_csv = self._unescape_csv
-
-            for i, value in enumerate(values):
-                value = unescape_csv(value)
-                if value == self.NULL_TOKEN:
-                    res.append(None)
-                elif self._csv_columns and self._csv_columns[i].type == types.boolean:
-                    if value == "true":
-                        res.append(True)
-                    elif value == "false":
-                        res.append(False)
-                    else:
-                        res.append(value)
-                elif self._csv_columns and isinstance(
-                    self._csv_columns[i].type, types.Map
-                ):
-                    col_type = self._csv_columns[i].type
-                    if not (value.startswith("{") and value.endswith("}")):
-                        raise ValueError("Dict format error!")
-
-                    items = []
-                    for kv in value[1:-1].split(","):
-                        k, v = kv.split(":", 1)
-                        k = col_type.key_type.cast_value(k.strip(), types.string)
-                        v = col_type.value_type.cast_value(v.strip(), types.string)
-                        items.append((k, v))
-                    res.append(OrderedDict(items))
-                elif self._csv_columns and isinstance(
-                    self._csv_columns[i].type, types.Array
-                ):
-                    col_type = self._csv_columns[i].type
-                    if not (value.startswith("[") and value.endswith("]")):
-                        raise ValueError("Array format error!")
-
-                    items = []
-                    for item in value[1:-1].split(","):
-                        item = col_type.value_type.cast_value(
-                            item.strip(), types.string
-                        )
-                        items.append(item)
-                    res.append(items)
-                else:
-                    res.append(value)
-            return res
         except StopIteration:
             return
+
+        read_binary = options.tunnel.string_as_binary
+        unescape_csv = self._unescape_csv_bin if read_binary else self._unescape_csv
+        cast_value = (
+            self._cast_value_legacy
+            if options.legacy_cast_csv_result
+            else self._cast_value
+        )
+        return [cast_value(i, unescape_csv(v)) for i, v in enumerate(values)]
+
+    @classmethod
+    def _get_caster(cls, col_type):
+        if col_type == types.boolean:
+            return utils.str_to_bool
+        elif isinstance(col_type, cls.UNSUPPORTED_TYPES):
+            return None
+        return lambda v: types.validate_value(v, col_type)
+
+    def _cast_value(self, idx, value):
+        if value == self.NULL_TOKEN:
+            return None
+        if self._csv_columns:
+            caster = self._get_caster(self._csv_columns[idx].type)
+            if caster is not None:
+                return caster(value)
+        return value
+
+    def _cast_value_legacy(self, idx, value):
+        if value == self.NULL_TOKEN:
+            return None
+        col = self._csv_columns[idx] if self._csv_columns else None
+        if col and col.type == types.boolean:
+            if value == "true":
+                return True
+            if value == "false":
+                return False
+            return value
+        if col and isinstance(col.type, types.Map):
+            if not (value.startswith("{") and value.endswith("}")):
+                raise ValueError("Dict format error")
+            items = []
+            for kv in value[1:-1].split(","):
+                k, v = kv.split(":", 1)
+                k = col.type.key_type.cast_value(k.strip(), types.string)
+                v = col.type.value_type.cast_value(v.strip(), types.string)
+                items.append((k, v))
+            return OrderedDict(items)
+        if col and isinstance(col.type, types.Array):
+            if not (value.startswith("[") and value.endswith("]")):
+                raise ValueError("Array format error")
+            return [
+                col.type.value_type.cast_value(item.strip(), types.string)
+                for item in value[1:-1].split(",")
+            ]
+        return value
 
     def __next__(self):
         self._load_columns()

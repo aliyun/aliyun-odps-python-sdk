@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,13 +26,17 @@ class Quotas(XMLIterable):
     def _name(self):
         return "quotas"
 
-    def _get(self, nickname, tenant_id=None):
+    def _get(self, nickname, tenant_id=None, region_id=None):
         return Quota(
-            client=self._client, parent=self, nickname=nickname, tenant_id=tenant_id
+            client=self._client,
+            parent=self,
+            nickname=nickname,
+            tenant_id=tenant_id,
+            region_id=region_id,
         )
 
-    def get(self, nickname, tenant_id=None):
-        return self._get(nickname, tenant_id=tenant_id)
+    def get(self, nickname, tenant_id=None, region_id=None):
+        return self._get(nickname, tenant_id=tenant_id, region_id=region_id)
 
     def __contains__(self, item):
         if isinstance(item, six.string_types):

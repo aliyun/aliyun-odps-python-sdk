@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -670,3 +670,107 @@ def test_nullable_array_item():
     r = Record(schema=s)
     r[0] = [None, {"abc": 1, "def": 2.0}]
     r[0] = [{"abc": None, "def": 3.0}, {"abc": 1, "def": None}]
+
+
+@py_and_c_deco
+def test_vector_creation_and_parse():
+    # Test basic creation with float
+    v = odps_types.Vector(odps_types.float_, 1536)
+    assert v.name == "vector(float,1536)"
+    assert v.element_type == odps_types.float_
+    assert v.dimension == 1536
+    assert v._type_id == 104
+
+    # Test creation with double
+    v_double = odps_types.Vector(odps_types.double, 768)
+    assert v_double.name == "vector(double,768)"
+    assert v_double.element_type == odps_types.double
+
+    # Test parsing from string with parentheses (new format)
+    v_parsed = odps_types.validate_data_type("vector(float,1536)")
+    assert isinstance(v_parsed, odps_types.Vector)
+    assert v_parsed.dimension == 1536
+
+    v2_parsed = odps_types.validate_data_type("VECTOR(DOUBLE,512)")
+    assert v2_parsed.element_type == odps_types.double
+    assert v2_parsed.dimension == 512
+
+
+@py_and_c_deco
+def test_vector_validation():
+    v = odps_types.Vector(odps_types.float_, 32)
+
+    # Valid values
+    v.validate_value([1.0] * 32)
+    v.validate_value(tuple([1.0] * 32))
+
+    # Invalid dimension
+    with pytest.raises(ValueError):
+        v.validate_value([1.0, 2.0])
+
+    # Invalid NaN
+    values = [1.0] * 32
+    values[10] = float("nan")
+    with pytest.raises(ValueError):
+        v.validate_value(values)
+
+    # Invalid Infinity
+    values = [1.0] * 32
+    values[10] = float("inf")
+    with pytest.raises(ValueError):
+        v.validate_value(values)
+
+
+@py_and_c_deco
+def test_vector_invalid_inputs():
+    # Test invalid element types (must be float or double)
+    with pytest.raises(ValueError):
+        odps_types.Vector(odps_types.bigint, 128)
+
+    with pytest.raises(ValueError):
+        odps_types.Vector(odps_types.string, 128)
+
+    # Test invalid dimensions (must be positive)
+    with pytest.raises(ValueError):
+        odps_types.Vector(odps_types.float_, 0)
+
+    with pytest.raises(ValueError):
+        odps_types.Vector(odps_types.float_, -10)
+
+    with pytest.raises(ValueError):
+        odps_types.Vector(odps_types.float_, 3.5)
+
+    # Test dimensions not multiple of 32
+    with pytest.raises(ValueError):
+        odps_types.Vector(odps_types.float_, 100)
+
+    with pytest.raises(ValueError):
+        odps_types.Vector(odps_types.float_, 1537)
+
+
+@py_and_c_deco
+def test_vector_equality():
+    v1 = odps_types.Vector(odps_types.float_, 1536)
+    v2 = odps_types.Vector(odps_types.float_, 1536)
+    v3 = odps_types.Vector(odps_types.double, 1536)
+    v4 = odps_types.Vector(odps_types.float_, 768)
+
+    assert v1 == v2
+    assert hash(v1) == hash(v2)
+    assert v1 != v3
+    assert v1 != v4
+
+
+@py_and_c_deco
+def test_vector_cast():
+    v = odps_types.Vector(odps_types.float_, 32)
+    result = v.cast_composite_values([1] * 32)
+    assert result == [1.0] * 32
+
+
+@py_and_c_deco
+def test_vector_valid_dimensions():
+    # Test dimensions that are multiples of 32
+    for dim in [32, 64, 128, 256, 512, 768, 1024, 1536, 4096]:
+        v = odps_types.Vector(odps_types.float_, dim)
+        assert v.dimension == dim

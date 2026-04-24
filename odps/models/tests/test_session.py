@@ -35,7 +35,7 @@ except ImportError:
     FileLock = None
 
 from ... import ODPS, errors
-from ...errors import InvalidStateSetting, ODPSError
+from ...errors import InvalidStateSetting, ODPSError, SQAAccessDenied
 from ...tests.core import get_test_unique_name, tn
 from .. import Instance, Quota, Record, TableSchema
 from ..session import FallbackMode, FallbackPolicy
@@ -88,6 +88,10 @@ def auto_stop():
                             raise
                         time.sleep(1)
             yield
+        except SQAAccessDenied as exc:
+            if "There is no public service" in str(exc):
+                pytest.skip("No public service, skip.")
+            raise
         finally:
             if lock:
                 lock.release()
@@ -464,7 +468,9 @@ def test_mcqa_v2_session(odps_with_mcqa2):
         self._loaded = False
         return res
 
-    def _mock_init_mcqa_quota_by_connection_api(self, quota_name, project):
+    def _mock_init_mcqa_quota_by_connection_api(
+        cls, odps, quota_name=None, project=None
+    ):
         raise errors.MethodNotAllowed("Intentional")
 
     # test quota not available

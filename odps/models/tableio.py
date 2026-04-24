@@ -243,7 +243,7 @@ class MPBlockServer(object):
             data, addr = self._sock.recvfrom(4096)
             try:
                 pos = len(self._authkey)
-                assert data[:pos] == self._authkey, "Authentication key mismatched!"
+                assert data[:pos] == self._authkey, "Authentication key mismatched"
 
                 cmd_code = _ord_if_possible(data[pos])
                 pos += 1
@@ -257,7 +257,7 @@ class MPBlockServer(object):
                     blocks_queue = self._writer._used_block_id_queue
                     (count,) = struct.unpack("<H", data[pos : pos + 2])
                     pos += 2
-                    assert 4 * count < len(data), "Data too short for block count!"
+                    assert 4 * count < len(data), "Data too short for block count"
                     block_ids = struct.unpack(
                         "<%dI" % count, data[pos : pos + 4 * count]
                     )
@@ -266,7 +266,7 @@ class MPBlockServer(object):
                 elif cmd_code == _STOP_SERVER_CMD:
                     assert (
                         addr[0] == self._sock.getsockname()[0]
-                    ), "Cannot stop server from other hosts!"
+                    ), "Cannot stop server from other hosts"
                     break
                 else:  # pragma: no cover
                     raise AssertionError("Unrecognized command %x", cmd_code)
@@ -1379,7 +1379,7 @@ class TableIOMethods(object):
             )
 
         union_cols, diff_cols = cls._calc_schema_diff(
-            table_schema, target_table.schema, partition_cols=partition_cols
+            table_schema, target_table.table_schema, partition_cols=partition_cols
         )
         if table_schema and not union_cols:
             warnings.warn(

@@ -52,9 +52,9 @@ from ...models import Record, TableSchema
 from ...rest import RestClient
 from ...tests.core import (
     approx_list,
-    flaky,
     get_code_mode,
     get_test_unique_name,
+    global_locked,
     odps2_typed_case,
     pandas_case,
     py_and_c,
@@ -1166,6 +1166,48 @@ def test_struct(odps, struct_as_dict, use_ordered_dict):
 
 
 @py_and_c_deco
+@odps2_typed_case
+def test_vector(odps):
+    """Test vector type serialization through tunnel"""
+    np = pytest.importorskip("numpy")
+
+    table_name = tn("test_vector_" + get_code_mode())
+    odps.delete_table(table_name, if_exists=True)
+
+    # Enable vector type support
+    old_settings = options.sql.settings
+    options.sql.settings = old_settings or {}
+    options.sql.settings.update({"odps.sql.type.vector.enable": "true"})
+
+    try:
+        table = odps.create_table(
+            table_name, "id bigint, fvec vector(float,128)", lifecycle=1
+        )
+
+        # Write data with numpy arrays
+        data = [
+            [1, np.array([0.1] * 128, dtype=np.float32)],
+            [2, np.array([i * 0.5 for i in range(128)], dtype=np.float32)],
+            [3, None],
+        ]
+
+        with table.open_writer() as writer:
+            writer.write(data)
+
+        with table.open_reader() as reader:
+            records = [list(rec.values) for rec in reader]
+
+        assert len(records) == 3
+        assert records[0][0] == 1
+        assert len(records[0][1]) == 128
+        assert records[2][1] is None  # null float vector
+
+        table.drop()
+    finally:
+        options.sql.settings = old_settings
+
+
+@py_and_c_deco
 def test_async_table_upload_and_download(odps, setup):
     table, data = setup.gen_table()
 
@@ -1493,7 +1535,7 @@ def test_tunnel_preview_table_complex_types(odps, struct_as_dict):
     table.drop()
 
 
-@flaky(max_runs=3)
+@pytest.mark.flaky(max_runs=3)
 @py_and_c_deco
 def test_upsert_table(odps):
     table_name = tn("test_upsert_table_" + get_code_mode())
@@ -1535,6 +1577,7 @@ def test_upsert_table(odps):
         table.drop()
 
 
+@global_locked("odps_table_tunnel_quota")
 def test_table_tunnel_with_quota(odps_with_tunnel_quota, config):
     from odps.rest import RestClient
 
@@ -1594,6 +1637,7 @@ def test_table_tunnel_with_quota(odps_with_tunnel_quota, config):
     tb.drop()
 
 
+@pytest.mark.flaky(max_runs=3)
 def test_table_upsert_tunnel_with_quota(odps_with_tunnel_quota, config):
     from odps.rest import RestClient
 

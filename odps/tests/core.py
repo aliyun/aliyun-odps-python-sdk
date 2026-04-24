@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,11 +24,6 @@ import time
 import types
 
 import pytest
-
-try:
-    from flaky import flaky as _raw_flaky
-except ImportError:
-    _raw_flaky = None
 
 from .. import compat, errors, options, utils
 from ..compat import ConfigParser, six
@@ -249,22 +244,6 @@ def start_coverage():
         pass
 
 
-def flaky(o=None, *args, **kwargs):
-    platform = kwargs.pop("platform", "")
-    if _raw_flaky is None or not sys.platform.startswith(platform):
-        if o is not None:
-            return o
-
-        def ident(x):
-            return x
-
-        return ident
-    elif o is not None:
-        return _raw_flaky(o, *args, **kwargs)
-    else:
-        return _raw_flaky(*args, **kwargs)
-
-
 def ignore_case(case, reason):
     if isinstance(case, types.FunctionType) and not case.__name__.startswith("test"):
 
@@ -349,9 +328,15 @@ def global_locked(lock_key):
             while os.path.exists(file_name):
                 time.sleep(0.5)
             open(file_name, "w").close()
+            has_err = False
             try:
                 return func(*args, **kwargs)
+            except:
+                has_err = True
+                raise
             finally:
+                if has_err:
+                    time.sleep(random.random() * 20)
                 os.unlink(file_name)
 
         return _decorated

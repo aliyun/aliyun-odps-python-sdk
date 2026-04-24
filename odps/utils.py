@@ -85,7 +85,8 @@ _IS_WINDOWS = sys.platform.lower().startswith("win")
 
 logger = logging.getLogger(__name__)
 
-notset = object()
+_NotSetType = type("_NotSetType", (object,), {})
+notset = _NotSetType()
 
 
 def deprecated(msg, cond=None):
@@ -116,6 +117,7 @@ class ExperimentalNotAllowed(Exception):
 
 def experimental(msg, cond=None):
     warn_cache = set()
+    warn_cache_lock = threading.RLock()
 
     real_cond = cond
     if callable(cond):
@@ -135,17 +137,22 @@ def experimental(msg, cond=None):
                         err_msg += " " + msg
                     raise ExperimentalNotAllowed(err_msg)
 
-                if func not in warn_cache:
+                with warn_cache_lock:
+                    already_warned = func in warn_cache
+                    if not already_warned:
+                        warn_cache.add(func)
+
+                if not already_warned:
                     warn_msg = "Call to experimental function %s." % func.__name__
                     if isinstance(msg, six.string_types):
                         warn_msg += " " + msg
 
                     warnings.warn(warn_msg, category=FutureWarning, stacklevel=2)
-                    warn_cache.add(func)
             return func(*args, **kwargs)
 
         # intentionally eliminate __doc__ for Volume 2
         _new_func.__doc__ = None
+        _new_func._warn_cache = warn_cache
         return _new_func
 
     if isinstance(msg, (types.FunctionType, types.MethodType)):
@@ -361,6 +368,7 @@ def to_timestamp(dt, local_tz=None, is_dst=False):
 
 class MillisecondsConverter(object):
     _inst_cache = dict()
+    _inst_cache_lock = threading.RLock()
 
     @classmethod
     def _get_tz(cls, tz):
@@ -378,10 +386,14 @@ class MillisecondsConverter(object):
         cache_key = (cls, local_tz, is_dst)
         if cache_key in cls._inst_cache:
             return cls._inst_cache[cache_key]
-        o = super(MillisecondsConverter, cls).__new__(cls)
-        o.__init__(local_tz, is_dst)
-        cls._inst_cache[cache_key] = o
-        return o
+        with cls._inst_cache_lock:
+            # Double-check after acquiring lock
+            if cache_key in cls._inst_cache:
+                return cls._inst_cache[cache_key]
+            o = super(MillisecondsConverter, cls).__new__(cls)
+            o.__init__(local_tz, is_dst)
+            cls._inst_cache[cache_key] = o
+            return o
 
     def _windows_mktime(self, timetuple):
         if self._local_tz:
@@ -853,6 +865,7 @@ def is_main_process():
     return "main" in multiprocessing.current_process().name.lower()
 
 
+survey_calls_lock = threading.RLock()
 survey_calls = dict()
 
 
@@ -880,18 +893,21 @@ def survey(func):
 def add_survey_call(group):
     if any(r.search(group) is not None for r in options.skipped_survey_regexes):
         return
-    if group not in survey_calls:
-        survey_calls[group] = 1
-    else:
-        survey_calls[group] += 1
+    with survey_calls_lock:
+        if group not in survey_calls:
+            survey_calls[group] = 1
+        else:
+            survey_calls[group] += 1
 
 
 def get_survey_calls():
-    return copy.copy(survey_calls)
+    with survey_calls_lock:
+        return copy.copy(survey_calls)
 
 
 def clear_survey_calls():
-    survey_calls.clear()
+    with survey_calls_lock:
+        survey_calls.clear()
 
 
 def require_package(pack_name):
@@ -1020,6 +1036,64 @@ def thread_local_attribute(thread_local_name, default_value=None):
         setattr(thread_local, attr_name, value)
 
     return property(fget=_getter, fset=_setter)
+
+
+_inst_lock_creation_lock = threading.RLock()
+
+
+def get_instance_lock(obj, lock_attr_name="_lock", lock_type="lock"):
+    """
+    Get or create a lock for an instance dynamically.
+
+    This utility function returns an instance-level lock that is created lazily
+    on first access and unique to each instance.
+
+    Parameters
+    ----------
+    obj : object
+        The object instance to get or create the lock for.
+    lock_attr_name : str
+        The name of the lock attribute to store on the instance.
+    lock_type : str
+        The type of lock to create: "lock" for threading.Lock, "rlock" for threading.RLock.
+
+    Returns
+    -------
+    threading.Lock or threading.RLock
+        The lock for the instance.
+    """
+    try:
+        lock = object.__getattribute__(obj, lock_attr_name)
+        if lock is not None:
+            return lock
+    except AttributeError:
+        pass
+
+    # Use a module-level lock to ensure thread-safe creation
+    with _inst_lock_creation_lock:
+        try:
+            lock = object.__getattribute__(obj, lock_attr_name)
+            if lock is not None:
+                return lock
+        except AttributeError:
+            pass
+
+        # Create the lock
+        if lock_type == "rlock":
+            lock = threading.RLock()
+        else:
+            lock = threading.Lock()
+
+        # Try to set the lock on the object
+        try:
+            setattr(obj, lock_attr_name, lock)
+        except (AttributeError, TypeError):
+            # If we can't set the attribute (e.g., __slots__ doesn't include it,
+            # or it's a read-only attribute), just return the lock anyway
+            # It won't be cached, but at least the current operation will work
+            pass
+
+    return lock
 
 
 def call_with_retry(func, *args, **kwargs):

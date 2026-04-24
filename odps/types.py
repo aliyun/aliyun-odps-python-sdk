@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 import decimal as _builtin_decimal
 import json as _json
+import math
 import sys
 import warnings
 from collections import OrderedDict
@@ -30,6 +31,10 @@ from .compat import east_asian_len, six
 from .config import options
 from .lib.xnamedtuple import xnamedtuple
 
+try:
+    import numpy as np
+except ImportError:
+    np = None
 try:
     from pandas import NA as _pd_na
 
@@ -1905,6 +1910,195 @@ class Struct(CompositeDataType):
         )
 
 
+class Vector(CompositeDataType):
+    """
+    Represents vector type in MaxCompute.
+
+    :param element_type: type of elements in the vector (float or double)
+    :param dimension: dimension of the vector (positive integer)
+
+    :Example:
+
+    >>> from odps import types as odps_types
+    >>>
+    >>> vector_type = odps_types.Vector(odps_types.float_, 1536)
+    >>> print(vector_type)
+    vector(float,1536)
+
+    :Note:
+
+    Need to set ``options.sql.use_odps2_extension = True`` to enable full functionality.
+    """
+
+    __slots__ = "nullable", "element_type", "dimension", "_hash"
+    _type_id = 104  # Following Array=101, Map=102, Struct=103
+    _singleton = False
+
+    def __init__(self, element_type, dimension, nullable=True):
+        super(Vector, self).__init__(nullable=nullable)
+        element_type = validate_data_type(element_type)
+
+        # Validate element type is float or double
+        if element_type not in (float_, double):
+            raise ValueError(
+                "Vector element type must be float or double, got: %s"
+                % element_type.name
+            )
+
+        # Validate dimension is positive integer and multiple of 32
+        if not isinstance(dimension, six.integer_types) or dimension <= 0:
+            raise ValueError(
+                "Vector dimension must be a positive integer, got: %s" % dimension
+            )
+
+        if dimension % 32 != 0:
+            raise ValueError(
+                "Vector dimension must be a multiple of 32, got: %s" % dimension
+            )
+
+        self.element_type = element_type
+        self.dimension = dimension
+
+    @property
+    def name(self):
+        return "{0}({1},{2})".format(
+            type(self).__name__.lower(), self.element_type.name, self.dimension
+        )
+
+    def _equals(self, other):
+        if isinstance(other, six.string_types):
+            other = validate_data_type(other)
+
+        return (
+            DataType._equals(self, other)
+            and self.element_type == other.element_type
+            and self.dimension == other.dimension
+        )
+
+    def __hash__(self):
+        if not hasattr(self, "_hash"):
+            self._hash = hash(
+                (type(self), self.nullable, hash(self.element_type), self.dimension)
+            )
+        return self._hash
+
+    def can_implicit_cast(self, other):
+        if isinstance(other, six.string_types):
+            other = validate_data_type(other)
+
+        return (
+            isinstance(other, Vector)
+            and self.element_type == other.element_type
+            and self.dimension == other.dimension
+            and self.nullable == other.nullable
+        )
+
+    def validate_value(self, val, max_field_size=None):
+        if val is None:
+            if self.nullable:
+                return True
+            else:
+                raise ValueError("InvalidData: value cannot be null")
+
+        # Validate it's a list/tuple/array with correct dimension
+        if np is not None:
+            if not isinstance(val, (list, tuple, np.ndarray)):
+                raise ValueError("Vector value must be a list, tuple, or numpy array")
+        elif not isinstance(val, (list, tuple)):
+            raise ValueError("Vector value must be a list or tuple")
+
+        if len(val) != self.dimension:
+            raise ValueError(
+                "InvalidData: Vector dimension mismatch, expected %s, got %s"
+                % (self.dimension, len(val))
+            )
+
+        # Validate no NaN or Infinity
+        for i, v in enumerate(val):
+            # Check for NaN/Infinity
+            has_nan_or_inf = False
+            try:
+                if np is not None:
+                    # Check if value is scalar first
+                    if not np.isscalar(v):
+                        raise ValueError(
+                            "Vector value %s must be numeric, got: %s"
+                            % (v, type(v).__name__)
+                        )
+                    # Use np.isnan which handles both numpy types and Python floats
+                    has_nan_or_inf = np.isnan(v) or np.isinf(v)
+                else:
+                    # Fallback to math for Python floats
+                    if isinstance(v, float):
+                        has_nan_or_inf = math.isnan(v) or math.isinf(v)
+                    elif not isinstance(v, (int, float)):
+                        raise ValueError(
+                            "Vector value %s must be numeric, got: %s"
+                            % (v, type(v).__name__)
+                        )
+            except TypeError:
+                # Not a numeric type that can be NaN/Inf
+                six.raise_from(
+                    ValueError(
+                        "Vector value %s must be numeric, got: %s"
+                        % (v, type(v).__name__)
+                    ),
+                    None,
+                )
+
+            if has_nan_or_inf:
+                raise ValueError(
+                    "InvalidData: Vector contains NaN or Infinity at index %s" % i
+                )
+
+        return True
+
+    def cast_composite_values(self, value):
+        if value is None and self.nullable:
+            return value
+
+        if np is not None:
+            if not isinstance(value, (list, tuple, np.ndarray)):
+                raise ValueError(
+                    "Vector data type requires list/tuple/numpy.ndarray, instead of %s"
+                    % type(value)
+                )
+        elif not isinstance(value, (list, tuple)):
+            raise ValueError(
+                "Vector data type requires list/tuple, instead of %s" % type(value)
+            )
+
+        # Cast each element to the element type
+        return [validate_value(element, self.element_type) for element in value]
+
+    @classmethod
+    def parse_composite(cls, args):
+        """Parse from type string like 'VECTOR(FLOAT,1536)'"""
+        if len(args) != 2:
+            raise ValueError(
+                "%s() should be supplied with exactly two arguments: element_type and dimension."
+                % cls.__name__.upper()
+            )
+
+        element_type_str, dimension_str = args
+
+        # Parse element type
+        element_type = validate_data_type(element_type_str)
+
+        # Parse dimension (may be string or int)
+        try:
+            dimension = int(dimension_str)
+        except (ValueError, TypeError):
+            six.raise_from(
+                ValueError(
+                    "Vector dimension must be an integer, got: %s" % dimension_str
+                ),
+                None,
+            )
+
+        return cls(element_type, dimension)
+
+
 @_primitive_doc
 class Json(DataType):
     _type_id = 12
@@ -2007,6 +2201,7 @@ _composite_handlers = dict(
     array=Array,
     map=Map,
     struct=Struct,
+    vector=Vector,
 )
 
 
@@ -2109,7 +2304,8 @@ try:
     import numpy as np
 
     integer_builtins += (np.integer,)
-    float_builtins += (np.float_,)
+    # Add all numpy floating point types
+    float_builtins += (np.floating,)
 except ImportError:
     pass
 

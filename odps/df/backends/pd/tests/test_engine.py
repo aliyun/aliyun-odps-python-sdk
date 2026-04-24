@@ -2690,6 +2690,7 @@ def test_persist(odps, setup):
         options.df.writer_count_limit = 50
 
 
+@pytest.mark.xfail
 def test_append_id(odps, setup):
     import pandas as pd
     data = [

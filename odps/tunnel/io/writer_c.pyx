@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@ from ..pb.encoder_c cimport CEncoder
 from ... import compat, types, utils
 from ...config import options
 from ...lib.monotonic import monotonic
-from ...src.utils_c cimport CMillisecondsConverter, to_days
+from ...src.utils_c cimport CMillisecondsConverter, to_days, _load_numpy
 from ..pb.wire_format import WIRETYPE_FIXED32 as PY_WIRETYPE_FIXED32
 from ..pb.wire_format import WIRETYPE_FIXED64 as PY_WIRETYPE_FIXED64
 from ..pb.wire_format import WIRETYPE_LENGTH_DELIMITED as PY_WIRETYPE_LENGTH_DELIMITED
@@ -68,6 +68,7 @@ cdef:
     int64_t ARRAY_TYPE_ID = types.Array._type_id
     int64_t MAP_TYPE_ID = types.Map._type_id
     int64_t STRUCT_TYPE_ID = types.Struct._type_id
+    int64_t VECTOR_TYPE_ID = types.Vector._type_id
 
 import_datetime()
 
@@ -91,6 +92,7 @@ data_type_to_wired_type[TIMESTAMP_NTZ_TYPE_ID] = WIRETYPE_LENGTH_DELIMITED
 data_type_to_wired_type[ARRAY_TYPE_ID] = WIRETYPE_LENGTH_DELIMITED
 data_type_to_wired_type[MAP_TYPE_ID] = WIRETYPE_LENGTH_DELIMITED
 data_type_to_wired_type[STRUCT_TYPE_ID] = WIRETYPE_LENGTH_DELIMITED
+data_type_to_wired_type[VECTOR_TYPE_ID] = WIRETYPE_LENGTH_DELIMITED
 
 
 cdef class ProtobufRecordWriter:
@@ -336,6 +338,8 @@ def _build_field_writer(BaseRecordWriter record_writer, object field_type):
         return MapFieldWriter(record_writer, field_type)
     elif data_type_id == STRUCT_TYPE_ID:
         return StructFieldWriter(record_writer, field_type)
+    elif data_type_id == VECTOR_TYPE_ID:
+        return VectorFieldWriter(record_writer, field_type)
     else:
         raise IOError("Invalid data type: %s" % field_type)
 
@@ -624,5 +628,60 @@ cdef class StructFieldWriter(AbstractFieldWriter):
             else:
                 self._record_writer._write_raw_bool(False)
                 (<AbstractFieldWriter>self._field_writers[idx]).write(elem)
+
+        return 0
+
+
+cdef class VectorFieldWriter(AbstractFieldWriter):
+    cdef AbstractFieldWriter _element_writer
+    cdef int _dimension
+    cdef object _element_type
+
+    def __init__(self, BaseRecordWriter record_writer, object data_type):
+        super(VectorFieldWriter, self).__init__(record_writer)
+        self._element_writer = _build_field_writer(record_writer, data_type.element_type)
+        self._dimension = data_type.dimension
+        self._element_type = data_type.element_type
+
+    cdef int write(self, object val) except -1:
+        cdef:
+            int i, dim
+            float f_elem
+            double d_elem
+            float[:] f_view
+            double[:] d_view
+
+        if val is None:
+            return 0  # Null vector, nothing to write (handled by parent)
+
+        dim = len(val)
+        self._record_writer._write_raw_uint(dim)
+
+        # Optimized path for numpy arrays using typed memoryviews
+        if hasattr(val, "__array_interface__"):
+            try:
+                np = _load_numpy()
+                if self._element_type == types.float_:
+                    # Fast path for float32 arrays - typed memoryview for direct C access
+                    f_view = np.asarray(val, dtype=np.float32)
+                    for i in range(dim):
+                        f_elem = f_view[i]
+                        self._record_writer._crc_c.c_update_float(f_elem)
+                        self._record_writer._write_raw_float(f_elem)
+                else:
+                    # Fast path for float64 arrays - typed memoryview for direct C access
+                    d_view = np.asarray(val, dtype=np.float64)
+                    for i in range(dim):
+                        d_elem = d_view[i]
+                        self._record_writer._crc_c.c_update_double(d_elem)
+                        self._record_writer._write_raw_double(d_elem)
+            except (ImportError, AttributeError):
+                # Fallback for arrays without numpy
+                for i in range(dim):
+                    self._element_writer.write(val[i])
+        else:
+            # Fallback for Python lists
+            for i in range(dim):
+                self._element_writer.write(val[i])
 
         return 0

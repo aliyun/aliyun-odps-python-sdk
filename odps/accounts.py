@@ -108,27 +108,42 @@ class CloudAccount(BaseAccount):
     def __init__(self, access_id, secret_access_key):
         self.access_id = access_id
         self.secret_access_key = secret_access_key
+        self._signature_lock = threading.RLock()
         self._last_signature_date = None
         self._last_signature_key = None
 
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        state["_signature_lock"] = None
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self._signature_lock = threading.RLock()
+
     def _get_v4_signature_key(self, date_str, region_name):
-        if date_str == self._last_signature_date:
+        with self._signature_lock:
+            if date_str == self._last_signature_date:
+                return self._last_signature_key
+
+            sig_prefix = _get_v4_signature_prefix()
+
+            k_secret = utils.to_binary(
+                sig_prefix + utils.to_str(self.secret_access_key)
+            )
+            k_date = hmac.new(
+                k_secret, utils.to_binary(date_str), hashlib.sha256
+            ).digest()
+            k_region = hmac.new(
+                k_date, utils.to_binary(region_name), hashlib.sha256
+            ).digest()
+            k_service = hmac.new(k_region, b"odps", hashlib.sha256).digest()
+
+            self._last_signature_date = date_str
+            self._last_signature_key = hmac.new(
+                k_service, utils.to_binary(sig_prefix + "_request"), hashlib.sha256
+            ).digest()
             return self._last_signature_key
-
-        sig_prefix = _get_v4_signature_prefix()
-
-        k_secret = utils.to_binary(sig_prefix + utils.to_str(self.secret_access_key))
-        k_date = hmac.new(k_secret, utils.to_binary(date_str), hashlib.sha256).digest()
-        k_region = hmac.new(
-            k_date, utils.to_binary(region_name), hashlib.sha256
-        ).digest()
-        k_service = hmac.new(k_region, b"odps", hashlib.sha256).digest()
-
-        self._last_signature_date = date_str
-        self._last_signature_key = hmac.new(
-            k_service, utils.to_binary(sig_prefix + "_request"), hashlib.sha256
-        ).digest()
-        return self._last_signature_key
 
     def calc_auth_str(self, canonical_str, region_name=None):
         if region_name is None:
@@ -333,6 +348,18 @@ class SignServerAccount(BaseAccount):
         self.sign_endpoint = sign_endpoint or (server, port)
         self.token = token
 
+    def __getstate__(self):
+        return {
+            "access_id": self.access_id,
+            "sign_endpoint": self.sign_endpoint,
+            "token": self.token,
+        }
+
+    def __setstate__(self, state):
+        self.access_id = state["access_id"]
+        self.sign_endpoint = state["sign_endpoint"]
+        self.token = state["token"]
+
     @property
     def session(self):
         if not hasattr(type(self)._session_local, "_session"):
@@ -388,6 +415,7 @@ class SignServerAccount(BaseAccount):
 
 class TempAccountMixin(object):
     def __init__(self, expired_hours=DEFAULT_TEMP_ACCOUNT_HOURS):
+        self._refresh_lock = threading.RLock()
         self._last_refresh_time = time.time()
         if expired_hours is not None:
             self._expire_seconds = expired_hours * 3600
@@ -395,6 +423,22 @@ class TempAccountMixin(object):
         else:
             self._expire_time = self._expire_seconds = None
         self.reload()
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        # Remove unpicklable locks
+        for lock_attr in ["_refresh_lock", "_signature_lock"]:
+            if lock_attr in state:
+                state[lock_attr] = None
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        # Restore locks
+        if not hasattr(self, "_refresh_lock") or self._refresh_lock is None:
+            self._refresh_lock = threading.RLock()
+        if hasattr(self, "_signature_lock") and self._signature_lock is None:
+            self._signature_lock = threading.RLock()
 
     def _is_account_valid(self):
         raise NotImplementedError
@@ -413,8 +457,13 @@ class TempAccountMixin(object):
         return False
 
     def reload(self, force=False):
+        if not force and not self._need_update():
+            return
         t = time.time()
-        if force or self._need_update():
+        with self._refresh_lock:
+            # Double-check after acquiring lock
+            if not force and not self._need_update():
+                return
             self._last_refresh_time = t
             default_expire = t + (
                 self._expire_seconds or 3600 * DEFAULT_TEMP_ACCOUNT_HOURS
@@ -562,7 +611,6 @@ class BearerTokenAccount(TempAccountMixin, BaseAccount):
 class CredentialProviderAccount(StsAccount):
     def __init__(self, credential_provider):
         self.provider = credential_provider
-        self._lock = threading.Lock()
         super(CredentialProviderAccount, self).__init__(None, None, None)
 
     def __reduce__(self):
@@ -578,7 +626,7 @@ class CredentialProviderAccount(StsAccount):
         secret_access_key = credential.get_access_key_secret()
         sts_token = credential.get_security_token()
 
-        with self._lock:
+        with self._refresh_lock:
             if self.access_id and access_id == self.access_id:
                 return
 
@@ -592,7 +640,7 @@ class CredentialProviderAccount(StsAccount):
     def sign_request(self, req, endpoint, region_name=None):
         utils.call_with_retry(self._refresh_credential)
 
-        with self._lock:
+        with self._refresh_lock:
             # need to lock to make sure keys are consistent
             return super(CredentialProviderAccount, self).sign_request(
                 req, endpoint, region_name=region_name

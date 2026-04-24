@@ -225,7 +225,7 @@ class BaseInstances(XMLIterable):
         body = resp.text
         if body:
             instance_result = Instance.InstanceResult.parse(self._client, resp)
-            results = dict([(r.name, r.result) for r in instance_result.task_results])
+            results = OrderedDict([(r.name, r) for r in instance_result.task_results])
         else:
             results = None
 

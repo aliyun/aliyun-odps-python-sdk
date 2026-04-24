@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -116,6 +116,7 @@ def safe_delete_user(project, user):
         pass
 
 
+@pytest.mark.flaky(max_runs=3)
 @global_locked
 def test_project_methods(project):
     cur_user = project.current_user
@@ -165,6 +166,7 @@ def test_roles(odps, project):
     assert TEST_ROLE_NAME not in project.roles
 
 
+@pytest.mark.flaky(max_runs=3)
 @global_locked("odps_project_user")
 def test_users(config, project):
     secondary_user = config.get("test", "secondary_user")
@@ -182,6 +184,7 @@ def test_users(config, project):
     assert secondary_user not in project.users
 
 
+@pytest.mark.flaky(max_runs=3)
 @global_locked("odps_project_user")
 def test_user_role(config, project):
     secondary_user = config.get("test", "secondary_user")

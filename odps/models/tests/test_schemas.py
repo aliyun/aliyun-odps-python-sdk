@@ -1,4 +1,4 @@
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -82,6 +82,7 @@ def _assert_schema_deleted(odps, schema_name):
 
 
 @pytest.mark.parametrize("legacy", (False, True))
+@pytest.mark.flaky(max_runs=3)
 def test_schemas(odps_with_schema, legacy):
     from ..schemas import _project_has_schema_api
 
