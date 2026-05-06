@@ -25,6 +25,7 @@ except (AttributeError, ImportError):
 if pa is not None:
     _ARROW_TO_ODPS_TYPE = {
         pa.string(): odps_types.string,
+        pa.large_string(): odps_types.string,
         pa.binary(): odps_types.binary,
         pa.int8(): odps_types.tinyint,
         pa.int16(): odps_types.smallint,
