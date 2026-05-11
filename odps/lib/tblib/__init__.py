@@ -2,8 +2,6 @@ import re
 import sys
 from types import CodeType, FrameType, TracebackType
 
-from ..six import raise_from
-
 try:
     from __pypy__ import tproxy
 except ImportError:
@@ -32,7 +30,7 @@ class _AttrDict(dict):
         try:
             return self[name]
         except KeyError:
-            raise_from(AttributeError(name), None)
+            raise AttributeError(name) from None
 
 
 # noinspection PyPep8Naming

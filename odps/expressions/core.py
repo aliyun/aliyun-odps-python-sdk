@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,7 +25,6 @@ try:
 except ImportError:
     pd = None
 
-from ..compat import six
 from ..serializers import (
     JSONNodeField,
     JSONNodeReferenceField,
@@ -84,7 +83,7 @@ class Expression(JSONSerializableModel):
         return self.to_str()
 
     def __repr__(self):
-        return "%s(%s)" % (type(self).__name__, str(self))
+        return f"{type(self).__name__}({self})"
 
     def _make_final_result(self, data, res):
         from ..tunnel.io.types import odps_type_to_arrow_type
@@ -176,8 +175,8 @@ class VisitedExpressions(JSONSerializableModel):
 
         if isinstance(response, requests.Response):
             # PY2 prefer bytes, while PY3 prefer str
-            response = response.content.decode() if six.PY3 else response.content
-        if isinstance(response, six.string_types):
+            response = response.content.decode()
+        if isinstance(response, str):
             response = json.loads(response)
 
         if isinstance(response, list):

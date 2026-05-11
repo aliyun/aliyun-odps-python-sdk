@@ -27,7 +27,6 @@ import pytest
 from .....df.backends.tests.core import tn, NumGenerators
 from .....models import TableSchema
 from ..... import types
-from .....compat import six
 from .....errors import ODPSError
 from .....tests.core import get_result, approx_list
 from .....utils import to_text
@@ -431,7 +430,7 @@ def test_datetime(odps, setup):
     data = setup.gen_data(5)
 
     def date_value(sel):
-        if isinstance(sel, six.string_types):
+        if isinstance(sel, str):
             fun = lambda v: getattr(v, sel)
         else:
             fun = sel

@@ -22,11 +22,11 @@ import os
 import textwrap
 import time
 from collections import namedtuple
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
 from .. import utils
-from ..compat import long_type
 
 try:
     from ..src.utils_c import CMillisecondsConverter
@@ -61,7 +61,7 @@ def test_replace_sql_parameters():
             ],
         },
         {
-            "ns": {"test1": "new_test1", "test3": 'new_\'test3\''},
+            "ns": {"test1": "new_test1", "test3": "new_'test3'"},
             "sql": "select :test1 from dual where :test2 > 0 and f=:test3.abc",
             "expected": [
                 r"select 'new_test1' from dual where :test2 > 0 and f='new_\'test3\''.abc"
@@ -223,7 +223,7 @@ def test_time_convert_native(force_py):
     base_time_utc = datetime.datetime.utcfromtimestamp(
         time.mktime(base_time.timetuple())
     )
-    milliseconds = long_type(time.mktime(base_time.timetuple())) * 1000
+    milliseconds = int(time.mktime(base_time.timetuple())) * 1000
 
     assert milliseconds == to_milliseconds(base_time, local_tz=True)
     assert milliseconds == to_milliseconds(base_time_utc, local_tz=False)
@@ -232,9 +232,7 @@ def test_time_convert_native(force_py):
     assert to_datetime(milliseconds, local_tz=False) == base_time_utc
 
     base_time = datetime.datetime.now(tz=GMT8()).replace(microsecond=0)
-    milliseconds = (
-        long_type(calendar.timegm(base_time.astimezone(UTC()).timetuple())) * 1000
-    )
+    milliseconds = int(calendar.timegm(base_time.astimezone(UTC()).timetuple())) * 1000
 
     assert milliseconds == to_milliseconds(base_time, local_tz=True)
     assert milliseconds == to_milliseconds(base_time, local_tz=False)
@@ -276,8 +274,7 @@ def test_time_convert_with_tz(force_py, zone_func):
 
     base_time = datetime.datetime.now(tz=zone_func("Etc/GMT-8")).replace(microsecond=0)
     milliseconds = (
-        long_type(calendar.timegm(base_time.astimezone(zone_func("UTC")).timetuple()))
-        * 1000
+        int(calendar.timegm(base_time.astimezone(zone_func("UTC")).timetuple())) * 1000
     )
 
     assert to_datetime(milliseconds, local_tz="Etc/GMT-8") == base_time
@@ -312,9 +309,7 @@ def test_thread_local_attribute():
     inst._defaults = "TestManualValue2"
     assert inst._defaults == "TestManualValue2"
 
-    from ..compat import futures
-
-    executor = futures.ThreadPoolExecutor(1)
+    executor = ThreadPoolExecutor(1)
 
     def test_fn():
         pytest.raises(AttributeError, lambda: inst._no_defaults)

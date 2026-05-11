@@ -14,12 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import enum
+import io
 import os
-import sys
 from collections import namedtuple
 
-from .. import compat, errors, serializers, types, utils
-from ..compat import Enum, six
+from .. import errors, serializers, types, utils
 from ..config import options
 from .cache import cache, cache_parent
 from .core import XMLLazyLoad
@@ -28,10 +28,7 @@ from .volumes import Volume
 _RESOURCE_SPLITTER = "/resources/"
 _SCHEMA_SPLITTER = "/schemas/"
 
-if sys.version_info[0] < 3:
-    _StringIOType = type(compat.StringIO())
-else:
-    _StringIOType = (compat.StringIO, compat.BytesIO)
+_StringIOType = (io.StringIO, io.BytesIO)
 
 
 class Resource(XMLLazyLoad):
@@ -54,7 +51,7 @@ class Resource(XMLLazyLoad):
         "volume_type",
     )
 
-    class Type(Enum):
+    class Type(enum.Enum):
         FILE = "FILE"
         JAR = "JAR"
         PY = "PY"
@@ -91,7 +88,7 @@ class Resource(XMLLazyLoad):
         if typo is None:
             return cls
 
-        if isinstance(typo, six.string_types):
+        if isinstance(typo, str):
             typo = Resource.Type(typo.upper())
 
         clz = lambda name: globals()[name]
@@ -132,7 +129,7 @@ class Resource(XMLLazyLoad):
 
     def __init__(self, **kwargs):
         typo = kwargs.get("type")
-        if isinstance(typo, six.string_types):
+        if isinstance(typo, str):
             kwargs["type"] = Resource.Type(typo.upper())
         super(Resource, self).__init__(**kwargs)
 
@@ -231,7 +228,7 @@ class FileResource(Resource):
 
     __slots__ = ("_fp", "is_part_resource", "merge_total_bytes")
 
-    class Mode(Enum):
+    class Mode(enum.Enum):
         READ = "r"
         WRITE = "w"
         APPEND = "a"
@@ -248,7 +245,7 @@ class FileResource(Resource):
             raise ValueError(
                 "parameter `file_obj` cannot be None, either string or file-like object"
             )
-        if isinstance(file_obj, six.text_type):
+        if isinstance(file_obj, str):
             file_obj = file_obj.encode("utf-8")
 
         if (
@@ -268,7 +265,7 @@ class FileResource(Resource):
 
         headers = {
             "Content-Type": "application/octet-stream",
-            "Content-Disposition": "attachment;filename=%s" % self.name,
+            "Content-Disposition": f"attachment;filename={self.name}",
             "x-odps-resource-type": self.type.value.lower(),
             "x-odps-resource-name": self.name,
         }
@@ -286,7 +283,7 @@ class FileResource(Resource):
         if is_part_resource:
             params["rIsPart"] = "true"
 
-        if not isinstance(file_obj, (six.string_types, six.binary_type)):
+        if not isinstance(file_obj, (str, bytes)):
             file_obj.seek(0)
             content = file_obj.read()
         else:
@@ -313,7 +310,7 @@ class FileResource(Resource):
 
     @staticmethod
     def _get_file_size(file_obj):
-        if isinstance(file_obj, six.binary_type):
+        if isinstance(file_obj, bytes):
             return len(file_obj)
         elif isinstance(file_obj, _StringIOType):
             pos = file_obj.tell()
@@ -420,7 +417,7 @@ class FileResource(Resource):
 
         :param size: unicode or byte length depends on text mode or binary mode.
         :return: unicode or bytes depends on text mode or binary mode
-        :rtype: str or unicode(Py2), bytes or str(Py3)
+        :rtype: bytes or str
         """
 
         self._check_read()
@@ -482,7 +479,7 @@ class FileResource(Resource):
         self._check_write()
         return self._fp.writelines(seq)
 
-    def seek(self, pos, whence=compat.SEEK_SET):  # io.SEEK_SET
+    def seek(self, pos, whence=io.SEEK_SET):  # io.SEEK_SET
         """
         Seek to some place.
 
@@ -697,10 +694,8 @@ class TableResource(Resource):
                 partition_spec = types.PartitionSpec(partition)
             else:
                 partition_spec = partition
-            self.source_table_name = "%s partition(%s)" % (
-                self.source_table_name.split(" partition(")[0],
-                partition_spec,
-            )
+            src_table_name = self.source_table_name.split(" partition(")[0]
+            self.source_table_name = f"{src_table_name} partition({partition_spec})"
 
     def _get_table_source(self):
         if self.source_table_name is None:
@@ -714,7 +709,7 @@ class TableResource(Resource):
 
         src = splits[0]
         if "." not in src:
-            raise ValueError("Malformed source table name: %s" % src)
+            raise ValueError(f"Malformed source table name: {src}")
         table_parts = utils.split_backquoted(src, ".")
         if len(table_parts) == 2:
             schema_name = None

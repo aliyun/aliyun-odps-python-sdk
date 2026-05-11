@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@ import ctypes
 import functools
 import struct
 
-from .. import compat, types
+from .. import types
 from ..utils import to_binary, to_milliseconds
 
 _int32_struct = struct.Struct("<l")
@@ -25,7 +25,7 @@ _int64_struct = struct.Struct("<q")
 _float_struct = struct.Struct("<f")
 _double_struct = struct.Struct("<d")
 
-_ord_code = ord if compat.PY27 else (lambda x: x)
+_ord_code = lambda x: x
 
 
 class AbstractHasher(object):
@@ -112,7 +112,7 @@ def get_hasher(hasher_type):
     elif hasher_type == "default":
         return DefaultHasher()
     else:
-        raise ValueError("Hasher type %s not supported" % hasher_type)
+        raise ValueError(f"Hasher type {hasher_type} not supported")
 
 
 def _hash_date(hasher, x):
@@ -176,7 +176,7 @@ def _hash_decimal(hasher, x, precision, scale):
     if not num_without_exp:
         tmp_result = 0
     else:
-        tmp_result = compat.long_type(num_without_exp)
+        tmp_result = int(num_without_exp)
         if value_scale > scale:
             tmp_result //= 10 ** (value_scale - scale)
             if num_without_exp[len(num_without_exp) - (value_scale - scale)] >= "5":
@@ -220,7 +220,7 @@ def _get_hash_func(typ):
         scale = typ.scale or types.Decimal._default_scale
         return functools.partial(_hash_decimal, precision=precision, scale=scale)
     else:
-        raise TypeError("Hash for type %s not supported" % typ)
+        raise TypeError(f"Hash for type {typ} not supported")
 
 
 class RecordHasher(object):

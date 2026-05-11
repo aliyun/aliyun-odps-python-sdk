@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -68,16 +68,16 @@ def test_execute_sql(odps):
     odps.write_table(test_table_name, test_content)
 
     options.tunnel.use_instance_tunnel = False
-    result = magic_class.execute("select * from %s" % test_table_name)
+    result = magic_class.execute(f"select * from {test_table_name}")
     assert get_result(result) == test_content
 
     options.tunnel.use_instance_tunnel = True
-    result = magic_class.execute("select * from %s" % test_table_name)
+    result = magic_class.execute(f"select * from {test_table_name}")
     assert get_result(result) == test_content
 
     result = magic_class.execute("show tables")
     assert len(result) > 0
 
     table_name = tn("pyodps_test_magics_create_table_result")
-    magic_class.execute("create table %s (col string) lifecycle 1" % table_name)
-    magic_class.execute("drop table %s" % table_name)
+    magic_class.execute(f"create table {table_name} (col string) lifecycle 1")
+    magic_class.execute(f"drop table {table_name}")

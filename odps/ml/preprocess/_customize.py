@@ -14,8 +14,8 @@
 # limitations under the License.
 
 import json
+from collections.abc import Iterable
 
-from ...compat import six, Iterable
 from ...serializers import JSONSerializableModel, JSONNodeField
 from ..utils import ML_ARG_PREFIX
 
@@ -36,7 +36,7 @@ def get_append_id_selected_cols(expr, param_value):
 def get_modify_abnormal_json_string(expr, param_value):
     if isinstance(param_value, JSONSerializableModel):
         return json.dumps([param_value.serial(), ], separators=(',', ':'))
-    if isinstance(param_value, Iterable) and not isinstance(param_value, six.string_types):
+    if isinstance(param_value, Iterable) and not isinstance(param_value, str):
         return json.dumps([obj.serial() if isinstance(obj, JSONSerializableModel) else obj for obj in param_value],
                           separators=(',', ':'))
     else:
@@ -52,7 +52,7 @@ def binning_predict_output(params, fields):
     out_cols = params['metaColNames'].split(',') if 'metaColNames' in params else []
     input_ml_fields = fields['feature']
     if not out_cols:
-        out_cols = list(six.iterkeys(fields['feature']))
+        out_cols = list(fields['feature'].keys())
     return ','.join('%s: %s' % (col, input_ml_fields[col]) for col in out_cols) + ', prediction_score: double, ' +\
            'prediction_prob: double, prediction_detail: string'
 

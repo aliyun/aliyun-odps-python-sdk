@@ -13,10 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ..compat import Enum
+import enum
 
 
-class FieldRole(Enum):
+class FieldRole(enum.Enum):
     FEATURE = 'FEATURE'
     LABEL = 'LABEL'
     WEIGHT = 'WEIGHT'
@@ -27,16 +27,16 @@ class FieldRole(Enum):
     PREDICTED_DETAIL = 'PREDICTED_DETAIL'
 
 
-class FieldContinuity(Enum):
+class FieldContinuity(enum.Enum):
     CONTINUOUS = 'CONTINUOUS'
     DISCRETE = 'DISCRETE'
 
 
-class PortType(Enum):
+class PortType(enum.Enum):
     DATA = 'DATA'
     MODEL = 'MODEL'
 
 
-class PortDirection(Enum):
+class PortDirection(enum.Enum):
     INPUT = 'INPUT'
     OUTPUT = 'OUTPUT'

@@ -15,6 +15,7 @@
 # limitations under the License.
 
 from __future__ import absolute_import
+
 import os
 import shutil
 import sys
@@ -25,10 +26,14 @@ import zipfile
 
 import pytest
 
-from ...compat import BytesIO, six
 from ...utils import to_binary
 from .. import importer
 from ..importer import CompressImporter
+
+try:
+    from io import BytesIO
+except ImportError:
+    from cStringIO import StringIO as BytesIO
 
 
 @pytest.fixture(autouse=True)
@@ -128,10 +133,22 @@ def test_rooted_archive_import():
 
 
 def test_real_import():
-    six_path = os.path.join(os.path.dirname(os.path.abspath(six.__file__)), 'six.py')
+    # Create a simple test module for testing archive handling
+    import tempfile
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as test_file:
+        test_file.write(
+            textwrap.dedent(
+                """
+                # Test module for archive handling
+                def test_func():
+                    return 42
+                """
+            )
+        )
+        test_module_path = test_file.name
     zip_io = BytesIO()
     zip_f = zipfile.ZipFile(zip_io, 'w')
-    zip_f.write(six_path, arcname='mylib/five.py')
+    zip_f.write(test_module_path, arcname='mylib/test_mod.py')
     zip_f.close()
     zip_io.seek(0)
 
@@ -139,8 +156,8 @@ def test_real_import():
 
     sys.meta_path.append(CompressImporter(zip_f))
 
-    import five
-    assert list(to_binary('abc')) == list(five.binary_type(to_binary('abc')))
+    import test_mod
+    assert test_mod.test_func() == 42
 
 
 def test_import_with_package_resource():
@@ -197,7 +214,15 @@ def test_binary_import():
         shutil.rmtree(CompressImporter._extract_path)
         CompressImporter._extract_path = None
 
-    six_path = os.path.join(os.path.dirname(os.path.abspath(six.__file__)), 'six.py')
+    # Create a simple test module for testing archive handling
+    import tempfile
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as test_file:
+        test_file.write(textwrap.dedent("""
+        # Test module for archive handling
+        def test_func():
+            return 42
+        """))
+        test_module_path = test_file.name
 
     temp_path = tempfile.mkdtemp(prefix='tmp-pyodps-')
     lib_path = os.path.join(temp_path, 'mylib')
@@ -209,7 +234,7 @@ def test_binary_import():
     try:
         with open(os.path.join(lib_path, '__init__.py'), 'w'):
             pass
-        shutil.copy(six_path, os.path.join(lib_path, 'fake_six.py'))
+        shutil.copy(test_module_path, os.path.join(lib_path, 'test_module.py'))
         dummy_bin = open(os.path.join(lib_path, 'dummy.so'), 'w')
         dummy_bin.close()
 
@@ -218,11 +243,11 @@ def test_binary_import():
 
         with open(os.path.join(sub_lib_path, '__init__.py'), 'w'):
             pass
-        shutil.copy(six_path, os.path.join(sub_lib_path, 'fake_six.py'))
+        shutil.copy(test_module_path, os.path.join(sub_lib_path, 'test_module.py'))
 
-        lib_files = ['__init__.py', 'fake_six.py', 'dummy.so',
+        lib_files = ['__init__.py', 'test_module.py', 'dummy.so',
                      os.path.join('sub_path', '__init__.py'),
-                     os.path.join('sub_path', 'fake_six.py')]
+                     os.path.join('sub_path', 'test_module.py')]
         lib_dict = {
             os.path.join(lib_path, fn): open(os.path.join(lib_path, fn), 'r')
             for fn in lib_files
@@ -234,13 +259,13 @@ def test_binary_import():
         importer.ALLOW_BINARY = True
         importer_obj = CompressImporter(lib_dict)
         sys.meta_path.append(importer_obj)
-        from mylib import fake_six
-        assert list(to_binary('abc')) == list(fake_six.binary_type(to_binary('abc')))
+        from mylib import test_module
+        assert test_module.test_func() == 42
         pytest.raises(ImportError, __import__, 'sub_path', fromlist=[])
 
         with open(os.path.join(lib_path2, '__init__.py'), 'w'):
             pass
-        shutil.copy(six_path, os.path.join(lib_path2, 'fake_six.py'))
+        shutil.copy(test_module_path, os.path.join(lib_path2, 'test_module.py'))
         dummy_bin = open(os.path.join(lib_path2, 'dummy.so'), 'w')
         dummy_bin.close()
 
@@ -249,7 +274,7 @@ def test_binary_import():
 
         with open(os.path.join(sub_lib_path, '__init__.py'), 'w'):
             pass
-        shutil.copy(six_path, os.path.join(sub_lib_path, 'fake_six.py'))
+        shutil.copy(test_module_path, os.path.join(sub_lib_path, 'test_module.py'))
 
         lib_files = ['__init__.py', 'fake_six.py', 'dummy.so',
                      os.path.join('sub_path2', '__init__.py'),
@@ -258,12 +283,13 @@ def test_binary_import():
         importer.ALLOW_BINARY = True
         importer_obj = CompressImporter(lib_files)
         sys.meta_path.append(importer_obj)
-        from mylib2 import fake_six
-        assert list(to_binary('abc')) == list(fake_six.binary_type(to_binary('abc')))
+        from mylib2 import test_module
+        assert test_module.test_func() == 42
         pytest.raises(ImportError, __import__, 'sub_path2', fromlist=[])
     finally:
-        [f.close() for f in six.itervalues(lib_dict)]
+        [f.close() for f in lib_dict.values()]
         shutil.rmtree(temp_path)
+        os.unlink(test_module_path)
 
 
 def test_repeat_import():

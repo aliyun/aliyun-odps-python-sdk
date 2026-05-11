@@ -13,258 +13,55 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import itertools
-import logging.config
+import io
+import json  # don't remove
 import os
 import platform
 import sys
 import warnings
+import xml.etree.ElementTree as ElementTree
+from unicodedata import east_asian_width
 
-try:
-    if sys.version_info[:2] < (3, 3):
-        import xml.etree.cElementTree as ElementTree
-    else:
-        import xml.etree.ElementTree as ElementTree
-except ImportError:
-    import xml.etree.ElementTree as ElementTree
 try:
     ElementTreeParseError = getattr(ElementTree, "ParseError")
 except AttributeError:
     ElementTreeParseError = getattr(ElementTree, "XMLParserError")
-try:
-    from collections.abc import Iterable
-except ImportError:
-    from collections import Iterable
 
-from unicodedata import east_asian_width
-
-from .lib import six
-
-PY27 = six.PY2 and sys.version_info[1] == 7
-LESS_PY32 = sys.version_info[:2] < (3, 2)
-LESS_PY33 = sys.version_info[:2] < (3, 3)
-LESS_PY34 = sys.version_info[:2] < (3, 4)
-LESS_PY35 = sys.version_info[:2] < (3, 5)
-LESS_PY36 = sys.version_info[:2] < (3, 6)
 PYPY = platform.python_implementation().lower() == "pypy"
-
-SEEK_SET = 0
-SEEK_CUR = 1
-SEEK_END = 2
 
 # Definition of East Asian Width
 # http://unicode.org/reports/tr11/
 # Ambiguous width can be changed by option
 _EAW_MAP = {"Na": 1, "N": 1, "W": 2, "F": 2, "H": 1}
 
-import decimal
 
-DECIMAL_TYPES = [
-    decimal.Decimal,
-]
+def east_asian_len(data, encoding=None, ambiguous_width=1):
+    """
+    Calculate display width considering unicode East Asian Width
+    """
+    if isinstance(data, str):
+        return sum([_EAW_MAP.get(east_asian_width(c), ambiguous_width) for c in data])
+    else:
+        return len(data)
 
-import json  # don't remove
+
+from .lib import cgi_compat as cgi
+
+UnsupportedOperation = io.UnsupportedOperation
 
 try:
-    TimeoutError = TimeoutError
-except NameError:
-    TimeoutError = type("TimeoutError", (RuntimeError,), {})
-
-
-if six.PY3:
-    lrange = lambda *x: list(range(*x))
-    lzip = lambda *x: list(zip(*x))
-    lkeys = lambda x: list(x.keys())
-    lvalues = lambda x: list(x.values())
-    litems = lambda x: list(x.items())
-
-    irange = range
-    izip = zip
-
-    long_type = int
-
-    import io
-
-    StringIO = io.StringIO
-    BytesIO = io.BytesIO
-
-    if LESS_PY36:
-        from .lib import enum
-    else:
-        import enum
-
-    if LESS_PY33:
-        try:
-            import cdecimal as decimal
-
-            DECIMAL_TYPES.append(decimal.Decimal)
-        except:
-            import decimal
-    else:
-        import decimal
-
-    def u(s):
-        return s
-
-    def strlen(data, encoding=None):
-        # encoding is for compat with PY2
-        return len(data)
-
-    def east_asian_len(data, encoding=None, ambiguous_width=1):
-        """
-        Calculate display width considering unicode East Asian Width
-        """
-        if isinstance(data, six.text_type):
-            return sum(
-                [_EAW_MAP.get(east_asian_width(c), ambiguous_width) for c in data]
-            )
-        else:
-            return len(data)
-
-    dictconfig = lambda config: logging.config.dictConfig(config)
-
-    import builtins
-    from concurrent import futures  # don't remove
-
-    from .lib import cgi_compat as cgi
-
-    UnsupportedOperation = io.UnsupportedOperation
-
-    try:
-        from .lib.version import Version
-    except BaseException:
-        from distutils.version import LooseVersion as Version
-
-    from threading import Semaphore
-
-    try:
-        from html import unescape as html_unescape
-    except ImportError:  # pragma: no cover
-        from html.parser import HTMLParser
-
-        def html_unescape(s):
-            return HTMLParser().unescape(s)
-
-else:
-    lrange = range
-    lzip = zip
-    lkeys = lambda x: x.keys()
-    lvalues = lambda x: x.values()
-    litems = lambda x: x.items()
-
-    irange = xrange
-    izip = itertools.izip
-
-    long_type = long
-
-    from .lib import enum
-
-    try:
-        import cdecimal as decimal
-
-        DECIMAL_TYPES.append(decimal.Decimal)
-    except ImportError:
-        import decimal
-
-    try:
-        import cStringIO as StringIO
-    except ImportError:
-        import StringIO
-    StringIO = BytesIO = StringIO.StringIO
-
-    def u(s):
-        return unicode(s, "unicode_escape")
-
-    def strlen(data, encoding=None):
-        try:
-            data = data.decode(encoding)
-        except UnicodeError:
-            pass
-        return len(data)
-
-    def east_asian_len(data, encoding=None, ambiguous_width=1):
-        """
-        Calculate display width considering unicode East Asian Width
-        """
-        if isinstance(data, six.text_type):
-            try:
-                data = data.decode(encoding)
-            except UnicodeError:
-                pass
-            return sum(
-                [_EAW_MAP.get(east_asian_width(c), ambiguous_width) for c in data]
-            )
-        else:
-            return len(data)
-
-    dictconfig = lambda config: logging.config.dictConfig(config)
-
-    import cgi
-
-    import __builtin__ as builtins  # don't remove
-
-    from .lib import futures  # don't remove
-
-    UnsupportedOperation = type("UnsupportedOperation", (OSError, ValueError), {})
-
+    from .lib.version import Version
+except BaseException:
     from distutils.version import LooseVersion as Version
-    from threading import _Semaphore as _PySemaphore
 
-    from .lib.monotonic import monotonic
-
-    class Semaphore(_PySemaphore):
-        def acquire(self, blocking=True, timeout=None):
-            if not blocking and timeout is not None:
-                raise ValueError("can't specify timeout for non-blocking acquire")
-            rc = False
-            endtime = None
-            with self.__cond:
-                while self.__value == 0:
-                    if not blocking:
-                        break
-                    if timeout is not None:
-                        if endtime is None:
-                            endtime = monotonic() + timeout
-                        else:
-                            timeout = endtime - monotonic()
-                            if timeout <= 0:
-                                break
-                    self.__cond.wait(timeout)
-                else:
-                    self.__value -= 1
-                    rc = True
-            return rc
-
-    from HTMLParser import HTMLParser
+try:
+    from html import unescape as html_unescape
+except ImportError:  # pragma: no cover
+    from html.parser import HTMLParser
 
     def html_unescape(s):
         return HTMLParser().unescape(s)
 
-
-if LESS_PY32:
-    try:
-        from .tests.dictconfig import dictConfig
-
-        dictconfig = lambda config: dictConfig(config)
-    except ImportError:
-        pass
-
-if six.PY3:
-    from contextlib import suppress
-else:
-    from contextlib import contextmanager
-
-    @contextmanager
-    def suppress(*exceptions):
-        try:
-            yield
-        except exceptions:
-            pass
-
-
-Enum = enum.Enum
-DECIMAL_TYPES = tuple(DECIMAL_TYPES)
-Decimal = decimal.Decimal
 
 try:
     import pandas as pd
@@ -283,7 +80,7 @@ try:
         pd.RangeIndex.step = property(fget=lambda x: x._step)
 except (ImportError, ValueError) as ex:
     if not isinstance(ex, ImportError):
-        warnings.warn("Import of pandas skipped. Reasons: %s" % str(ex))
+        warnings.warn(f"Import of pandas skipped. Reasons: {ex}")
 
 try:
     import numpy as np
@@ -295,35 +92,20 @@ try:
 except ImportError:
     pass
 
-if sys.version_info[0] > 2:
-    # workaround for polluted sys.path due to some packages
-    try:
-        import http.client
-    except ImportError:
-        sys.modules.pop("http", None)
-        old_path = list(sys.path)
-        sys.path = [os.path.dirname(os.__file__)] + sys.path
-        import http.client
+# workaround for polluted sys.path due to some packages
+try:
+    import http.client
+except ImportError:
+    sys.modules.pop("http", None)
+    old_path = list(sys.path)
+    sys.path = [os.path.dirname(os.__file__)] + sys.path
+    import http.client
 
-        sys.path = old_path
+    sys.path = old_path
 
 import datetime
 
 from .lib.ext_types import Monthdelta
-from .lib.lib_utils import dir2, getargspec, getfullargspec, isvalidattr
-from .lib.six.moves import configparser as ConfigParser
-from .lib.six.moves import cPickle as pickle
-from .lib.six.moves import reduce, reload_module
-from .lib.six.moves.queue import Empty, Queue
-from .lib.six.moves.urllib.parse import (
-    parse_qsl,
-    quote,
-    quote_plus,
-    unquote,
-    urlencode,
-    urlparse,
-)
-from .lib.six.moves.urllib.request import urlretrieve
 
 
 class _FixedOffset(datetime.tzinfo):
@@ -385,40 +167,79 @@ else:
         return datetime.datetime.now(datetime.UTC).replace(tzinfo=None)
 
 
+_legacy_items = {
+    "BytesIO": lambda: io.BytesIO,
+    "DECIMAL_TYPES": lambda: (__import__("decimal").Decimal,),
+    "ConfigParser": lambda: __import__("configparser"),
+    "Decimal": lambda: __import__("decimal").Decimal,
+    "Empty": lambda: __import__("queue").Empty,
+    "Enum": lambda: __import__("enum").Enum,
+    "HTMLParser": lambda: __import__("html.parser", fromlist=["HTMLParser"]).HTMLParser,
+    "Iterable": lambda: __import__("collections.abc", fromlist=["Iterable"]).Iterable,
+    "Queue": lambda: __import__("queue").Queue,
+    "Semaphore": lambda: __import__("threading").Semaphore,
+    "StringIO": lambda: io.StringIO,
+    "TimeoutError": lambda: TimeoutError,
+    "UnsupportedOperation": lambda: io.UnsupportedOperation,
+    "builtins": lambda: __import__("builtins"),
+    "decimal": lambda: __import__("decimal"),
+    "dictconfig": lambda: __import__(
+        "logging.config", fromlist=["dictConfig"]
+    ).dictConfig,
+    "enum": lambda: __import__("enum"),
+    "futures": lambda: __import__("concurrent.futures", fromlist=["futures"]),
+    "irange": lambda: range,
+    "izip": lambda: zip,
+    "long_type": lambda: int,
+    "lrange": lambda: (lambda *args: list(range(*args))),
+    "lzip": lambda: (lambda *args: list(zip(*args))),
+    "lkeys": lambda: (lambda d: list(d.keys())),
+    "lvalues": lambda: (lambda d: list(d.values())),
+    "litems": lambda: (lambda d: list(d.items())),
+    "monotonic": lambda: __import__("time").monotonic,
+    "parse_qsl": lambda: __import__("urllib.parse", fromlist=["parse_qsl"]).parse_qsl,
+    "pickle": lambda: __import__("pickle"),
+    "quote": lambda: __import__("urllib.parse", fromlist=["quote"]).quote,
+    "quote_plus": lambda: __import__(
+        "urllib.parse", fromlist=["quote_plus"]
+    ).quote_plus,
+    "reduce": lambda: __import__("functools").reduce,
+    "reload_module": lambda: __import__("importlib").reload,
+    "six": lambda: __import__("six"),
+    "suppress": lambda: __import__("contextlib").suppress,
+    "sys": lambda: sys,
+    "unquote": lambda: __import__("urllib.parse", fromlist=["unquote"]).unquote,
+    "urlencode": lambda: __import__("urllib.parse", fromlist=["urlencode"]).urlencode,
+    "urlparse": lambda: __import__("urllib.parse", fromlist=["urlparse"]).urlparse,
+    "urlretrieve": lambda: __import__(
+        "urllib.request", fromlist=["urlretrieve"]
+    ).urlretrieve,
+}
+
+
+def __getattr__(name):
+    if name in _legacy_items:
+        warnings.warn(
+            f"Importing {name} from odps.compat is deprecated as support for Python<=3.6"
+            " is dropped, please import it from original modules instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        value = _legacy_items[name]()
+        globals()[name] = value
+        return value
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
 __all__ = [
-    "DECIMAL_TYPES",
-    "ConfigParser",
-    "Decimal",
     "ElementTree",
     "ElementTreeParseError",
-    "Empty",
-    "Enum",
     "FixedOffset",
-    "Iterable",
     "Monthdelta",
-    "Queue",
-    "Semaphore",
-    "TimeoutError",
     "Version",
-    "builtins",
     "cgi",
     "datetime_utcnow",
-    "decimal",
-    "dictconfig",
     "html_unescape",
-    "logging.config",
-    "parse_qsl",
     "parsedate_to_datetime",
-    "pickle",
-    "quote",
-    "quote_plus",
-    "reduce",
-    "reload_module",
-    "suppress",
-    "sys",
-    "unquote",
-    "urlencode",
-    "urlparse",
-    "urlretrieve",
     "utc",
 ]

@@ -19,10 +19,9 @@ from functools import partial
 
 from .classification import *
 from .regression import *
-from ...compat import six
 
 
-class BaseScorer(six.with_metaclass(ABCMeta, object)):
+class BaseScorer(metaclass=ABCMeta):
     def __init__(self, func, sign, kwargs):
         self._func = func
         self._sign = sign

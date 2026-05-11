@@ -14,20 +14,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import decimal as _builtin_decimal
+import decimal
+import io
 import json as _json
 import math
-import sys
 import warnings
 from collections import OrderedDict
 from datetime import date as _date
 from datetime import datetime as _datetime
 from datetime import timedelta as _timedelta
 
-from . import compat, utils
-from .compat import DECIMAL_TYPES, Monthdelta
-from .compat import decimal as _decimal
-from .compat import east_asian_len, six
+from . import utils
+from .compat import Monthdelta, east_asian_len
 from .config import options
 from .lib.xnamedtuple import xnamedtuple
 
@@ -90,13 +88,11 @@ class Column(object):
         self._parsed_generate_expression = None
 
         if kw:
-            raise TypeError("Arguments not supported for Column: %s" % list(kw))
+            raise TypeError(f"Arguments not supported for Column: {list(kw)}")
 
     def __repr__(self):
         not_null_str = ", not null" if not self.nullable else ""
-        return "<column {0}, type {1}{2}>".format(
-            utils.to_str(self.name), self.type.name.lower(), not_null_str
-        )
+        return f"<column {utils.to_str(self.name)}, type {self.type.name.lower()}{not_null_str}>"
 
     def __hash__(self):
         return hash(
@@ -140,28 +136,20 @@ class Column(object):
         return self._parsed_generate_expression
 
     def to_sql_clause(self, with_column_comments=True):
-        sio = six.StringIO()
+        sio = io.StringIO()
         if self.generate_expression:
             sio.write(
-                u"  %s AS %s"
-                % (
-                    utils.to_text(self.generate_expression),
-                    utils.backquote_string(self.name),
-                )
+                f"  {utils.to_text(self.generate_expression)} AS {utils.backquote_string(self.name)}"
             )
         else:
             sio.write(
-                u"  %s %s"
-                % (
-                    utils.to_text(utils.backquote_string(self.name)),
-                    utils.to_text(self.type),
-                )
+                f"  {utils.to_text(utils.backquote_string(self.name))} {utils.to_text(self.type)}"
             )
             if not self.nullable and not options.sql.ignore_fields_not_null:
-                sio.write(u" NOT NULL")
+                sio.write(" NOT NULL")
         if with_column_comments and self.comment:
             comment_str = utils.escape_odps_string(utils.to_text(self.comment))
-            sio.write(u" COMMENT '%s'" % comment_str)
+            sio.write(f" COMMENT '{comment_str}'")
         return sio.getvalue()
 
     def replace(
@@ -202,9 +190,7 @@ class Partition(Column):
     """
 
     def __repr__(self):
-        return "<partition {0}, type {1}>".format(
-            utils.to_str(self.name), self.type.name.lower()
-        )
+        return f"<partition {utils.to_str(self.name)}, type {self.type.name.lower()}>"
 
 
 class _CallableList(list):
@@ -222,7 +208,7 @@ class PartitionSpec(object):
             self.kv = spec.kv.copy()
         elif isinstance(spec, dict):
             self.kv = OrderedDict(spec)
-        elif isinstance(spec, six.string_types):
+        elif isinstance(spec, str):
             splits = spec.split(",")
             for sp in splits:
                 kv = sp.split("=")
@@ -232,7 +218,7 @@ class PartitionSpec(object):
                         'look like "part1=v1,part2=v2"'
                     )
 
-                k, v = kv[0].strip(), kv[1].strip().strip('\'"')
+                k, v = kv[0].strip(), kv[1].strip().strip("'\"")
 
                 if len(k) == 0 or len(v) == 0:
                     raise ValueError("Invalid partition spec")
@@ -243,7 +229,7 @@ class PartitionSpec(object):
 
                 self.kv[k] = v
         elif spec is not None:
-            raise TypeError("Cannot accept spec %r" % spec)
+            raise TypeError(f"Cannot accept spec {spec!r}")
 
     def __setitem__(self, key, value):
         self.kv[key] = value
@@ -274,10 +260,10 @@ class PartitionSpec(object):
         return key in self.kv
 
     def __str__(self):
-        return ",".join("%s='%s'" % (k, v) for k, v in six.iteritems(self.kv))
+        return ",".join(f"{k}='{v}'" for k, v in self.kv.items())
 
     def __repr__(self):
-        return "<PartitionSpec %s>" % str(self)
+        return f"<PartitionSpec {self}>"
 
     def __hash__(self):
         return hash(str(self))
@@ -304,7 +290,7 @@ class Schema(object):
 
         if len(self._name_indexes) < len(self.names):
             duplicates = [n for n in self._name_indexes if lower_names.count(n) > 1]
-            raise ValueError("Duplicate column names: %s" % ", ".join(duplicates))
+            raise ValueError(f"Duplicate column names: {', '.join(duplicates)}")
 
         self._snapshot = None
 
@@ -318,13 +304,13 @@ class Schema(object):
         return utils.to_lower_str(name) in self._name_indexes
 
     def _repr(self):
-        buf = six.StringIO()
+        buf = io.StringIO()
         names = [self._to_printable(n) for n in self.names]
         space = 2 * max(len(it) for it in names)
         for name, tp in zip(names, self.types):
-            buf.write("\n{0}{1}".format(name.ljust(space), repr(tp)))
+            buf.write(f"\n{name.ljust(space)}{repr(tp)}")
 
-        return "Schema {{{0}\n}}".format(utils.indent(buf.getvalue(), 2))
+        return f"Schema {{{utils.indent(buf.getvalue(), 2)}\n}}"
 
     def __hash__(self):
         return hash((type(self), tuple(self.names), tuple(self.types)))
@@ -355,14 +341,14 @@ class OdpsSchema(Schema):
 
         if self._columns:
             super(OdpsSchema, self).__init__(
-                *compat.lzip(*[(c.name, c.type) for c in self._columns])
+                *list(zip(*[(c.name, c.type) for c in self._columns]))
             )
         else:
             super(OdpsSchema, self).__init__([], [])
 
         if self._partitions:
             self._partition_schema = Schema(
-                *compat.lzip(*[(c.name, c.type) for c in self._partitions])
+                *list(zip(*[(c.name, c.type) for c in self._partitions]))
             )
         else:
             self._partition_schema = Schema([], [])
@@ -382,7 +368,7 @@ class OdpsSchema(Schema):
             self._init(names, types)
         elif key == "_partitions" and value:
             self._partition_schema = Schema(
-                *compat.lzip(*[(c.name, c.type) for c in value])
+                *list(zip(*[(c.name, c.type) for c in value]))
             )
         object.__setattr__(self, key, value)
 
@@ -407,7 +393,7 @@ class OdpsSchema(Schema):
         )
 
     def __getitem__(self, item):
-        if isinstance(item, six.integer_types):
+        if isinstance(item, int):
             n_columns = len(self._name_indexes)
             if item < n_columns:
                 return self._columns[item]
@@ -415,7 +401,7 @@ class OdpsSchema(Schema):
                 return self._partitions[item - n_columns]
             else:
                 raise IndexError("Index out of range")
-        elif isinstance(item, six.string_types):
+        elif isinstance(item, str):
             lower_item = utils.to_lower_str(item)
             if lower_item in self._name_indexes:
                 idx = self._name_indexes[lower_item]
@@ -425,7 +411,7 @@ class OdpsSchema(Schema):
                 n_columns = len(self._name_indexes)
                 return self[n_columns + idx]
             else:
-                raise ValueError("Unknown column name: %s" % item)
+                raise ValueError(f"Unknown column name: {item}")
         elif isinstance(item, (list, tuple)):
             return [self[it] for it in item]
         else:
@@ -435,7 +421,7 @@ class OdpsSchema(Schema):
         def _strip(line):
             return line.rstrip() if strip else line
 
-        buf = six.StringIO()
+        buf = io.StringIO()
 
         name_dict = dict(
             [(col.name, utils.str_to_printable(col.name)) for col in self.columns]
@@ -443,10 +429,10 @@ class OdpsSchema(Schema):
         name_display_lens = dict(
             [
                 (k, east_asian_len(utils.to_text(v), encoding=options.display.encoding))
-                for k, v in six.iteritems(name_dict)
+                for k, v in name_dict.items()
             ]
         )
-        max_name_len = max(six.itervalues(name_display_lens))
+        max_name_len = max(name_display_lens.values())
         name_space = max_name_len + min(16, max_name_len)
         max_type_len = max(len(repr(col.type)) for col in self.columns)
         type_space = max_type_len + min(16, max_type_len)
@@ -459,13 +445,11 @@ class OdpsSchema(Schema):
         for col in self._columns:
             pad_spaces = name_space - name_display_lens[col.name]
             not_null = "not null" if not col.nullable else " " * 8
-            row = "{0}{1}{2}{3}".format(
-                utils.to_str(name_dict[col.name] + " " * pad_spaces),
-                repr(col.type).ljust(type_space),
-                not_null + " " * 4 if has_not_null else "",
-                "# {0}".format(utils.to_str(col.comment))
-                if not_empty(col.comment)
-                else "",
+            row = (
+                f"{utils.to_str(name_dict[col.name] + ' ' * pad_spaces)}"
+                f"{repr(col.type).ljust(type_space)}"
+                f"{not_null + ' ' * 4 if has_not_null else ''}"
+                f"{'# ' + utils.to_str(col.comment) if not_empty(col.comment) else ''}"
             )
             cols_strs.append(_strip(row))
         buf.write(utils.indent("\n".join(cols_strs), 2))
@@ -477,12 +461,10 @@ class OdpsSchema(Schema):
 
             partition_strs = []
             for partition in self._partitions:
-                row = "{0}{1}{2}".format(
-                    utils.to_str(name_dict[partition.name].ljust(name_space)),
-                    repr(partition.type).ljust(type_space),
-                    "# {0}".format(utils.to_str(partition.comment))
-                    if not_empty(partition.comment)
-                    else "",
+                row = (
+                    f"{utils.to_str(name_dict[partition.name].ljust(name_space))}"
+                    f"{repr(partition.type).ljust(type_space)}"
+                    f"{'# ' + utils.to_str(partition.comment) if not_empty(partition.comment) else ''}"
                 )
                 partition_strs.append(_strip(row))
             buf.write(utils.indent("\n".join(partition_strs), 2))
@@ -537,13 +519,13 @@ class OdpsSchema(Schema):
     def get_column(self, name):
         index = self._name_indexes.get(utils.to_lower_str(name))
         if index is None:
-            raise ValueError("Column %s does not exists" % name)
+            raise ValueError(f"Column {name} does not exists")
         return self._columns[index]
 
     def get_partition(self, name):
         index = self._partition_schema._name_indexes.get(utils.to_lower_str(name))
         if index is None:
-            raise ValueError("Partition %s does not exists" % name)
+            raise ValueError(f"Partition {name} does not exists")
         return self._partitions[index]
 
     def is_partition(self, name):
@@ -559,7 +541,7 @@ class OdpsSchema(Schema):
             return super(OdpsSchema, self).get_type(name)
         elif lower_name in self._partition_schema:
             return self._partition_schema.get_type(name)
-        raise ValueError("Column does not exist: %s" % name)
+        raise ValueError(f"Column does not exist: {name}")
 
     def update(self, columns, partitions):
         self._columns = columns
@@ -571,7 +553,7 @@ class OdpsSchema(Schema):
         self._init(names, types)
         if self._partitions:
             self._partition_schema = Schema(
-                *compat.lzip(*[(c.name, c.type) for c in self._partitions])
+                *list(zip(*[(c.name, c.type) for c in self._partitions]))
             )
         else:
             self._partition_schema = Schema([], [])
@@ -630,13 +612,13 @@ class OdpsSchema(Schema):
 
     @classmethod
     def from_dict(cls, fields_dict, partitions_dict=None):
-        fields = compat.lkeys(fields_dict)
-        fields_types = compat.lvalues(fields_dict)
+        fields = list(fields_dict.keys())
+        fields_types = list(fields_dict.values())
         partitions = (
-            compat.lkeys(partitions_dict) if partitions_dict is not None else None
+            list(partitions_dict.keys()) if partitions_dict is not None else None
         )
         partitions_types = (
-            compat.lvalues(partitions_dict) if partitions_dict is not None else None
+            list(partitions_dict.values()) if partitions_dict is not None else None
         )
 
         return cls.from_lists(
@@ -718,19 +700,19 @@ class BaseRecord(object):
         ):
             raise ValueError(
                 "The values set to records are against the schema, "
-                "expect len %s, got len %s" % (len(self._columns), len(values))
+                f"expect len {len(self._columns)}, got len {len(values)}"
             )
         [self._set(i, value) for i, value in enumerate(values)]
 
     def __getitem__(self, item):
-        if isinstance(item, six.string_types):
+        if isinstance(item, str):
             return self.get_by_name(item)
         elif isinstance(item, (list, tuple)):
             return [self[it] for it in item]
         return self._values[item]
 
     def __setitem__(self, key, value):
-        if isinstance(key, six.string_types):
+        if isinstance(key, str):
             self.set_by_name(key, value)
         else:
             self._set(key, value)
@@ -780,14 +762,14 @@ class BaseRecord(object):
 
 class RecordReprMixin(object):
     def __repr__(self):
-        buf = six.StringIO()
+        buf = io.StringIO()
 
         buf.write("odps.Record {\n")
 
         space = 2 * max(len(it.name) for it in self._columns)
         content = "\n".join(
             [
-                "{0}{1}".format(col.name.ljust(space), repr(value))
+                f"{col.name.ljust(space)}{value!r}"
                 for col, value in zip(self._columns, self._values)
             ]
         )
@@ -807,7 +789,7 @@ class RecordReprMixin(object):
         return self._columns == other._columns and self._values == other._values
 
 
-class Record(six.with_metaclass(RecordMeta, RecordReprMixin, BaseRecord)):
+class Record(RecordReprMixin, BaseRecord, metaclass=RecordMeta):
     """
     A record generally means the data of a single line in a table. It can be
     created from a schema, or by :meth:`odps.models.Table.new_record` or by
@@ -832,8 +814,8 @@ class Record(six.with_metaclass(RecordMeta, RecordReprMixin, BaseRecord)):
     >>> record['name', 'id']
     >>> for field in record:
     >>>     print(field)
-    ('name', u'test')
-    ('id', u'test2')
+    ('name', 'test')
+    ('id', 'test2')
     >>> len(record)
     2
     >>> 'name' in record
@@ -899,13 +881,13 @@ class DataType(object):
     def __repr__(self):
         if self.nullable:
             return self.name
-        return "{0}[non-nullable]".format(self.name)
+        return f"{self.name}[non-nullable]"
 
     def __str__(self):
         return self.name.upper()
 
     def can_implicit_cast(self, other):
-        if isinstance(other, six.string_types):
+        if isinstance(other, str):
             other = validate_data_type(other)
 
         return isinstance(self, type(other))
@@ -923,8 +905,7 @@ class DataType(object):
     def _can_cast_or_throw(self, value, data_type):
         if not self.can_implicit_cast(data_type):
             raise ValueError(
-                "Cannot cast value(%s) from type(%s) to type(%s)"
-                % (value, data_type, self)
+                f"Cannot cast value({value}) from type({data_type}) to type({self})"
             )
 
     def cast_value(self, value, data_type):
@@ -943,7 +924,7 @@ class BaseInteger(OdpsPrimitive):
     _store_bytes = None
 
     def can_implicit_cast(self, other):
-        if isinstance(other, six.string_types):
+        if isinstance(other, str):
             other = validate_data_type(other)
 
         if isinstance(other, (BaseFloat, String, Decimal)):
@@ -958,7 +939,7 @@ class BaseInteger(OdpsPrimitive):
         smallest, largest = self._bounds
         if smallest <= val <= largest:
             return True
-        raise ValueError("InvalidData: Bigint(%s) out of range" % val)
+        raise ValueError(f"InvalidData: Bigint({val}) out of range")
 
     def cast_value(self, value, data_type):
         self._can_cast_or_throw(value, data_type)
@@ -1027,7 +1008,7 @@ class BaseFloat(OdpsPrimitive):
     _store_bytes = None
 
     def can_implicit_cast(self, other):
-        if isinstance(other, six.string_types):
+        if isinstance(other, str):
             other = validate_data_type(other)
 
         if isinstance(other, (BaseInteger, String, Decimal)):
@@ -1055,7 +1036,7 @@ class Double(BaseFloat):
 
 
 def _check_string_byte_size(val, max_size):
-    if isinstance(val, six.binary_type):
+    if isinstance(val, bytes):
         byt_len = len(val)
     else:
         byt_len = 4 * len(val)
@@ -1073,7 +1054,7 @@ class String(OdpsPrimitive):
     _max_length = 8 * 1024 * 1024  # 8M
 
     def can_implicit_cast(self, other):
-        if isinstance(other, six.string_types):
+        if isinstance(other, str):
             other = validate_data_type(other)
 
         if isinstance(other, (BaseInteger, BaseFloat, Datetime, Decimal, Binary, Json)):
@@ -1088,8 +1069,7 @@ class String(OdpsPrimitive):
         if valid:
             return True
         raise ValueError(
-            "InvalidData: Byte length of string(%s) is more than %sM.'"
-            % (byt_len, max_field_size / (1024**2))
+            f"InvalidData: Byte length of string({byt_len}) is more than {max_field_size / (1024**2)}M.'"
         )
 
     def cast_value(self, value, data_type):
@@ -1110,7 +1090,7 @@ class Datetime(OdpsPrimitive):
     _type_id = 3
 
     def can_implicit_cast(self, other):
-        if isinstance(other, six.string_types):
+        if isinstance(other, str):
             other = validate_data_type(other)
 
         from_types = (BaseTimestamp, Datetime, Date, String)
@@ -1140,7 +1120,7 @@ class Date(OdpsPrimitive):
     _type_id = 11
 
     def can_implicit_cast(self, other):
-        if isinstance(other, six.string_types):
+        if isinstance(other, str):
             other = validate_data_type(other)
 
         from_types = (BaseTimestamp, Datetime, String)
@@ -1181,7 +1161,7 @@ class Binary(OdpsPrimitive):
     _max_length = 8 * 1024 * 1024  # 8M
 
     def can_implicit_cast(self, other):
-        if isinstance(other, six.string_types):
+        if isinstance(other, str):
             other = validate_data_type(other)
 
         if isinstance(other, (BaseInteger, BaseFloat, Datetime, Decimal, String)):
@@ -1196,8 +1176,7 @@ class Binary(OdpsPrimitive):
         if valid:
             return True
         raise ValueError(
-            "InvalidData: Byte length of binary(%s) is more than %sM.'"
-            % (byt_len, max_field_size / (1024**2))
+            f"InvalidData: Byte length of binary({byt_len}) is more than {max_field_size / (1024**2)}M.'"
         )
 
     def cast_value(self, value, data_type):
@@ -1213,7 +1192,7 @@ class BaseTimestamp(OdpsPrimitive):
     _type_id = 8
 
     def can_implicit_cast(self, other):
-        if isinstance(other, six.string_types):
+        if isinstance(other, str):
             other = validate_data_type(other)
 
         if isinstance(other, (BaseTimestamp, Datetime, String)):
@@ -1254,7 +1233,7 @@ class IntervalDayTime(OdpsPrimitive):
     _type_id = 9
 
     def can_implicit_cast(self, other):
-        if isinstance(other, six.string_types):
+        if isinstance(other, str):
             other = validate_data_type(other)
 
         if isinstance(other, (BaseTimestamp, Datetime, String)):
@@ -1287,7 +1266,7 @@ class IntervalYearMonth(OdpsPrimitive):
     _type_id = 10
 
     def can_implicit_cast(self, other):
-        if isinstance(other, six.string_types):
+        if isinstance(other, str):
             other = validate_data_type(other)
 
         if isinstance(other, (String, BaseInteger)):
@@ -1301,7 +1280,7 @@ class IntervalYearMonth(OdpsPrimitive):
     def cast_value(self, value, data_type):
         self._can_cast_or_throw(value, data_type)
 
-        if isinstance(value, (int, compat.long_type, six.string_types)):
+        if isinstance(value, (int, str)):
             return Monthdelta(value)
         return value
 
@@ -1326,17 +1305,16 @@ class SizeLimitedString(String, CompositeDataType):
         super(SizeLimitedString, self).__init__(nullable=nullable)
         if size_limit > self._max_length:
             raise ValueError(
-                "InvalidData: Length of varchar(%d) is larger than %d."
-                % (size_limit, self._max_length)
+                f"InvalidData: Length of varchar({size_limit}) is larger than {self._max_length}."
             )
         self.size_limit = size_limit
 
     @property
     def name(self):
-        return "{0}({1})".format(type(self).__name__.lower(), self.size_limit)
+        return f"{type(self).__name__.lower()}({self.size_limit})"
 
     def _equals(self, other):
-        if isinstance(other, six.string_types):
+        if isinstance(other, str):
             other = validate_data_type(other)
 
         return DataType._equals(self, other) and self.size_limit == other.size_limit
@@ -1352,26 +1330,26 @@ class SizeLimitedString(String, CompositeDataType):
         if len(val) <= self.size_limit:
             # binary size >= unicode size
             return True
-        elif isinstance(val, six.binary_type):
+        elif isinstance(val, bytes):
             val = val.decode("utf-8")
             if len(val) <= self.size_limit:
                 return True
         raise ValueError(
-            "InvalidData: Length of string(%d) is more than %s.'"
-            % (len(val), self.size_limit)
+            f"InvalidData: Length of string({len(val)}) is more "
+            f"than {self.size_limit}.'"
         )
 
     @classmethod
     def parse_composite(cls, args):
         if len(args) != 1:
             raise ValueError(
-                "%s() only accept one length argument." % cls.__name__.upper()
+                f"{cls.__name__.upper()}() only accept one length argument."
             )
         try:
             return cls(int(args[0]))
         except TypeError:
             raise ValueError(
-                "%s() only accept an integer length argument." % cls.__name__.upper()
+                f"{cls.__name__.upper()}() only accept an integer length argument."
             )
 
     def cast_composite_values(self, value):
@@ -1399,7 +1377,7 @@ class Varchar(SizeLimitedString):
     """
 
     def can_implicit_cast(self, other):
-        if isinstance(other, six.string_types):
+        if isinstance(other, str):
             other = validate_data_type(other)
 
         if isinstance(
@@ -1433,7 +1411,7 @@ class Char(SizeLimitedString):
     """
 
     def can_implicit_cast(self, other):
-        if isinstance(other, six.string_types):
+        if isinstance(other, str):
             other = validate_data_type(other)
 
         if isinstance(
@@ -1471,11 +1449,9 @@ class Decimal(CompositeDataType):
     __slots__ = "nullable", "precision", "scale", "_hash"
     _type_id = 5
 
-    _has_other_decimal_type = len(DECIMAL_TYPES) > 1
-
     _default_precision = 54
     _default_scale = 18
-    _decimal_ctx = _decimal.Context(prec=_default_precision)
+    _decimal_ctx = decimal.Context(prec=_default_precision)
 
     def __init__(self, precision=None, scale=None, nullable=True):
         super(Decimal, self).__init__(nullable=nullable)
@@ -1491,21 +1467,20 @@ class Decimal(CompositeDataType):
             )
         self.precision = precision
         self.scale = scale
-        self._scale_decimal = _decimal.Decimal(
-            "1e%d" % -(scale if scale is not None else self._default_scale)
+        self._scale_decimal = decimal.Decimal(
+            f"1e{-(scale if scale is not None else self._default_scale)}"
         )
         self._no_decimal_check = options.tunnel.no_decimal_check
 
     @property
     def name(self):
+        type_name = type(self).__name__.lower()
         if self.precision is None:
-            return type(self).__name__.lower()
+            return type_name
         elif self.scale is None:
-            return "{0}({1})".format(type(self).__name__.lower(), self.precision)
+            return f"{type_name}({self.precision})"
         else:
-            return "{0}({1},{2})".format(
-                type(self).__name__.lower(), self.precision, self.scale
-            )
+            return f"{type_name}({self.precision},{self.scale})"
 
     def __hash__(self):
         if not hasattr(self, "_hash"):
@@ -1513,7 +1488,7 @@ class Decimal(CompositeDataType):
         return self._hash
 
     def _equals(self, other):
-        if isinstance(other, six.string_types):
+        if isinstance(other, str):
             other = validate_data_type(other)
 
         return (
@@ -1523,7 +1498,7 @@ class Decimal(CompositeDataType):
         )
 
     def can_implicit_cast(self, other):
-        if isinstance(other, six.string_types):
+        if isinstance(other, str):
             other = validate_data_type(other)
 
         if isinstance(other, (BaseInteger, BaseFloat, String)):
@@ -1536,61 +1511,47 @@ class Decimal(CompositeDataType):
         if self._no_decimal_check:
             return True
 
-        if (
-            self._has_other_decimal_type
-            and not isinstance(val, _decimal.Decimal)
-            and isinstance(val, DECIMAL_TYPES)
-        ):
-            val = _decimal.Decimal(str(val))
-
         precision = (
             self.precision if self.precision is not None else self._default_precision
         )
         scale = self.scale if self.scale is not None else self._default_scale
         scaled_val = val.quantize(
-            self._scale_decimal, _decimal.ROUND_HALF_UP, self._decimal_ctx
+            self._scale_decimal, decimal.ROUND_HALF_UP, self._decimal_ctx
         )
         if scaled_val < 0:
             scaled_val = -scaled_val
         int_len = len(str(scaled_val).lstrip("0")) - 1
         if int_len > precision:
             raise ValueError(
-                "decimal value %s overflow, max integer digit number is %s."
-                % (val, precision - scale)
+                f"decimal value {val} overflow, max integer digit number is {precision - scale}."
             )
         return True
 
     def cast_value(self, value, data_type):
         self._can_cast_or_throw(value, data_type)
 
-        if (
-            self._has_other_decimal_type
-            and not isinstance(value, _decimal.Decimal)
-            and isinstance(value, DECIMAL_TYPES)
-        ):
-            value = _decimal.Decimal(str(value))
-        if six.PY3 and isinstance(value, six.binary_type):
+        if isinstance(value, bytes):
             value = value.decode("utf-8")
-        return _builtin_decimal.Decimal(value)
+        return decimal.Decimal(value)
 
     @classmethod
     def parse_composite(cls, args):
         if len(args) > 2:
             raise ValueError(
-                "%s() accepts no more than two arguments." % cls.__name__.upper()
+                f"{cls.__name__.upper()}() accepts no more than two arguments."
             )
         try:
             return cls(*[int(v) for v in args])
         except TypeError:
             raise ValueError(
-                "%s() only accept integers as arguments." % cls.__name__.upper()
+                f"{cls.__name__.upper()}() only accept integers as arguments."
             )
 
     def cast_composite_values(self, value):
         if value is None and self.nullable:
             return value
-        if type(value) is not _builtin_decimal.Decimal and not isinstance(
-            value, _builtin_decimal.Decimal
+        if type(value) is not decimal.Decimal and not isinstance(
+            value, decimal.Decimal
         ):
             value = self.cast_value(value, infer_primitive_data_type(value))
         return value
@@ -1627,10 +1588,10 @@ class Array(CompositeDataType):
 
     @property
     def name(self):
-        return "{0}<{1}>".format(type(self).__name__.lower(), self.value_type.name)
+        return f"{type(self).__name__.lower()}<{self.value_type.name}>"
 
     def _equals(self, other):
-        if isinstance(other, six.string_types):
+        if isinstance(other, str):
             other = validate_data_type(other)
 
         return DataType._equals(self, other) and self.value_type == other.value_type
@@ -1641,7 +1602,7 @@ class Array(CompositeDataType):
         return self._hash
 
     def can_implicit_cast(self, other):
-        if isinstance(other, six.string_types):
+        if isinstance(other, str):
             other = validate_data_type(other)
 
         return (
@@ -1658,7 +1619,7 @@ class Array(CompositeDataType):
     def parse_composite(cls, args):
         if len(args) != 1:
             raise ValueError(
-                "%s<> should be supplied with exactly one type." % cls.__name__.upper()
+                f"{cls.__name__.upper()}<> should be supplied with exactly one type."
             )
         return cls(args[0])
 
@@ -1666,7 +1627,7 @@ class Array(CompositeDataType):
         if value is None and self.nullable:
             return value
         if not isinstance(value, list):
-            raise ValueError("Array data type requires `list`, instead of %s" % value)
+            raise ValueError(f"Array data type requires `list`, instead of {value}")
         element_data_type = self.value_type
         return [validate_value(element, element_data_type) for element in value]
 
@@ -1706,16 +1667,14 @@ class Map(CompositeDataType):
         self.value_type = value_type
         self._use_ordered_dict = options.map_as_ordered_dict
         if self._use_ordered_dict is None:
-            self._use_ordered_dict = sys.version_info[:2] <= (3, 6)
+            self._use_ordered_dict = False
 
     @property
     def name(self):
-        return "{0}<{1},{2}>".format(
-            type(self).__name__.lower(), self.key_type.name, self.value_type.name
-        )
+        return f"{type(self).__name__.lower()}<{self.key_type.name},{self.value_type.name}>"
 
     def _equals(self, other):
-        if isinstance(other, six.string_types):
+        if isinstance(other, str):
             other = validate_data_type(other)
 
         return (
@@ -1732,7 +1691,7 @@ class Map(CompositeDataType):
         return self._hash
 
     def can_implicit_cast(self, other):
-        if isinstance(other, six.string_types):
+        if isinstance(other, str):
             other = validate_data_type(other)
 
         return (
@@ -1750,7 +1709,7 @@ class Map(CompositeDataType):
     def parse_composite(cls, args):
         if len(args) != 2:
             raise ValueError(
-                "%s<> should be supplied with exactly two types." % cls.__name__.upper()
+                f"{cls.__name__.upper()}<> should be supplied with exactly two types."
             )
         return cls(*args)
 
@@ -1758,7 +1717,7 @@ class Map(CompositeDataType):
         if value is None and self.nullable:
             return value
         if not isinstance(value, dict):
-            raise ValueError("Map data type requires `dict`, instead of %s" % value)
+            raise ValueError(f"Map data type requires `dict`, instead of {value}")
         key_data_type = self.key_type
         value_data_type = self.value_type
 
@@ -1767,7 +1726,7 @@ class Map(CompositeDataType):
             validate_value(v, value_data_type),
         )
         dict_type = OrderedDict if self._use_ordered_dict else dict
-        return dict_type(convert(k, v) for k, v in six.iteritems(value))
+        return dict_type(convert(k, v) for k, v in value.items())
 
 
 class Struct(CompositeDataType):
@@ -1801,7 +1760,7 @@ class Struct(CompositeDataType):
         super(Struct, self).__init__(nullable=nullable)
         self.field_types = OrderedDict()
         if isinstance(field_types, dict):
-            field_types = six.iteritems(field_types)
+            field_types = field_types.items()
         for k, v in field_types:
             self.field_types[k] = validate_data_type(v)
         self.namedtuple_type = xnamedtuple(
@@ -1812,7 +1771,7 @@ class Struct(CompositeDataType):
         if self._struct_as_dict:
             self._use_ordered_dict = options.struct_as_ordered_dict
             if self._use_ordered_dict is None:
-                self._use_ordered_dict = sys.version_info[:2] <= (3, 6)
+                self._use_ordered_dict = False
             warnings.warn(
                 "Representing struct values as dicts is now deprecated. Try config "
                 "`options.struct_as_dict=False` and return structs as named tuples "
@@ -1825,13 +1784,12 @@ class Struct(CompositeDataType):
     @property
     def name(self):
         parts = ",".join(
-            "%s:%s" % (utils.backquote_string(k), v.name)
-            for k, v in six.iteritems(self.field_types)
+            f"{utils.backquote_string(k)}:{v.name}" for k, v in self.field_types.items()
         )
-        return "{0}<{1}>".format(type(self).__name__.lower(), parts)
+        return f"{type(self).__name__.lower()}<{parts}>"
 
     def _equals(self, other):
-        if isinstance(other, six.string_types):
+        if isinstance(other, str):
             other = validate_data_type(other)
 
         return (
@@ -1839,20 +1797,20 @@ class Struct(CompositeDataType):
             and len(self.field_types) == len(other.field_types)
             and all(
                 self.field_types[k] == other.field_types.get(k)
-                for k in six.iterkeys(self.field_types)
+                for k in self.field_types.keys()
             )
         )
 
     def __hash__(self):
         if not hasattr(self, "_hash"):
             fields_hash = hash(
-                tuple((hash(k), hash(v)) for k, v in six.iteritems(self.field_types))
+                tuple((hash(k), hash(v)) for k, v in self.field_types.items())
             )
             self._hash = hash((type(self), self.nullable, fields_hash))
         return self._hash
 
     def can_implicit_cast(self, other):
-        if isinstance(other, six.string_types):
+        if isinstance(other, str):
             other = validate_data_type(other)
 
         return (
@@ -1885,11 +1843,11 @@ class Struct(CompositeDataType):
             dict_hook = OrderedDict if self._use_ordered_dict else dict
             if isinstance(value, tuple):
                 fields = getattr(value, "_fields", None) or self.field_types.keys()
-                value = dict_hook(compat.izip(fields, value))
+                value = dict_hook(zip(fields, value))
             if isinstance(value, dict):
                 return dict_hook(
                     (validate_value(k, string), validate_value(value[k], tp))
-                    for k, tp in six.iteritems(self.field_types)
+                    for k, tp in self.field_types.items()
                 )
         else:
             if isinstance(value, tuple):
@@ -1906,7 +1864,7 @@ class Struct(CompositeDataType):
                 ]
                 return self.namedtuple_type(*list_val)
         raise ValueError(
-            "Struct data type requires `tuple` or `dict`, instead of %s" % type(value)
+            f"Struct data type requires `tuple` or `dict`, instead of {type(value)}"
         )
 
 
@@ -1941,19 +1899,18 @@ class Vector(CompositeDataType):
         # Validate element type is float or double
         if element_type not in (float_, double):
             raise ValueError(
-                "Vector element type must be float or double, got: %s"
-                % element_type.name
+                f"Vector element type must be float or double, got: {element_type.name}"
             )
 
         # Validate dimension is positive integer and multiple of 32
-        if not isinstance(dimension, six.integer_types) or dimension <= 0:
+        if not isinstance(dimension, int) or dimension <= 0:
             raise ValueError(
-                "Vector dimension must be a positive integer, got: %s" % dimension
+                f"Vector dimension must be a positive integer, got: {dimension}"
             )
 
         if dimension % 32 != 0:
             raise ValueError(
-                "Vector dimension must be a multiple of 32, got: %s" % dimension
+                f"Vector dimension must be a multiple of 32, got: {dimension}"
             )
 
         self.element_type = element_type
@@ -1961,12 +1918,12 @@ class Vector(CompositeDataType):
 
     @property
     def name(self):
-        return "{0}({1},{2})".format(
-            type(self).__name__.lower(), self.element_type.name, self.dimension
+        return (
+            f"{type(self).__name__.lower()}({self.element_type.name},{self.dimension})"
         )
 
     def _equals(self, other):
-        if isinstance(other, six.string_types):
+        if isinstance(other, str):
             other = validate_data_type(other)
 
         return (
@@ -1983,7 +1940,7 @@ class Vector(CompositeDataType):
         return self._hash
 
     def can_implicit_cast(self, other):
-        if isinstance(other, six.string_types):
+        if isinstance(other, str):
             other = validate_data_type(other)
 
         return (
@@ -2009,8 +1966,7 @@ class Vector(CompositeDataType):
 
         if len(val) != self.dimension:
             raise ValueError(
-                "InvalidData: Vector dimension mismatch, expected %s, got %s"
-                % (self.dimension, len(val))
+                f"InvalidData: Vector dimension mismatch, expected {self.dimension}, got {len(val)}"
             )
 
         # Validate no NaN or Infinity
@@ -2022,8 +1978,7 @@ class Vector(CompositeDataType):
                     # Check if value is scalar first
                     if not np.isscalar(v):
                         raise ValueError(
-                            "Vector value %s must be numeric, got: %s"
-                            % (v, type(v).__name__)
+                            f"Vector value {v} must be numeric, got: {type(v).__name__}"
                         )
                     # Use np.isnan which handles both numpy types and Python floats
                     has_nan_or_inf = np.isnan(v) or np.isinf(v)
@@ -2033,22 +1988,17 @@ class Vector(CompositeDataType):
                         has_nan_or_inf = math.isnan(v) or math.isinf(v)
                     elif not isinstance(v, (int, float)):
                         raise ValueError(
-                            "Vector value %s must be numeric, got: %s"
-                            % (v, type(v).__name__)
+                            f"Vector value {v} must be numeric, got: {type(v).__name__}"
                         )
             except TypeError:
                 # Not a numeric type that can be NaN/Inf
-                six.raise_from(
-                    ValueError(
-                        "Vector value %s must be numeric, got: %s"
-                        % (v, type(v).__name__)
-                    ),
-                    None,
-                )
+                raise ValueError(
+                    f"Vector value {v} must be numeric, got: {type(v).__name__}"
+                ) from None
 
             if has_nan_or_inf:
                 raise ValueError(
-                    "InvalidData: Vector contains NaN or Infinity at index %s" % i
+                    f"InvalidData: Vector contains NaN or Infinity at index {i}"
                 )
 
         return True
@@ -2060,12 +2010,11 @@ class Vector(CompositeDataType):
         if np is not None:
             if not isinstance(value, (list, tuple, np.ndarray)):
                 raise ValueError(
-                    "Vector data type requires list/tuple/numpy.ndarray, instead of %s"
-                    % type(value)
+                    f"Vector data type requires list/tuple/numpy.ndarray, instead of {type(value)}"
                 )
         elif not isinstance(value, (list, tuple)):
             raise ValueError(
-                "Vector data type requires list/tuple, instead of %s" % type(value)
+                f"Vector data type requires list/tuple, instead of {type(value)}"
             )
 
         # Cast each element to the element type
@@ -2076,8 +2025,7 @@ class Vector(CompositeDataType):
         """Parse from type string like 'VECTOR(FLOAT,1536)'"""
         if len(args) != 2:
             raise ValueError(
-                "%s() should be supplied with exactly two arguments: element_type and dimension."
-                % cls.__name__.upper()
+                f"{cls.__name__.upper()}() should be supplied with exactly two arguments: element_type and dimension."
             )
 
         element_type_str, dimension_str = args
@@ -2089,12 +2037,9 @@ class Vector(CompositeDataType):
         try:
             dimension = int(dimension_str)
         except (ValueError, TypeError):
-            six.raise_from(
-                ValueError(
-                    "Vector dimension must be an integer, got: %s" % dimension_str
-                ),
-                None,
-            )
+            raise ValueError(
+                f"Vector dimension must be an integer, got: {dimension_str}"
+            ) from None
 
         return cls(element_type, dimension)
 
@@ -2106,7 +2051,7 @@ class Json(DataType):
     _max_length = 8 * 1024 * 1024  # 8M
 
     def can_implicit_cast(self, other):
-        if isinstance(other, six.string_types):
+        if isinstance(other, str):
             other = validate_data_type(other)
 
         if isinstance(other, (String, Binary)):
@@ -2119,12 +2064,9 @@ class Json(DataType):
         max_field_size = max_field_size or self._max_length
         if len(val) > max_field_size:
             raise ValueError(
-                "InvalidData: Length of string(%s) is more than %sM.'"
-                % (val, max_field_size / (1024**2))
+                f"InvalidData: Length of string({val}) is more than {max_field_size / (1024**2)}M.'"
             )
-        if not isinstance(
-            val, (six.string_types, list, dict, six.integer_types, float)
-        ):
+        if not isinstance(val, (str, list, dict, int, float)):
             raise ValueError("InvalidData: cannot accept %r as json", val)
         return True
 
@@ -2208,7 +2150,7 @@ _composite_handlers = dict(
 def _split_struct_kv(kv_str):
     parts = utils.split_backquoted(kv_str, ":", 1)
     if len(parts) > 2 or len(parts) <= 0:
-        raise ValueError("Invalid type string: %s" % kv_str)
+        raise ValueError(f"Invalid type string: {kv_str}")
 
     parts[-1] = parts[-1].strip()
     if len(parts) > 1:
@@ -2223,7 +2165,7 @@ def parse_composite_types(type_str, handlers=None):
         parts = _split_struct_kv(typ)
         typ = parts[-1]
         if typ not in handlers:
-            raise ValueError("Composite type %s not supported." % typ.upper())
+            raise ValueError(f"Composite type {typ.upper()} not supported.")
         ctype = handlers[typ].parse_composite(args)
 
         if len(parts) == 1:
@@ -2281,7 +2223,7 @@ def validate_data_type(data_type):
         return data_type
 
     composite_err_msg = None
-    if isinstance(data_type, six.string_types):
+    if isinstance(data_type, str):
         data_type = data_type.strip().lower()
         if data_type in _odps_primitive_data_types:
             return _odps_primitive_data_types[data_type]
@@ -2292,13 +2234,11 @@ def validate_data_type(data_type):
             composite_err_msg = str(ex)
 
     if composite_err_msg is not None:
-        raise ValueError(
-            "Invalid data type: %s. %s" % (repr(data_type), composite_err_msg)
-        )
-    raise ValueError("Invalid data type: %s" % repr(data_type))
+        raise ValueError(f"Invalid data type: {data_type!r}. {composite_err_msg}")
+    raise ValueError(f"Invalid data type: {data_type!r}")
 
 
-integer_builtins = six.integer_types
+integer_builtins = (int,)
 float_builtins = (float,)
 try:
     import numpy as np
@@ -2317,13 +2257,13 @@ _odps_primitive_to_builtin_types = OrderedDict(
         (int_, integer_builtins),
         (double, float_builtins),
         (float_, float_builtins),
-        (string, (six.text_type, six.binary_type)),
-        (binary, six.binary_type),
+        (string, (str, bytes)),
+        (binary, bytes),
         (datetime, _datetime),
         (boolean, bool),
         (interval_year_month, Monthdelta),
         (date, _date),
-        (json, (list, dict, six.string_types, six.integer_types, float)),
+        (json, (list, dict, str, int, float)),
     )
 )
 _odps_primitive_clses = set(type(dt) for dt in _odps_primitive_to_builtin_types.keys())
@@ -2333,7 +2273,7 @@ integer_types = (tinyint, smallint, int_, bigint)
 
 
 def infer_primitive_data_type(value):
-    for data_type, builtin_types in six.iteritems(_odps_primitive_to_builtin_types):
+    for data_type, builtin_types in _odps_primitive_to_builtin_types.items():
         if isinstance(value, builtin_types):
             return data_type
 
@@ -2366,10 +2306,10 @@ def _cast_primitive_value(value, data_type):
         return None
 
     if options.tunnel.string_as_binary:
-        if isinstance(value, six.text_type):
+        if isinstance(value, str):
             value = value.encode("utf-8")
     else:
-        if isinstance(value, (bytearray, six.binary_type)):
+        if isinstance(value, (bytearray, bytes)):
             value = value.decode("utf-8")
 
     builtin_types = _odps_primitive_to_builtin_types[data_type]
@@ -2379,8 +2319,7 @@ def _cast_primitive_value(value, data_type):
     inferred_data_type = infer_primitive_data_type(value)
     if inferred_data_type is None:
         raise ValueError(
-            "Unknown value type, cannot infer from value: %s, type: %s"
-            % (value, type(value))
+            f"Unknown value type, cannot infer from value: {value}, type: {type(value)}"
         )
 
     return data_type.cast_value(value, inferred_data_type)
@@ -2408,7 +2347,7 @@ def validate_value(value, data_type, max_field_size=None):
         except AttributeError:
             failed = True
         if failed:
-            raise ValueError("Unknown data type: %s" % data_type)
+            raise ValueError(f"Unknown data type: {data_type}")
 
     data_type.validate_value(res, max_field_size=max_field_size)
     return res

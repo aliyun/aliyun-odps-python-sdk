@@ -171,7 +171,7 @@ def test_config_with_headers():
 
     # Patch the functions in their original modules
     with mock.patch(
-        'odps_scripts.pyodpswrapper.resource.load_packages_in_subprocess'
+        "odps_scripts.pyodpswrapper.resource.load_packages_in_subprocess"
     ) as mock_load_packages:
         config_with_headers(code)
 
@@ -189,9 +189,9 @@ def test_config_with_headers():
         from odps_scripts.pyodpswrapper import mars_support
 
         with mock.patch(
-            'odps_scripts.pyodpswrapper.mars_support.config_mars_version'
+            "odps_scripts.pyodpswrapper.mars_support.config_mars_version"
         ) as mock_config_mars, mock.patch(
-            'odps_scripts.pyodpswrapper.resource.load_packages_in_subprocess'
+            "odps_scripts.pyodpswrapper.resource.load_packages_in_subprocess"
         ):
             config_with_headers(code)
 

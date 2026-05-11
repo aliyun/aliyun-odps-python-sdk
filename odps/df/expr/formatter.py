@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import io
 from operator import itemgetter
 
 from ... import utils, models, compat
@@ -49,7 +50,7 @@ class ExprFormatter(object):
 
         need_cache = buf is None
         if need_cache:
-            buf = six.StringIO()
+            buf = io.StringIO()
             buf.write('Collection: {0}\n'.format(ref_id))
 
             indent = self._indent_size
@@ -88,7 +89,7 @@ class ExprFormatter(object):
 
         need_cache = buf is None
         if need_cache:
-            buf = six.StringIO()
+            buf = io.StringIO()
             buf.write('Collection: {0}\n'.format(ref_id))
 
             indent = self._indent_size
@@ -234,11 +235,11 @@ class ExprFormatter(object):
             buf.write(utils.indent(repr(expr._value)+'\n', indent+self._indent_size))
 
     def format(self):
-        buf = six.StringIO()
+        buf = io.StringIO()
         self._format_node(self._expr, buf)
 
-        result = six.StringIO()
-        collections = sorted(compat.lvalues(self._cache), key=itemgetter(0))
+        result = io.StringIO()
+        collections = sorted(list(self._cache.values()), key=itemgetter(0))
         result.write('\n'.join([it[1] for it in collections]))
         result.write('\n')
         result.write(buf.getvalue())

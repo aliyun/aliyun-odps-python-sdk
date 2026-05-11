@@ -13,14 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import enum
 from functools import partial
 
 from ..expr.exporters import get_input_field_names
 from ..expr.mixin import ml_collection_mixin
-from ...compat import Enum
 
 
-class TimeSeriesFieldRole(Enum):
+class TimeSeriesFieldRole(enum.Enum):
     TS_GROUP = 'TS_GROUP'
     TS_SEQ = 'TS_SEQ'
     TS_VALUE = 'TS_VALUE'

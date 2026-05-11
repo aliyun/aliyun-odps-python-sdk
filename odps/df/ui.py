@@ -13,8 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import print_function
-
 import math
 import decimal
 import os
@@ -22,7 +20,6 @@ import os
 from . import DataFrame, Scalar
 from ..ui.common import build_trait
 from ..console import in_ipython_frontend, is_widgets_available
-from ..compat import six, long_type
 from ..utils import to_text, init_progress_ui
 
 MAX_TABLE_FETCH_SIZE = 10
@@ -39,7 +36,7 @@ except ImportError:
     _rv_table = None
 else:
     def _rv(v):
-        if isinstance(v, (float, int, long_type)):
+        if isinstance(v, (float, int)):
             return v
         elif isinstance(v, decimal.Decimal):
             return float(v)
@@ -103,7 +100,7 @@ else:
         def _handle_aggregate_graph(self, content, _):
             groups = content.get('groups') or list()
             keys = content.get('keys') or list()
-            if isinstance(keys, six.string_types):
+            if isinstance(keys, str):
                 keys = [keys]
 
             values = content.get('values')
@@ -115,9 +112,9 @@ else:
 
                 def _gen_agg_func(df):
                     agg_funcs = dict()
-                    for field, methods in six.iteritems(values):
+                    for field, methods in values.items():
                         for method in methods:
-                            func_key = u'{}__{}'.format(field, method)
+                            func_key = '{}__{}'.format(field, method)
                             agg_funcs[func_key] = getattr(df[field], method)()
                     return agg_funcs
 

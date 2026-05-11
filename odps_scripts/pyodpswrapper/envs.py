@@ -63,7 +63,7 @@ def get_biz_id(project_name):
     app_name = "_" + project_name
     return (
         "_".join(os.getenv(key, "-") for key in BIZ_ID_KEYS)
-        + "_%d" % sql_seq
+        + f"_{sql_seq}"
         + app_name
         + on_duty
     )

@@ -14,15 +14,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import absolute_import, print_function
-
 import base64
 import bisect
 import calendar
 import codecs
 import copy
+import functools
 import glob
 import hmac
+import inspect
+import io
+import keyword
 import logging
 import math
 import multiprocessing
@@ -41,18 +43,14 @@ import uuid
 import warnings
 import xml.dom.minidom
 from base64 import b64encode
+from collections.abc import Hashable, Iterable, Mapping
 from datetime import date, datetime, timedelta
 from email.utils import formatdate, parsedate_tz
 from hashlib import md5, sha1
-
-try:
-    from collections.abc import Hashable, Iterable, Mapping
-except ImportError:
-    from collections import Hashable, Mapping, Iterable
+from urllib.parse import urlparse
 
 from . import compat, options
-from .compat import FixedOffset, getargspec, parsedate_to_datetime, six, utc
-from .lib.monotonic import monotonic
+from .compat import FixedOffset, parsedate_to_datetime, utc
 
 try:
     import zoneinfo
@@ -78,8 +76,6 @@ except ImportError:
     ceildiv = lambda a, b: -(-a // b)
 
 TEMP_TABLE_PREFIX = "tmp_pyodps_"
-if six.PY3:  # make flake8 happy
-    unicode = str
 
 _IS_WINDOWS = sys.platform.lower().startswith("win")
 
@@ -89,16 +85,20 @@ _NotSetType = type("_NotSetType", (object,), {})
 notset = _NotSetType()
 
 
+def isvalidattr(ident):
+    return not keyword.iskeyword(ident) and ident.isidentifier()
+
+
 def deprecated(msg, cond=None):
     def _decorator(func):
         """This is a decorator which can be used to mark functions
         as deprecated. It will result in a warning being emmitted
         when the function is used."""
 
-        @six.wraps(func)
+        @functools.wraps(func)
         def _new_func(*args, **kwargs):
-            warn_msg = "Call to deprecated function %s." % func.__name__
-            if isinstance(msg, six.string_types):
+            warn_msg = f"Call to deprecated function {func.__name__}."
+            if isinstance(msg, str):
                 warn_msg += " " + msg
             if cond is None or cond():
                 warnings.warn(warn_msg, category=DeprecationWarning, stacklevel=2)
@@ -121,19 +121,19 @@ def experimental(msg, cond=None):
 
     real_cond = cond
     if callable(cond):
-        cond_spec = getargspec(cond)
+        cond_spec = inspect.getfullargspec(cond)
         if not cond_spec.args and not cond_spec.varargs:
             real_cond = lambda *_, **__: cond()
 
     def _decorator(func):
-        @six.wraps(func)
+        @functools.wraps(func)
         def _new_func(*args, **kwargs):
             if real_cond is None or real_cond(*args, **kwargs):
                 if not str_to_bool(os.environ.get("PYODPS_EXPERIMENTAL", "true")):
                     err_msg = (
-                        "Calling to experimental method %s is denied." % func.__name__
+                        f"Calling to experimental method {func.__name__} is denied."
                     )
-                    if isinstance(msg, six.string_types):
+                    if isinstance(msg, str):
                         err_msg += " " + msg
                     raise ExperimentalNotAllowed(err_msg)
 
@@ -143,8 +143,8 @@ def experimental(msg, cond=None):
                         warn_cache.add(func)
 
                 if not already_warned:
-                    warn_msg = "Call to experimental function %s." % func.__name__
-                    if isinstance(msg, six.string_types):
+                    warn_msg = f"Call to experimental function {func.__name__}."
+                    if isinstance(msg, str):
                         warn_msg += " " + msg
 
                     warnings.warn(warn_msg, category=FutureWarning, stacklevel=2)
@@ -167,13 +167,13 @@ def fixed_writexml(self, writer, indent="", addindent="", newl=""):
     writer.write(indent + "<" + self.tagName)
 
     attrs = self._get_attributes()
-    a_names = compat.lkeys(attrs)
+    a_names = list(attrs.keys())
     a_names.sort()
 
     for a_name in a_names:
-        writer.write(" %s=\"" % a_name)
+        writer.write(' %s="' % a_name)
         xml.dom.minidom._write_data(writer, attrs[a_name].value)
-        writer.write("\"")
+        writer.write('"')
     if self.childNodes:
         if (
             len(self.childNodes) == 1
@@ -181,14 +181,14 @@ def fixed_writexml(self, writer, indent="", addindent="", newl=""):
         ):
             writer.write(">")
             self.childNodes[0].writexml(writer, "", "", "")
-            writer.write("</%s>%s" % (self.tagName, newl))
+            writer.write(f"</{self.tagName}>{newl}")
             return
-        writer.write(">%s" % (newl))
+        writer.write(f">{newl}")
         for node in self.childNodes:
             node.writexml(writer, indent + addindent, addindent, newl)
-        writer.write("%s</%s>%s" % (indent, self.tagName, newl))
+        writer.write(f"{indent}</{self.tagName}>{newl}")
     else:
-        writer.write("/>%s" % (newl))
+        writer.write(f"/>{newl}")
 
 
 # replace minidom's function with ours
@@ -267,6 +267,18 @@ def long_to_uint(value):
     return int_to_uint(v)
 
 
+def skip_na_call(func):
+    """
+    Decorator that skips calling the function if the argument is None.
+    """
+
+    @functools.wraps(func)
+    def new_func(x):
+        return func(x) if x is not None else None
+
+    return new_func
+
+
 def stringify_expt():
     lines = traceback.format_exception(*sys.exc_info())
     return "\n".join(lines)
@@ -278,7 +290,7 @@ def str_to_printable(field_name, auto_quote=True):
 
     escapes = {
         "\\": "\\\\",
-        '\'': '\\\'',
+        "'": "\\'",
         '"': '\\"',
         "\a": "\\a",
         "\b": "\\b",
@@ -294,7 +306,7 @@ def str_to_printable(field_name, auto_quote=True):
         if c in escapes:
             return escapes[c]
         elif c < " ":
-            return "\\x%02x" % ord(c)
+            return f"\\x{ord(c):02x}"
         else:
             return c
 
@@ -372,7 +384,7 @@ class MillisecondsConverter(object):
 
     @classmethod
     def _get_tz(cls, tz):
-        if isinstance(tz, six.string_types):
+        if isinstance(tz, str):
             if pytz is None and zoneinfo is None:
                 raise ImportError(
                     "Package `pytz` is needed when specifying string-format time zone."
@@ -476,8 +488,8 @@ class MillisecondsConverter(object):
         if milliseconds < _min_datetime_mills:
             raise DatetimeOverflowError(_min_datetime_errmsg)
 
-        seconds = compat.long_type(math.floor(milliseconds / 1000))
-        microseconds = compat.long_type(milliseconds) % 1000 * 1000
+        seconds = int(math.floor(milliseconds / 1000))
+        microseconds = int(milliseconds) % 1000 * 1000
         if self._use_default_tz:
             return self._fromtimestamp(seconds).replace(microsecond=microseconds)
         else:
@@ -531,29 +543,25 @@ if to_binary is None or to_text is None or to_str is None or to_lower_str is Non
     def to_binary(text, encoding="utf-8"):
         if text is None:
             return text
-        if isinstance(text, six.text_type):
+        if isinstance(text, str):
             return text.encode(encoding)
-        elif isinstance(text, (six.binary_type, bytearray)):
+        elif isinstance(text, (bytes, bytearray)):
             return bytes(text)
         else:
-            return str(text).encode(encoding) if six.PY3 else str(text)
+            return str(text).encode(encoding)
 
     def to_text(binary, encoding="utf-8"):
         if binary is None:
             return binary
-        if isinstance(binary, (six.binary_type, bytearray)):
+        if isinstance(binary, (bytes, bytearray)):
             return binary.decode(encoding)
-        elif isinstance(binary, six.text_type):
+        elif isinstance(binary, str):
             return binary
         else:
-            return str(binary) if six.PY3 else str(binary).decode(encoding)
+            return str(binary)
 
     def to_str(text, encoding="utf-8"):
-        return (
-            to_text(text, encoding=encoding)
-            if six.PY3
-            else to_binary(text, encoding=encoding)
-        )
+        return to_text(text, encoding=encoding)
 
     def to_lower_str(s, encoding="utf-8"):
         if s is None:
@@ -808,20 +816,20 @@ def to_odps_scalar(s):
 
     if s is None or (isinstance(s, float) and math.isnan(s)):
         return "NULL"
-    if isinstance(s, six.string_types):
-        return "'%s'" % escape_odps_string(s)
-    elif isinstance(s, (six.binary_type, bytearray)):
-        return "unbase64('%s')" % base64.b64encode(s).decode()
+    if isinstance(s, str):
+        return f"'{escape_odps_string(s)}'"
+    elif isinstance(s, (bytes, bytearray)):
+        return f"unbase64('{base64.b64encode(s).decode()}')"
     elif isinstance(s, (datetime, pd_Timestamp)):
         microsec = s.microsecond
         nanosec = getattr(s, "nanosecond", 0)
         if microsec or nanosec:
-            s = s.strftime("%Y-%m-%d %H:%M:%S.%f") + ("%03d" % nanosec)
+            s = s.strftime("%Y-%m-%d %H:%M:%S.%f") + f"{nanosec:03d}"
             out_type = "TIMESTAMP"
         else:
             s = s.strftime("%Y-%m-%d %H:%M:%S")
             out_type = "DATETIME"
-        return "CAST('%s' AS %s)" % (escape_odps_string(s), out_type)
+        return f"CAST('{escape_odps_string(s)}' AS {out_type})"
     return str(s)
 
 
@@ -829,13 +837,13 @@ def replace_sql_parameters(sql, ns):
     param_re = re.compile(r":([a-zA-Z_][a-zA-Z0-9_]*)")
 
     def is_numeric(val):
-        return isinstance(val, (six.integer_types, float))
+        return isinstance(val, (int, float))
 
     def is_sequence(val):
         return isinstance(val, (tuple, set, list))
 
     def format_string(val):
-        return "'{0}'".format(escape_odps_string(str(val)))
+        return f"'{escape_odps_string(str(val))}'"
 
     def format_numeric(val):
         return repr(val)
@@ -870,9 +878,9 @@ survey_calls = dict()
 
 
 def survey(func):
-    @six.wraps(func)
+    @functools.wraps(func)
     def wrapped(*args, **kwargs):
-        arg_spec = getargspec(func)
+        arg_spec = inspect.getfullargspec(func)
 
         if "self" in arg_spec.args:
             func_cls = args[0].__class__
@@ -924,14 +932,12 @@ def require_package(pack_name):
 def gen_repr_object(**kwargs):
     obj = type("ReprObject", (), {})
     text = kwargs.pop("text", None)
-    if six.PY2 and isinstance(text, unicode):
-        text = text.encode("utf-8")
     if text:
         setattr(obj, "text", text)
         setattr(obj, "__repr__", lambda self: text)
-    for k, v in six.iteritems(kwargs):
+    for k, v in kwargs.items():
         setattr(obj, k, v)
-        setattr(obj, "_repr_{0}_".format(k), lambda self: v)
+        setattr(obj, f"_repr_{k}_", lambda self: v)
     if "gv" in kwargs:
         try:
             from graphviz import Source
@@ -974,8 +980,6 @@ def attach_internal(cls):
             if method_name.startswith("_"):
                 continue
             att = getattr(mixin_cls, method_name)
-            if six.PY2 and type(att).__name__ in ("instancemethod", "method"):
-                att = att.__func__
             setattr(cls, method_name, att)
         return cls
     except ImportError:
@@ -999,14 +1003,14 @@ def split_quoted(s, delimiter=",", maxsplit=0):
 
 
 def gen_temp_table():
-    return "%s%s" % (TEMP_TABLE_PREFIX, str(uuid.uuid4()).replace("-", "_"))
+    return TEMP_TABLE_PREFIX + str(uuid.uuid4()).replace("-", "_")
 
 
 def hashable(obj):
     if isinstance(obj, Hashable):
         items = obj
     elif isinstance(obj, Mapping):
-        items = type(obj)((k, hashable(v)) for k, v in six.iteritems(obj))
+        items = type(obj)((k, hashable(v)) for k, v in obj.items())
     elif isinstance(obj, Iterable):
         items = tuple(hashable(item) for item in obj)
     else:
@@ -1016,7 +1020,7 @@ def hashable(obj):
 
 
 def thread_local_attribute(thread_local_name, default_value=None):
-    attr_name = "_local_attr_%d" % random.randint(0, 99999999)
+    attr_name = f"_local_attr_{random.randint(0, 99999999)}"
 
     def _get_thread_local(self):
         thread_local = getattr(self, thread_local_name, None)
@@ -1164,7 +1168,7 @@ def call_with_retry(func, *args, **kwargs):
     if not isinstance(exc_type, BaseException) and callable(exc_type):
         exc_type_func, exc_type = exc_type, BaseException
 
-    start_time = monotonic() if retry_timeout is not None else None
+    start_time = time.monotonic() if retry_timeout is not None else None
     while True:
         try:
             return func(*args, **kwargs)
@@ -1186,7 +1190,7 @@ def call_with_retry(func, *args, **kwargs):
             if (retry_times is not None and retry_num > retry_times) or (
                 retry_timeout is not None
                 and start_time is not None
-                and monotonic() - start_time > retry_timeout
+                and time.monotonic() - start_time > retry_timeout
             ):
                 if not callable(on_exception_func) or on_exception_func(ex):
                     if no_raise:
@@ -1208,32 +1212,25 @@ def get_id(n):
 
 
 def strip_if_str(s):
-    if isinstance(s, six.binary_type):
+    if isinstance(s, bytes):
         s = to_str(s)
-    if isinstance(s, six.string_types):
+    if isinstance(s, str):
         return s.strip()
     return s
 
 
 def with_wait_argument(func):
-    func_spec = (
-        compat.getfullargspec(func)
-        if compat.getfullargspec
-        else compat.getargspec(func)
-    )
+    func_spec = inspect.getfullargspec(func)
     args_set = set(func_spec.args)
-    if hasattr(func_spec, "kwonlyargs"):
-        args_set |= set(func_spec.kwonlyargs or [])
-    has_varkw = (
-        getattr(func_spec, "varkw", None) or getattr(func_spec, "keywords", None)
-    ) is not None
+    args_set |= set(func_spec.kwonlyargs or [])
+    has_varkw = func_spec.varkw is not None
 
     try:
         async_index = func_spec.args.index("async_")
     except ValueError:
         async_index = None
 
-    @six.wraps(func)
+    @functools.wraps(func)
     def wrapped(*args, **kwargs):
         if async_index is not None and len(args) >= async_index + 1:
             warnings.warn(
@@ -1251,8 +1248,8 @@ def with_wait_argument(func):
             no_args_match = [key for key in kwargs if key not in args_set]
             if no_args_match:
                 warnings.warn(
-                    "Arguments %s not supported, ignored by default. "
-                    "Please check argument spellings." % (", ".join(no_args_match)),
+                    f"Arguments {', '.join(no_args_match)} not supported, "
+                    "ignored by default. Please check argument spellings.",
                     stacklevel=2,
                 )
             for arg in no_args_match:
@@ -1280,8 +1277,8 @@ def split_sql_by_semicolon(sql_statement):
     """
     sql_statement = sql_statement.replace("\r\n", "\n").replace("\r", "\n")
     left_brackets = {"}": "{", "]": "[", ")": "("}
-    if isinstance(sql_statement, six.text_type):
-        cat_ch, newline_ch = u"", u"\n"
+    if isinstance(sql_statement, str):
+        cat_ch, newline_ch = "", "\n"
     else:
         cat_ch, newline_ch = b"", b"\n"
 
@@ -1396,7 +1393,7 @@ def split_backquoted(s, sep=None, maxsplit=-1):
 
     results = []
     pos = 0
-    cur_token_sio = compat.StringIO()
+    cur_token_sio = io.StringIO()
     quoted = False
     sep_len = len(sep) if sep else 1
     while pos < len(s):
@@ -1411,7 +1408,7 @@ def split_backquoted(s, sep=None, maxsplit=-1):
             and s[pos : pos + sep_len] in seps
         ):
             results.append(cur_token_sio.getvalue())
-            cur_token_sio = compat.StringIO()
+            cur_token_sio = io.StringIO()
             pos += sep_len
         else:
             cur_token_sio.write(ch)
@@ -1427,6 +1424,12 @@ def backquote_string(s):
 _convert_host_hash = (
     "6fe9b6c02efc24159c09863c1aadffb5",
     "9b75728355160c10b5eb75e4bf105a76",
+    "4f9cb0660fe4264f78b3575f89c37e88",
+    "56f8f752f33e7771039eda734b5b44da",
+    "81b8f33327f628231bf944c3c8975f33",
+    "17d978346c00f9e6a8d366c5c83a53ab",
+    "cb6479b3b648f0a5451a49f33e3028bd",
+    "d4a106c28dc078d1b5bf3a9088e8342f",
 )
 _default_host_hash = "c7f4116fbf820f99284dcc89f340b372"
 
@@ -1436,11 +1439,11 @@ def get_default_logview_endpoint(default_endpoint, odps_endpoint):
         if odps_endpoint is None:
             return default_endpoint
 
-        parsed_host = compat.urlparse(odps_endpoint).hostname
+        parsed_host = urlparse(odps_endpoint).hostname
         if parsed_host is None:
             return default_endpoint
 
-        default_host = compat.urlparse(default_endpoint).hostname
+        default_host = urlparse(default_endpoint).hostname
         hashed_host = md5_hexdigest(to_binary(parsed_host))
         hashed_default_host = md5_hexdigest(to_binary(default_host))
 
@@ -1466,7 +1469,7 @@ def is_job_insight_released(odps_endpoint):
         if odps_endpoint is None:
             return False
 
-        parsed_host = compat.urlparse(odps_endpoint).hostname
+        parsed_host = urlparse(odps_endpoint).hostname
         if parsed_host is None:
             return False
         hashed_host = md5_hexdigest(to_binary(parsed_host))

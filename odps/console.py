@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,11 +24,7 @@ import sys
 import threading
 import time
 import warnings
-
-try:
-    from collections.abc import Iterable
-except ImportError:  # pragma: no cover
-    from collections import Iterable
+from collections.abc import Iterable, Iterator
 
 try:
     import fcntl
@@ -109,8 +105,6 @@ else:
 
     if get_ipython and get_ipython():
         get_ipython().events.register("pre_execute", _ignore_deprecated_warnings)
-
-from .compat import six
 
 _DEFAULT_ENCODING = "utf-8"
 _initial_defencoding = None
@@ -230,9 +224,7 @@ def get_notebook_backend():
             ipy_json_path = os.path.dirname(arg)
             # jupyter lab will generate a jpserver-{pid}.json, while
             # jupyter notebook will generate a nbserver-{pid}.json instead
-            lab_cfg_path = os.path.join(
-                ipy_json_path, "jpserver-%d.json" % os.getppid()
-            )
+            lab_cfg_path = os.path.join(ipy_json_path, f"jpserver-{os.getppid()}.json")
             if os.path.exists(lab_cfg_path):
                 _backend_name = "JupyterLab"
                 return _backend_name
@@ -556,7 +548,7 @@ def _color_text(text, color):
         return text
 
     color_code = color_mapping.get(color, "0;39")
-    return "\033[{0}m{1}\033[0m".format(color_code, text)
+    return f"\033[{color_code}m{text}\033[0m"
 
 
 def _decode_preferred_encoding(s):
@@ -672,8 +664,7 @@ def color_print(*args, **kwargs):
             # Some file objects support writing unicode sensibly on some Python
             # versions; if this fails try creating a writer using the locale's
             # preferred encoding. If that fails too give up.
-            if not six.PY3 and isinstance(msg, bytes):
-                msg = _decode_preferred_encoding(msg)
+            # Python 3 handles unicode natively
 
             write = _write_with_fallback(msg, write, file)
 
@@ -681,11 +672,7 @@ def color_print(*args, **kwargs):
     else:
         for i in range(0, len(args), 2):
             msg = args[i]
-            if not six.PY3 and isinstance(msg, bytes):
-                # Support decoding bytes to unicode on Python 2; use the
-                # preferred encoding for the locale (which is *sometimes*
-                # sensible)
-                msg = _decode_preferred_encoding(msg)
+            # Python 3 handles unicode natively
             write(msg)
         write(end)
 
@@ -728,13 +715,13 @@ def human_time(seconds):
     seconds = int(seconds)
 
     if seconds < 60:
-        return "   {0:2d}s".format(seconds)
+        return f"   {seconds:2d}s"
     for i in range(len(units) - 1):
         unit1, limit1 = units[i]
         unit2, limit2 = units[i + 1]
         if seconds >= limit1:
-            return "{0:2d}{1}{2:2d}{3}".format(
-                seconds // limit1, unit1, (seconds % limit1) // limit2, unit2
+            return (
+                f"{seconds // limit1:2d}{unit1}{(seconds % limit1) // limit2:2d}{unit2}"
             )
     return "  ~inf"
 
@@ -781,7 +768,7 @@ def human_file_size(size):
         str_value = str_value[:2]
     else:
         str_value = str_value[:3]
-    return "{0:>3s}{1}".format(str_value, suffix)
+    return f"{str_value:>3s}{suffix}"
 
 
 def create_progress_widget():
@@ -802,7 +789,7 @@ def create_progress_widget():
     return TransientProgressBar()
 
 
-class ProgressBar(six.Iterator):
+class ProgressBar(Iterator):
     """
     A class to display a progress bar in the terminal.
 
@@ -974,8 +961,8 @@ class ProgressBar(six.Iterator):
         else:
             t = ((time.time() - self._start_time) * (1.0 - frac)) / frac
             prefix = " ETA "
-        write(" {0:>4s}/{1:>4s}".format(human_file_size(value), self._human_total))
-        write(" ({0:>6s}%)".format("{0:.2f}".format(frac * 100.0)))
+        write(f" {human_file_size(value):>4s}/{self._human_total:>4s}")
+        write(f" ({frac * 100.0:>6.2f}%)")
         write(prefix)
         if t is not None:
             write(human_time(t))
@@ -1000,7 +987,7 @@ class ProgressBar(six.Iterator):
         # Calculate percent completion, and update progress bar
         percent = (float(value) / self._total) * 100.0
         self._widget.value = percent
-        self._widget.description = " ({0:>6s}%)".format("{0:.2f}".format(percent))
+        self._widget.description = f" ({percent:>6.2f}%)"
 
     def _silent_update(self, value=None):
         pass

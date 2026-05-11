@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,10 +13,10 @@
 # limitations under the License.
 
 import datetime
+import enum
 import warnings
 
 from .. import serializers
-from ..compat import Enum
 from ..errors import InvalidParameter, MethodNotAllowed
 from ..utils import parse_rfc822, with_wait_argument
 from .core import JSONRemoteModel, XMLLazyLoad
@@ -34,7 +34,7 @@ def _parse_schema_time(time_str):
         return datetime.datetime.strptime(time_str, "%Y-%m-%d %H:%M:%S")
 
 
-class SchemaType(Enum):
+class SchemaType(enum.Enum):
     MANAGED = 0
     EXTERNAL = 1
 
@@ -87,7 +87,7 @@ class Schema(XMLLazyLoad):
             )
             self._loaded = True
         except (InvalidParameter, MethodNotAllowed):
-            desc_instance = self.project.odps.execute_sql("DESC SCHEMA %s" % self.name)
+            desc_instance = self.project.odps.execute_sql(f"DESC SCHEMA {self.name}")
             desc_result = desc_instance.get_task_results().get("AnonymousSQLTask")
             desc_obj = SchemaDescription(parent=self)
             desc_obj.parse(self._client, desc_result, obj=desc_obj)

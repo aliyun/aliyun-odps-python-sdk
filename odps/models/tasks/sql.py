@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,7 +19,6 @@ import warnings
 from collections import OrderedDict
 
 from ... import serializers, utils
-from ...compat import six
 from ...config import options
 from .core import Task, format_cdata
 
@@ -46,7 +45,7 @@ def collect_sql_settings(value, glob):
 
                 zone = tzlocal.get_localzone()
                 settings["odps.sql.timezone"] = utils.get_zone_name(zone)
-            elif isinstance(options.local_timezone, six.string_types):
+            elif isinstance(options.local_timezone, str):
                 settings["odps.sql.timezone"] = options.local_timezone
             else:
                 zone = options.local_timezone

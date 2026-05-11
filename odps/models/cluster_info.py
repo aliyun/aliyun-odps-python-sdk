@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,17 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import enum
+import io
+
 from .. import serializers
-from ..compat import Enum, six
 from ..utils import backquote_string
 
 
-class ClusterType(Enum):
+class ClusterType(enum.Enum):
     HASH = "hash"
     RANGE = "range"
 
 
-class ClusterSortOrder(Enum):
+class ClusterSortOrder(enum.Enum):
     ASC = "ASC"
     DESC = "DESC"
 
@@ -48,19 +50,18 @@ class ClusterInfo(serializers.JSONSerializableModel):
         return res if res.cluster_type is not None else None
 
     def to_sql_clause(self):
-        sio = six.StringIO()
+        sio = io.StringIO()
         if self.cluster_type == ClusterType.RANGE:
-            cluster_type_str = u"RANGE "
+            cluster_type_str = "RANGE "
         else:
-            cluster_type_str = u""
-        cluster_cols = u", ".join(backquote_string(col) for col in self.cluster_cols)
-        sio.write("%sCLUSTERED BY (%s)" % (cluster_type_str, cluster_cols))
+            cluster_type_str = ""
+        cluster_cols = ", ".join(backquote_string(col) for col in self.cluster_cols)
+        sio.write(f"{cluster_type_str}CLUSTERED BY ({cluster_cols})")
         if self.sort_cols:
-            sort_cols = u", ".join(
-                u"%s %s" % (backquote_string(c.name), c.order.value)
-                for c in self.sort_cols
+            sort_cols = ", ".join(
+                f"{backquote_string(c.name)} {c.order.value}" for c in self.sort_cols
             )
-            sio.write(u" SORTED BY (%s)" % sort_cols)
+            sio.write(f" SORTED BY ({sort_cols})")
         if self.bucket_num:
-            sio.write(" INTO %s BUCKETS" % self.bucket_num)
+            sio.write(f" INTO {self.bucket_num} BUCKETS")
         return sio.getvalue()

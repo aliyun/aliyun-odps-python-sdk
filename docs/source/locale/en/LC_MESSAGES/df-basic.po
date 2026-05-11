@@ -1748,7 +1748,7 @@ msgid ""
 "['Sql compiled:', 'SELECT t1.`sepalwidth`, t1.`petallength`, "
 "t1.`petalwidth`, t1.`name` \\nFROM "
 "odps_test_sqltask_finance.`pyodps_iris` t1 \\nWHERE t1.`sepallength` < 5 "
-"\\nLIMIT 5', 'logview:', u'http://logview']"
+"\\nLIMIT 5', 'logview:', 'http://logview']"
 msgstr ""
 
 #: ../../source/df-basic.rst:970

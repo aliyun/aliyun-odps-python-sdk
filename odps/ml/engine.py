@@ -18,6 +18,7 @@ import hashlib
 import json
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 
 from .runners import create_node_runner
 from .expr import AlgoCollectionExpr, ODPSModelExpr, ModelDataCollectionExpr, MetricsResultExpr
@@ -35,7 +36,6 @@ from ..df.expr.core import ExprDAG
 from ..df.expr.dynamic import DynamicMixin
 from ..df.utils import is_source_collection, is_constant_scalar
 from .. import options, tempobj, utils
-from ..compat import six, futures
 from ..errors import ODPSError
 from ..models import Partition, TableSchema
 from ..ui import fetch_instance_group, reload_instance_status
@@ -128,13 +128,13 @@ class OdpsAlgoEngine(Engine):
             if meta_val:
                 model_params[meta] = meta_val
 
-        model = self._odps.get_tables_model(model_name, tables=list(six.iterkeys(expr._model_collections)))
+        model = self._odps.get_tables_model(model_name, tables=list(expr._model_collections.keys()))
         model._params = model_params
 
         sub = ODPSModelExpr(_source_data=model, _is_offline_model=False,
                             _model_params=expr._model_params.copy(), _predictor=expr._predictor)
         data_exprs = dict()
-        for k, v in six.iteritems(expr._model_collections):
+        for k, v in expr._model_collections.items():
             data_exprs[k] = ModelDataCollectionExpr(_mlattr_model=sub, _data_item=k)
             data_exprs[k]._source_data = self._odps.get_table(data_exprs[k].table_name())
         sub._model_collections = data_exprs
@@ -228,7 +228,7 @@ class OdpsAlgoEngine(Engine):
         if isinstance(src_expr, MetricsResultExpr):
             return False
         output_exprs = src_expr.outputs()
-        return not any(1 for out_expr in six.itervalues(output_exprs) if isinstance(out_expr, CollectionExpr))
+        return not any(1 for out_expr in output_exprs.values() if isinstance(out_expr, CollectionExpr))
 
     def _build_output_tables(self, expr):
         from .expr.exporters import get_output_table_name
@@ -241,7 +241,7 @@ class OdpsAlgoEngine(Engine):
             self._odps.create_table(table_name, table_schema, lifecycle=lifecycle)
 
         table_names, table_schemas = [], []
-        for out_name, out_expr in six.iteritems(expr.outputs()):
+        for out_name, out_expr in expr.outputs().items():
             if getattr(out_expr, '_algo', None) is None:
                 continue
             tn = get_output_table_name(expr, out_name)
@@ -250,7 +250,7 @@ class OdpsAlgoEngine(Engine):
                 table_names.append(tn)
                 table_schemas.append(df_schema_to_odps_schema(ts))
 
-        executor = futures.ThreadPoolExecutor(10)
+        executor = ThreadPoolExecutor(10)
         list(executor.map(create_output_table, table_names, table_schemas))
 
     def _do_execute(self, expr_dag, src_expr, **kwargs):
@@ -307,7 +307,7 @@ class OdpsAlgoEngine(Engine):
                 from .expr.models.base import TablesModelResult
                 results = dict()
                 frac = 1.0 / len(result_expr._model_collections)
-                for key, item in six.iteritems(result_expr._model_collections):
+                for key, item in result_expr._model_collections.items():
                     result = item.execute(ui=ui, progress_proportion=frac * 0.1 * progress_proportion,
                                           group=ui_group)
                     results[key] = result
@@ -528,7 +528,7 @@ class OdpsAlgoEngine(Engine):
         expr.wait_execution()
 
         if not src_expr.executed:
-            for out_expr in six.itervalues(output_exprs):
+            for out_expr in output_exprs.values():
                 callback = self._handle_expr_persist(out_expr)
                 if callback is not None:
                     sql_callbacks.append(callback)
@@ -565,7 +565,7 @@ class OdpsAlgoEngine(Engine):
             return df
 
         ret = None
-        for out_name, out_expr in six.iteritems(output_exprs):
+        for out_name, out_expr in output_exprs.items():
             r = self._cache_expr_result(out_expr)
             if out_name == src_expr._output_name:
                 ret = r
@@ -580,7 +580,7 @@ class OdpsAlgoEngine(Engine):
 
             if not model_expr._is_offline_model:
                 params_str = utils.escape_odps_string(json.dumps(model_expr._source_data.params))
-                for k, v in six.iteritems(model_expr._model_collections):
+                for k, v in model_expr._model_collections.items():
                     if not options.ml.dry_run:
                         self._odps.run_sql("alter table %s set comment '%s'" % (v._source_data.name, params_str))
                     context.cache(src_expr._model_collections[k], v._source_data)

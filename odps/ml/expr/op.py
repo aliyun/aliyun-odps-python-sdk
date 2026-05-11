@@ -14,8 +14,8 @@
 # limitations under the License.
 
 import copy
+from functools import reduce
 
-from ...compat import six, reduce
 from ...df.expr.collections import CollectionExpr
 from ..utils import MLField, FieldRole, FieldContinuity
 
@@ -47,7 +47,7 @@ class DFOperation(object):
 
     @staticmethod
     def _norm_name_set(name_set):
-        if isinstance(name_set, six.string_types):
+        if isinstance(name_set, str):
             return set(v.strip() for v in name_set.split(','))
         elif isinstance(name_set, (list, tuple)):
             return set(name_set)
@@ -56,7 +56,7 @@ class DFOperation(object):
 
     @staticmethod
     def _set_singleton_role(fields, role_mapping):
-        roles = set(six.itervalues(role_mapping))
+        roles = set(role_mapping.values())
         for f in fields:
             if f.name in role_mapping:
                 yield f.copy(role_mapping[f.name])
@@ -66,7 +66,7 @@ class DFOperation(object):
                 yield ret_field
             else:
                 yield copy.deepcopy(f)
-        for fname in set(six.iterkeys(role_mapping)) - set(f.name for f in fields):
+        for fname in set(role_mapping.keys()) - set(f.name for f in fields):
             yield MLField(fname, 'EXPECTED', role_mapping[fname])
 
     @classmethod
@@ -165,7 +165,7 @@ class SingletonRoleOperation(DFOperation):
         fields = self._get_fields_list_from_eps(sources)
         ret_fields = fields[0]
         if self.clear_feature:
-            ret_fields = list(self._remove_field_roles(ret_fields, set(six.iterkeys(self.field_mapping)),
+            ret_fields = list(self._remove_field_roles(ret_fields, set(self.field_mapping.keys()),
                                                        FieldRole.FEATURE))
         target._ml_fields = list(self._set_singleton_role(ret_fields, self.field_mapping))
 
@@ -173,7 +173,7 @@ class SingletonRoleOperation(DFOperation):
 class FieldContinuityOperation(DFOperation):
     def __init__(self, continuity):
         self.continuity = dict((k, FieldContinuity.CONTINUOUS if v else FieldContinuity.DISCRETE)
-                               for k, v in six.iteritems(continuity))
+                               for k, v in continuity.items())
 
     def execute(self, sources, target):
         """
@@ -184,7 +184,7 @@ class FieldContinuityOperation(DFOperation):
         for f in fields[0]:
             if f.name in self.continuity:
                 f.continuity = self.continuity[f.name]
-        for field_name in set(six.iterkeys(self.continuity)) - set(f.name for f in fields[0]):
+        for field_name in set(self.continuity.keys()) - set(f.name for f in fields[0]):
             fields[0].append(MLField(field_name, 'EXPECTED', None, continuity=self.continuity[field_name]))
         target._ml_fields = fields[0]
 
@@ -202,7 +202,7 @@ class FieldKVConfigOperation(DFOperation):
         for f in fields[0]:
             if f.name in self.kv_config:
                 f.kv_config = self.kv_config[f.name]
-        for field_name in set(six.iterkeys(self.kv_config)) - set(f.name for f in fields[0]):
+        for field_name in set(self.kv_config.keys()) - set(f.name for f in fields[0]):
             fields[0].append(MLField(field_name, 'EXPECTED', None, kv_config=self.kv_config[field_name]))
         target._ml_fields = fields[0]
 

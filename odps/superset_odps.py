@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import contextlib
+import inspect
 import logging
 import sys
 
@@ -81,15 +82,11 @@ except ImportError:
         WEEK_STARTING_SUNDAY = "1969-12-28T00:00:00Z/P1W"
 
 
-from .compat import getargspec, getfullargspec, six
 from .config import options
 from .df import DataFrame
 from .utils import TEMP_TABLE_PREFIX
 
 logger = logging.getLogger(__name__)
-
-if getfullargspec is None:
-    getfullargspec = getargspec
 
 _builtin_funcs = set(
     """
@@ -231,7 +228,7 @@ class ODPSEngineSpec(BaseEngineSpec):
                 query = query.where(Column(col_name) == value)
         return query
 
-    if "schema" in getfullargspec(BaseEngineSpec.where_latest_partition).args:
+    if "schema" in inspect.getfullargspec(BaseEngineSpec.where_latest_partition).args:
         # superset prior to v4.1.0 uses a legacy call routine
         where_latest_partition = _where_latest_partition
     else:
@@ -311,7 +308,7 @@ class ODPSEngineSpec(BaseEngineSpec):
                 )
             cursor.execute(query, hints=hints)
         except Exception as ex:
-            six.raise_from(cls.get_dbapi_mapped_exception(ex), ex)
+            raise cls.get_dbapi_mapped_exception(ex) from ex
 
     @classmethod
     def df_to_sql(cls, database, table, df, to_sql_kwargs):

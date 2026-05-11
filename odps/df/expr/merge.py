@@ -15,8 +15,8 @@
 # limitations under the License.
 
 import inspect
+from functools import reduce
 
-from ...compat import six, reduce
 from ...models import TableSchema
 from ...utils import to_lower_str
 from ..utils import to_collection
@@ -69,7 +69,7 @@ class JoinCollectionExpr(CollectionExpr):
 
     def _defunc(self, field):
         if inspect.isfunction(field):
-            if six.get_function_code(field).co_argcount == 1:
+            if field.__code__.co_argcount == 1:
                 return field(self)
             else:
                 return field(self._lhs, self._rhs)
@@ -120,7 +120,7 @@ class JoinCollectionExpr(CollectionExpr):
     def _get_field(self, field):
         field = self._defunc(field)
 
-        if isinstance(field, six.string_types):
+        if isinstance(field, str):
             if field not in self._schema:
                 raise ValueError('Field(%s) does not exist' % field)
             cls = Column
@@ -210,7 +210,7 @@ class JoinCollectionExpr(CollectionExpr):
             return predicate_fields
 
         for p in self._predicate:
-            if isinstance(p, six.string_types):
+            if isinstance(p, str):
                 predicate_fields.add(p)
             elif isinstance(p, (tuple, Equal)):
                 if isinstance(p, Equal):
@@ -219,7 +219,7 @@ class JoinCollectionExpr(CollectionExpr):
                     continue
 
                 left_name = None
-                if isinstance(p[0], six.string_types):
+                if isinstance(p[0], str):
                     left_name = p[0]
                 elif isinstance(p[0], Column) and not p[0].is_renamed():
                     left_name = p[0].name
@@ -228,7 +228,7 @@ class JoinCollectionExpr(CollectionExpr):
                     continue
 
                 right_name = None
-                if isinstance(p[1], six.string_types):
+                if isinstance(p[1], str):
                     right_name = p[1]
                 elif isinstance(p[1], Column) and not p[1].is_renamed():
                     right_name = p[1].name
@@ -299,8 +299,8 @@ class JoinCollectionExpr(CollectionExpr):
         if self._mapjoin:
             is_validate = True
         for p in predicates:
-            if (isinstance(p, tuple) and len(p) == 2) or isinstance(p, six.string_types):
-                if isinstance(p, six.string_types):
+            if (isinstance(p, tuple) and len(p) == 2) or isinstance(p, str):
+                if isinstance(p, str):
                     left_name, right_name = p, p
                 else:
                     left_name, right_name = p
@@ -351,7 +351,7 @@ class JoinCollectionExpr(CollectionExpr):
 
         src_map = self._column_origins
         rename_map = dict()
-        for name, src in six.iteritems(src_map):
+        for name, src in src_map.items():
             src_id, src_name = src
             if src_name not in predicate_fields:
                 continue
@@ -360,14 +360,14 @@ class JoinCollectionExpr(CollectionExpr):
             rename_map[src_name][src_id] = name
 
         if merge_columns in ('auto', 'left', 'right') or (isinstance(merge_columns, bool) and merge_columns):
-            merge_columns = dict((k, merge_columns) for k in six.iterkeys(rename_map))
-        if isinstance(merge_columns, six.string_types):
+            merge_columns = dict((k, merge_columns) for k in rename_map.keys())
+        if isinstance(merge_columns, str):
             merge_columns = {merge_columns: 'auto'}
         if isinstance(merge_columns, list):
             merge_columns = dict((k, 'auto') for k in merge_columns)
 
         excludes = set()
-        for col, action in six.iteritems(merge_columns):
+        for col, action in merge_columns.items():
             if col not in rename_map:
                 raise ValueError('Column {0} not exists in join predicate.'.format(col))
             if isinstance(action, bool) and action:
@@ -472,7 +472,7 @@ class JoinFieldMergedCollectionExpr(ProjectCollectionExpr):
     def _get_field(self, field):
         field = self._defunc(field)
 
-        if isinstance(field, six.string_types):
+        if isinstance(field, str):
             if field not in self._schema:
                 raise ValueError('Field(%s) does not exist' % field)
             cls = Column
@@ -631,11 +631,11 @@ def join(left, right, on=None, how='inner', suffixes=('_x', '_y'), mapjoin=False
             on = [(left.schema.names[0], right.schema.names[0])]
 
     skewjoin_values = None
-    if isinstance(skewjoin, (dict, six.string_types)):
+    if isinstance(skewjoin, (dict, str)):
         skewjoin = [skewjoin]
     if isinstance(skewjoin, list):
         if (
-            all(isinstance(c, six.string_types) for c in skewjoin)
+            all(isinstance(c, str) for c in skewjoin)
             and any(c not in right.schema.names for c in skewjoin)
         ):
             raise ValueError(
@@ -1045,7 +1045,7 @@ def _drop(expr, data, axis=0, columns=None):
         data = to_collection(data)
         if columns is None:
             columns = [n for n in data.schema.names]
-        if isinstance(columns, six.string_types):
+        if isinstance(columns, str):
             columns = [columns, ]
 
         data = data.select(*columns).distinct()
@@ -1109,9 +1109,7 @@ def setdiff(left, *rights, **kwargs):
 
         @output(cols, types)
         def exploder(row):
-            import sys
-            irange = xrange if sys.version_info[0] < 3 else range
-            for _ in irange(getattr(row, counter_col_name)):
+            for _ in range(getattr(row, counter_col_name)):
                 yield row[:-1]
 
         return aggregated.map_reduce(mapper=exploder).select(*cols)
@@ -1174,9 +1172,7 @@ def intersect(left, *rights, **kwargs):
     else:
         @output(cols, types)
         def exploder(row):
-            import sys
-            irange = xrange if sys.version_info[0] < 3 else range
-            for _ in irange(getattr(row, counter_col_name)):
+            for _ in range(getattr(row, counter_col_name)):
                 yield row[:-2]
 
         return final_agg.map_reduce(mapper=exploder).select(*cols)

@@ -14,14 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import sys
 from math import ceil, log, pow
-
-
-if sys.version < '3':
-    PY3 = False
-else:
-    PY3 = True
 
 
 def get_SHA1_bin(word):
@@ -32,7 +25,7 @@ def get_SHA1_bin(word):
     :return:
     """
     from hashlib import sha1
-    if PY3 and isinstance(word, str):
+    if isinstance(word, str):
         word = word.encode('utf-8')
 
     hash_s = sha1()

@@ -34,7 +34,7 @@ except ImportError:
 class Analyzer(BaseAnalyzer):
     def visit_builtin_function(self, expr):
         try:
-            collection = six.next(iter(n for n in self._dag.iter_descendants(expr)
+            collection = next(iter(n for n in self._dag.iter_descendants(expr)
                                        if isinstance(n, CollectionExpr))).input
         except StopIteration:
             raise NotImplementedError

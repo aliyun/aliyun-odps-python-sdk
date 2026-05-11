@@ -14,9 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import absolute_import
-
 import copy
+import io
 import logging
 import sys
 import threading
@@ -25,7 +24,6 @@ import types as tps
 import uuid  # don't remove
 import warnings
 
-from ....compat import six
 from ....config import options
 from ....errors import ODPSError, NoPermission, ConnectTimeout, ParseError
 from ....utils import TEMP_TABLE_PREFIX, backquote_string, get_supported_python_tag
@@ -61,7 +59,7 @@ class SQLExecuteNode(ExecuteNode):
         raise NotImplementedError
 
     def __repr__(self):
-        buf = six.StringIO()
+        buf = io.StringIO()
 
         sql = self._sql()
 
@@ -76,7 +74,7 @@ class SQLExecuteNode(ExecuteNode):
         return buf.getvalue()
 
     def _repr_html_(self):
-        buf = six.StringIO()
+        buf = io.StringIO()
 
         sql = self._sql()
 
@@ -168,7 +166,7 @@ class ODPSSQLEngine(Engine):
                 last_percent = percent
                 if inst_progress is not None and len(inst_progress.tasks) > 0:
                     percent = sum(self._get_task_percent(task)
-                                  for task in six.itervalues(inst_progress.tasks)) \
+                                  for task in inst_progress.tasks.values()) \
                               / len(inst_progress.tasks)
                 else:
                     percent = 0

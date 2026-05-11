@@ -26,7 +26,6 @@ from ... import compat
 from ...models import TableSchema
 from .utils import refresh_dynamic
 from ..types import DynamicSchema
-from ...compat import six
 
 
 class BaseAnalyzer(Backend):
@@ -101,7 +100,7 @@ class BaseAnalyzer(Backend):
                 sub = _group_mean(_input ** order)
                 divided = 1
                 divisor = 1
-                for o in compat.irange(1, order):
+                for o in range(1, order):
                     divided *= order - o + 1
                     divisor *= o
                     part_item = divided // divisor * _group_mean(_order(_input, order - o)) \
@@ -238,7 +237,7 @@ class BaseAnalyzer(Backend):
         def get_agg(field, agg_func, agg_func_name, fill_value):
             from ..expr.expressions import ReprWrapper
 
-            if isinstance(agg_func, six.string_types):
+            if isinstance(agg_func, str):
                 aggregated = field.eval(agg_func, rewrite=False)
                 if isinstance(aggregated, ReprWrapper):
                     aggregated = aggregated()
@@ -281,7 +280,7 @@ class BaseAnalyzer(Backend):
                         col = col.item() if hasattr(col, 'item') else col
                         field = (expr._columns[0] == col).ifelse(
                             value_col, Scalar(_value_type=value_col.dtype))
-                        if isinstance(agg_func, six.string_types):
+                        if isinstance(agg_func, str):
                             agg = getattr(field, agg_func)()
                         else:
                             func = agg_func()

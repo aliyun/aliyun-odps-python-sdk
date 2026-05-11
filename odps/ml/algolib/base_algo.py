@@ -13,14 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import absolute_import
-
 import functools
 import json
 import re
 import time
 import uuid
 from collections import namedtuple, OrderedDict
+from collections.abc import Iterable
 
 from odps.df.expr.dynamic import DynamicMixin
 from .objects import SchemaDef
@@ -28,7 +27,6 @@ from ..expr import ModelDataCollectionExpr, ODPSModelExpr
 from ..expr.op import ProgrammaticFieldChangeOperation
 from ..pipeline.core import PipelineStep
 from ..utils import import_class_member, get_function_args, ML_ARG_PREFIX
-from ...compat import six, irange, Iterable
 from ...df.core import DataFrame
 from ...models import TableSchema
 from ..enums import PortType, PortDirection
@@ -56,10 +54,10 @@ class BaseAlgorithm(PipelineStep):
         if not hasattr(self, '_reload_ml_fields'):
             self._reload_ml_fields = False
 
-        output_names = [p.name for p in sorted(six.itervalues(self._ports), key=lambda pt: pt.sequence)
+        output_names = [p.name for p in sorted(self._ports.values(), key=lambda pt: pt.sequence)
                         if p.io_type == PortDirection.OUTPUT]
-        param_names = [p for p in six.iterkeys(self._parameters)]
-        [self._invoke_setter(p.name, p.value) for p in six.itervalues(self._parameters)]
+        param_names = [p for p in self._parameters.keys()]
+        [self._invoke_setter(p.name, p.value) for p in self._parameters.values()]
 
         super(BaseAlgorithm, self).__init__(name, param_names=param_names, output_names=output_names)
 
@@ -74,11 +72,11 @@ class BaseAlgorithm(PipelineStep):
         method(self, param_name, value)
 
     def _map_inputs_from_args(self, *args, **kwargs):
-        inputs = [p for p in sorted(six.itervalues(self._ports), key=lambda pt: pt.sequence)
+        inputs = [p for p in sorted(self._ports.values(), key=lambda pt: pt.sequence)
                   if p.io_type == PortDirection.INPUT]
 
         args = [arg for arg in args if is_ml_object(arg)]
-        ml_kw = dict((k, v) for k, v in six.iteritems(kwargs) if is_ml_object(v))
+        ml_kw = dict((k, v) for k, v in kwargs.items() if is_ml_object(v))
 
         total_input = len(args) + len(ml_kw)
         if total_input == 0:
@@ -99,24 +97,24 @@ class BaseAlgorithm(PipelineStep):
 
         if schema_def is None:
             schema_def = SchemaDef()
-            schema_def.copy_input = six.next(k for k, v in six.iteritems(input_obj_dict) if is_df_object(v))
+            schema_def.copy_input = next(k for k, v in input_obj_dict.items() if is_df_object(v))
 
-        kw = dict((ML_ARG_PREFIX + k, v) for k, v in six.iteritems(input_obj_dict))
+        kw = dict((ML_ARG_PREFIX + k, v) for k, v in input_obj_dict.items())
         kw.update(expr_kw)
         if schema_def.copy_input is not None:
             src_df = coll_type(register_expr=True, _schema=input_obj_dict[schema_def.copy_input]._schema, **kw)
             src_df._ml_uplink = [input_obj_dict[schema_def.copy_input]]
         else:
             src_df = coll_type(register_expr=True, _schema=TableSchema(_columns=[]), **kw)
-            src_df._ml_uplink = [o for o in six.itervalues(input_obj_dict) if is_df_object(o)]
+            src_df._ml_uplink = [o for o in input_obj_dict.values() if is_df_object(o)]
 
         out_schemas = dict((pname, dict((f.name, f.type) for f in df._ml_fields))
-                           for pname, df in six.iteritems(input_obj_dict) if is_df_object(df))
-        for model_name, model in ((nm, m) for nm, m in six.iteritems(input_obj_dict) if isinstance(m, ODPSModelExpr)):
+                           for pname, df in input_obj_dict.items() if is_df_object(df))
+        for model_name, model in ((nm, m) for nm, m in input_obj_dict.items() if isinstance(m, ODPSModelExpr)):
             if not getattr(model, '_model_collections', None):
                 continue
             out_schemas.update(dict(('%s.%s' % (model_name, ds_name), dict((f.name, f.type) for f in df._ml_fields))
-                                    for ds_name, df in six.iteritems(model._model_collections)))
+                                    for ds_name, df in model._model_collections.items()))
 
         if schema_def.programmatic:
             generator = import_class_member(schema_def.schema)
@@ -143,13 +141,13 @@ class BaseAlgorithm(PipelineStep):
     def _do_transform(self, *args, **kwargs):
         exec_id = self._get_exec_id()
 
-        out_port_defs = [p for p in sorted(six.itervalues(self._ports), key=lambda pt: pt.sequence)
+        out_port_defs = [p for p in sorted(self._ports.values(), key=lambda pt: pt.sequence)
                          if p.io_type == PortDirection.OUTPUT]
-        params = dict((k, v.value) for k, v in six.iteritems(self._parameters))
+        params = dict((k, v.value) for k, v in self._parameters.items())
 
         obj_dict = self._map_inputs_from_args(*args, **kwargs)
         # pick out engine kwargs such as core number, mem usage, etc.
-        engine_kw = dict(p for p in six.iteritems(kwargs) if p[0] not in obj_dict)
+        engine_kw = dict(p for p in kwargs.items() if p[0] not in obj_dict)
 
         out_objs = dict()
         for port_def in out_port_defs:
@@ -160,7 +158,7 @@ class BaseAlgorithm(PipelineStep):
             if port_def.type == PortType.DATA:
                 out_objs[port_param_name] = self._build_collection(obj_dict, port_def.schema, **expr_kw)
             elif port_def.type == PortType.MODEL:
-                expr_kw.update((ML_ARG_PREFIX + k, v) for k, v in six.iteritems(obj_dict))
+                expr_kw.update((ML_ARG_PREFIX + k, v) for k, v in obj_dict.items())
 
                 model_type = port_def.model.type if port_def.model else 'PmmlModel'
 
@@ -180,7 +178,7 @@ class BaseAlgorithm(PipelineStep):
                         else:
                             ds = self._build_collection(obj_dict, schema, coll_type=ModelDataCollectionExpr,
                                                         _mlattr_model=out_objs[port_param_name], _data_item=schema.name,
-                                                        model_inputs=list(six.iterkeys(obj_dict)))
+                                                        model_inputs=list(obj_dict.keys()))
                             dfs[schema.name] = ds
                     model_expr._model_collections = dfs
 
@@ -261,16 +259,16 @@ class BaseMetricsAlgorithm(BaseAlgorithm):
         execute_now = kwargs.pop('execute_now', True)
 
         exec_id = self._get_exec_id()
-        params = dict((k, v.value) for k, v in six.iteritems(self._parameters))
+        params = dict((k, v.value) for k, v in self._parameters.items())
 
         obj_dict = self._map_inputs_from_args(*args, **kwargs)
-        engine_kw = dict(p for p in six.iteritems(kwargs) if p[0] not in obj_dict)
+        engine_kw = dict(p for p in kwargs.items() if p[0] not in obj_dict)
 
         expr_kw = dict(_params=params, _exec_id=exec_id, _engine_kw=engine_kw)
         if cases:
             expr_kw['_cases'] = cases
 
-        expr_kw.update((ML_ARG_PREFIX + k, v) for k, v in six.iteritems(obj_dict))
+        expr_kw.update((ML_ARG_PREFIX + k, v) for k, v in obj_dict.items())
         if result_callback:
             expr_kw['_result_callback'] = result_callback
         expr = self._metrics_expr(**expr_kw)
@@ -312,18 +310,18 @@ def _static_ml_fields_generator(params, fields, algorithm, schema):
                 cmd_name = cmd_name[1:]
                 if cmd_name == 'range':
                     for idx, c in enumerate(cmd[1:]):
-                        for k, v in six.iteritems(params):
+                        for k, v in params.items():
                             c = c.replace(k, str(v))
                         cmd[idx + 1] = c
                     start_expr, end_expr, tmpl = cmd[1:]
                     start_num = json.loads(start_expr)
                     end_num = json.loads(end_expr)
-                    flist = [tmpl.replace('#n', str(n)) for n in irange(start_num, end_num)]
+                    flist = [tmpl.replace('#n', str(n)) for n in range(start_num, end_num)]
                     return ','.join(flist)
                 elif cmd_name == 'input':
                     format_args = dict(tuple(p.split('=', 1)) for p in cmd[2:])
                     input_ml_fields = fields[cmd[1]]
-                    return ','.join(format_col(col, typ, **format_args) for col, typ in six.iteritems(input_ml_fields))
+                    return ','.join(format_col(col, typ, **format_args) for col, typ in input_ml_fields.items())
                 else:
                     raise ValueError('Unsupported method')
             else:
@@ -333,7 +331,7 @@ def _static_ml_fields_generator(params, fields, algorithm, schema):
                 if not input_name:
                     return params[cmd_name]
                 cols = params[cmd_name] if cmd_name in params else []
-                if isinstance(cols, six.string_types):
+                if isinstance(cols, str):
                     cols = cols.split(',')
                 input_ml_fields = fields[input_name]
                 cols = cols or []

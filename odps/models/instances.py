@@ -14,12 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import io
 import uuid
 from collections import OrderedDict
 from datetime import datetime
 
 from .. import errors, serializers, utils
-from ..compat import six
 from ..config import options
 from .core import XMLIterable
 from .instance import Instance
@@ -36,7 +36,7 @@ class BaseInstances(XMLIterable):
 
         if (
             quota_name is None
-            or not isinstance(name, six.string_types)
+            or not isinstance(name, str)
             or not name.endswith("_mcqa")
         ):
             # return non-mcqa instance
@@ -46,7 +46,7 @@ class BaseInstances(XMLIterable):
         return mcqa_odps.get_instance(name, project=self.parent.name)
 
     def __contains__(self, item):
-        if isinstance(item, six.string_types):
+        if isinstance(item, str):
             instance = self._get(item)
         elif isinstance(item, Instance):
             instance = item
@@ -76,14 +76,14 @@ class BaseInstances(XMLIterable):
         if "from_time" in kw:
             start_time = kw["from_time"]
 
-        if isinstance(status, six.string_types):
+        if isinstance(status, str):
             status = Instance.Status(status.capitalize())
 
         params = dict()
         if status is not None:
             params["status"] = status.value
         if start_time is not None or end_time is not None:
-            daterange = six.StringIO()
+            daterange = io.StringIO()
             if start_time is not None:
                 if isinstance(start_time, datetime):
                     daterange.write(str(utils.to_timestamp(start_time)))
@@ -265,7 +265,7 @@ class CachedInstances(BaseInstances):
     def iterate(
         self, status=None, only_owner=None, max_items=None, quota_index=None, **kw
     ):
-        if isinstance(status, six.string_types):
+        if isinstance(status, str):
             status = Instance.Status(status.capitalize())
 
         params = dict()

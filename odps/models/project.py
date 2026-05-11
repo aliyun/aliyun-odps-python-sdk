@@ -14,13 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import enum
 import json
 import time
 import warnings
 import weakref
 
 from .. import errors, serializers, utils
-from ..compat import Enum, six
 from ..utils import get_instance_lock
 from .core import XMLLazyLoad, XMLRemoteModel
 from .functions import Functions
@@ -97,12 +97,12 @@ class Project(XMLLazyLoad):
         _root = "Authorization"
         result = serializers.XMLNodeField("Result")
 
-    class AuthQueryStatus(Enum):
+    class AuthQueryStatus(enum.Enum):
         TERMINATED = "TERMINATED"
         RUNNING = "RUNNING"
         FAILED = "FAILED"
 
-    class ProjectStatus(Enum):
+    class ProjectStatus(enum.Enum):
         AVAILABLE = "AVAILABLE"
         READONLY = "READONLY"
         DELETING = "DELETING"
@@ -116,7 +116,7 @@ class Project(XMLLazyLoad):
             except ValueError:
                 return cls.UNKNOWN
 
-    class ProjectType(Enum):
+    class ProjectType(enum.Enum):
         MANAGED = "managed"
         EXTERNAL = "external"
 
@@ -341,7 +341,7 @@ class Project(XMLLazyLoad):
     @property
     def system_info(self):
         resp = self._client.get(self.resource() + "/system")
-        return json.loads(resp.content.decode() if six.PY3 else resp.content)
+        return json.loads(resp.content.decode())
 
     @property
     def odps(self):
@@ -405,9 +405,7 @@ class Project(XMLLazyLoad):
                 if self._getattr("_policy_cache") is None:
                     params = dict(policy="")
                     resp = self._client.get(self.resource(), params=params)
-                    self._policy_cache = (
-                        resp.content.decode() if six.PY3 else resp.content
-                    )
+                    self._policy_cache = resp.content.decode()
         policy_cache = self._getattr("_policy_cache")
         if policy_cache:
             return json.loads(policy_cache)

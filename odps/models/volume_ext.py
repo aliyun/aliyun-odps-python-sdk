@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,17 +15,18 @@
 # limitations under the License.
 
 import contextlib
+import enum
+from urllib.parse import urlparse
 
 import requests
 
 from .. import serializers
-from ..compat import Enum, urlparse
 from ..errors import OSSSignUrlError
 from . import cache_parent
 from .volume_fs import FSVolume, FSVolumeObject, FSVolumeObjects
 
 
-class SignUrlMethod(Enum):
+class SignUrlMethod(enum.Enum):
     GET = "get"
     PUT = "put"
 

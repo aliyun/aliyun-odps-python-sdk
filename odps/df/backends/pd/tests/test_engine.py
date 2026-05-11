@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import io
 import os
 import re
 import time
@@ -22,6 +23,7 @@ import warnings
 from collections import namedtuple
 from datetime import timedelta, datetime
 from decimal import Decimal
+from functools import reduce
 from random import randint
 
 import pytest
@@ -31,7 +33,6 @@ except ImportError:
     pd = None
     pytestmark = pytest.mark.skip
 
-from .....compat import six, irange as xrange, BytesIO
 from .....errors import ODPSError
 from .....tests.core import get_result, approx_list, run_sub_tests_in_parallel, tn
 from .....utils import to_text
@@ -45,9 +46,9 @@ from ...context import context
 from ...errors import CompileError
 from ..engine import PandasEngine
 
-TEMP_FILE_RESOURCE = tn('pyodps_t_tmp_file_resource')
-TEMP_TABLE = tn('pyodps_t_tmp_table')
-TEMP_TABLE_RESOURCE = tn('pyodps_t_tmp_table_resource')
+TEMP_FILE_RESOURCE = tn('pyodps_t_tmp_file_resource_pd_engine')
+TEMP_TABLE = tn('pyodps_t_tmp_table_pd_engine')
+TEMP_TABLE_RESOURCE = tn('pyodps_t_tmp_table_resource_pd_engine')
 
 _pypi_index = os.environ.get("PIP_INDEX_URL")
 if not _pypi_index:
@@ -685,7 +686,6 @@ def test_third_party_libraries(odps, setup):
     import zipfile
     import tarfile
     import requests
-    from .....compat import reduce
 
     data = [
         ['2016', 4, 5.3, None, None, None],
@@ -706,37 +706,42 @@ def test_third_party_libraries(odps, setup):
     ]
     utils_resources = []
     for utils_url, name in zip(utils_urls, ['python_utils.whl', 'python_utils.tar.gz']):
-        obj = BytesIO(requests.get(utils_url).content)
+        obj = io.BytesIO(requests.get(utils_url).content)
         res_name = '%s_%s.%s' % (
             name.split('.', 1)[0], str(uuid.uuid4()).replace('-', '_'), name.split('.', 1)[1])
         res = odps.create_resource(res_name, 'file', file_obj=obj)
         utils_resources.append(res)
 
-    obj = BytesIO(requests.get(utils_urls[0]).content)
+    obj = io.BytesIO(requests.get(utils_urls[0]).content)
     res_name = 'python_utils_%s.zip' % str(uuid.uuid4()).replace('-', '_')
     res = odps.create_resource(res_name, 'archive', file_obj=obj)
     utils_resources.append(res)
 
     resources = []
-    six_path = os.path.join(os.path.dirname(os.path.abspath(six.__file__)), 'six.py')
+    # Create a simple test module for testing archive handling
+    import tempfile
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as test_file:
+        test_file.write('# Test module for archive handling\n')
+        test_file.write('def test_func():\n    return 42\n')
+        test_module_path = test_file.name
 
-    zip_io = BytesIO()
+    zip_io = io.BytesIO()
     zip_f = zipfile.ZipFile(zip_io, 'w')
-    zip_f.write(six_path, arcname='mylib/six.py')
+    zip_f.write(test_module_path, arcname='mylib/test_module.py')
     zip_f.close()
     zip_io.seek(0)
 
-    rn = 'six_%s.zip' % str(uuid.uuid4())
+    rn = 'test_module_%s.zip' % str(uuid.uuid4())
     resource = odps.create_resource(rn, 'file', file_obj=zip_io)
     resources.append(resource)
 
-    tar_io = BytesIO()
+    tar_io = io.BytesIO()
     tar_f = tarfile.open(fileobj=tar_io, mode='w:gz')
-    tar_f.add(six_path, arcname='mylib/six.py')
+    tar_f.add(test_module_path, arcname='mylib/test_module.py')
     tar_f.close()
     tar_io.seek(0)
 
-    rn = 'six_%s.tar.gz' % str(uuid.uuid4())
+    rn = 'test_module_%s.tar.gz' % str(uuid.uuid4())
     resource = odps.create_resource(rn, 'file', file_obj=tar_io)
     resources.append(resource)
 
@@ -814,7 +819,7 @@ def test_custom_libraries(odps, setup):
 
     def get_fun(code, fun_name):
         g, loc = globals(), dict()
-        six.exec_(code, g, loc)
+        exec(code, g, loc)
         return loc[fun_name]
 
     f = get_fun(textwrap.dedent("""
@@ -2349,7 +2354,7 @@ def test_scale_value(odps, setup):
     for first, second in zip(result, expected):
         assert len(first) == len(second)
         for it1, it2 in zip(first, second):
-            if isinstance(it1, six.string_types):
+            if isinstance(it1, str):
                 assert it1 == it2
             else:
                 assert pytest.approx(it1) == it2
@@ -2375,7 +2380,7 @@ def test_scale_value(odps, setup):
     for first, second in zip(result, expected):
         assert len(first) == len(second)
         for it1, it2 in zip(first, second):
-            if isinstance(it1, six.string_types):
+            if isinstance(it1, str):
                 assert it1 == it2
             else:
                 assert pytest.approx(it1) == it2
@@ -2401,7 +2406,7 @@ def test_scale_value(odps, setup):
     for first, second in zip(result, expected):
         assert len(first) == len(second)
         for it1, it2 in zip(first, second):
-            if isinstance(it1, six.string_types):
+            if isinstance(it1, str):
                 assert it1 == it2
             else:
                 assert pytest.approx(it1) == it2
@@ -2427,7 +2432,7 @@ def test_scale_value(odps, setup):
     for first, second in zip(result, expected):
         assert len(first) == len(second)
         for it1, it2 in zip(first, second):
-            if isinstance(it1, six.string_types):
+            if isinstance(it1, str):
                 assert it1 == it2
             else:
                 assert pytest.approx(it1) == it2
@@ -2495,7 +2500,7 @@ def test_make_kv(odps, setup):
 
 
 def test_hllc(odps, setup):
-    names = [randint(0, 100000) for _ in xrange(100000)]
+    names = [randint(0, 100000) for _ in range(100000)]
     data = [[n] + [None] * 5 for n in names]
 
     setup.gen_data(data=data)
@@ -2746,8 +2751,6 @@ def test_split(odps, setup):
 def test_collection_na(odps, setup):
     import pandas as pd
     import numpy as np
-
-    from .....compat import reduce
 
     data = [
         [0, 'name1', 1.0, None, 3.0, 4.0],

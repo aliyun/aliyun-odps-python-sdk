@@ -14,13 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import io
 import os
 import sys
 import tarfile
 import zipfile
 
 from .... import compat, options
-from ....compat import six
 from ....errors import ODPSError
 from ....lib.importer import CompressImporter
 from ....models import Table, TableSchema, Partition as TableSchemaPartition
@@ -109,7 +109,7 @@ class PandasEngine(Engine):
             return results[expr_dag.root]
         except KeyError as e:
             if len(results) == 1:
-                return compat.lvalues(results)[0]
+                return list(results.values())[0]
             raise e
         finally:
             for fo in self._file_objs:
@@ -182,7 +182,7 @@ class PandasEngine(Engine):
         readers = []
 
         for lib in libraries:
-            if isinstance(lib, six.string_types):
+            if isinstance(lib, str):
                 lib = os.path.abspath(lib)
                 file_dict = dict()
                 if os.path.isfile(lib):
@@ -202,16 +202,16 @@ class PandasEngine(Engine):
                         mode = 'r'
                     else:
                         mode = 'r:gz' if lib_name.endswith('.tar.gz') else 'r:bz2'
-                    readers.append(tarfile.open(fileobj=six.BytesIO(lib.open(mode='rb').read()), mode=mode))
+                    readers.append(tarfile.open(fileobj=io.BytesIO(lib.open(mode='rb').read()), mode=mode))
                 elif lib_name.endswith('.py'):
-                    tarbinary = six.BytesIO()
+                    tarbinary = io.BytesIO()
                     tar = tarfile.open(fileobj=tarbinary, mode='w:gz')
                     fbin = lib.open(mode='rb').read()
                     info = tarfile.TarInfo(name='pyodps_lib/' + lib_name)
                     info.size = len(fbin)
-                    tar.addfile(info, fileobj=six.BytesIO(fbin))
+                    tar.addfile(info, fileobj=io.BytesIO(fbin))
                     tar.close()
-                    readers.append(tarfile.open(fileobj=six.BytesIO(tarbinary.getvalue()), mode='r:gz'))
+                    readers.append(tarfile.open(fileobj=io.BytesIO(tarbinary.getvalue()), mode='r:gz'))
                 else:
                     raise ValueError(
                         'Unknown library type which should be one of zip(egg, wheel), tar, or tar.gz')

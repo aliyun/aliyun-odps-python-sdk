@@ -16,6 +16,7 @@
 
 import operator
 import itertools
+from functools import reduce
 
 from ..core import Backend
 from ...expr.expressions import ProjectCollectionExpr, FilterCollectionExpr, \
@@ -28,7 +29,6 @@ from ...expr.window import Window
 from ...expr.merge import UnionCollectionExpr
 from ...utils import traverse_until_source
 from .utils import change_input, copy_sequence
-from ....compat import reduce
 from ....utils import to_lower_str
 
 

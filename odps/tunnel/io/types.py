@@ -87,7 +87,7 @@ def odps_type_to_arrow_type(odps_type):
         elif isinstance(odps_type, (odps_types.Char, odps_types.Varchar)):
             col_type = pa.string()
         else:
-            raise TypeError("Unsupported type: {}".format(odps_type))
+            raise TypeError(f"Unsupported type: {odps_type}")
     return col_type
 
 
@@ -127,7 +127,7 @@ def arrow_type_to_odps_type(arrow_type):
             ]
             col_type = odps_types.Struct(fields)
         else:
-            raise TypeError("Unsupported type: {}".format(arrow_type))
+            raise TypeError(f"Unsupported type: {arrow_type}")
     return col_type
 
 

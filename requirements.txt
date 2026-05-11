@@ -1,3 +1,0 @@
-requests>=2.4.0
-pyarrow>=0.16.0; python_version < "3"
-pyarrow>=2.0.0; python_version >= "3"

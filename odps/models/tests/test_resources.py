@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,9 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import configparser
+import io
 import os
 import tempfile
 import zipfile
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
@@ -23,8 +26,8 @@ try:
 except ImportError:
     oss2 = None
 
-from ... import compat, errors, options, types
-from ...compat import ConfigParser, UnsupportedOperation, futures, six
+from ... import errors, options, types
+from ...compat import UnsupportedOperation
 from ...errors import NoSuchObject
 from ...tests.core import tn
 from ...utils import to_text
@@ -93,7 +96,7 @@ def test_resource_exists(odps):
 def test_table_resource(config, odps):
     try:
         secondary_project = config.get("test", "secondary_project")
-    except ConfigParser.NoOptionError:
+    except configparser.NoOptionError:
         secondary_project = None
 
     test_table_name = tn("pyodps_t_tmp_resource_table")
@@ -246,10 +249,10 @@ def test_stream_file_resource(odps):
     content = OVERWRITE_FILE_CONTENT * 32
     resource_name = tn("pyodps_t_tmp_file_resource")
 
-    del_pool = futures.ThreadPoolExecutor(10)
+    del_pool = ThreadPoolExecutor(10)
     res_to_del = [resource_name]
     for idx in range(10):
-        res_to_del.append("%s.part.tmp.%06d" % (resource_name, idx))
+        res_to_del.append(f"{resource_name}.part.tmp.{idx:06d}")
     for res_name in res_to_del:
         del_pool.submit(odps.delete_resource, res_name)
     del_pool.shutdown(wait=True)
@@ -274,13 +277,13 @@ def test_stream_file_resource(odps):
         pytest.raises(UnsupportedOperation, lambda: res.truncate(1024))
 
     with odps.open_resource(resource_name, mode="r", stream=True) as res:
-        sio = compat.StringIO()
+        sio = io.StringIO()
         for offset in range(0, len(content), 1025):
             sio.write(res.read(1025))
     assert sio.getvalue() == content
 
     with odps.open_resource(resource_name, mode="r", stream=True) as res:
-        sio = compat.StringIO()
+        sio = io.StringIO()
         for line in res:
             sio.write(line)
     assert sio.getvalue() == content
@@ -339,9 +342,9 @@ def test_file_resource(odps):
         pytest.raises(IOError, lambda: fp.write("sss"))
         pytest.raises(IOError, lambda: fp.writelines(["sss\n"]))
 
-        assert isinstance(fp.read(), six.text_type)
+        assert isinstance(fp.read(), str)
 
-        fp.seek(0, compat.SEEK_END)
+        fp.seek(0, io.SEEK_END)
         size = fp.tell()
         fp.seek(0)
         assert fp._size == size
@@ -417,7 +420,7 @@ def test_file_resource(odps):
 
     resource.update(file_obj="update")
     with resource.open(mode="rb") as fp:
-        assert isinstance(fp.read(), six.binary_type)
+        assert isinstance(fp.read(), bytes)
         fp.seek(0)
         assert to_text(fp.read()) == to_text("update")
 
@@ -438,7 +441,7 @@ def test_volume_archive_resource(odps):
     except errors.ODPSError:
         pass
 
-    file_io = six.BytesIO()
+    file_io = io.BytesIO()
     zfile = zipfile.ZipFile(file_io, "a", zipfile.ZIP_DEFLATED, False)
     zfile.writestr("file1.txt", FILE_CONTENT)
     zfile.writestr("file2.txt", OVERWRITE_FILE_CONTENT)
@@ -515,12 +518,9 @@ def test_ext_volume_resource(config, odps_daily):
         oss_bucket_name,
         oss_endpoint,
     ) = config.oss_config
-    test_location = "oss://%s:%s@%s/%s/%s" % (
-        oss_access_id,
-        oss_secret_access_key,
-        oss_endpoint,
-        oss_bucket_name,
-        test_dir_name,
+    test_location = (
+        f"oss://{oss_access_id}:{oss_secret_access_key}@{oss_endpoint}"
+        f"/{oss_bucket_name}/{test_dir_name}"
     )
 
     vol = odps_daily.create_external_volume(

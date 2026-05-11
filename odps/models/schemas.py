@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import functools
 import logging
 
 from .. import serializers
-from ..compat import six
 from ..errors import (
     InternalServerError,
     InvalidParameter,
@@ -32,7 +32,7 @@ _project_has_schema_api = dict()
 
 def with_schema_api_fallback(fallback_fun, is_iter=False):
     def decorator(fun):
-        @six.wraps(fun)
+        @functools.wraps(fun)
         def wrapper(self, *args, **kwargs):
             key = (self.parent.odps.endpoint, self.parent.name)
             kw = kwargs.copy()
@@ -46,7 +46,7 @@ def with_schema_api_fallback(fallback_fun, is_iter=False):
 
             return fallback_fun(self, *args, **kwargs)
 
-        @six.wraps(fun)
+        @functools.wraps(fun)
         def iter_wrapper(self, *args, **kwargs):
             key = (self.parent.odps.endpoint, self.parent.name)
             kw = kwargs.copy()
@@ -95,7 +95,7 @@ class Schemas(XMLIterable):
             raise ValueError(
                 "Iterating schemas with name or owner not supported on current service"
             )
-        inst = self.parent.odps.execute_sql("SHOW SCHEMAS IN %s" % self.parent.name)
+        inst = self.parent.odps.execute_sql(f"SHOW SCHEMAS IN {self.parent.name}")
         schema_names = (
             inst.get_task_results().get("AnonymousSQLTask").strip().split("\n")
         )
@@ -139,7 +139,7 @@ class Schemas(XMLIterable):
         if isinstance(obj, Schema):
             schema_name = obj.name
         inst = self.parent.odps.run_sql(
-            "CREATE SCHEMA %s.%s" % (self.parent.name, schema_name)
+            f"CREATE SCHEMA {self.parent.name}.{schema_name}"
         )
         if not async_:
             inst.wait_for_success()
@@ -151,7 +151,7 @@ class Schemas(XMLIterable):
         kwargs.pop("async_", None)
         kwargs.pop("wait", None)
 
-        if isinstance(obj, six.string_types):
+        if isinstance(obj, str):
             kwargs["name"] = obj
             obj = None
         schema = obj or Schema(parent=self, client=self._client, **kwargs)
@@ -172,9 +172,7 @@ class Schemas(XMLIterable):
     def _delete_legacy(self, schema_name, async_=False):
         if isinstance(schema_name, Schema):
             schema_name = schema_name.name
-        inst = self.parent.odps.run_sql(
-            "DROP SCHEMA %s.%s" % (self.parent.name, schema_name)
-        )
+        inst = self.parent.odps.run_sql(f"DROP SCHEMA {self.parent.name}.{schema_name}")
         if not async_:
             return inst.wait_for_success()
         return inst

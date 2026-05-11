@@ -14,13 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import print_function
-
 import cProfile
 import json
 import os
 import time
 from contextlib import contextmanager
+from decimal import Decimal
 from pstats import Stats
 
 import pytest
@@ -32,7 +31,6 @@ if bool(json.loads(os.getenv("FORCE_PY", "0"))):
 
 from datetime import datetime
 
-from odps.compat import Decimal
 from odps.conftest import odps, tunnel  # noqa: F401
 from odps.models import TableSchema
 

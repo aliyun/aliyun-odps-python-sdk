@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,13 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import enum
+import io
 import sys
 import threading
+import time
 import zlib
 
-from ... import compat, errors, options
-from ...compat import BytesIO, Enum, Semaphore, six
-from ...lib.monotonic import monotonic
+from ... import errors, options
 from ..errors import TunnelError
 
 try:
@@ -33,25 +34,13 @@ MICRO_SEC_PER_SEC = 1000000
 # used for test case to force thread io
 _FORCE_THREAD = False
 
-if compat.LESS_PY32:
-    mv_to_bytes = lambda v: bytes(bytearray(v))
-else:
-    mv_to_bytes = bytes
+mv_to_bytes = bytes
 
 
-if compat.six.PY3:
-
-    def cast_memoryview(v):
-        if not isinstance(v, memoryview):
-            v = memoryview(v)
-        return v.cast("B")
-
-else:
-
-    def cast_memoryview(v):
-        if not isinstance(v, memoryview):
-            v = memoryview(v)
-        return v
+def cast_memoryview(v):
+    if not isinstance(v, memoryview):
+        v = memoryview(v)
+    return v.cast("B")
 
 
 class RequestsIO(object):
@@ -72,7 +61,7 @@ class RequestsIO(object):
             return object.__new__(cls)
 
     def __init__(self, post_call, chunk_size=None, record_io_time=False):
-        self._buf = BytesIO()
+        self._buf = io.BytesIO()
         self._resp = None
         self._async_err = None
         self._chunk_size = chunk_size or self.CHUNK_SIZE
@@ -87,7 +76,7 @@ class RequestsIO(object):
     def _async_func(self):
         try:
             if self._record_io_time:
-                self._io_start_time = monotonic()
+                self._io_start_time = time.monotonic()
             self._resp = self._post_call(self.data_generator())
         except:
             self._async_err = sys.exc_info()
@@ -96,7 +85,7 @@ class RequestsIO(object):
     def _reraise_errors(self):
         if self._async_err is not None:
             ex_type, ex_value, tb = self._async_err
-            six.reraise(ex_type, ex_value, tb)
+            raise ex_value.with_traceback(tb)
 
     @property
     def io_time_ms(self):
@@ -105,7 +94,7 @@ class RequestsIO(object):
     def data_generator(self):
         if self._record_io_time:
             self._io_time_ms += int(
-                MICRO_SEC_PER_SEC * (monotonic() - self._io_start_time)
+                MICRO_SEC_PER_SEC * (time.monotonic() - self._io_start_time)
             )
         chunk_size = self._chunk_size
         while True:
@@ -117,16 +106,18 @@ class RequestsIO(object):
                     data = data[chunk_size:]
 
                     if self._record_io_time:
-                        ts = monotonic()
+                        ts = time.monotonic()
 
                     yield to_send
 
                     if self._record_io_time:
-                        self._io_time_ms += int(MICRO_SEC_PER_SEC * (monotonic() - ts))
+                        self._io_time_ms += int(
+                            MICRO_SEC_PER_SEC * (time.monotonic() - ts)
+                        )
             else:
                 break
         if self._record_io_time:
-            self._io_end_time = monotonic()
+            self._io_end_time = time.monotonic()
 
     def start(self):
         pass
@@ -141,14 +132,14 @@ class RequestsIO(object):
         self._buf.write(data)
         if self._buf.tell() >= self._chunk_size:
             chunk = self._buf.getvalue()
-            self._buf = BytesIO()
+            self._buf = io.BytesIO()
             self.put(chunk)
             self._reraise_errors()
 
     def flush(self):
         if self._buf.tell():
             chunk = self._buf.getvalue()
-            self._buf = BytesIO()
+            self._buf = io.BytesIO()
             self.put(chunk)
             self._reraise_errors()
 
@@ -161,7 +152,7 @@ class RequestsIO(object):
 
         if self._record_io_time:
             self._io_time_ms += int(
-                MICRO_SEC_PER_SEC * (monotonic() - self._io_end_time)
+                MICRO_SEC_PER_SEC * (time.monotonic() - self._io_end_time)
             )
 
         self._reraise_errors()
@@ -174,8 +165,8 @@ class ThreadRequestsIO(RequestsIO):
             post_call, chunk_size, record_io_time=record_io_time
         )
         self._last_data = None
-        self._sem_put = Semaphore(1)
-        self._sem_get = Semaphore(0)
+        self._sem_put = threading.Semaphore(1)
+        self._sem_get = threading.Semaphore(0)
         self._wait_obj = threading.Thread(target=self._async_func)
         self._wait_obj.daemon = True
         self._acquire_timeout = options.connect_timeout
@@ -239,7 +230,7 @@ except ImportError:
 
 
 class CompressOption(object):
-    class CompressAlgorithm(Enum):
+    class CompressAlgorithm(enum.Enum):
         ODPS_RAW = "RAW"
         ODPS_ZLIB = "ZLIB"
         ODPS_SNAPPY = "SNAPPY"
@@ -290,7 +281,7 @@ class CompressOption(object):
             elif encoding == "x-odps-lz4-frame" or encoding == "lz4_frame":
                 return cls.ODPS_ARROW_LZ4
             else:
-                raise TunnelError("invalid encoding name %s" % encoding)
+                raise TunnelError(f"invalid encoding name {encoding}")
 
     def __init__(
         self, compress_algo=CompressAlgorithm.ODPS_ZLIB, level=None, strategy=None
@@ -324,7 +315,7 @@ def get_compress_stream(buffer, compress_option=None):
     elif algo in _lz4_algorithms:
         return LZ4OutputStream(buffer, level=compress_option.level)
     else:
-        raise errors.InvalidArgument("Invalid compression algorithm %s." % algo)
+        raise errors.InvalidArgument(f"Invalid compression algorithm {algo}.")
 
 
 def get_decompress_stream(resp, compress_option=None, requests=True):
@@ -340,7 +331,7 @@ def get_decompress_stream(resp, compress_option=None, requests=True):
     elif algo in _lz4_algorithms:
         stream_cls = LZ4RequestsInputStream
     else:
-        raise errors.InvalidArgument("Invalid compression algorithm %s." % algo)
+        raise errors.InvalidArgument(f"Invalid compression algorithm {algo}.")
 
     if not requests:
         stream_cls = stream_cls.get_raw_input_stream_class()

@@ -16,7 +16,6 @@
 
 import pytest
 
-from .....compat import irange as xrange
 from .. import BloomFilter
 
 
@@ -36,7 +35,7 @@ def test_union():
 def test_intersection():
     bloom_one = BloomFilter(100, 0.001)
     bloom_two = BloomFilter(100, 0.001)
-    chars = [chr(i) for i in xrange(97, 123)]
+    chars = [chr(i) for i in range(97, 123)]
     for char in chars:
         bloom_one.add(char)
     for char in chars[:int(len(chars) / 2)]:

@@ -20,9 +20,9 @@ import re
 import threading
 import warnings
 import weakref
+from urllib.parse import urlparse
 
 from . import accounts, errors, models, utils
-from .compat import six, urlparse
 from .config import options
 from .rest import RestClient
 from .tempobj import clean_stored_objects
@@ -47,7 +47,7 @@ _catalog_host_cache = dict()
 
 
 def _wrap_model_func(func):
-    @six.wraps(func)
+    @functools.wraps(func)
     def wrapped(self, *args, **kw):
         return func(self, *args, **kw)
 
@@ -753,7 +753,7 @@ class ODPS(object):
         .. seealso:: :class:`odps.models.Table`
         """
 
-        if isinstance(name, six.string_types) and "." in name:
+        if isinstance(name, str) and "." in name:
             project, schema, name = self._split_object_dots(name)
 
         parent = self._get_project_or_schema(project, schema)
@@ -771,7 +771,7 @@ class ODPS(object):
         :rtype: bool
         """
 
-        if isinstance(name, six.string_types) and "." in name:
+        if isinstance(name, str) and "." in name:
             project, schema, name = self._split_object_dots(name)
 
         parent = self._get_project_or_schema(project, schema)
@@ -827,7 +827,7 @@ class ODPS(object):
             if (
                 isinstance(schema, OdpsSchema)
                 or isinstance(schema, tuple)
-                or (isinstance(schema, six.string_types) and " " in schema)
+                or (isinstance(schema, str) and " " in schema)
             ):
                 table_schema, schema = schema, None
                 warnings.warn(
@@ -842,7 +842,7 @@ class ODPS(object):
         if table_schema is None:
             raise TypeError("`table_schema` argument not filled")
 
-        if isinstance(name, six.string_types) and "." in name:
+        if isinstance(name, str) and "." in name:
             project, schema, name = self._split_object_dots(name)
 
         if lifecycle is None and options.lifecycle is not None:
@@ -876,7 +876,7 @@ class ODPS(object):
         async_=False,
         table_type=None,
     ):
-        if isinstance(name, six.string_types) and "." in name:
+        if isinstance(name, str) and "." in name:
             project, schema, name = self._split_object_dots(name)
 
         parent = self._get_project_or_schema(project, schema)
@@ -1436,7 +1436,7 @@ class ODPS(object):
                 code_hints.update(hints or {})
                 hints = code_hints
             except Exception as ex:
-                warnings.warn("Failed to parse hints from SQL: %s" % ex, RuntimeWarning)
+                warnings.warn(f"Failed to parse hints from SQL: {ex}", RuntimeWarning)
 
         alter_table_match = _ALTER_TABLE_REGEX.match(sql)
         if alter_table_match:
@@ -1538,7 +1538,7 @@ class ODPS(object):
                 raise ValueError("Partition representation malformed.")
             if not kv[1].startswith('"') and not kv[1].startswith("'"):
                 kv[1] = repr(kv[1])
-            parts.append("%s=%s" % tuple(kv))
+            parts.append("=".join(kv))
         return ",".join(parts)
 
     def list_volumes(self, project=None, schema=None, owner=None):

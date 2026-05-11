@@ -95,14 +95,6 @@ def install(*exc_classes_or_instances, **kwargs):
 
     copyreg.pickle(TracebackType, partial(pickle_traceback, get_locals=get_locals))
 
-    if sys.version_info[0] < 3:
-        # Dummy decorator?
-        if len(exc_classes_or_instances) == 1:
-            exc = exc_classes_or_instances[0]
-            if isinstance(exc, type) and issubclass(exc, BaseException):
-                return exc
-        return
-
     if not exc_classes_or_instances:
         for exception_cls in _get_subclasses(BaseException):
             copyreg.pickle(exception_cls, pickle_exception)

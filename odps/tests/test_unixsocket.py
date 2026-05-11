@@ -1,4 +1,4 @@
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,10 +20,11 @@ import socket
 import sys
 import tempfile
 import threading
+from concurrent.futures import ThreadPoolExecutor
+from urllib.parse import quote_plus, urlparse
 
 import pytest
 
-from ..compat import futures, quote_plus, urlparse
 from ..core import ODPS
 
 try:
@@ -81,7 +82,7 @@ class UnixEndpointProxy(object):
             remote_conn.close()
 
     def _server_thread_func(self):
-        pool = futures.ThreadPoolExecutor(10)
+        pool = ThreadPoolExecutor(10)
 
         self._unix_server_sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self._unix_server_sock.bind(self._sock_file)
@@ -131,10 +132,7 @@ def test_unixsocket_access(odps):
     try:
         proxy_obj.start()
 
-        local_endpoint = "http+unix://%s%s" % (
-            quote_plus(sock_name),
-            parsed_endpoint.path,
-        )
+        local_endpoint = f"http+unix://{quote_plus(sock_name)}{parsed_endpoint.path}"
         unix_odps = ODPS(
             account=odps.account, project=odps.project, endpoint=local_endpoint
         )

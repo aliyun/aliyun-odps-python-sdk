@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@
 import json
 
 from ... import errors, serializers
-from ...compat import six
 from ..core import XMLIterable, XMLLazyLoad
 
 
@@ -50,7 +49,7 @@ class Role(XMLLazyLoad):
         if self._policy_cache is None:
             params = dict(policy="")
             resp = self._client.get(self.resource(), params=params)
-            self._policy_cache = resp.content.decode() if six.PY3 else resp.content
+            self._policy_cache = resp.content.decode()
         return json.loads(self._policy_cache)
 
     @policy.setter
@@ -66,14 +65,14 @@ class Role(XMLLazyLoad):
 
         if isinstance(name, User):
             name = name.display_name
-        self.project.run_security_query("grant %s to %s" % (self.name, name))
+        self.project.run_security_query(f"grant {self.name} to {name}")
 
     def revoke_from(self, name):
         from .users import User
 
         if isinstance(name, User):
             name = name.display_name
-        self.project.run_security_query("revoke %s from %s" % (self.name, name))
+        self.project.run_security_query(f"revoke {self.name} from {name}")
 
 
 class Roles(XMLIterable):
@@ -88,7 +87,7 @@ class Roles(XMLIterable):
         return Role(client=self._client, parent=self, name=item)
 
     def __contains__(self, item):
-        if isinstance(item, six.string_types):
+        if isinstance(item, str):
             role = self._get(item)
         elif isinstance(item, Role):
             role = item
@@ -112,7 +111,7 @@ class Roles(XMLIterable):
         return self.parent
 
     def create(self, name):
-        self.project.run_security_query("create role %s" % name)
+        self.project.run_security_query(f"create role {name}")
         return Role(client=self._client, parent=self, name=name)
 
     def iterate(self, name=None):
@@ -137,4 +136,4 @@ class Roles(XMLIterable):
             name = name.name
 
         del self[name]  # delete from cache
-        self.project.run_security_query("drop role %s" % name)
+        self.project.run_security_query(f"drop role {name}")

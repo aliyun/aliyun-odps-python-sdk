@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,11 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import functools
 from collections import namedtuple
 
 import pytest
 
-from ...compat import irange, six
 from ...errors import NoSuchObject
 from ...tests.core import get_test_unique_name, tn
 from .. import CompressOption
@@ -37,7 +37,7 @@ def setup(odps):
     test_fs_vol_name = tn("pyodps_test_fs_volume" + get_test_unique_name(5))
 
     def gen_byte_block():
-        return bytes(bytearray([iid % TEST_MODULUS for iid in irange(TEST_BLOCK_SIZE)]))
+        return bytes(bytearray([iid % TEST_MODULUS for iid in range(TEST_BLOCK_SIZE)]))
 
     def get_test_partition():
         if odps.exist_volume(test_parted_vol_name):
@@ -52,7 +52,7 @@ def setup(odps):
         return odps.get_volume(test_fs_vol_name)
 
     def wrap_fun(func):
-        @six.wraps(func)
+        @functools.wraps(func)
         def wrapped(self, *args, **kwargs):
             ret = func(self, *args, **kwargs)
             repr(ret)

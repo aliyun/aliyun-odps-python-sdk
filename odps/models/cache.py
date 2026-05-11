@@ -16,11 +16,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import functools
 import inspect
 import threading
 import weakref
-
-from ..compat import six
 
 
 class ObjectCache(object):
@@ -68,7 +67,7 @@ class ObjectCache(object):
                 if not frozenset(kwargs).issubset(obj.__slots__):
                     obj = None
                 else:
-                    for k, v in six.iteritems(kwargs):
+                    for k, v in kwargs.items():
                         setattr(obj, k, v)
             if obj is not None:
                 return cache_key, obj
@@ -138,7 +137,7 @@ _cls_bases_cache = dict()
 
 
 def cache(func):
-    @six.wraps(func)
+    @functools.wraps(func)
     def inner(cls, **kwargs):
         try:
             bases_set = _cls_bases_cache[cls]
@@ -162,7 +161,7 @@ def cache(func):
 
 
 def del_cache(func):
-    @six.wraps(func)
+    @functools.wraps(func)
     def inner(obj, item):
         if func.__name__ == "__delitem__":
             _object_cache.del_item_cache(obj, item)

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,8 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import enum
+
 from .. import serializers
-from ..compat import Enum
 from .core import XMLLazyLoad
 
 _MCQA_VERSION = "mcqaVersion"
@@ -34,21 +35,21 @@ class Quota(XMLLazyLoad):
     )
     _root = "Quota"
 
-    class Strategy(Enum):
+    class Strategy(enum.Enum):
         NoPreempt = "NoPreempt"
         Preempt = "Preempt"
 
-    class SchedulerType(Enum):
+    class SchedulerType(enum.Enum):
         Fifo = "Fifo"
         Fair = "Fair"
 
-    class Status(Enum):
+    class Status(enum.Enum):
         ON = "ON"
         OFF = "OFF"
         INITIALIZING = "INITIALIZING"
         ABNORMAL = "ABNORMAL"
 
-    class ResourceSystemType(Enum):
+    class ResourceSystemType(enum.Enum):
         FUXI_OFFLINE = "FUXI_OFFLINE"
         FUXI_ONLINE = "FUXI_ONLINE"
         FUXI_STANDALONE = "FUXI_STANDALONE"
@@ -61,7 +62,7 @@ class Quota(XMLLazyLoad):
             return cls.UNKNOWN
 
     class BillingPolicy(serializers.JSONSerializableModel):
-        class BillingMethod(Enum):
+        class BillingMethod(enum.Enum):
             payasyougo = "payasyougo"
             subscription = "subscription"
 

@@ -14,14 +14,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ...compat import Enum, six
+import enum
+
 from ...errors import DependencyNotInstalledError
 from ..expr.expressions import CollectionExpr, SequenceExpr, Expr
 from ..expr.dynamic import DynamicMixin
 from ..types import is_number
 
 
-class PlottingCore(Enum):
+class PlottingCore(enum.Enum):
     PANDAS = 'pandas'
 
 
@@ -132,13 +133,13 @@ def _plot_collection(expr, x=None, y=None, kind='line', **kwargs):
 
     if x is not None:
         fields.append(x)
-        if isinstance(x, six.string_types):
+        if isinstance(x, str):
             x_name = x
         else:
             x_name = x.name
     if y is not None:
         fields.append(y)
-        if isinstance(y, six.string_types):
+        if isinstance(y, str):
             y_name = y
         else:
             y_name = y.name
@@ -151,7 +152,7 @@ def _plot_collection(expr, x=None, y=None, kind='line', **kwargs):
                 fields.append(col.name)
 
     to_replace = dict()
-    for k, v in six.iteritems(kwargs):
+    for k, v in kwargs.items():
         if isinstance(v, Expr):
             fields.append(v)
             to_replace[k] = v.name
@@ -163,7 +164,7 @@ def _plot_collection(expr, x=None, y=None, kind='line', **kwargs):
     if y is not None:
         kwargs['y'] = y_name
 
-    for k, v in six.iteritems(to_replace):
+    for k, v in to_replace.items():
         kwargs[k] = df[v]
 
     _plot_func = kwargs.pop('plot_func', _plot_pandas)
@@ -178,11 +179,11 @@ def _hist_collection(expr, **kwargs):
 
     fields = []
     column = kwargs.get('column')
-    if isinstance(column, six.string_types):
+    if isinstance(column, str):
         fields.append(column)
 
     to_replace = dict()
-    for k, v in six.iteritems(kwargs):
+    for k, v in kwargs.items():
         if isinstance(v, Expr):
             fields.append(v)
             to_replace[k] = v.name
@@ -192,7 +193,7 @@ def _hist_collection(expr, **kwargs):
 
     df = expr.to_pandas()
 
-    for k, v in six.iteritems(to_replace):
+    for k, v in to_replace.items():
         kwargs[k] = df[v]
 
     _plot_func = kwargs.pop('plot_func', _hist_pandas)
@@ -208,20 +209,20 @@ def _boxplot_collection(expr, **kwargs):
     fields = set()
 
     column = kwargs.get('column')
-    if isinstance(column, six.string_types):
+    if isinstance(column, str):
         fields.add(column)
     elif column is not None:
         fields = fields.union([column])
 
     by = kwargs.get('by')
-    if isinstance(by, six.string_types):
+    if isinstance(by, str):
         fields.add(by)
     elif by is not None:
         fields = fields.union([by])
 
     fields = list(fields)
     to_replace = dict()
-    for k, v in six.iteritems(kwargs):
+    for k, v in kwargs.items():
         if isinstance(v, Expr):
             fields.append(v)
             to_replace[k] = v.name
@@ -231,7 +232,7 @@ def _boxplot_collection(expr, **kwargs):
 
     df = expr.to_pandas()
 
-    for k, v in six.iteritems(to_replace):
+    for k, v in to_replace.items():
         kwargs[k] = df[v]
 
     _plot_func = kwargs.pop('plot_func', _boxplot_pandas)

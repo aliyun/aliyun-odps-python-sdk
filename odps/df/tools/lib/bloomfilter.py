@@ -15,19 +15,8 @@
 # limitations under the License.
 # Modified from part of python-hashes by sangelone.
 
-
 import math
 import hashlib
-import sys
-try:
-    import cPickle as pickle
-except ImportError:
-    import pickle
-
-if sys.version < '3':
-    PY3 = False
-else:
-    PY3 = True
 
 
 default_hashbits = 96
@@ -54,10 +43,20 @@ class HashType(object):
     def __float__(self):
         return float(self.hash)
 
-    def __cmp__(self, other):
-        if self.hash < int(other): return -1
-        if self.hash > int(other): return 1
-        return 0
+    def __eq__(self, other):
+        return self.hash == int(other)
+
+    def __lt__(self, other):
+        return self.hash < int(other)
+
+    def __le__(self, other):
+        return self.hash <= int(other)
+
+    def __gt__(self, other):
+        return self.hash > int(other)
+
+    def __ge__(self, other):
+        return self.hash >= int(other)
 
     def hex(self):
         return hex(self.hash)
@@ -100,7 +99,7 @@ class BloomFilter(HashType):
                     self.add(t)
 
     def _binary(self, item):
-        if PY3 and isinstance(item, str):
+        if isinstance(item, str):
             item = item.encode('utf-8')
 
         return item

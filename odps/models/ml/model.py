@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import enum
+
 from ... import serializers, types, utils
-from ...compat import Enum
 from ..core import JSONLazyLoad
 
 
@@ -22,7 +23,7 @@ def _parse_datetime(time_str):
 
 
 class ModelFieldSchema(serializers.JSONSerializableModel):
-    class ModelFieldSchemaMode(Enum):
+    class ModelFieldSchemaMode(enum.Enum):
         REQUIRED = "REQUIRED"
         NULLABLE = "NULLABLE"
 
@@ -33,8 +34,8 @@ class ModelFieldSchema(serializers.JSONSerializableModel):
     type_category = serializers.JSONNodeField("typeCategory")
     mode = serializers.JSONNodeField(
         "mode",
-        parse_callback=lambda s: (
-            ModelFieldSchema.ModelFieldSchemaMode(s.upper()) if s is not None else None
+        parse_callback=utils.skip_na_call(
+            lambda s: ModelFieldSchema.ModelFieldSchemaMode(s.upper())
         ),
     )
     fields = serializers.JSONNodesReferencesField("ModelFieldSchema", "fields")
@@ -64,7 +65,7 @@ class ModelFieldSchema(serializers.JSONSerializableModel):
     def from_odps_column(cls, odps_column):
         if isinstance(odps_column.type, (types.Array, types.Map, types.Struct)):
             raise NotImplementedError(
-                "Cannot support column type %s in models" % odps_column.type
+                f"Cannot support column type {odps_column.type} in models"
             )
         schema = ModelFieldSchema(
             field_name=odps_column.name,
@@ -93,12 +94,12 @@ class ModelFieldSchema(serializers.JSONSerializableModel):
 
 
 class Model(JSONLazyLoad):
-    class ModelSourceType(Enum):
+    class ModelSourceType(enum.Enum):
         IMPORT = "IMPORT"
         INTERNAL_TRAIN = "INTERNAL_TRAIN"
         REMOTE = "REMOTE"
 
-    class ModelType(Enum):
+    class ModelType(enum.Enum):
         LLM = "LLM"
         MLLM = "MLLM"
         BOOSTED_TREE_CLASSIFIER = "BOOSTED_TREE_CLASSIFIER"
@@ -126,13 +127,11 @@ class Model(JSONLazyLoad):
     )
     source_type = serializers.JSONNodeField(
         "sourceType",
-        parse_callback=lambda s: (
-            Model.ModelSourceType(s.upper()) if s is not None else None
-        ),
+        parse_callback=utils.skip_na_call(lambda s: Model.ModelSourceType(s.upper())),
     )
     type = serializers.JSONNodeField(
         "modelType",
-        parse_callback=lambda s: Model.ModelType(s.upper()) if s is not None else None,
+        parse_callback=utils.skip_na_call(lambda s: Model.ModelType(s.upper())),
     )
     _labels = serializers.JSONNodeField("labels")
     path = serializers.JSONNodeField("path", default=None)
@@ -147,7 +146,7 @@ class Model(JSONLazyLoad):
     tasks = serializers.JSONNodeField("tasks", default=None)
 
     def __repr__(self):
-        return "<Model %s version_name=%s>" % (self.name, self.version_name)
+        return f"<Model {self.name} version_name={self.version_name}>"
 
     @property
     def versions(self):

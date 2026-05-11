@@ -16,13 +16,13 @@
 import re
 import textwrap
 from collections import OrderedDict
+from collections.abc import Iterable
 from functools import partial
 
 from .objects import AlgorithmsDef, AlgorithmDef
 from ..expr import AlgoCollectionExpr, ODPSModelExpr, MetricsResultExpr
 from ..enums import PortType
 from ..utils import import_class_member, get_function_args, ML_ARG_PREFIX
-from ...compat import six, Iterable
 from ...df.expr.collections import SequenceExpr
 from ...utils import camel_to_underline, underline_to_capitalized, load_static_text_file,\
     load_internal_static_text_file, survey
@@ -39,9 +39,9 @@ def dispatch_args(param_names, *args, **kwargs):
     from .base_algo import is_ml_object
     ml_args = [a for a in args if is_ml_object(a)]
     p_args = [a for a in args if not is_ml_object(a)]
-    ml_kw = OrderedDict([(k, v) for k, v in six.iteritems(kwargs)
+    ml_kw = OrderedDict([(k, v) for k, v in kwargs.items()
                          if k not in param_names or k.startswith('_')])
-    p_kw = OrderedDict([(k, v) for k, v in six.iteritems(kwargs) if k not in ml_kw and k in param_names])
+    p_kw = OrderedDict([(k, v) for k, v in kwargs.items() if k not in ml_kw and k in param_names])
     return ml_args, p_args, ml_kw, p_kw
 
 
@@ -68,12 +68,12 @@ def _generate_class_ctor(nested_cls, algo_def):
 
         parameters = OrderedDict([(param.name, _fill_param(param)) for param in algo_def.params])
 
-        sequences = set([p.sequence for p in six.itervalues(parameters)])
+        sequences = set([p.sequence for p in parameters.values()])
         for idx, obj in enumerate(args):
             if (idx + 1) not in sequences:
                 raise ValueError('Unexpected sequential argument: {0}.'.format(obj))
-        names = set([p.friendly_name for p in six.itervalues(parameters)])
-        for k, v in six.iteritems(kwargs):
+        names = set([p.friendly_name for p in parameters.values()])
+        for k, v in kwargs.items():
             if k.startswith('_'):  # predefined args
                 continue
             if k not in names:
@@ -182,7 +182,7 @@ def _build_node_def_params(node_def, filter_func=None):
         if p.internal:
             continue
         if p.docs:
-            param_docs.append(six.text_type('    - **{param_name}** - {docs}').format(
+            param_docs.append(str('    - **{param_name}** - {docs}').format(
                 param_name=p.friendly_name, docs=re.sub(r'\n *', ' ', p.docs))
             )
         else:
@@ -205,7 +205,7 @@ def _build_class_docstring(node_def_dict, code_name):
     node_def = node_def_dict[code_name]
     if node_def.public is not None and not node_def.public:
         return ''
-    docs = six.text_type(node_def.docs) if node_def.docs else six.text_type('\n%params%\n%predictor_params%\n')
+    docs = str(node_def.docs) if node_def.docs else str('\n%params%\n%predictor_params%\n')
     docs = textwrap.dedent(docs)
     docs = docs.replace('%params%', ':Parameters:\n' + _build_node_def_params(node_def))
 
@@ -217,13 +217,13 @@ def _build_class_docstring(node_def_dict, code_name):
             if p.name == 'model':
                 continue
             if p.docs:
-                predictor_input_docs.append(six.text_type('    - **{param_name}** ({param_type}) - {docs}').format(
+                predictor_input_docs.append(str('    - **{param_name}** ({param_type}) - {docs}').format(
                     param_type=_get_port_type(p, sphinx_wrap=True),
                     param_name=camel_to_underline(p.name),
                     docs=re.sub(r'\n *', ' ', p.docs),
                 ))
             else:
-                predictor_input_docs.append(six.text_type('    - **{param_name}** ({param_type})').format(
+                predictor_input_docs.append(str('    - **{param_name}** ({param_type})').format(
                     param_type=_get_port_type(p, sphinx_wrap=True),
                     param_name=camel_to_underline(p.name),
                 ))
@@ -237,13 +237,13 @@ def _build_class_docstring(node_def_dict, code_name):
 
 
 def _build_entry_method_docs(node_def):
-    docs = six.text_type(node_def.entry_docs) if node_def.entry_docs else six.text_type('\n%inputs%\n%outputs%\n')
+    docs = str(node_def.entry_docs) if node_def.entry_docs else str('\n%inputs%\n%outputs%\n')
     if '%inputs%' in docs:
-        input_docs = [six.text_type(':param %s %s: %s') % (_get_port_type(p), camel_to_underline(p.name), re.sub(r'\n *', ' ', p.docs))
-                      if p.docs else six.text_type(':param %s %s:') % (_get_port_type(p), camel_to_underline(p.name))
+        input_docs = [str(':param %s %s: %s') % (_get_port_type(p), camel_to_underline(p.name), re.sub(r'\n *', ' ', p.docs))
+                      if p.docs else str(':param %s %s:') % (_get_port_type(p), camel_to_underline(p.name))
                       for p in node_def.get_input_ports()]
         if input_docs:
-            docs = docs.replace('%inputs%', six.text_type('.. py:currentmodule:: odps.ml\n\n') + '\n'.join(input_docs) + '\n\n')
+            docs = docs.replace('%inputs%', str('.. py:currentmodule:: odps.ml\n\n') + '\n'.join(input_docs) + '\n\n')
         else:
             docs = docs.replace('%inputs%', '')
     if '%outputs%' in docs:
@@ -260,9 +260,9 @@ def _build_entry_method_docs(node_def):
             output_descs = [u'    * %s – %s' % (camel_to_underline(p.name), p.docs) for p in output_ports if p.docs]
 
             if output_descs:
-                output_docs = six.text_type('\n\n:Returns:\n    * (%s)\n%s\n:rtype: (%s)\n\n') % (', '.join(output_names), '\n'.join(output_descs), ', '.join(output_types))
+                output_docs = str('\n\n:Returns:\n    * (%s)\n%s\n:rtype: (%s)\n\n') % (', '.join(output_names), '\n'.join(output_descs), ', '.join(output_types))
             else:
-                output_docs = six.text_type('\n\n:Returns: (%s)\n:rtype: (%s)\n\n') % (', '.join(output_names), ', '.join(output_types))
+                output_docs = str('\n\n:Returns: (%s)\n:rtype: (%s)\n\n') % (', '.join(output_names), ', '.join(output_types))
             docs = docs.replace('%outputs%', output_docs)
     return docs
 
@@ -280,20 +280,20 @@ def _build_entry_method(class_obj, node_def):
 def _build_function_docstring(node_def):
     if node_def.public is not None and not node_def.public:
         return ""
-    docs = six.text_type(node_def.docs) if node_def.docs else six.text_type('\n%params%\n')
+    docs = str(node_def.docs) if node_def.docs else str('\n%params%\n')
     docs = textwrap.dedent(docs)
     if '%params%' in docs:
         arg_str = ''
-        input_docs = [six.text_type(':param %s %s: %s') % (_get_port_type(p, False, False), camel_to_underline(p.name), re.sub(r'\n *', ' ', p.docs))
-                      if p.docs else six.text_type(':param %s %s: %s') % (_get_port_type(p, False, False), camel_to_underline(p.name), camel_to_underline(p.name))
+        input_docs = [str(':param %s %s: %s') % (_get_port_type(p, False, False), camel_to_underline(p.name), re.sub(r'\n *', ' ', p.docs))
+                      if p.docs else str(':param %s %s: %s') % (_get_port_type(p, False, False), camel_to_underline(p.name), camel_to_underline(p.name))
                       for p in node_def.get_input_ports()]
         arg_str += '\n'.join(input_docs) + '\n'
-        param_docs = [six.text_type(':param %s: %s') % (p.friendly_name, re.sub(r'\n *', ' ', p.docs))
+        param_docs = [str(':param %s: %s') % (p.friendly_name, re.sub(r'\n *', ' ', p.docs))
                       if p.docs else ':param %s: %s' % (p.friendly_name, p.friendly_name)
                       for p in node_def.params if _is_param_in_doc(p) and not p.internal]
         arg_str += '\n'.join(param_docs)
         if arg_str:
-            docs = docs.replace('%params%', six.text_type('.. py:currentmodule:: odps.ml\n\n') + arg_str + '\n\n')
+            docs = docs.replace('%params%', str('.. py:currentmodule:: odps.ml\n\n') + arg_str + '\n\n')
         else:
             docs = docs.replace('%params%', '\n\n')
     return docs

@@ -1,4 +1,4 @@
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,12 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ... import compat, serializers
+import enum
+
+from ... import serializers
 from .core import Task
 
 
 class CopyDataSource(serializers.XMLSerializableModel):
-    class CopyDirection(compat.Enum):
+    class CopyDirection(enum.Enum):
         IMPORT = "IMPORT"
         EXPORT = "EXPORT"
 

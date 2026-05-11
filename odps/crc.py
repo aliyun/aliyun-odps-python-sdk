@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,7 +16,6 @@
 
 import zlib
 
-from .compat import six
 from .config import options
 
 
@@ -25,7 +24,7 @@ class Crc32(object):
         self.crc = None
 
     def update(self, buf, off=None, length=None):
-        assert isinstance(buf, (six.binary_type, bytearray))
+        assert isinstance(buf, (bytes, bytearray))
         off = off or 0
         length = length or len(buf)
         to_crc = buf[off : off + length]

@@ -19,7 +19,6 @@ from collections import namedtuple
 import pytest
 
 from .....tests.core import numpy_case
-from .....compat import six
 from .....models import TableSchema
 from .....udf.tools import runners
 from ....types import validate_data_type
@@ -40,7 +39,7 @@ class ODPSEngine(ODPSSQLEngine):
 
 def get_function(source, fun_name):
     d = dict()
-    six.exec_(source, d, d)
+    exec(source, d, d)
     return d[fun_name]
 
 

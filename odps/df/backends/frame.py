@@ -14,9 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import io
 import functools
 import itertools
 import operator
+from collections.abc import Iterator
 
 try:
     import numpy as np
@@ -26,7 +28,7 @@ try:
 except (ImportError, ValueError):
     has_pandas = False
 
-from ...compat import u, six, izip as zip, Version
+from ...compat import Version
 from ...config import options
 from ...console import (
     get_console_size,
@@ -41,7 +43,7 @@ from ...utils import to_str, to_text, deprecated
 from . import formatter as fmt
 
 
-class ResultFrame(six.Iterator):
+class ResultFrame(Iterator):
     class ResultRecord(list):
         def __init__(self, columns, values):
             self._columns = columns
@@ -49,7 +51,7 @@ class ResultFrame(six.Iterator):
             super(ResultFrame.ResultRecord, self).__init__(values)
 
         def __getitem__(self, item):
-            if isinstance(item, six.string_types):
+            if isinstance(item, str):
                 item = self._column_id_by_name[item]
             return list.__getitem__(self, item)
 
@@ -213,7 +215,7 @@ class ResultFrame(six.Iterator):
         return col
 
     def __getitem__(self, item):
-        if isinstance(item, six.integer_types):
+        if isinstance(item, int):
             if self._pandas:
                 return self._values.iloc[item]
             else:
@@ -375,7 +377,7 @@ class ResultFrame(six.Iterator):
         # when auto-detecting, so width=None and not in ipython front end
         # check whether repr fits horizontal by actualy checking
         # the width of the rendered repr
-        buf = six.StringIO()
+        buf = io.StringIO()
 
         # only care about the stuff we'll actually print out
         # and to_string on entire frame may be expensive
@@ -403,7 +405,7 @@ class ResultFrame(six.Iterator):
         if self._pandas:
             return to_text(repr(self._values))
 
-        buf = six.StringIO(u(""))
+        buf = io.StringIO()
 
         max_rows = options.display.max_rows
         max_cols = options.display.max_columns

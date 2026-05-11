@@ -21,7 +21,6 @@ Modified by onesuperclark@gmail.com(onesuper).
 
 import array
 import struct
-import sys
 
 from . import errors, wire_format
 
@@ -32,26 +31,16 @@ class OutputStream(object):
     def __init__(self):
         self._buffer = array.array("B")
 
-    if sys.version_info < (3, 3):
-
-        def append_raw_bytes(self, raw_bytes):
-            """Appends raw_bytes to our internal buffer."""
-            self._buffer.fromstring(raw_bytes)
-
-    else:
-
-        def append_raw_bytes(self, raw_bytes):
-            """Appends raw_bytes to our internal buffer."""
-            self._buffer.frombytes(raw_bytes)
+    def append_raw_bytes(self, raw_bytes):
+        """Appends raw_bytes to our internal buffer."""
+        self._buffer.frombytes(raw_bytes)
 
     def append_little_endian32(self, unsigned_value):
         """Appends an unsigned 32-bit integer to the internal buffer,
         in little-endian byte order.
         """
         if not 0 <= unsigned_value <= wire_format.UINT32_MAX:
-            raise errors.EncodeError(
-                "Unsigned 32-bit out of range: %d" % unsigned_value
-            )
+            raise errors.EncodeError(f"Unsigned 32-bit out of range: {unsigned_value}")
         self.append_raw_bytes(
             struct.pack(wire_format.FORMAT_UINT32_LITTLE_ENDIAN, unsigned_value)
         )
@@ -61,9 +50,7 @@ class OutputStream(object):
         in little-endian byte order.
         """
         if not 0 <= unsigned_value <= wire_format.UINT64_MAX:
-            raise errors.EncodeError(
-                "Unsigned 64-bit out of range: %d" % unsigned_value
-            )
+            raise errors.EncodeError(f"Unsigned 64-bit out of range: {unsigned_value}")
         self.append_raw_bytes(
             struct.pack(wire_format.FORMAT_UINT64_LITTLE_ENDIAN, unsigned_value)
         )
@@ -74,7 +61,7 @@ class OutputStream(object):
         always require 10 bytes of space.)
         """
         if not wire_format.INT32_MIN <= value <= wire_format.INT32_MAX:
-            raise errors.EncodeError("Value out of range: %d" % value)
+            raise errors.EncodeError(f"Value out of range: {value}")
         self.append_varint64(value)
 
     def append_var_uint32(self, value):
@@ -82,7 +69,7 @@ class OutputStream(object):
         encoded as a varint.
         """
         if not 0 <= value <= wire_format.UINT32_MAX:
-            raise errors.EncodeError("Value out of range: %d" % value)
+            raise errors.EncodeError(f"Value out of range: {value}")
         self.append_var_uint64(value)
 
     def append_varint64(self, value):
@@ -90,7 +77,7 @@ class OutputStream(object):
         encoded as a varint.
         """
         if not wire_format.INT64_MIN <= value <= wire_format.INT64_MAX:
-            raise errors.EncodeError("Value out of range: %d" % value)
+            raise errors.EncodeError(f"Value out of range: {value}")
         if value < 0:
             value += 1 << 64
         self.append_var_uint64(value)
@@ -100,7 +87,7 @@ class OutputStream(object):
         encoded as a varint.
         """
         if not 0 <= unsigned_value <= wire_format.UINT64_MAX:
-            raise errors.EncodeError("Value out of range: %d" % unsigned_value)
+            raise errors.EncodeError(f"Value out of range: {unsigned_value}")
         while True:
             bits = unsigned_value & 0x7F
             unsigned_value >>= 7
@@ -110,17 +97,9 @@ class OutputStream(object):
             if not unsigned_value:
                 break
 
-    if sys.version_info < (3, 3):
-
-        def tostring(self):
-            """Returns a string containing the bytes in our internal buffer."""
-            return self._buffer.tostring()
-
-    else:
-
-        def tostring(self):
-            """Returns a string containing the bytes in our internal buffer."""
-            return self._buffer.tobytes()
+    def tostring(self):
+        """Returns a string containing the bytes in our internal buffer."""
+        return self._buffer.tobytes()
 
     def __len__(self):
         return len(self._buffer)

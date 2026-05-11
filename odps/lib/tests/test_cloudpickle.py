@@ -31,13 +31,27 @@ import uuid
 
 import pytest
 
-from ...compat import six
 from ...tests.core import numpy_case
 from ...utils import to_binary
 from ..cloudpickle import loads, dumps
 
 PY27 = sys.version_info[:2] == (2, 7)
 PY37 = sys.version_info[:2] == (3, 7)
+
+if not PY27:
+    exec_ = exec
+else:
+    def exec_(_code_, _globs_=None, _locs_=None):
+        """Execute code in a namespace."""
+        if _globs_ is None:
+            frame = sys._getframe(1)
+            _globs_ = frame.f_globals
+            if _locs_ is None:
+                _locs_ = frame.f_locals
+            del frame
+        elif _locs_ is None:
+            _locs_ = _globs_
+        exec("""exec _code_ in _globs_, _locs_""")
 
 # if bytecode needed in debug, switch it on
 DUMP_CODE = False
@@ -158,7 +172,7 @@ class BuildBase(object):
     pass
 
 
-if six.PY2:
+if PY27:
     def _gen_class_builder_func():
         out_closure = 10
 
@@ -190,7 +204,7 @@ else:
         return _gen_nested_class_obj
     """)
     my_locs = locals().copy()
-    six.exec_(py3_code, globals(), my_locs)
+    exec_(py3_code, globals(), my_locs)
     _gen_class_builder_func = my_locs.get('_gen_class_builder_func')
 
 
@@ -213,7 +227,7 @@ else:
         return _format_fun
     """)
     my_locs = locals().copy()
-    six.exec_(py36_code, globals(), my_locs)
+    exec_(py36_code, globals(), my_locs)
     _gen_format_string_func = my_locs.get('_gen_format_string_func')
 
 
@@ -256,7 +270,7 @@ else:
         return _gen_fun
     """)
     my_locs = locals().copy()
-    six.exec_(py36_code, globals(), my_locs)
+    exec_(py36_code, globals(), my_locs)
     _gen_build_unpack_func = my_locs.get('_gen_build_unpack_func')
 
 
@@ -287,7 +301,7 @@ else:
         return _gen_fun
     """)
     my_locs = locals().copy()
-    six.exec_(py36_code, globals(), my_locs)
+    exec_(py36_code, globals(), my_locs)
     _gen_matmul_func = my_locs.get('_gen_matmul_func')
 
 py36_code = """
@@ -302,7 +316,7 @@ def _gen_large_if_chain_func():
         if i > 300:
             return i"""] * 350))
 my_locs = locals().copy()
-six.exec_(py36_code, globals(), my_locs)
+exec_(py36_code, globals(), my_locs)
 _gen_large_if_chain_func = my_locs.get("_gen_large_if_chain_func")
 
 

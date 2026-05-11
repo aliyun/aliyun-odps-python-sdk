@@ -14,8 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import print_function
-
 import warnings
 
 import pytest
@@ -27,7 +25,6 @@ try:
 except ImportError:
     oss2 = None
 
-from ...compat import six
 from ...errors import NoSuchObject
 from ...tests.core import tn
 from ...utils import to_str
@@ -147,8 +144,7 @@ def test_volume_partition_and_file(odps):
 
     with partition.files[TEST_FILE_NAME].open_reader() as reader:
         out_content = reader.read()
-        if not six.PY2:
-            out_content = out_content.decode("utf-8")
+        out_content = out_content.decode("utf-8")
         assert out_content == FILE_CONTENT
 
     assert vol.exist_partition(TEST_PARTITION_NAME) is True
@@ -245,12 +241,9 @@ def test_external_volume(config, odps_daily, check_experimental):
         oss_bucket_name,
         oss_endpoint,
     ) = config.oss_config
-    test_location = "oss://%s:%s@%s/%s/%s" % (
-        oss_access_id,
-        oss_secret_access_key,
-        oss_endpoint,
-        oss_bucket_name,
-        test_dir_name,
+    test_location = (
+        f"oss://{oss_access_id}:{oss_secret_access_key}@{oss_endpoint}"
+        f"/{oss_bucket_name}/{test_dir_name}"
     )
 
     vol = odps_daily.create_external_volume(

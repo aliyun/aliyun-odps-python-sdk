@@ -16,7 +16,6 @@
 
 import pytest
 
-from .....compat import irange as xrange
 from .. import HyperLogLog
 
 
@@ -24,19 +23,19 @@ def test_hll():
     hll = HyperLogLog(0.05)
     buf = hll.buffer()
 
-    for i in xrange(10000):
+    for i in range(10000):
         hll(buf, str(i))
 
     assert pytest.approx(hll.getvalue(buf) / float(10000), 0.1) == 1
 
-    for i in xrange(100000, 200000):
+    for i in range(100000, 200000):
         hll(buf, str(i))
 
     assert pytest.approx(hll.getvalue(buf) / 110000, 0.2) == 1
 
     buf2 = hll.buffer()
 
-    for i in xrange(10000):
+    for i in range(10000):
         hll(buf2, str(i))
 
     hll.merge(buf, buf2)

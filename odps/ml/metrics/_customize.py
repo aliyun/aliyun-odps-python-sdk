@@ -19,7 +19,6 @@ import json
 from collections import namedtuple, OrderedDict
 
 from ... import serializers, DataFrame
-from ...compat import six
 from ..utils import camel_to_underline, parse_hist_repr
 from ..algolib.loader import load_defined_algorithms
 
@@ -43,7 +42,7 @@ def get_confusion_matrix_result(expr, odps):
     records = list(DataFrame(odps.get_table(expr.tables[0])).execute())
     # skip the first row
     col_data = json.loads(records[0][0])
-    col_data = map(lambda p: p[1], sorted(six.iteritems(col_data), key=lambda a: int(a[0][1:])))
+    col_data = map(lambda p: p[1], sorted(col_data.items(), key=lambda a: int(a[0][1:])))
 
     mat = [list(rec[2:]) for rec in records[1:]]
     try:
@@ -70,7 +69,7 @@ def get_roc_result(expr, odps):
 
 def get_regression_eval_result(expr, odps):
     records = list(DataFrame(odps.get_table(expr.tables.index)).execute())
-    indices = dict((camel_to_underline(k), v) for k, v in six.iteritems(json.loads(replace_json_infs(records[0].values[0]))))
+    indices = dict((camel_to_underline(k), v) for k, v in json.loads(replace_json_infs(records[0].values[0])).items())
     records = list(DataFrame(odps.get_table(expr.tables.residual)).execute())
     indices['hist'] = parse_hist_repr(records[0].values[1])
     return indices

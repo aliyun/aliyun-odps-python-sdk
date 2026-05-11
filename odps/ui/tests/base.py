@@ -1,4 +1,4 @@
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,9 +16,9 @@ import os
 import sys
 import time
 from contextlib import contextmanager
+from queue import Empty
 from subprocess import PIPE, Popen
 
-from ...compat import Empty
 from ...tests.core import ignore_case
 
 try:
@@ -100,8 +100,7 @@ def setup_kernel(cmd=DEFAULT_CMD):
     """
     kernel = Popen([sys.executable, "-c", cmd], stdout=PIPE, stderr=PIPE)
     connection_file = os.path.join(
-        paths.jupyter_runtime_dir(),
-        "kernel-%i.json" % kernel.pid,
+        paths.jupyter_runtime_dir(), f"kernel-{kernel.pid}.json"
     )
     # wait for connection file to exist, timeout after 5s
     tic = time.time()
@@ -115,12 +114,12 @@ def setup_kernel(cmd=DEFAULT_CMD):
     if kernel.poll() is not None:
         o, e = kernel.communicate()
         e = py3compat.cast_unicode(e)
-        raise IOError("Kernel failed to start:\n%s" % e)
+        raise IOError(f"Kernel failed to start:\n{e}")
 
     if not os.path.exists(connection_file):
         if kernel.poll() is None:
             kernel.terminate()
-        raise IOError("Connection file %r never arrived" % connection_file)
+        raise IOError(f"Connection file {connection_file!r} never arrived")
 
     client = BlockingKernelClient(connection_file=connection_file)
     client.load_connection_file()

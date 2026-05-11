@@ -38,7 +38,7 @@ def main():
         metavar="delim",
         type=str,
         default=",",
-        help="Line delimiter that separates lines into columns, default is \",\"",
+        help='Line delimiter that separates lines into columns, default is ","',
     )
     parser.add_argument(
         "-N", metavar="null", type=str, default="NULL", help="NULL indicator"

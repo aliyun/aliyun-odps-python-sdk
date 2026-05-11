@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -281,7 +281,7 @@ def test_v4_signature_fallback(odps):
         if odps.endpoint not in self._endpoints_without_v4_sign:
             raise errors.InternalServerError(
                 "ODPS-0010000:System internal error - Error occurred while getting access key for "
-                "'%s', CloudV4 request need ak v3 support" % odps.account.access_id
+                f"'{odps.account.access_id}', CloudV4 request need ak v3 support"
             )
         return resp.ok
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,8 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import io
+
 from .. import errors, serializers, utils
-from ..compat import six
 from .core import XMLIterable
 from .table import Table
 
@@ -29,7 +30,7 @@ class Tables(XMLIterable):
         return Table(client=self._client, parent=self, name=item)
 
     def __contains__(self, item):
-        if isinstance(item, six.string_types):
+        if isinstance(item, str):
             table = self._get(item)
         elif isinstance(item, Table):
             table = item
@@ -175,9 +176,9 @@ class Tables(XMLIterable):
         project_name = self._parent.project.name
         schema_name = self._get_schema_name()
 
-        buf = six.StringIO()
+        buf = io.StringIO()
 
-        if table_type is not None and isinstance(table_type, six.string_types):
+        if table_type is not None and isinstance(table_type, str):
             table_type = Table.Type(table_type.upper())
 
         # override provided type if the object is already cached
@@ -194,16 +195,14 @@ class Tables(XMLIterable):
         else:
             type_str = "TABLE"
 
-        buf.write("DROP %s " % type_str)
+        buf.write(f"DROP {type_str} ")
         if if_exists:
             buf.write("IF EXISTS ")
+        backqouted_table_name = utils.backquote_string(table_name)
         if schema_name is not None:
-            buf.write(
-                "%s.%s.%s"
-                % (project_name, schema_name, utils.backquote_string(table_name))
-            )
+            buf.write(f"{project_name}.{schema_name}.{backqouted_table_name}")
         else:
-            buf.write("%s.%s" % (project_name, utils.backquote_string(table_name)))
+            buf.write(f"{project_name}.{backqouted_table_name}")
 
         return buf.getvalue()
 

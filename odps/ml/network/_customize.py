@@ -13,15 +13,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import enum
 from functools import partial
 
 from ..expr.exporters import get_input_field_names
 from ..expr.mixin import ml_collection_mixin
-from ...compat import Enum
 from ...df import DataFrame
 
 
-class NetworkFieldRole(Enum):
+class NetworkFieldRole(enum.Enum):
     FROM_VERTEX = 'FROM_VERTEX'
     TO_VERTEX = 'TO_VERTEX'
     VERTEX_ID = 'VERTEX_ID'

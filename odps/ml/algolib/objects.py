@@ -16,7 +16,6 @@
 from itertools import groupby
 
 from ..enums import PortType, PortDirection
-from ...compat import six
 from ...utils import str_to_bool, camel_to_underline
 from ... import types as odps_types, serializers
 
@@ -75,7 +74,7 @@ class ParamDef(serializers.XMLSerializableModel):
 
     def copy(self):
         cls = self.__class__
-        keys = dict((k, getattr(self, k)) for k in six.iterkeys(getattr(cls, '__fields')))
+        keys = dict((k, getattr(self, k)) for k in getattr(cls, '__fields').keys())
         return cls(**keys)
 
     @classmethod
@@ -424,6 +423,4 @@ class AlgorithmsDef(serializers.XMLSerializableModel):
 
     @classmethod
     def parse(cls, response, obj=None, **kw):
-        if six.PY2:
-            response = response.encode('utf-8')
         return super(AlgorithmsDef, cls).parse(response, obj=obj, **kw)

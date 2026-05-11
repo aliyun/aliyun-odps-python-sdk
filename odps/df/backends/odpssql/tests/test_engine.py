@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import functools
+import io
 import itertools
 import json
 import math
@@ -26,15 +27,15 @@ import time
 import uuid
 import zipfile
 from collections import namedtuple, OrderedDict
+from concurrent.futures import wait as wait_futures
 from datetime import datetime, timedelta
-from functools import partial
+from functools import partial, reduce
 from random import randint
 
 import mock
 import pytest
 
 from ..... import options, types
-from .....compat import PY27, irange as xrange, six, futures, BytesIO
 from .....errors import ODPSError
 from .....models import TableSchema
 from .....tests.core import (
@@ -463,7 +464,7 @@ def test_batch(odps, setup):
     fs = setup.engine.execute([expr, expr1, expr2], n_parallel=2, async_=True, timeout=1)
     assert len(fs) == 3
 
-    futures.wait((fs[0], ), timeout=120)
+    wait_futures((fs[0], ), timeout=120)
     time.sleep(.5)
     assert fs[1].running() and fs[2].running() is True
     time.sleep(.5)
@@ -510,11 +511,7 @@ def test_base(odps, setup):
     result = get_result(res.values)
     assert [[r[4] + 1, r[4] + 10] for r in data] == result
 
-    if six.PY2:  # Skip in Python 3, as hash() behaves randomly.
-        expr = setup.expr.name.hash()
-        res = setup.engine.execute(expr)
-        result = get_result(res.values)
-        assert [[hash(r[0])] for r in data] == result
+    # Skip hash test as hash() behaves randomly in Python 3
 
     expr = setup.expr.sample(parts=10)
     res = setup.engine.execute(expr)
@@ -569,29 +566,6 @@ def test_chinese(odps, setup):
     expr = setup.expr.filter(setup.expr.name == u'中文')
     res = setup.engine.execute(expr)
     assert len(res) == 1
-
-
-@py_and_c_deco
-@pytest.mark.skipif(not PY27, reason="known bug for binary results in py3")
-def test_non_utf8(odps, setup):
-    data = [
-        ['中文', 4, 5.3, None, None, None],
-    ]
-    setup.gen_data(data=data)
-
-    const = to_text(data[0]).encode('gbk')
-    expr = setup.expr[:1].map_reduce(lambda row: const,
-                                    mapper_output_names=['s'],
-                                    mapper_output_types=['string' if PY27 else 'binary'])
-    options.tunnel.string_as_binary = True
-    if not PY27:
-        options.sql.use_odps2_extension = True
-    try:
-        res = get_result(setup.engine.execute(expr))
-        assert res[0][0] == const
-    finally:
-        options.tunnel.string_as_binary = False
-        options.sql.use_odps2_extension = None
 
 
 def test_functions(odps, setup):
@@ -970,10 +944,10 @@ def test_function_resources(odps, setup):
                     return arg
         return h
 
-    file_resource_name = tn('pyodps_t_tmp_file_resource')
-    table_resource_name = tn('pyodps_t_tmp_table_resource')
-    table_name = tn('pyodps_t_tmp_function_resource_table')
-    table_name2 = tn('pyodps_t_tmp_function_resource_table2')
+    file_resource_name = tn('pyodps_t_tmp_file_resource_mcsql_engine')
+    table_resource_name = tn('pyodps_t_tmp_table_resource_mcsql_engine')
+    table_name = tn('pyodps_t_tmp_function_resource_table_mcsql_engine')
+    table_name2 = tn('pyodps_t_tmp_function_resource_table2_mcsql_engine')
     try:
         odps.delete_resource(file_resource_name)
     except:
@@ -1099,7 +1073,6 @@ def test_function_resources_with_partition(odps, setup):
 
 def test_third_party_libraries(odps, setup):
     import requests
-    from .....compat import BytesIO
 
     data = [
         ['2016-08-18', 4, 5.3, None, None, None],
@@ -1127,23 +1100,29 @@ def test_third_party_libraries(odps, setup):
 
     dateutil_resources = []
     for dateutil_url, name in zip(dateutil_urls, ['dateutil.whl', 'dateutil.tar.gz', 'dateutil.zip']):
-        obj = BytesIO(requests.get(dateutil_url).content)
+        obj = io.BytesIO(requests.get(dateutil_url).content)
         res_name = '%s_%s.%s' % (
             name.split('.', 1)[0], str(uuid.uuid4()).replace('-', '_'), name.split('.', 1)[1])
         res = odps.create_resource(res_name, 'file', file_obj=obj)
         dateutil_resources.append(res)
 
-    obj = BytesIO(requests.get(dateutil_urls[0]).content)
+    obj = io.BytesIO(requests.get(dateutil_urls[0]).content)
     res_name = 'dateutil_archive_%s.zip' % str(uuid.uuid4()).replace('-', '_')
     res = odps.create_resource(res_name, 'archive', file_obj=obj)
     dateutil_resources.append(res)
 
     resources = []
-    six_path = os.path.join(os.path.dirname(os.path.abspath(six.__file__)), 'six.py')
+    # Download six from PyPI and create archive resources for testing
+    six_url = (
+        _pypi_prefix + '/packages/d9/5a/'
+        'e7c31adbe875f2abbb91bd84cf2dc52d792b5a01506781dbcf25c91daf11/'
+        'six-1.16.0-py2.py3-none-any.whl'
+    )
+    six_whl_content = requests.get(six_url).content
 
-    zip_io = BytesIO()
+    zip_io = io.BytesIO()
     zip_f = zipfile.ZipFile(zip_io, 'w')
-    zip_f.write(six_path, arcname='mylib/six.py')
+    zip_f.writestr('mylib/six.py', zipfile.ZipFile(io.BytesIO(six_whl_content)).read('six.py'))
     zip_f.close()
     zip_io.seek(0)
 
@@ -1151,9 +1130,12 @@ def test_third_party_libraries(odps, setup):
     resource = odps.create_resource(rn, 'file', file_obj=zip_io)
     resources.append(resource)
 
-    tar_io = BytesIO()
+    tar_io = io.BytesIO()
     tar_f = tarfile.open(fileobj=tar_io, mode='w:gz')
-    tar_f.add(six_path, arcname='mylib/six.py')
+    six_py_content = zipfile.ZipFile(io.BytesIO(six_whl_content)).read('six.py')
+    info = tarfile.TarInfo(name='mylib/six.py')
+    info.size = len(six_py_content)
+    tar_f.addfile(info, fileobj=io.BytesIO(six_py_content))
     tar_f.close()
     tar_io.seek(0)
 
@@ -1236,7 +1218,6 @@ def test_third_party_libraries(odps, setup):
 
 def test_third_party_wheel(odps, setup):
     import requests
-    from .....compat import BytesIO
 
     data = [
         ['2016-08-18', 4, 5.3, None, None, None],
@@ -1252,10 +1233,18 @@ def test_third_party_wheel(odps, setup):
         'd60450c3dd48ef87586924207ae8907090de0b306af2bce5d134d78615cb/'
         'python_dateutil-2.8.1-py2.py3-none-any.whl'
     )
-    obj = BytesIO(requests.get(dateutil_url).content)
+    obj = io.BytesIO(requests.get(dateutil_url).content)
     wheel_res = odps.create_resource(
         'dateutil_%s.whl' % str(uuid.uuid4()), 'archive', file_obj=obj)
-    six_path = os.path.join(os.path.dirname(os.path.abspath(six.__file__)), 'six.py')
+
+    six_url = (
+        _pypi_prefix + '/packages/d9/5a/'
+        'e7c31adbe875f2abbb91bd84cf2dc52d792b5a01506781dbcf25c91daf11/'
+        'six-1.16.0-py2.py3-none-any.whl'
+    )
+    six_obj = io.BytesIO(requests.get(six_url).content)
+    six_res = odps.create_resource(
+        'six_%s.whl' % str(uuid.uuid4()), 'archive', file_obj=six_obj)
 
     try:
         def f(x):
@@ -1265,7 +1254,7 @@ def test_third_party_wheel(odps, setup):
         expr = setup.expr.name.map(f, rtype='int')
 
         try:
-            options.df.libraries = [wheel_res, six_path]
+            options.df.libraries = [wheel_res, six_res]
             res = setup.engine.execute(expr)
         finally:
             options.df.libraries = None
@@ -1274,6 +1263,7 @@ def test_third_party_wheel(odps, setup):
         assert result == [[int(r[0].split('-')[0])] for r in data]
     finally:
         wheel_res.drop()
+        six_res.drop()
 
 
 def test_supersede_numpy_library(odps, setup):
@@ -1282,13 +1272,13 @@ def test_supersede_numpy_library(odps, setup):
     ]
     setup.gen_data(data=data)
 
-    tar_io = BytesIO()
+    tar_io = io.BytesIO()
     pseudo_np_tar = tarfile.open(fileobj=tar_io, mode='w:gz')
     init_content = b"__version__ = '100.100.100'\n"
     info = tarfile.TarInfo(name='numpy/__init__.py')
     info.size = len(init_content)
-    pseudo_np_tar.addfile(info, fileobj=BytesIO(init_content))
-    pseudo_np_tar.addfile(tarfile.TarInfo('numpy/pseudo.so'), fileobj=BytesIO())
+    pseudo_np_tar.addfile(info, fileobj=io.BytesIO(init_content))
+    pseudo_np_tar.addfile(tarfile.TarInfo('numpy/pseudo.so'), fileobj=io.BytesIO())
     pseudo_np_tar.close()
 
     res_name = 'pseudo_numpy_%s.tar.gz' % str(uuid.uuid4())
@@ -1343,7 +1333,7 @@ def test_custom_libraries(odps, setup):
 
     def get_fun(code, fun_name):
         g, loc = globals(), dict()
-        six.exec_(code, g, loc)
+        exec(code, g, loc)
         return loc[fun_name]
 
     f = get_fun(textwrap.dedent("""
@@ -1470,7 +1460,7 @@ def test_datetime(odps, setup):
     data = setup.gen_data(5)
 
     def date_value(sel):
-        if isinstance(sel, six.string_types):
+        if isinstance(sel, str):
             fun = lambda v: getattr(v, sel)
         else:
             fun = sel
@@ -2985,7 +2975,7 @@ def test_scale_value(odps, setup):
     for first, second in zip(result, expected):
         assert len(first) == len(second)
         for it1, it2 in zip(first, second):
-            if isinstance(it1, six.string_types):
+            if isinstance(it1, str):
                 assert it1 == it2
             else:
                 assert pytest.approx(it1) == it2
@@ -3011,7 +3001,7 @@ def test_scale_value(odps, setup):
     for first, second in zip(result, expected):
         assert len(first) == len(second)
         for it1, it2 in zip(first, second):
-            if isinstance(it1, six.string_types):
+            if isinstance(it1, str):
                 assert it1 == it2
             else:
                 assert pytest.approx(it1) == it2
@@ -3037,7 +3027,7 @@ def test_scale_value(odps, setup):
     for first, second in zip(result, expected):
         assert len(first) == len(second)
         for it1, it2 in zip(first, second):
-            if isinstance(it1, six.string_types):
+            if isinstance(it1, str):
                 assert it1 == it2
             else:
                 assert pytest.approx(it1) == it2
@@ -3063,14 +3053,14 @@ def test_scale_value(odps, setup):
     for first, second in zip(result, expected):
         assert len(first) == len(second)
         for it1, it2 in zip(first, second):
-            if isinstance(it1, six.string_types):
+            if isinstance(it1, str):
                 assert it1 == it2
             else:
                 assert pytest.approx(it1) == it2
 
 
 def test_hllc(odps, setup):
-    names = [randint(0, 100000) for _ in xrange(100000)]
+    names = [randint(0, 100000) for _ in range(100000)]
     data = [[n] + [None] * 5 for n in names]
 
     setup.gen_data(data=data)
@@ -3354,8 +3344,6 @@ def test_melt(odps, setup):
 
 
 def test_collection_na(odps, setup):
-    from .....compat import reduce
-
     data = [
         [0, 'name1', 1.0, None, 3.0, 4.0],
         [1, 'name1', 2.0, None, None, 1.0],

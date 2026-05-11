@@ -35,7 +35,7 @@ class I18NMessage(object):
         )
         # combine all langs for D2
         all_messages = "\n\n".join(s.strip() for s in self.messages.values())
-        self.messages["all"] = "\n%s\n" % all_messages
+        self.messages["all"] = f"\n{all_messages}\n"
 
     @classmethod
     def _clean_message(cls, message):

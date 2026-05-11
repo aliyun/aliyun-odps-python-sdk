@@ -16,7 +16,6 @@
 
 from ..models import Table
 from ..models.partition import Partition
-from ..compat import six, izip
 from ..types import CompositeDataType
 from .expr.utils import get_attrs
 from .expr.expressions import CollectionExpr
@@ -106,11 +105,11 @@ class DataFrame(CollectionExpr):
                 if as_type:
                     data = data.copy()
                     data.is_copy = False
-                    as_type = dict((k, validate_data_type(v)) for k, v in six.iteritems(as_type))
+                    as_type = dict((k, validate_data_type(v)) for k, v in as_type.items())
 
                     if not isinstance(as_type, dict):
                         raise TypeError('as_type must be dict')
-                    for col_name, df_type in six.iteritems(as_type):
+                    for col_name, df_type in as_type.items():
                         if col_name not in data:
                             raise ValueError('col(%s) does not exist in pd.DataFrame' % col_name)
                         try:
@@ -161,13 +160,13 @@ class DataFrame(CollectionExpr):
         if 'async' in kwargs:
             kwargs['async_'] = kwargs['async']
         execute_keys = ('ui', 'async_', 'n_parallel', 'timeout', 'close_and_notify')
-        execute_kw = dict((k, v) for k, v in six.iteritems(kwargs) if k in execute_keys)
-        persist_kw = dict((k, v) for k, v in six.iteritems(kwargs) if k not in execute_keys)
+        execute_kw = dict((k, v) for k, v in kwargs.items() if k in execute_keys)
+        persist_kw = dict((k, v) for k, v in kwargs.items() if k not in execute_keys)
 
         delay = Delay()
         persist_kw['delay'] = delay
 
-        for df, table in izip(dfs, tables):
+        for df, table in zip(dfs, tables):
             if isinstance(table, tuple):
                 table, partition = table
             else:

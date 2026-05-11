@@ -14,23 +14,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import absolute_import
-
+import enum
 import itertools
 import time
 import types
 import os
 import sys
 import threading
+from collections.abc import Iterable
+from concurrent.futures import ThreadPoolExecutor, Future, wait as wait_futures
 from operator import itemgetter
 
-from ...compat import six, Enum, Iterable
 from ...models import Resource
 from ...config import options
 from ...dag import DAG
 from ...utils import init_progress_ui
 from ...ui.progress import create_instance_group
-from ...compat import futures
 from ...types import PartitionSpec
 from .. import utils
 from ..expr.expressions import Expr, CollectionExpr, Scalar
@@ -40,7 +39,7 @@ from .errors import DagDependencyError, CompileError
 from .formatter import ExprExecutionGraphFormatter
 
 
-class EngineTypes(Enum):
+class EngineTypes(enum.Enum):
     ODPS = 'ODPS'
     PANDAS = 'PANDAS'
     SEAHAWKS = 'SEAHAWKS'
@@ -246,7 +245,7 @@ class ExecuteDAG(DAG):
                     if all(call in submits and call in results for call in result_calls):
                         ui.close()
 
-            executor = futures.ThreadPoolExecutor(max_workers=n_parallel)
+            executor = ThreadPoolExecutor(max_workers=n_parallel)
 
             for call in calls:
                 if call.result_index is not None and is_fallback:
@@ -254,7 +253,7 @@ class ExecuteDAG(DAG):
                     # cause the future objects have been passed to user
                     future = result_wait[call.result_index]
                 else:
-                    future = futures.Future()
+                    future = Future()
                 user_wait[call] = future
                 if call.result_index is not None:
                     future.add_done_callback(close_ui)
@@ -291,10 +290,7 @@ class ExecuteDAG(DAG):
                                 actual_run(new_dag, True)
                         if not fallback.is_set():
                             results[func] = (e, tb)
-                            if six.PY2:
-                                user_wait[func].set_exception_info(e, tb)
-                            else:
-                                user_wait[func].set_exception(e)
+                            user_wait[func].set_exception(e)
                         raise
                     finally:
                         with submits_lock:
@@ -310,7 +306,7 @@ class ExecuteDAG(DAG):
                         submits[call] = executor.submit(run, call)
 
             if wait:
-                dones, _ = futures.wait(user_wait.values())
+                dones, _ = wait_futures(user_wait.values())
                 for done in dones:
                     done.result()
                 return [results[c] for c in
@@ -318,7 +314,7 @@ class ExecuteDAG(DAG):
                                key=lambda x: x.result_index)]
 
             if timeout:
-                futures.wait(user_wait.values(), timeout=timeout)
+                wait_futures(user_wait.values(), timeout=timeout)
 
         actual_run()
         if wait:
@@ -638,12 +634,12 @@ class Engine(object):
     def _get_partition(cls, partition, table=None):
         if isinstance(partition, dict):
             p_spec = PartitionSpec()
-            for name, val in six.iteritems(partition):
+            for name, val in partition.items():
                 p_spec[name] = val
         elif isinstance(partition, PartitionSpec):
             p_spec = partition
         else:
-            if not isinstance(partition, six.string_types):
+            if not isinstance(partition, str):
                 raise TypeError('`partition` should be a str or dict, '
                                 'got {0} instead'.format(type(partition)))
             p_spec = PartitionSpec(partition)
@@ -802,11 +798,11 @@ class Engine(object):
         def conv(libs):
             if libs is None:
                 return None
-            if isinstance(libs, (six.binary_type, six.text_type, Resource)):
+            if isinstance(libs, (bytes, str, Resource)):
                 return conv([libs, ])
             new_libs = []
             for lib in libs:
-                if not isinstance(lib, (Resource, six.string_types)):
+                if not isinstance(lib, (Resource, str)):
                     raise ValueError('Resource %s not acceptable: illegal input type %s.'
                                      % (repr(lib), type(lib).__name__))
                 if isinstance(lib, Resource):

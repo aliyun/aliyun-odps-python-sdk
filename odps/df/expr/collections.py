@@ -14,13 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import absolute_import
-
+import functools
 import json
 import re
 import time
 import uuid
 from collections import namedtuple, OrderedDict
+from functools import reduce
 
 from .expressions import *
 from .dynamic import DynamicCollectionExpr
@@ -29,7 +29,6 @@ from . import utils
 from ..types import validate_data_type, string, DynamicSchema
 from ..utils import FunctionWrapper, output
 from ...models import TableSchema
-from ...compat import six, lkeys, lvalues, reduce
 from ...utils import str_to_kv
 
 
@@ -89,7 +88,7 @@ class SortedExpr(Expr):
                 if isinstance(field, SequenceGroupBy):
                     field = field.name
 
-                assert isinstance(field, six.string_types)
+                assert isinstance(field, str)
                 sorted_fields.append(
                     SortedColumn(self._input[field], _name=field,
                                  _data_type=self._input._schema[field].type, _ascending=self._ascending[i]))
@@ -323,25 +322,25 @@ def sample(expr, parts=None, columns=None, i=None, n=None, frac=None, replace=Fa
         if weights is not None and strata is not None:
             raise ExpressionError('You cannot specify `weights` and `strata` at the same time.')
         if strata is not None:
-            if frac is not None and not isinstance(frac, (six.string_types, dict)):
+            if frac is not None and not isinstance(frac, (str, dict)):
                 raise ExpressionError('`frac` should be a k-v string or a dictionary object.')
-            if isinstance(frac, six.string_types):
+            if isinstance(frac, str):
                 frac = str_to_kv(frac, float)
 
-            if n is not None and not isinstance(n, (six.string_types, dict)):
+            if n is not None and not isinstance(n, (str, dict)):
                 raise ExpressionError('`n` should be a k-v string or a dictionary object.')
-            if isinstance(n, six.string_types):
+            if isinstance(n, str):
                 n = str_to_kv(n, int)
 
-            for val in six.itervalues(frac or dict()):
+            for val in (frac or dict()).values():
                 if val < 0 or val > 1:
                     raise ExpressionError('Values in `frac` must be between 0 and 1')
             if n is not None and frac is not None:
-                collides = set(six.iterkeys(n)).intersection(set(six.iterkeys(frac)))
+                collides = set(n.keys()).intersection(set(frac.keys()))
                 if collides:
                     raise ExpressionError('Values in `frac` and `n` collides with each other.')
         else:
-            if frac is not None and (not isinstance(frac, (six.integer_types, float)) or frac < 0 or frac > 1):
+            if frac is not None and (not isinstance(frac, (int, float)) or frac < 0 or frac > 1):
                 raise ExpressionError('`frac` must be between 0 and 1')
 
         if parts is not None:
@@ -423,7 +422,7 @@ def _apply_horizontal(expr, func, names=None, types=None, resources=None,
     if names is not None:
         if isinstance(names, list):
             names = tuple(names)
-        elif isinstance(names, six.string_types):
+        elif isinstance(names, str):
             names = (names,)
 
     if names is None:
@@ -526,7 +525,7 @@ def apply(expr, func, axis=0, names=None, types=None, reduce=False,
         if types is not None:
             if isinstance(types, list):
                 types = tuple(types)
-            elif isinstance(types, six.string_types):
+            elif isinstance(types, str):
                 types = (types,)
 
             types = tuple(validate_data_type(t) for t in types)
@@ -1093,11 +1092,11 @@ def pivot_table(expr, values=None, rows=None, columns=None, aggfunc='mean',
     """
 
     def get_names(iters):
-        return [r if isinstance(r, six.string_types) else r.name
+        return [r if isinstance(r, str) else r.name
                 for r in iters]
 
     def get_aggfunc_name(f):
-        if isinstance(f, six.string_types):
+        if isinstance(f, str):
             if '(' in f:
                 f = re.sub(r' *\( *', '_', f)
                 f = re.sub(r' *[+\-\*/,] *', '_', f)
@@ -1115,8 +1114,8 @@ def pivot_table(expr, values=None, rows=None, columns=None, aggfunc='mean',
     rows = [expr._get_field(r) for r in rows]
 
     if isinstance(aggfunc, dict):
-        agg_func_names = lkeys(aggfunc)
-        aggfunc = lvalues(aggfunc)
+        agg_func_names = list(aggfunc.keys())
+        aggfunc = list(aggfunc.values())
     else:
         aggfunc = utils.to_list(aggfunc)
         agg_func_names = [get_aggfunc_name(af) for af in aggfunc]
@@ -1132,7 +1131,7 @@ def pivot_table(expr, values=None, rows=None, columns=None, aggfunc='mean',
         types = [r.dtype for r in rows]
         for func, func_name in zip(aggfunc, agg_func_names):
             for value in values:
-                if isinstance(func, six.string_types):
+                if isinstance(func, str):
                     seq = value.eval(func, rewrite=False)
                     if isinstance(seq, ReprWrapper):
                         seq = seq()
@@ -1637,14 +1636,14 @@ def applymap(expr, func, rtype=None, resources=None, columns=None, excludes=None
         raise ValueError('`columns` and `excludes` cannot be provided at the same time.')
     if not columns:
         excludes = excludes or []
-        if isinstance(excludes, six.string_types):
+        if isinstance(excludes, str):
             excludes = [excludes]
-        excludes = set([c if isinstance(c, six.string_types) else c.name for c in excludes])
+        excludes = set([c if isinstance(c, str) else c.name for c in excludes])
         columns = set([c for c in expr.schema.names if c not in excludes])
     else:
-        if isinstance(columns, six.string_types):
+        if isinstance(columns, str):
             columns = [columns]
-        columns = set([c if isinstance(c, six.string_types) else c.name for c in columns])
+        columns = set([c if isinstance(c, str) else c.name for c in columns])
     mapping = [expr[c] if c not in columns
                else expr[c].map(func, rtype=rtype, resources=resources, args=args, **kwargs)
                for c in expr.schema.names]

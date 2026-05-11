@@ -15,16 +15,16 @@
 
 import time
 import logging
+import enum
 
 from ..config import options  ## don't remove
-from ..compat import six, Enum  ## don't remove
 from ..ui import reload_instance_status, fetch_instance_group
 
 logger = logging.getLogger(__name__)
 runners = dict()
 
 
-class RunnerType(Enum):
+class RunnerType(enum.Enum):
     MOCK = 'MOCK'
     LAMBDA = 'LAMBDA'
     XFLOW = 'XFLOW'
@@ -152,13 +152,13 @@ class XFlowNodeRunner(BaseNodeRunner):
         pai_project = self._metas.get('xflowProjectName', options.ml.xflow_project)
         xflow_name = self._metas.get('xflowName', self._algo_name)
 
-        params = dict([(k, self._format_value(v)) for k, v in six.iteritems(self._gen_params)
+        params = dict([(k, self._format_value(v)) for k, v in self._gen_params.items()
                        if self._is_param_valid(v)])
 
         if self._output_models_only:
             params.pop('lifecycle', None)
 
-        param_args = ' '.join(['-D%s="%s"' % (k, v) for k, v in six.iteritems(params)
+        param_args = ' '.join(['-D%s="%s"' % (k, v) for k, v in params.items()
                                if self._is_param_valid(v)])
         self._last_cmd = 'PAI -name %s -project %s %s;' % (xflow_name, pai_project, param_args)
         logger.info('Command: ' + self._last_cmd)
@@ -173,7 +173,7 @@ class XFlowNodeRunner(BaseNodeRunner):
             group_json = fetch_instance_group(self._progress_group)
             group_json.logview = inst.get_logview_address()
         for xflow_inst in insts:
-            for inst_name, sub_inst in six.iteritems(self._engine._odps.get_xflow_sub_instances(xflow_inst)):
+            for inst_name, sub_inst in self._engine._odps.get_xflow_sub_instances(xflow_inst).items():
                 if sub_inst.id not in self._sub_instance_set:
                     self._sub_instance_set.add(sub_inst.id)
                     logger.info('Sub Instance: {0} ({1})'.format(inst_name, sub_inst.id))

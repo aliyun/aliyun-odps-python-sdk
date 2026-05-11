@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import io
 import os
 import time
 
@@ -19,7 +20,6 @@ import mock
 import pytest
 
 from ... import ODPS, options
-from ...compat import BytesIO
 from ...errors import NoSuchObject
 from ...tests.core import force_drop_schema, tn
 
@@ -94,10 +94,10 @@ def test_schemas(odps_with_schema, legacy):
     schema_name2 = TEST_SCHEMA_NAME2
     if odps_with_schema.exist_schema(schema_name):
         force_drop_schema(odps_with_schema.get_schema(schema_name))
-        schema_name = "%s_%s" % (schema_name, int(time.time()))
+        schema_name = f"{schema_name}_{int(time.time())}"
     if odps_with_schema.exist_schema(schema_name2):
         force_drop_schema(odps_with_schema.get_schema(schema_name2))
-        schema_name2 = "%s_%s" % (schema_name2, int(time.time()))
+        schema_name2 = f"{schema_name2}_{int(time.time())}"
 
     for idx in range(3):
         try:
@@ -156,7 +156,7 @@ def test_default_schema(odps_with_schema):
     assert schema.name == TEST_CLS_SCHEMA_NAME
 
     res = new_odps.create_resource(
-        TEST_RESOURCE_NAME, "file", fileobj=BytesIO(b"content")
+        TEST_RESOURCE_NAME, "file", fileobj=io.BytesIO(b"content")
     )
     assert new_odps.exist_resource(TEST_RESOURCE_NAME)
     assert res.schema.name == TEST_CLS_SCHEMA_NAME
@@ -287,7 +287,7 @@ def test_file_resource_with_schema(odps_with_schema):
     res = odps_with_schema.create_resource(
         test_file_res_name,
         "file",
-        fileobj=BytesIO(b"content"),
+        fileobj=io.BytesIO(b"content"),
         schema=TEST_CLS_SCHEMA_NAME,
     )
     assert res.schema.name == TEST_CLS_SCHEMA_NAME
@@ -364,7 +364,7 @@ def test_function_with_resource(odps_with_schema):
     except NoSuchObject:
         pass
 
-    content = BytesIO(FUNCTION_CONTENT.encode())
+    content = io.BytesIO(FUNCTION_CONTENT.encode())
     res = odps.create_resource(
         test_func_res_file, "py", fileobj=content, schema=TEST_CLS_SCHEMA_NAME2
     )

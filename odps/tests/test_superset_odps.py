@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -30,11 +30,9 @@ def ss_db_inspector(odps, request):
 
     import sqlalchemy as sa
 
-    engine_url = "odps://{}:{}@{}/?endpoint={}&SKYNET_PYODPS_HINT=hint".format(
-        odps.account.access_id,
-        odps.account.secret_access_key,
-        odps.project,
-        odps.endpoint,
+    engine_url = (
+        f"odps://{odps.account.access_id}:{odps.account.secret_access_key}@{odps.project}"
+        f"/?endpoint={odps.endpoint}&SKYNET_PYODPS_HINT=hint"
     )
     if getattr(request, "param", None):
         engine_url += "&" + request.param
@@ -110,7 +108,7 @@ def test_execute_sql(odps):
     cursor = conn.cursor()
 
     spec = ODPSEngineSpec()
-    spec.execute(cursor, "create table %s (col string) lifecycle 1" % table_name)
+    spec.execute(cursor, f"create table {table_name} (col string) lifecycle 1")
     assert odps.exist_table(table_name)
     odps.delete_table(table_name)
 

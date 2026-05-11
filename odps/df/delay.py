@@ -17,15 +17,11 @@
 import functools
 import sys
 import threading
+from collections.abc import Iterable
+from concurrent.futures import Future, wait
 
-from ..compat import izip, six, futures
 from ..utils import with_wait_argument
 from .backends.core import Engine
-
-try:
-    from collections.abc import Iterable
-except ImportError:
-    from collections import Iterable
 
 
 class Delay(object):
@@ -44,10 +40,10 @@ class Delay(object):
             raise RuntimeError('Cannot execute on an executing delay object.')
 
         with self._lock:
-            _idx_calls = sorted(six.iteritems(self._calls), key=lambda p: p[0])
+            _idx_calls = sorted(self._calls.items(), key=lambda p: p[0])
             _indices = [p[0] for p in _idx_calls]
             _calls = [p[1] for p in _idx_calls]
-            _futures = [p[1] for p in sorted(six.iteritems(self._futures), key=lambda p: p[0])]
+            _futures = [p[1] for p in sorted(self._futures.items(), key=lambda p: p[0])]
 
         from .backends.engine import get_default_engine
         engine = get_default_engine(*[call[1] for call in _calls])
@@ -75,19 +71,15 @@ class Delay(object):
                     if wrapper is not None:
                         result = wrapper(result)
                     dest.set_result(result)
-                except:
-                    e, tb = sys.exc_info()[1:]
-                    if six.PY2:
-                        dest.set_exception_info(e, tb)
-                    else:
-                        dest.set_exception(e)
+                except Exception as e:
+                    dest.set_exception(e)
                 finally:
                     del self._calls[index]
                     del self._futures[index]
                     if index in self._wrappers:
                         del self._wrappers[index]
 
-        for idx, uf, bf in izip(_indices, _futures, fs):
+        for idx, uf, bf in zip(_indices, _futures, fs):
             uf.set_running_or_notify_cancel()
             bf.add_done_callback(functools.partial(relay_future, index=idx, dest=uf))
             if bf.done():
@@ -95,7 +87,7 @@ class Delay(object):
 
         if not async_:
             try:
-                futures.wait(_futures, timeout)
+                wait(_futures, timeout)
                 for uf in _futures:
                     uf.result()
                 ui.notify('DataFrame execution succeeded')
@@ -105,7 +97,7 @@ class Delay(object):
             finally:
                 self._running = False
         else:
-            delay_future = futures.Future()
+            delay_future = Future()
             delay_future.set_running_or_notify_cancel()
             result_store, exc_store = [None], [None]
 
@@ -122,10 +114,7 @@ class Delay(object):
                         self._running = False
                         if exc_store[0] is not None:
                             e, tb = exc_store[0]
-                            if six.PY2:
-                                delay_future.set_exception_info(e, tb)
-                            else:
-                                delay_future.set_exception(e)
+                            delay_future.set_exception(e)
                         else:
                             delay_future.set_result(result_store[0])
             for f in fs:
@@ -140,7 +129,7 @@ class Delay(object):
         with self._lock:
             call_idx = self._idx
             self._idx += 1
-            user_future = futures.Future()
+            user_future = Future()
             self._calls[call_idx] = (action, expr, args, kwargs)
             self._futures[call_idx] = user_future
             if wrapper:

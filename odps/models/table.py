@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import enum
+import io
 import re
 import threading
 import warnings
@@ -27,7 +29,6 @@ except (AttributeError, ImportError):
 from .. import readers, serializers
 from .. import types as odps_types
 from .. import utils
-from ..compat import Enum, dir2, six
 from ..config import options
 from ..expressions import parse as parse_expression
 from .cluster_info import ClusterInfo
@@ -179,7 +180,8 @@ class TableSchema(odps_types.OdpsSchema, JSONRemoteModel):
         self.__init__(columns=columns, partitions=partitions)
 
     def __dir__(self):
-        return sorted(set(dir2(self)) - set(type(self)._parent_attrs))
+        cur_dir = object.__dir__(self)
+        return sorted(set(cur_dir) - set(type(self)._parent_attrs))
 
 
 class Table(XMLLazyLoad):
@@ -261,7 +263,7 @@ class Table(XMLLazyLoad):
     __slots__ += _extended_args
     _extended_args = set(_extended_args)
 
-    class Type(Enum):
+    class Type(enum.Enum):
         MANAGED_TABLE = "MANAGED_TABLE"
         EXTERNAL_TABLE = "EXTERNAL_TABLE"
         OBJECT_TABLE = "OBJECT_TABLE"
@@ -291,7 +293,7 @@ class Table(XMLLazyLoad):
     )
     type = serializers.XMLNodeField(
         "Type",
-        parse_callback=lambda s: Table.Type(s.upper()) if s is not None else None,
+        parse_callback=utils.skip_na_call(lambda s: Table.Type(s.upper())),
     )
 
     _download_ids = utils.thread_local_attribute("_id_thread_local", dict)
@@ -334,12 +336,10 @@ class Table(XMLLazyLoad):
     def full_table_name(self):
         schema_name = self._get_schema_name()
         if schema_name is None:
-            return "{0}.{1}".format(
-                self.project.name, utils.backquote_string(self.name)
-            )
+            return f"{self.project.name}.{utils.backquote_string(self.name)}"
         else:
-            return "{0}.{1}.{2}".format(
-                self.project.name, schema_name, utils.backquote_string(self.name)
+            return (
+                f"{self.project.name}.{schema_name}.{utils.backquote_string(self.name)}"
             )
 
     def reload(self):
@@ -479,12 +479,12 @@ class Table(XMLLazyLoad):
         return None
 
     def _repr(self):
-        buf = six.StringIO()
+        buf = io.StringIO()
 
         buf.write("odps.Table\n")
-        buf.write("  name: {0}\n".format(self.full_table_name))
+        buf.write(f"  name: {self.full_table_name}\n")
         if self.type:
-            buf.write("  type: {0}\n".format(self.type.value))
+            buf.write(f"  type: {self.type.value}\n")
 
         max_name_len = max(len(col.name) for col in self.table_schema.columns)
         name_space = max_name_len + min(max_name_len, 16)
@@ -500,9 +500,7 @@ class Table(XMLLazyLoad):
                 "{0}: {1}{2}".format(
                     col.name.ljust(name_space),
                     repr(col.type).ljust(type_space),
-                    "# {0}".format(utils.to_str(col.comment))
-                    if not_empty(col.comment)
-                    else "",
+                    f"# {utils.to_str(col.comment)}" if not_empty(col.comment) else "",
                 ).strip()
             )
         buf.write(utils.indent("\n".join(cols_strs), 4))
@@ -517,7 +515,7 @@ class Table(XMLLazyLoad):
                     "{0}: {1}{2}".format(
                         partition.name.ljust(name_space),
                         repr(partition.type).ljust(type_space),
-                        "# {0}".format(utils.to_str(partition.comment))
+                        f"# {utils.to_str(partition.comment)}"
                         if not_empty(partition.comment)
                         else "",
                     ).strip()
@@ -525,7 +523,7 @@ class Table(XMLLazyLoad):
             buf.write(utils.indent("\n".join(partition_strs), 4))
 
         if self.view_text:
-            buf.write("  view text:\n{0}".format(utils.indent(self.view_text, 4)))
+            buf.write(f"  view text:\n{utils.indent(self.view_text, 4)}")
 
         return buf.getvalue()
 
@@ -549,7 +547,7 @@ class Table(XMLLazyLoad):
         view_text=None,
         **kw
     ):
-        buf = six.StringIO()
+        buf = io.StringIO()
         table_name = utils.to_text(table_name)
         project = utils.to_text(project)
         schema = utils.to_text(schema)
@@ -557,9 +555,7 @@ class Table(XMLLazyLoad):
         view_text = utils.to_text(view_text)
         table_type = cls.Type(table_type or cls.Type.MANAGED_TABLE)
         is_view = table_type in (cls.Type.VIRTUAL_VIEW, cls.Type.MATERIALIZED_VIEW)
-        primary_key = (
-            [primary_key] if isinstance(primary_key, six.string_types) else primary_key
-        )
+        primary_key = [primary_key] if isinstance(primary_key, str) else primary_key
 
         stored_as = kw.get("stored_as") or kw.get("external_stored_as")
         storage_handler = kw.get("storage_handler")
@@ -575,89 +571,86 @@ class Table(XMLLazyLoad):
         rewrite_enabled = rewrite_enabled if rewrite_enabled is not None else True
 
         if table_type == cls.Type.EXTERNAL_TABLE:
-            type_str = u"EXTERNAL TABLE"
+            type_str = "EXTERNAL TABLE"
         elif table_type == cls.Type.VIRTUAL_VIEW:
-            type_str = u"VIEW"
+            type_str = "VIEW"
         elif table_type == cls.Type.MATERIALIZED_VIEW:
-            type_str = u"MATERIALIZED VIEW"
+            type_str = "MATERIALIZED VIEW"
         else:
-            type_str = u"EXTERNAL TABLE" if location else u"TABLE"
+            type_str = "EXTERNAL TABLE" if location else "TABLE"
 
-        buf.write(u"CREATE %s " % type_str)
+        buf.write(f"CREATE {type_str} ")
         if if_not_exists:
-            buf.write(u"IF NOT EXISTS ")
+            buf.write("IF NOT EXISTS ")
         if project is not None:
-            buf.write(u"%s." % project)
+            buf.write(f"{project}.")
         if schema is not None:
-            buf.write(u"%s." % schema)
-        buf.write(utils.to_text(utils.backquote_string(table_name)) + u" ")
+            buf.write(f"{schema}.")
+        buf.write(utils.to_text(utils.backquote_string(table_name)) + " ")
 
         if is_view and lifecycle is not None and lifecycle > 0:
-            buf.write("LIFECYCLE %s " % lifecycle)
+            buf.write(f"LIFECYCLE {lifecycle} ")
 
         def _write_primary_key(prev=""):
             if not primary_key:
                 return
             if not prev.strip().endswith(","):
-                buf.write(u",\n")
+                buf.write(",\n")
             buf.write(
-                u"  PRIMARY KEY (%s)"
-                % u", ".join(utils.backquote_string(c) for c in primary_key)
+                f"  PRIMARY KEY ({', '.join(utils.backquote_string(c) for c in primary_key)})"
             )
 
-        if isinstance(table_schema, six.string_types):
-            buf.write(u"(\n")
+        if isinstance(table_schema, str):
+            buf.write("(\n")
             buf.write(table_schema)
             _write_primary_key(table_schema)
-            buf.write(u"\n)\n")
+            buf.write("\n)\n")
             if comment:
-                buf.write(u"COMMENT '%s'\n" % utils.escape_odps_string(comment))
+                buf.write(f"COMMENT '{utils.escape_odps_string(comment)}'\n")
         elif isinstance(table_schema, tuple):
-            buf.write(u"(\n")
+            buf.write("(\n")
             buf.write(table_schema[0])
             _write_primary_key(table_schema[0])
-            buf.write(u"\n)\n")
+            buf.write("\n)\n")
             if comment:
-                buf.write(u"COMMENT '%s'\n" % utils.escape_odps_string(comment))
+                buf.write(f"COMMENT '{utils.escape_odps_string(comment)}'\n")
 
             if len(table_schema) > 1 and table_schema[1]:
                 if (
                     use_auto_partitioning is None
                     and _auto_part_regex.search(table_schema[1])
                 ) or use_auto_partitioning:
-                    buf.write(u"AUTO \n")
-                buf.write(u"PARTITIONED BY ")
-                buf.write(u"(\n")
+                    buf.write("AUTO \n")
+                buf.write("PARTITIONED BY ")
+                buf.write("(\n")
                 buf.write(table_schema[1])
-                buf.write(u"\n)\n")
+                buf.write("\n)\n")
         else:
 
             def write_columns(col_array, with_pk=False):
                 size = len(col_array)
-                buf.write(u"(\n")
+                buf.write("(\n")
                 for idx, column in enumerate(col_array):
                     buf.write(column.to_sql_clause(with_column_comments))
                     if idx < size - 1:
-                        buf.write(u",\n")
+                        buf.write(",\n")
                 if with_pk:
                     _write_primary_key()
-                buf.write(u"\n)\n")
+                buf.write("\n)\n")
 
             def write_view_columns(col_array):
                 size = len(col_array)
-                buf.write(u"(\n")
+                buf.write("(\n")
                 for idx, column in enumerate(col_array):
-                    buf.write(
-                        u"  %s" % (utils.to_text(utils.backquote_string(column.name)))
-                    )
+                    buf.write(f"  {utils.to_text(utils.backquote_string(column.name))}")
                     if with_column_comments and column.comment:
                         comment_str = utils.escape_odps_string(
                             utils.to_text(column.comment)
                         )
-                        buf.write(u" COMMENT '%s'" % comment_str)
+                        buf.write(f" COMMENT '{comment_str}'")
                     if idx < size - 1:
-                        buf.write(u",\n")
-                buf.write(u"\n)\n")
+                        buf.write(",\n")
+                buf.write("\n)\n")
 
             if not is_view:
                 write_columns(table_schema.simple_columns, with_pk=True)
@@ -666,9 +659,9 @@ class Table(XMLLazyLoad):
 
             if comment:
                 comment_str = utils.escape_odps_string(utils.to_text(comment))
-                buf.write(u"COMMENT '%s'\n" % comment_str)
+                buf.write(f"COMMENT '{comment_str}'\n")
             if table_type == cls.Type.MATERIALIZED_VIEW and not rewrite_enabled:
-                buf.write(u"DISABLE REWRITE\n")
+                buf.write("DISABLE REWRITE\n")
 
             manual_parts, auto_parts = [], []
             for p in table_schema.partitions or []:
@@ -683,30 +676,30 @@ class Table(XMLLazyLoad):
 
             if manual_parts:
                 if not is_view:
-                    buf.write(u"PARTITIONED BY ")
+                    buf.write("PARTITIONED BY ")
                     write_columns(manual_parts)
                 else:
-                    buf.write(u"PARTITIONED ON ")
+                    buf.write("PARTITIONED ON ")
                     write_view_columns(manual_parts)
             if auto_parts:
-                buf.write(u"AUTO PARTITIONED BY ")
+                buf.write("AUTO PARTITIONED BY ")
                 write_columns(auto_parts)
 
         if cluster_info is not None:
             buf.write(cluster_info.to_sql_clause())
-            buf.write(u"\n")
+            buf.write("\n")
 
         if transactional:
             table_properties["transactional"] = "true"
         if storage_tier:
-            if isinstance(storage_tier, six.string_types):
+            if isinstance(storage_tier, str):
                 storage_tier = StorageTier(
                     utils.underline_to_camel(storage_tier).lower()
                 )
             table_properties["storagetier"] = storage_tier.value
 
         if table_properties:
-            buf.write(u"TBLPROPERTIES (\n")
+            buf.write("TBLPROPERTIES (\n")
             for idx, (k, v) in enumerate(
                 sorted(table_properties.items(), key=lambda x: x[0])
             ):
@@ -714,26 +707,23 @@ class Table(XMLLazyLoad):
                 if isinstance(v, bool):
                     v = "true" if v else "false"
                 v = utils.escape_odps_string(utils.to_text(v))
-                buf.write(u"  '%s' = '%s'" % (k, v))
+                buf.write(f"  '{k}' = '{v}'")
                 if idx + 1 < len(table_properties):
-                    buf.write(u",")
-                buf.write(u"\n")
-            buf.write(u")\n")
+                    buf.write(",")
+                buf.write("\n")
+            buf.write(")\n")
 
         serde_properties = kw.get("serde_properties")
         resources = kw.get("resources")
         if location or stored_as:
             if storage_handler:
-                buf.write(
-                    u"STORED BY '%s'\n" % utils.escape_odps_string(storage_handler)
-                )
+                buf.write(f"STORED BY '{utils.escape_odps_string(storage_handler)}'\n")
             elif row_format_serde:
                 buf.write(
-                    u"ROW FORMAT SERDE '%s'\n"
-                    % utils.escape_odps_string(row_format_serde)
+                    f"ROW FORMAT SERDE '{utils.escape_odps_string(row_format_serde)}'\n"
                 )
             if serde_properties:
-                buf.write(u"WITH SERDEPROPERTIES (\n")
+                buf.write("WITH SERDEPROPERTIES (\n")
                 for idx, (k, v) in enumerate(
                     sorted(serde_properties.items(), key=lambda x: x[0])
                 ):
@@ -741,33 +731,33 @@ class Table(XMLLazyLoad):
                     if isinstance(v, bool):
                         v = "true" if v else "false"
                     v = utils.escape_odps_string(utils.to_text(v))
-                    buf.write(u"  '%s' = '%s'" % (k, v))
+                    buf.write(f"  '{k}' = '{v}'")
                     if idx + 1 < len(serde_properties):
-                        buf.write(u",")
-                    buf.write(u"\n")
-                buf.write(u")\n")
+                        buf.write(",")
+                    buf.write("\n")
+                buf.write(")\n")
             if stored_as or input_format or output_format:
                 if not stored_as:
-                    stored_as = u"\nINPUTFORMAT '%s'\nOUTPUTFORMAT '%s'" % (
-                        utils.escape_odps_string(input_format),
-                        utils.escape_odps_string(output_format),
+                    stored_as = (
+                        f"\nINPUTFORMAT '{utils.escape_odps_string(input_format)}'"
+                        f"\nOUTPUTFORMAT '{utils.escape_odps_string(output_format)}'"
                     )
-                buf.write(u"STORED AS %s\n" % stored_as)
+                buf.write(f"STORED AS {stored_as}\n")
             if location:
-                buf.write(u"LOCATION '%s'\n" % utils.escape_odps_string(location))
+                buf.write(f"LOCATION '{utils.escape_odps_string(location)}'\n")
             if resources:
-                buf.write(u"USING '%s'\n" % utils.escape_odps_string(resources))
+                buf.write(f"USING '{utils.escape_odps_string(resources)}'\n")
         if not is_view and lifecycle is not None and lifecycle > 0:
-            buf.write(u"LIFECYCLE %s\n" % lifecycle)
+            buf.write(f"LIFECYCLE {lifecycle}\n")
         if shard_num is not None:
-            buf.write(u"INTO %s SHARDS" % shard_num)
+            buf.write(f"INTO {shard_num} SHARDS")
             if hub_lifecycle is not None:
-                buf.write(u" HUBLIFECYCLE %s\n" % hub_lifecycle)
+                buf.write(f" HUBLIFECYCLE {hub_lifecycle}\n")
             else:
-                buf.write(u"\n")
+                buf.write("\n")
 
         if is_view and view_text:
-            buf.write(u"AS %s\n" % view_text)
+            buf.write(f"AS {view_text}\n")
         return buf.getvalue().strip()
 
     def get_ddl(self, with_comments=True, if_not_exists=False, force_table_ddl=False):
@@ -843,31 +833,25 @@ class Table(XMLLazyLoad):
                 partition_spec = [partition_spec]
             partition_spec = [odps_types.PartitionSpec(spec) for spec in partition_spec]
             partition_expr = " " + ", ".join(
-                "PARTITION (%s)" % spec for spec in partition_spec
+                f"PARTITION ({spec})" for spec in partition_spec
             )
 
         # as data of partition changed, remove existing download id to avoid TableModified error
         for part in partition_spec or [None]:
-            if isinstance(part, six.string_types):
+            if isinstance(part, str):
                 part = odps_types.PartitionSpec(part)
             self._download_ids.pop(part, None)
         return partition_expr
 
-    def _build_alter_table_ddl(self, action=None, partition_spec=None, cmd=u"ALTER"):
+    def _build_alter_table_ddl(self, action=None, partition_spec=None, cmd="ALTER"):
         action = action or ""
 
-        target = u"TABLE"
+        target = "TABLE"
         if self.type in (Table.Type.VIRTUAL_VIEW, Table.Type.MATERIALIZED_VIEW):
-            target = u"VIEW"
+            target = "VIEW"
 
         partition_expr = self._build_partition_spec_sql(partition_spec)
-        sql = u"%s %s %s%s %s" % (
-            cmd,
-            target,
-            self.full_table_name,
-            partition_expr,
-            action,
-        )
+        sql = f"{cmd} {target} {self.full_table_name}{partition_expr} {action}"
         return sql.strip()
 
     @utils.survey
@@ -1031,12 +1015,11 @@ class Table(XMLLazyLoad):
 
         if self.is_transactional and self.primary_key:
             # currently acid 2.0 table can only be read through select statement
-            sql_stmt = "SELECT * FROM %s" % self.full_table_name
+            sql_stmt = f"SELECT * FROM {self.full_table_name}"
             if partition is not None:
                 part_spec = odps_types.PartitionSpec(partition)
                 conds = " AND ".join(
-                    "%s='%s'" % (k, utils.escape_odps_string(v))
-                    for k, v in part_spec.items()
+                    f"{k}='{utils.escape_odps_string(v)}'" for k, v in part_spec.items()
                 )
                 sql_stmt += " WHERE " + conds
             return self.project.odps.execute_sql(sql_stmt).open_reader()
@@ -1389,7 +1372,7 @@ class Table(XMLLazyLoad):
         :return: Partition
         """
         if not self.table_schema.partitions:
-            raise ValueError("Table %r not partitioned" % self.name)
+            raise ValueError(f"Table {self.name!r} not partitioned")
         return self.partitions.get_max_partition(
             spec, skip_empty=skip_empty, reverse=reverse
         )
@@ -1446,12 +1429,12 @@ class Table(XMLLazyLoad):
         """
         self._is_extend_info_loaded = False
 
-        if isinstance(storage_tier, six.string_types):
+        if isinstance(storage_tier, str):
             storage_tier = StorageTier(utils.underline_to_camel(storage_tier).lower())
 
         property_item = "TBLPROPERTIES" if not partition_spec else "PARTITIONPROPERTIES"
         sql = self._build_alter_table_ddl(
-            "SET %s('storagetier'='%s')" % (property_item, storage_tier.value),
+            f"SET {property_item}('storagetier'='{storage_tier.value}')",
             partition_spec=partition_spec,
         )
 
@@ -1490,14 +1473,12 @@ class Table(XMLLazyLoad):
         if isinstance(columns, odps_types.Column):
             columns = [columns]
 
-        action_str = u"ADD COLUMNS" + (
-            u" IF NOT EXISTS (\n" if if_not_exists else u" (\n"
-        )
-        if isinstance(columns, six.string_types):
+        action_str = "ADD COLUMNS" + (" IF NOT EXISTS (\n" if if_not_exists else " (\n")
+        if isinstance(columns, str):
             action_str += columns + "\n)"
         else:
             action_str += (
-                u",\n".join(["  " + col.to_sql_clause() for col in columns]) + u"\n)"
+                ",\n".join(["  " + col.to_sql_clause() for col in columns]) + "\n)"
             )
         sql = self._build_alter_table_ddl(action_str)
         inst = self.parent._run_table_sql(
@@ -1513,9 +1494,9 @@ class Table(XMLLazyLoad):
 
         :param columns: columns to delete, can be a list of column names
         """
-        if isinstance(columns, six.string_types):
+        if isinstance(columns, str):
             columns = [columns]
-        action_str = u"DROP COLUMNS " + u", ".join(
+        action_str = "DROP COLUMNS " + ", ".join(
             utils.backquote_string(c) for c in columns
         )
         sql = self._build_alter_table_ddl(action_str)
@@ -1555,15 +1536,9 @@ class Table(XMLLazyLoad):
                 label=old_col.label,
                 nullable=old_col.nullable,
             )
-            action_str = u"CHANGE COLUMN %s %s" % (
-                old_column_name,
-                new_col.to_sql_clause(),
-            )
+            action_str = f"CHANGE COLUMN {old_column_name} {new_col.to_sql_clause()}"
         else:
-            action_str = u"CHANGE COLUMN %s RENAME TO %s" % (
-                old_column_name,
-                new_column_name,
-            )
+            action_str = f"CHANGE COLUMN {old_column_name} RENAME TO {new_column_name}"
         sql = self._build_alter_table_ddl(action_str)
         inst = self.parent._run_table_sql(
             sql,
@@ -1582,7 +1557,7 @@ class Table(XMLLazyLoad):
 
         :param days: lifecycle in days
         """
-        sql = self._build_alter_table_ddl(u"SET LIFECYCLE %s" % days)
+        sql = self._build_alter_table_ddl(f"SET LIFECYCLE {days}")
         inst = self.parent._run_table_sql(
             sql,
             task_name="SQLSetLifecycleTask",
@@ -1602,7 +1577,7 @@ class Table(XMLLazyLoad):
         :param new_owner: account of the new owner
         """
         sql = self._build_alter_table_ddl(
-            u"CHANGEOWNER TO '%s'" % utils.escape_odps_string(new_owner)
+            f"CHANGEOWNER TO '{utils.escape_odps_string(new_owner)}'"
         )
         inst = self.parent._run_table_sql(
             sql, task_name="SQLSetOwnerTask", hints=hints, wait=not async_, **inst_kw
@@ -1619,7 +1594,7 @@ class Table(XMLLazyLoad):
         :param new_comment: new comment
         """
         sql = self._build_alter_table_ddl(
-            u"SET COMMENT '%s'" % utils.escape_odps_string(new_comment)
+            f"SET COMMENT '{utils.escape_odps_string(new_comment)}'"
         )
         inst = self.parent._run_table_sql(
             sql, task_name="SQLSetCommentTask", hints=hints, wait=not async_, **inst_kw
@@ -1634,7 +1609,7 @@ class Table(XMLLazyLoad):
         Set cluster info of current table.
         """
         if new_cluster_info is None:
-            action = u"NOT CLUSTERED"
+            action = "NOT CLUSTERED"
         else:
             assert isinstance(new_cluster_info, ClusterInfo)
             action = new_cluster_info.to_sql_clause()
@@ -1658,7 +1633,7 @@ class Table(XMLLazyLoad):
         :param new_name: new table name
         """
         sql = self._build_alter_table_ddl(
-            "RENAME TO %s" % utils.backquote_string(new_name)
+            f"RENAME TO {utils.backquote_string(new_name)}"
         )
         inst = self.parent._run_table_sql(
             sql, task_name="SQLRenameTask", hints=hints, wait=not async_, **inst_kw
@@ -1685,7 +1660,7 @@ class Table(XMLLazyLoad):
         :param new_partition_spec: new partition spec
         """
         sql = self._build_alter_table_ddl(
-            "RENAME TO %s" % self._build_partition_spec_sql(new_partition_spec),
+            f"RENAME TO {self._build_partition_spec_sql(new_partition_spec)}",
             partition_spec=old_partition_spec,
         )
         return self.parent._run_table_sql(
@@ -1703,7 +1678,7 @@ class Table(XMLLazyLoad):
 
         :param partition_spec: partition spec, optional
         """
-        action = u"TOUCH " + self._build_partition_spec_sql(partition_spec)
+        action = "TOUCH " + self._build_partition_spec_sql(partition_spec)
         sql = self._build_alter_table_ddl(action.strip())
         inst = self.parent._run_table_sql(
             sql, task_name="SQLTouchTask", hints=hints, wait=not async_, **inst_kw

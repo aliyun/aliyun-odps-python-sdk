@@ -23,7 +23,6 @@ from functools import partial
 
 import pytest
 
-from .....compat import six, futures
 from .....models import TableSchema
 from .....tests.core import get_result, approx_list
 from .....utils import to_text
@@ -424,7 +423,7 @@ def test_datetime(odps, setup):
     data = setup.gen_data(5)
 
     def date_value(sel):
-        if isinstance(sel, six.string_types):
+        if isinstance(sel, str):
             fun = lambda v: getattr(v, sel)
         else:
             fun = sel

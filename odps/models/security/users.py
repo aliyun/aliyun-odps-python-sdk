@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,7 +15,6 @@
 # limitations under the License.
 
 from ... import errors, serializers
-from ...compat import six
 from ..core import XMLIterable, XMLLazyLoad
 
 
@@ -53,14 +52,14 @@ class User(XMLLazyLoad):
 
         if isinstance(name, Role):
             name = name.name
-        self.project.run_security_query("grant %s to %s" % (name, self.display_name))
+        self.project.run_security_query(f"grant {name} to {self.display_name}")
 
     def revoke_role(self, name):
         from .roles import Role
 
         if isinstance(name, Role):
             name = name.name
-        self.project.run_security_query("revoke %s from %s" % (name, self.display_name))
+        self.project.run_security_query(f"revoke {name} from {self.display_name}")
 
 
 class Users(XMLIterable):
@@ -75,7 +74,7 @@ class Users(XMLIterable):
         return User(client=self._client, parent=self, display_name=item)
 
     def __contains__(self, item):
-        if isinstance(item, six.string_types):
+        if isinstance(item, str):
             user = self._get(item)
         elif isinstance(item, User):
             user = item
@@ -99,7 +98,7 @@ class Users(XMLIterable):
         return self.parent
 
     def create(self, name):
-        self.project.run_security_query("add user %s" % name)
+        self.project.run_security_query(f"add user {name}")
         return User(client=self._client, parent=self, display_name=name)
 
     def iterate(self):
@@ -120,4 +119,4 @@ class Users(XMLIterable):
         if isinstance(name, User):
             name = name.display_name
 
-        self.project.run_security_query("remove user %s" % name)
+        self.project.run_security_query(f"remove user {name}")

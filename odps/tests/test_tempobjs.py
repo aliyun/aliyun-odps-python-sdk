@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -60,7 +60,7 @@ sleep(5)
 """.lstrip()
 
 
-PLENTY_CREATE_CODE = u"""
+PLENTY_CREATE_CODE = """
 #-*- coding:utf-8 -*-
 from odps.tests.core import start_coverage
 start_coverage()
@@ -93,7 +93,7 @@ for inst in insts:
 """.lstrip()
 
 
-TEMP_FUNCTION_CODE = u"""
+TEMP_FUNCTION_CODE = """
 #-*- coding:utf-8 -*-
 from odps.tests.core import start_coverage
 start_coverage()
@@ -192,10 +192,8 @@ def test_drop(odps):
 
 
 def test_cleanup(odps):
-    odps.execute_sql("drop table if exists {0}".format(TEMP_TABLE_NAME))
-    odps.execute_sql(
-        "create table {0} (col1 string) lifecycle 1".format(TEMP_TABLE_NAME)
-    )
+    odps.execute_sql(f"drop table if exists {TEMP_TABLE_NAME}")
+    odps.execute_sql(f"create table {TEMP_TABLE_NAME} (col1 string) lifecycle 1")
     tempobj.register_temp_table(odps, TEMP_TABLE_NAME)
     tempobj.clean_objects(odps, use_threads=True)
     sleep(10)
@@ -203,10 +201,8 @@ def test_cleanup(odps):
 
 
 def test_cleanup_script(odps):
-    odps.execute_sql("drop table if exists {0}".format(TEMP_TABLE_NAME))
-    odps.execute_sql(
-        "create table {0} (col1 string) lifecycle 1".format(TEMP_TABLE_NAME)
-    )
+    odps.execute_sql(f"drop table if exists {TEMP_TABLE_NAME}")
+    odps.execute_sql(f"create table {TEMP_TABLE_NAME} (col1 string) lifecycle 1")
     tempobj.register_temp_table(odps, TEMP_TABLE_NAME)
     tempobj._obj_repos._exec_cleanup_script()
 
@@ -215,11 +211,9 @@ def test_cleanup_script(odps):
 
 
 def test_multi_process(odps):
-    odps.execute_sql("drop table if exists {0}".format(TEMP_TABLE_NAME))
+    odps.execute_sql(f"drop table if exists {TEMP_TABLE_NAME}")
 
-    odps.execute_sql(
-        "create table {0} (col1 string) lifecycle 1".format(TEMP_TABLE_NAME)
-    )
+    odps.execute_sql(f"create table {TEMP_TABLE_NAME} (col1 string) lifecycle 1")
     tempobj.register_temp_table(odps, TEMP_TABLE_NAME)
 
     script = SECONDARY_PROCESS_CODE.format(
@@ -243,12 +237,12 @@ def test_multi_process(odps):
     sleep(10)
 
     assert odps.exist_table(TEMP_TABLE_NAME)
-    odps.run_sql("drop table {0}".format(TEMP_TABLE_NAME))
+    odps.run_sql(f"drop table {TEMP_TABLE_NAME}")
 
 
 def test_plenty_create(odps):
     del_insts = [
-        odps.run_sql("drop table {0}".format(tn("tmp_pyodps_create_temp_%d" % n)))
+        odps.run_sql("drop table " + tn(f"tmp_pyodps_create_temp_{n}"))
         for n in range(10)
     ]
     [inst.wait_for_completion() for inst in del_insts]
@@ -271,7 +265,7 @@ def test_plenty_create(odps):
     sleep(5)
     trial = 4
     case = lambda: all(
-        not odps.exist_table(tn("tmp_pyodps_create_temp_%d" % tid)) for tid in range(10)
+        not odps.exist_table(tn(f"tmp_pyodps_create_temp_{tid}")) for tid in range(10)
     )
     while not case():
         trial -= 1

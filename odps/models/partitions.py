@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@
 from collections import OrderedDict, defaultdict
 
 from .. import errors, serializers, types
-from ..compat import six
 from ..utils import with_wait_argument
 from .core import XMLIterable
 from .partition import Partition
@@ -49,17 +48,17 @@ class PartitionSpecCondition(object):
 
                 parts = split.split(pred, 1)
                 if len(parts) != 2:
-                    raise ValueError("Invalid partition condition %r" % split)
+                    raise ValueError(f"Invalid partition condition {split!r}")
                 part = parts[0].strip()
                 val = parts[1].strip().replace('"', "").replace("'", "")
 
                 if part not in field_set:
-                    raise ValueError("Invalid partition field %r" % part)
+                    raise ValueError(f"Invalid partition field {part!r}")
 
                 self._part_to_conditions[part].append((pred, val))
                 break
             else:
-                raise ValueError("Invalid partition condition %r" % split)
+                raise ValueError(f"Invalid partition condition {split!r}")
         specs = []
         for field in part_fields:
             if (
@@ -68,7 +67,8 @@ class PartitionSpecCondition(object):
                 or self._part_to_conditions[field][0][0] not in ("=", "==")
             ):
                 break
-            specs.append("%s=%s" % (field, self._part_to_conditions.pop(field)[0][1]))
+            cond = self._part_to_conditions.pop(field)[0][1]
+            specs.append(f"{field}={cond}")
         self.partition_spec = types.PartitionSpec(",".join(specs)) if specs else None
 
     def match(self, spec):
@@ -92,7 +92,7 @@ class Partitions(XMLIterable):
         return Partition(client=self._client, parent=self, spec=item)
 
     def __getitem__(self, item):
-        if isinstance(item, six.string_types):
+        if isinstance(item, str):
             item = types.PartitionSpec(item)
             return self._get(item)
         elif isinstance(item, types.PartitionSpec):
@@ -100,8 +100,8 @@ class Partitions(XMLIterable):
         return super(Partitions, self).__getitem__(item)
 
     def __contains__(self, item):
-        if isinstance(item, (six.string_types, types.PartitionSpec)):
-            if isinstance(item, six.string_types):
+        if isinstance(item, (str, types.PartitionSpec)):
+            if isinstance(item, str):
                 item = types.PartitionSpec(item)
             partition = self._get(item)
         elif isinstance(item, Partition):
@@ -216,7 +216,7 @@ class Partitions(XMLIterable):
             partition_spec = self._get_partition_spec(partition_spec)
 
         part_sql = self.parent._build_partition_spec_sql(partition_spec)
-        action = "ADD%s %s" % (" IF NOT EXISTS" if if_not_exists else "", part_sql)
+        action = f"ADD{' IF NOT EXISTS' if if_not_exists else ''} {part_sql}"
 
         sql = self.parent._build_alter_table_ddl(action)
         instance = self.parent.parent._run_table_sql(
@@ -238,7 +238,7 @@ class Partitions(XMLIterable):
             partition_spec = self._get_partition_spec(partition_spec)
 
         part_sql = self.parent._build_partition_spec_sql(partition_spec)
-        action = "DROP%s %s" % (" IF EXISTS" if if_exists else "", part_sql)
+        action = f"DROP{' IF EXISTS' if if_exists else ''} {part_sql}"
 
         sql = self.parent._build_alter_table_ddl(action)
         return self.parent.parent._run_table_sql(

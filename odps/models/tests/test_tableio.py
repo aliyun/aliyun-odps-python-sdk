@@ -17,10 +17,12 @@ import csv
 import datetime
 import logging
 import multiprocessing
+import queue
 import random
 import sys
 import time
 from collections import OrderedDict
+from concurrent.futures import ThreadPoolExecutor
 
 try:
     import numpy as np
@@ -37,7 +39,7 @@ import mock
 import pytest
 
 from ... import types as odps_types
-from ...compat import datetime_utcnow, futures, six
+from ...compat import datetime_utcnow
 from ...config import options
 from ...errors import NoSuchObject
 from ...tests.core import (
@@ -637,7 +639,7 @@ def test_mp_block_server():
     class MockWriter(object):
         def __init__(self):
             self.idx = 0
-            self._used_block_id_queue = six.moves.queue.Queue()
+            self._used_block_id_queue = queue.Queue()
 
         def _gen_next_block_id(self):
             idx = self.idx
@@ -689,7 +691,7 @@ def test_multi_thread_write(odps):
     table = odps.create_table(test_table_name, "col1 bigint, col2 bigint, col3 string")
 
     try:
-        pool = futures.ThreadPoolExecutor(2)
+        pool = ThreadPoolExecutor(2)
         with table.open_writer() as writer:
             futs = []
             for idx in range(2):
@@ -712,9 +714,7 @@ def test_multi_thread_write(odps):
 
 @pytest.mark.parametrize(
     "ctx_name",
-    ["fork", "forkserver", "spawn"]
-    if sys.version_info[0] > 2 and sys.platform != "win32"
-    else ["spawn"],
+    ["fork", "forkserver", "spawn"] if sys.platform != "win32" else ["spawn"],
 )
 def test_multi_process_write(odps, ctx_name):
     test_table_name = tn("pyodps_t_tmp_multi_process_write_" + get_test_unique_name(5))
@@ -722,11 +722,9 @@ def test_multi_process_write(odps, ctx_name):
 
     table = odps.create_table(test_table_name, "col1 bigint, col2 bigint, col3 string")
 
-    if sys.version_info[0] > 2:
-        orig_ctx = multiprocessing.get_start_method()
+    orig_ctx = multiprocessing.get_start_method()
     try:
-        if sys.version_info[0] > 2:
-            multiprocessing.set_start_method(ctx_name, force=True)
+        multiprocessing.set_start_method(ctx_name, force=True)
         with table.open_writer() as writer:
             procs = []
             for idx in range(2):
@@ -748,8 +746,7 @@ def test_multi_process_write(odps, ctx_name):
             [1, 1, "row2"],
         ]
     finally:
-        if sys.version_info[0] > 2:
-            multiprocessing.set_start_method(orig_ctx, force=True)
+        multiprocessing.set_start_method(orig_ctx, force=True)
         table.drop()
 
 
@@ -1337,7 +1334,7 @@ def test_write_table_with_generate_parts(odps_daily):
             pd.Timestamp("2025-02-25 15:23:41"),
         ]
     )
-    s_col = pa.array(["r%s" % (1 + idx) for idx in range(5)])
+    s_col = pa.array([f"r{1 + idx}" for idx in range(5)])
     pa_batch = pa.RecordBatch.from_arrays([dt_col, s_col], ["dt", "a"])
     odps.write_table(tb, pa_batch, create_partition=True)
     assert tb.exist_partition("pt=2025-02-23")
@@ -1377,7 +1374,7 @@ def test_write_table_with_generate_cols_and_parts(odps_daily):
     )
 
     cur_dt = datetime_utcnow()
-    pt_spec = "pt=%s" % cur_dt.strftime("%Y-%m-%d")
+    pt_spec = "pt=" + cur_dt.strftime("%Y-%m-%d")
     # fixme remove this when table_properties is ready on server response
     tb.table_properties = {"ingestion_time_partition": "true"}
 
@@ -1395,7 +1392,7 @@ def test_write_table_with_generate_cols_and_parts(odps_daily):
 
     # test writing arrow data
     tb.delete_partition(pt_spec, if_exists=True)
-    s_col = pa.array(["r%s" % (1 + idx) for idx in range(5)])
+    s_col = pa.array([f"r{1 + idx}" for idx in range(5)])
     pa_batch = pa.RecordBatch.from_arrays([s_col], ["a"])
     odps.write_table(tb, pa_batch, create_partition=True)
     assert tb.exist_partition(pt_spec)
@@ -1454,13 +1451,13 @@ def test_write_sql_to_simple_table(odps):
     # test table absense and create_table=False
     with pytest.raises(ValueError):
         odps.write_sql_result_to_table(
-            test_dest_table_name, "select * from %s" % test_src_table_name
+            test_dest_table_name, f"select * from {test_src_table_name}"
         )
 
     # test table absense and create_table=True
     odps.write_sql_result_to_table(
         test_dest_table_name,
-        "select * from %s" % test_src_table_name,
+        f"select * from {test_src_table_name}",
         create_table=True,
     )
     dest_table = odps.get_table(test_dest_table_name)
@@ -1470,14 +1467,14 @@ def test_write_sql_to_simple_table(odps):
 
     # test write with insert
     odps.write_sql_result_to_table(
-        test_dest_table_name, "select * from %s" % test_src_table_name
+        test_dest_table_name, f"select * from {test_src_table_name}"
     )
     with dest_table.open_reader(reopen=True) as reader:
         assert reader.count == 6
 
     # test write with overwrite
     odps.write_sql_result_to_table(
-        test_dest_table_name, "select * from %s" % test_src_table_name, overwrite=True
+        test_dest_table_name, f"select * from {test_src_table_name}", overwrite=True
     )
     with dest_table.open_reader(reopen=True) as reader:
         assert reader.count == 3
@@ -1486,7 +1483,7 @@ def test_write_sql_to_simple_table(odps):
     odps.delete_table(test_dest_table_name, if_exists=True)
     odps.write_sql_result_to_table(
         test_dest_table_name,
-        "select * from %s" % test_src_table_name,
+        f"select * from {test_src_table_name}",
         create_table=True,
         lifecycle=1,
     )
@@ -1497,7 +1494,7 @@ def test_write_sql_to_simple_table(odps):
     odps.delete_table(test_dest_table_name, if_exists=True)
     odps.write_sql_result_to_table(
         test_dest_table_name,
-        "select * from %s" % test_src_table_name,
+        f"select * from {test_src_table_name}",
         create_table=True,
         lifecycle=1,
         transactional=True,
@@ -1528,7 +1525,7 @@ def test_write_sql_to_partitioned_table(odps):
     with pytest.raises(ValueError):
         odps.write_sql_result_to_table(
             test_dest_table_name,
-            "select * from %s" % test_src_table_name,
+            f"select * from {test_src_table_name}",
             partition="pt1=a,pt2=a",
             create_table=True,
         )
@@ -1536,7 +1533,7 @@ def test_write_sql_to_partitioned_table(odps):
     # test partition absense and create_partition=True
     odps.write_sql_result_to_table(
         test_dest_table_name,
-        "@var1 := select a, b from %s; select * from @var1" % test_src_table_name,
+        f"@var1 := select a, b from {test_src_table_name}; select * from @var1",
         partition="pt1=a,pt2=a",
         create_table=True,
         create_partition=True,
@@ -1548,7 +1545,7 @@ def test_write_sql_to_partitioned_table(odps):
     # test writing dynamic partition
     odps.write_sql_result_to_table(
         test_dest_table_name,
-        "select a, b, pt2 from %s" % test_src_table_name,
+        f"select a, b, pt2 from {test_src_table_name}",
         partition="pt1=a",
         partition_cols="pt2",
     )
@@ -1558,7 +1555,7 @@ def test_write_sql_to_partitioned_table(odps):
     # test writing with dynamic partition and overwrite
     odps.write_sql_result_to_table(
         test_dest_table_name,
-        "select a, b, pt2 from %s" % test_src_table_name,
+        f"select a, b, pt2 from {test_src_table_name}",
         partition="pt1=a",
         partition_cols="pt2",
         overwrite=True,
@@ -1595,7 +1592,7 @@ def test_write_sql_to_partitioned_table_with_schema_evolution(odps):
 
     odps.write_sql_result_to_table(
         test_dest_table_name,
-        "select a, b, c, pt2 from %s" % test_src_table_name,
+        f"select a, b, c, pt2 from {test_src_table_name}",
         partition="pt1=a",
         partition_cols="pt2",
         append_missing_cols=True,
@@ -1636,7 +1633,7 @@ def test_write_sql_to_generate_parted_table(odps_daily):
         lifecycle=1,
     )
     odps.write_sql_result_to_table(
-        test_dest_table_name, "select * from %s" % test_src_table_name
+        test_dest_table_name, f"select * from {test_src_table_name}"
     )
     pt_spec = "pt='2025-02-21'"
     assert dest_table.exist_partition(pt_spec)
@@ -1645,7 +1642,7 @@ def test_write_sql_to_generate_parted_table(odps_daily):
 
     odps.write_sql_result_to_table(
         test_dest_table_name,
-        "select * from %s" % test_src_table_name,
+        f"select * from {test_src_table_name}",
         overwrite=True,
     )
     pt_spec = "pt='2025-02-21'"
@@ -1657,6 +1654,7 @@ def test_write_sql_to_generate_parted_table(odps_daily):
 @odps2_typed_case
 def test_write_sql_to_auto_parted_table(odps_daily):
     odps = odps_daily
+    ymd = datetime_utcnow().strftime("%Y-%m-%d")
 
     test_src_table_name = tn("pyodps_t_tmp_write_sql_to_auto_pt_tbl_src")
     test_dest_table_name = tn("pyodps_t_tmp_write_sql_to_auto_pt_tbl_dest")
@@ -1682,19 +1680,19 @@ def test_write_sql_to_auto_parted_table(odps_daily):
     # fixme remove this when table_properties is ready on server response
     dest_table.table_properties = {"ingestion_time_partition": "true"}
     odps.write_sql_result_to_table(
-        test_dest_table_name, "select * from %s" % test_src_table_name
+        test_dest_table_name, f"select * from {test_src_table_name}"
     )
-    pt_spec = "pt='%s'" % datetime_utcnow().strftime("%Y-%m-%d")
+    pt_spec = f"pt='{ymd}'"
     assert dest_table.exist_partition(pt_spec)
     with dest_table.open_reader(pt_spec) as reader:
         assert reader.count == 3
 
     odps.write_sql_result_to_table(
         test_dest_table_name,
-        "select * from %s" % test_src_table_name,
+        f"select * from {test_src_table_name}",
         overwrite=True,
     )
-    pt_spec = "pt='%s'" % datetime_utcnow().strftime("%Y-%m-%d")
+    pt_spec = f"pt='{ymd}'"
     assert dest_table.exist_partition(pt_spec)
     with dest_table.open_reader(pt_spec) as reader:
         assert reader.count == 3

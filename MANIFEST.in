@@ -1,6 +1,5 @@
 recursive-include odps/static *.*
 prune odps/static/ui/node_modules
-include requirements.txt
 global-include odps/**/*.yml
 include odps/mars_extension/oscar/deploy/logging.conf
 global-include *.pyx

@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import functools
 import itertools
 import json
 import re
@@ -39,10 +40,9 @@ from ..utils import refresh_dynamic
 from . import types
 from ... import types as df_types
 from ....models import FileResource, TableResource, TableSchema
-from .... import compat
 from ....lib import cloudpickle
 from ....lib.xnamedtuple import xnamedtuple
-from ....compat import lzip, Version
+from ....compat import Version
 
 try:
     import numpy as np
@@ -62,7 +62,7 @@ BINARY_OP_TO_PANDAS = {
     'Add': operator.add,
     'Substract': operator.sub,
     'Multiply': operator.mul,
-    'Divide': operator.div if six.PY2 else operator.truediv,
+    'Divide': operator.truediv,
     'Mod': operator.mod,
     'FloorDivide': operator.floordiv,
     'Power': operator.pow,
@@ -119,7 +119,7 @@ def _explode(obj):
     if obj is None:
         return
     if isinstance(obj, dict):
-        for k, v in six.iteritems(obj):
+        for k, v in obj.items():
             yield k, v
     else:
         for v in obj:
@@ -580,7 +580,7 @@ class PandasCompiler(Backend):
                 sorted_columns[name] = kw.get(field)
             input = input.assign(**sorted_columns)
 
-            return input.sort_values(list(six.iterkeys(sorted_columns)),
+            return input.sort_values(list(sorted_columns.keys()),
                                      ascending=expr._ascending)[names]
 
         self._add_node(expr, handle)
@@ -642,7 +642,7 @@ class PandasCompiler(Backend):
                 frames = []
                 frac = json.loads(frac) if expr._frac else dict()
                 n = json.loads(n) if expr._n else dict()
-                for val in itertools.chain(six.iterkeys(frac), six.iterkeys(n)):
+                for val in itertools.chain(frac.keys(), n.keys()):
                     v_frac = frac.get(val)
                     v_n = n.get(val)
                     filtered = collection[collection[strata].astype(str) == val]
@@ -739,7 +739,7 @@ class PandasCompiler(Backend):
                 return func(*args, **kwargs)
 
         def get_real_aggfunc(aggfunc):
-            if isinstance(aggfunc, six.string_types):
+            if isinstance(aggfunc, str):
                 if aggfunc == 'count':
                     return getattr(np, 'size')
                 if aggfunc == 'nunique':
@@ -1127,7 +1127,7 @@ class PandasCompiler(Backend):
             func = expr._func
             self._attempt_pickle_unpickle(func, expr._func_args, expr._func_kwargs)
 
-            if isinstance(func, six.string_types) and func.upper() in BUILTIN_FUNCS:
+            if isinstance(func, str) and func.upper() in BUILTIN_FUNCS:
                 func = BUILTIN_FUNCS[func.upper()]
             if inspect.isfunction(func):
                 if resources:
@@ -1255,7 +1255,7 @@ class PandasCompiler(Backend):
                         return _value.apply(lambda v: item_fun(_input, v))
                     if isinstance(expr._key, Scalar):
                         return _input.apply(lambda v: item_fun(v, _value))
-                    seq_values = [item_fun(k, v) for k, v in compat.izip(_input, _value)]
+                    seq_values = [item_fun(k, v) for k, v in zip(_input, _value)]
                     return pd.Series(seq_values, index=_input.index, name=expr.name)
             elif isinstance(expr, composites.ListContains):
                 _value = children_vals[1]
@@ -1267,32 +1267,32 @@ class PandasCompiler(Backend):
                         return _value.apply(lambda v: contains_fun(_input, v))
                     if isinstance(expr._value, Scalar):
                         return _input.apply(lambda v: contains_fun(v, _value))
-                    seq_values = [contains_fun(k, v) for k, v in compat.izip(_input, _value)]
+                    seq_values = [contains_fun(k, v) for k, v in zip(_input, _value)]
                     return pd.Series(seq_values, index=_input.index, name=expr.name)
             elif isinstance(expr, composites.ListSort):
                 return _input.apply(lambda l: sorted(l) if l is not None else None)
             elif isinstance(expr, composites.DictKeys):
-                return _input.apply(lambda d: list(six.iterkeys(d)) if d is not None else None)
+                return _input.apply(lambda d: list(d.keys()) if d is not None else None)
             elif isinstance(expr, composites.DictValues):
-                return _input.apply(lambda d: list(six.itervalues(d)) if d is not None else None)
+                return _input.apply(lambda d: list(d.values()) if d is not None else None)
             elif isinstance(expr, composites.ListBuilder):
                 if isinstance(expr, Scalar):
                     return [kw[v] for v in expr._values]
                 else:
                     seq_index, zip_args = _zip_args(expr._values)
                     seq_values = []
-                    for r in compat.izip(*zip_args):
+                    for r in zip(*zip_args):
                         seq_values.append(list(r))
                     return pd.Series(seq_values, index=seq_index, name=expr.name)
             elif isinstance(expr, composites.DictBuilder):
                 if isinstance(expr, Scalar):
-                    return OrderedDict((kw[k], kw[v]) for k, v in compat.izip(expr._keys, expr._values))
+                    return OrderedDict((kw[k], kw[v]) for k, v in zip(expr._keys, expr._values))
                 else:
                     seq_index, zip_args = _zip_args(expr._keys + expr._values)
                     seq_values = []
                     dict_len = len(expr._values)
                     for r in zip(*zip_args):
-                        seq_values.append(OrderedDict((k, v) for k, v in compat.izip(r[:dict_len], r[dict_len:])))
+                        seq_values.append(OrderedDict((k, v) for k, v in zip(r[:dict_len], r[dict_len:])))
                     return pd.Series(seq_values, index=seq_index, name=expr.name)
             else:
                 raise NotImplementedError
@@ -1395,18 +1395,18 @@ class PandasCompiler(Backend):
                 elif expr.node_name == 'DenseRank':
                     return s_df.rank(method='dense')
                 elif expr.node_name == 'RowNumber':
-                    return pd.Series(compat.lrange(1, len(s_df) + 1), index=s_df.index)
+                    return pd.Series(list(range(1, len(s_df) + 1)), index=s_df.index)
                 elif expr.node_name == 'PercentRank':
                     if len(s_df) == 1:
                         return pd.Series([0.0, ], index=s_df.index)
                     return (s_df.rank(method='min') - 1) / (len(s_df) - 1)
                 elif expr.node_name == 'CumeDist':
-                    return pd.Series([v * 1.0 / len(s_df) for v in compat.irange(1, len(s_df) + 1)],
+                    return pd.Series([v * 1.0 / len(s_df) for v in range(1, len(s_df) + 1)],
                                      index=s_df.index)
                 elif expr.node_name == 'QCut':
                     if len(s_df) <= 1:
                         return pd.Series([0] * len(s_df), index=s_df.index, dtype=np.int64)
-                    return pd.Series(pd.qcut(compat.irange(1, len(s_df) + 1), expr._bins, labels=False),
+                    return pd.Series(pd.qcut(range(1, len(s_df) + 1), expr._bins, labels=False),
                                      index=s_df.index, dtype=np.int64)
                 else:
                     raise NotImplementedError
@@ -1569,7 +1569,7 @@ class PandasCompiler(Backend):
                 kv_slot_map[col.name] = dict()
 
                 keys = col.apply(lambda s: [validate_kv(kv) for kv in s.split(item_delim)])
-                for k in sorted(compat.reduce(lambda a, b: set(a) | set(b), keys, set())):
+                for k in sorted(functools.reduce(lambda a, b: set(a) | set(b), keys, set())):
                     app_col_names.append('%s_%s' % (col.name, k))
                     kv_slot_map[col.name][k] = len(app_col_names) - 1
 
@@ -1579,7 +1579,7 @@ class PandasCompiler(Backend):
             elif isinstance(expr._column_type, types.Integer):
                 type_adapter = int
 
-            append_grid = [[default] * len(app_col_names) for _ in compat.irange(len(_input))]
+            append_grid = [[default] * len(app_col_names) for _ in range(len(_input))]
             for col in columns:
                 series = getattr(_input, col.name)
                 for idx, v in enumerate(series):
@@ -1642,7 +1642,7 @@ class PandasCompiler(Backend):
             _input = kw.get(expr._input)
             id_col = kw.get(expr._id_col)
 
-            id_seq = pd.DataFrame(compat.lrange(len(_input)), columns=[id_col])
+            id_seq = pd.DataFrame(list(range(len(_input))), columns=[id_col])
             return pd.concat([id_seq, _input], axis=1)
 
         self._add_node(expr, handle)

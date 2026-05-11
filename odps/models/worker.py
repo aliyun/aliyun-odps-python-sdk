@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,7 +15,6 @@
 # limitations under the License.
 
 from .. import serializers
-from ..compat import six
 
 LOG_TYPES_MAPPING = {
     "hs_err_log": "hs_err_*.log",
@@ -48,7 +47,7 @@ class Worker(serializers.JSONSerializableModel):
         return self.parent.get_worker_log(self.log_id, log_type, size=size)
 
     get_log.__doc__ = get_log.__doc__.format(
-        log_types=", ".join(sorted(six.iterkeys(LOG_TYPES_MAPPING)))
+        log_types=", ".join(sorted(LOG_TYPES_MAPPING.keys()))
     )
 
 
@@ -82,7 +81,7 @@ class WorkerDetail2(Worker):
                         w._client = client
                         workers.append(w)
                     return
-                for _, v in six.iteritems(o):
+                for _, v in o.items():
                     _extract(v)
 
         _extract(json_obj)

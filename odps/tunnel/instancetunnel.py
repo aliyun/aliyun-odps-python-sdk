@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import enum
 import logging
 import sys
 from collections import OrderedDict
@@ -21,7 +22,6 @@ from collections import OrderedDict
 import requests
 
 from .. import serializers, types
-from ..compat import Enum, six
 from ..config import options
 from ..models import Projects, TableSchema
 from .base import TUNNEL_VERSION, BaseTunnel
@@ -59,7 +59,7 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
         "_tags",
     )
 
-    class Status(Enum):
+    class Status(enum.Enum):
         Unknown = "UNKNOWN"
         Normal = "NORMAL"
         Closes = "CLOSES"
@@ -111,7 +111,7 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
             )
 
         self._tags = tags or options.tunnel.tags
-        if isinstance(self._tags, six.string_types):
+        if isinstance(self._tags, str):
             self._tags = self._tags.split(",")
 
         if download_id is None:
@@ -137,7 +137,7 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
         )
         repr_kw = OrderedDict([(k, v) for k, v in repr_kw.items() if v is not None])
         return "<InstanceDownloadSession %s>" % " ".join(
-            "%s=%s" % (k, v) for k, v in repr_kw.items()
+            f"{k}={v}" for k, v in repr_kw.items()
         )
 
     def _init(self):
@@ -222,7 +222,7 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
             params["queryid"] = str(self._session_subquery_id)
         else:
             params["downloadid"] = self.id
-            params["rowrange"] = "(%s,%s)" % (start, count)
+            params["rowrange"] = f"({start},{count})"
             headers["Content-Length"] = 0
         if compress:
             encoding = compress_option.algorithm.get_encoding()
@@ -425,7 +425,7 @@ class InstanceTunnel(BaseTunnel):
 
         :return: :class:`InstanceDownloadSession`
         """
-        if not isinstance(instance, six.string_types):
+        if not isinstance(instance, str):
             instance = instance.id
         instance = Projects(client=self.tunnel_rest)[self._project.name].instances[
             instance

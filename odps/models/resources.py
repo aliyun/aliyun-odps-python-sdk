@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,8 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import io
+
 from .. import errors, serializers
-from ..compat import six
 from .core import XMLIterable
 from .resource import FileResource, Resource
 
@@ -50,7 +51,7 @@ class Resources(XMLIterable):
         )
 
     def __contains__(self, item):
-        if isinstance(item, six.string_types):
+        if isinstance(item, str):
             try:
                 resource = self._get(item)
             except errors.NoSuchObject:
@@ -173,13 +174,13 @@ class Resources(XMLIterable):
 
         content = resp.content
         if not text_mode:
-            if isinstance(content, six.text_type):
+            if isinstance(content, str):
                 content = content.encode(encoding)  # read as bytes
-            sio = six.BytesIO(content)
+            sio = io.BytesIO(content)
         else:
-            if isinstance(content, six.binary_type):
+            if isinstance(content, bytes):
                 content = content.decode(encoding)
-            sio = six.StringIO(content)
+            sio = io.StringIO(content)
 
         has_remaining = resp.headers.get("x-odps-resource-has-remaining") or "false"
         sio.is_eof = has_remaining.lower() != "true"

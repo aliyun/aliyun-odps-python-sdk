@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,11 +15,13 @@
 # limitations under the License.
 
 import atexit
+import builtins
 import copy
 import glob
 import hashlib
 import json
 import os
+import pickle
 import stat
 import subprocess
 import sys
@@ -27,19 +29,19 @@ import tempfile
 import threading
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 
 from . import utils
 from .accounts import CloudAccount
-from .compat import builtins, futures, pickle, six
 from .config import options
 from .errors import NoSuchObject
 
 TEMP_ROOT = utils.build_pyodps_dir("tempobjs")
-SESSION_KEY = "%d_%s" % (int(time.time()), uuid.uuid4())
+SESSION_KEY = f"{int(time.time())}_{uuid.uuid4()}"
 CLEANER_THREADS = 100
 USER_FILE_RIGHTS = stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR
 
-CLEANUP_SCRIPT_TMPL = u"""
+CLEANUP_SCRIPT_TMPL = """
 #-*- coding:utf-8 -*-
 import os
 import sys
@@ -53,12 +55,6 @@ except Exception:
 temp_codes = json.loads({odps_info!r})
 import_paths = json.loads({import_paths!r})
 biz_ids = json.loads({biz_ids!r})
-
-if sys.version_info[0] < 3:
-    if sys.platform == 'win32':
-        import_paths = [p.encode('mbcs') for p in import_paths]
-    else:
-        import_paths = [p.encode() for p in import_paths]
 
 normed_paths = set(os.path.normcase(os.path.normpath(p)) for p in sys.path)
 import_paths = [p for p in import_paths
@@ -84,8 +80,6 @@ os._exit(0)
 cleanup_mode = False
 cleanup_timeout = 0
 host_pid = os.getpid()
-if six.PY3:  # make flake8 happy
-    unicode = str
 
 
 class ExecutionEnv(object):
@@ -98,7 +92,6 @@ class ExecutionEnv(object):
         self.pid = os.getpid()
         self.os_sep = os.sep
         self.executable = sys.executable
-        self.six = six
 
         import_paths = copy.deepcopy(sys.path)
         package_root = os.path.dirname(__file__)
@@ -110,18 +103,14 @@ class ExecutionEnv(object):
 
         self.builtins = builtins
         self.io = __import__("io", fromlist=[""])
-        if six.PY3:
-            self.conv_bytes = lambda s: s.encode() if isinstance(s, str) else s
-            self.conv_unicode = lambda s: s if isinstance(s, str) else s.decode()
-        else:
-            self.conv_bytes = lambda s: s.encode() if isinstance(s, unicode) else s
-            self.conv_unicode = lambda s: s if isinstance(s, unicode) else s.decode()
+        self.conv_bytes = lambda s: s.encode() if isinstance(s, str) else s
+        self.conv_unicode = lambda s: s if isinstance(s, str) else s.decode()
         self.subprocess = subprocess
         self.temp_dir = tempfile.gettempdir()
         self.template = CLEANUP_SCRIPT_TMPL
         self.file_right = USER_FILE_RIGHTS
         self.is_main_process = utils.is_main_process()
-        for k, v in six.iteritems(kwargs):
+        for k, v in kwargs.items():
             setattr(self, k, v)
 
 
@@ -254,7 +243,7 @@ class ObjectRepository(object):
 
         if self._container:
             if use_threads:
-                pool = futures.ThreadPoolExecutor(CLEANER_THREADS)
+                pool = ThreadPoolExecutor(CLEANER_THREADS)
                 list(pool.map(_cleaner, reversed(list(self._container))))
             else:
                 for o in sorted(
@@ -299,7 +288,7 @@ class ObjectRepositoryLib(dict):
     odps_info = dict()
 
     biz_ids_json = json.dumps(list(biz_ids))
-    odps_info_json = json.dumps([v for v in six.itervalues(odps_info)])
+    odps_info_json = json.dumps([v for v in odps_info.values()])
 
     def __init__(self, *args, **kwargs):
         super(ObjectRepositoryLib, self).__init__(*args, **kwargs)
@@ -325,7 +314,7 @@ class ObjectRepositoryLib(dict):
             project=utils.to_str(odps.project),
             endpoint=utils.to_str(odps.endpoint),
         )
-        cls.odps_info_json = json.dumps([v for v in six.itervalues(cls.odps_info)])
+        cls.odps_info_json = json.dumps([v for v in cls.odps_info.values()])
 
     def _exec_cleanup_script(self):
         global cleanup_mode
@@ -473,7 +462,7 @@ def _put_objects(odps, objs):
         except OSError:
             pass
         file_name = os.path.join(
-            file_dir, "temp_objs_{0}__{1}.his".format(SESSION_KEY, os.getpid())
+            file_dir, f"temp_objs_{SESSION_KEY}__{os.getpid()}.his"
         )
         _obj_repos[odps_key] = ObjectRepository(file_name)
     [_obj_repos[odps_key].put(o, False) for o in objs]
@@ -481,7 +470,7 @@ def _put_objects(odps, objs):
 
 
 def register_temp_table(odps, table, project=None, schema=None):
-    if isinstance(table, six.string_types):
+    if isinstance(table, str):
         table = [table]
     _put_objects(
         odps,
@@ -493,7 +482,7 @@ def register_temp_table(odps, table, project=None, schema=None):
 
 
 def register_temp_model(odps, model, project=None, schema=None):
-    if isinstance(model, six.string_types):
+    if isinstance(model, str):
         model = [model]
     _put_objects(
         odps,
@@ -505,7 +494,7 @@ def register_temp_model(odps, model, project=None, schema=None):
 
 
 def register_temp_resource(odps, resource, project=None, schema=None):
-    if isinstance(resource, six.string_types):
+    if isinstance(resource, str):
         resource = [resource]
     _put_objects(
         odps,
@@ -519,7 +508,7 @@ def register_temp_resource(odps, resource, project=None, schema=None):
 
 
 def register_temp_function(odps, func, project=None, schema=None):
-    if isinstance(func, six.string_types):
+    if isinstance(func, str):
         func = [func]
     _put_objects(
         odps,

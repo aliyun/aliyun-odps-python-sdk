@@ -12,8 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import configparser
+import functools
 import hashlib
 import importlib
+import logging.config
 import math
 import os
 import random
@@ -22,11 +25,11 @@ import tempfile
 import threading
 import time
 import types
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
-from .. import compat, errors, options, utils
-from ..compat import ConfigParser, six
+from .. import errors, options, utils
 
 LOCK_FILE_NAME = os.path.join(tempfile.gettempdir(), "pyodps_test_lock_")
 
@@ -60,14 +63,14 @@ class Config(object):
 
 
 def _get_config_item(config, section_names, key, env=None, default=utils.notset):
-    if isinstance(section_names, six.string_types):
+    if isinstance(section_names, str):
         section_names = [section_names]
 
     last_exc = None
     for section_name in section_names:
         try:
             return config.get(section_name, key)
-        except (ConfigParser.NoSectionError, ConfigParser.NoOptionError) as exc:
+        except (configparser.NoSectionError, configparser.NoOptionError) as exc:
             last_exc = exc
     if env and env in os.environ:
         return os.environ[env]
@@ -81,7 +84,7 @@ def _load_config_odps(config, section_name, overwrite_global=True):
 
     try:
         config.options(section_name)
-    except ConfigParser.NoSectionError:
+    except configparser.NoSectionError:
         return
 
     daily_sections = [section_name, "odps", "odps_daily"]
@@ -128,7 +131,7 @@ def get_config():
     from ..tunnel.tabletunnel import TableTunnel
 
     if not Config.config:
-        config = ConfigParser.ConfigParser()
+        config = configparser.ConfigParser()
         Config.config = config
         config_path = os.path.join(os.path.dirname(__file__), "test.conf")
         if not os.path.exists(config_path):
@@ -151,7 +154,7 @@ def get_config():
             from cupid import options as cupid_options
 
             cupid_options.cupid.proxy_endpoint = config.get("cupid", "proxy_endpoint")
-        except (ConfigParser.NoSectionError, ConfigParser.NoOptionError, ImportError):
+        except (configparser.NoSectionError, configparser.NoOptionError, ImportError):
             pass
 
         try:
@@ -159,7 +162,7 @@ def get_config():
                 oss_access_id = os.getenv("OSS_ACCESS_ID") or config.get(
                     "oss", "access_id"
                 )
-            except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
+            except (configparser.NoSectionError, configparser.NoOptionError):
                 oss_access_id = None
             oss_access_id = oss_access_id or config.odps.account.access_id
 
@@ -167,7 +170,7 @@ def get_config():
                 oss_secret_access_key = os.getenv(
                     "OSS_SECRET_ACCESS_KEY"
                 ) or config.get("oss", "secret_access_key")
-            except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
+            except (configparser.NoSectionError, configparser.NoOptionError):
                 oss_secret_access_key = None
             oss_secret_access_key = (
                 oss_secret_access_key or config.odps.account.secret_access_key
@@ -187,7 +190,7 @@ def get_config():
 
             auth = oss2.Auth(oss_access_id, oss_secret_access_key)
             config.oss_bucket = oss2.Bucket(auth, oss_endpoint, oss_bucket_name)
-        except (ConfigParser.NoSectionError, ConfigParser.NoOptionError, ImportError):
+        except (configparser.NoSectionError, configparser.NoOptionError, ImportError):
             pass
 
         logging_level = config.get("test", "logging_level")
@@ -195,7 +198,7 @@ def get_config():
     else:
         config = Config.config
 
-    compat.dictconfig(LOGGING_CONFIG)
+    logging.config.dictConfig(LOGGING_CONFIG)
     return config
 
 
@@ -247,7 +250,7 @@ def start_coverage():
 def ignore_case(case, reason):
     if isinstance(case, types.FunctionType) and not case.__name__.startswith("test"):
 
-        @six.wraps(case)
+        @functools.wraps(case)
         def wrapped(*args, **kwargs):
             pytest.skip(reason)
             return case(*args, **kwargs)
@@ -266,18 +269,15 @@ def ci_skip_case(obj):
 
 
 def module_depend_case(mod_names):
-    if isinstance(mod_names, six.string_types):
+    if isinstance(mod_names, str):
         mod_names = [mod_names]
 
     def _decorator(obj):
         for mod_name in mod_names:
-            # avoid reimporting modules
-            if sys.version_info[0] == 2 and mod_name in sys.modules:
-                continue
             try:
                 __import__(mod_name, fromlist=[""])
             except ImportError:
-                return ignore_case(obj, "Skipped due to absence of %s." % mod_name)
+                return ignore_case(obj, f"Skipped due to absence of {mod_name}.")
         return obj
 
     return _decorator
@@ -290,7 +290,7 @@ sqlalchemy_case = module_depend_case("sqlalchemy")
 
 
 def odps2_typed_case(func):
-    @six.wraps(func)
+    @functools.wraps(func)
     def _wrapped(*args, **kwargs):
         from odps import options
 
@@ -323,7 +323,7 @@ def global_locked(lock_key):
         else:
             file_name = LOCK_FILE_NAME + "_" + lock_key + ".lck"
 
-        @six.wraps(func)
+        @functools.wraps(func)
         def _decorated(*args, **kwargs):
             while os.path.exists(file_name):
                 time.sleep(0.5)
@@ -368,7 +368,7 @@ def wait_filled(container_fun, countdown=10):
 
 
 def run_sub_tests_in_parallel(n_parallel, sub_tests):
-    test_pool = compat.futures.ThreadPoolExecutor(n_parallel)
+    test_pool = ThreadPoolExecutor(n_parallel)
     futures = [test_pool.submit(sub_test) for idx, sub_test in enumerate(sub_tests)]
     try:
         first_exc = None
@@ -379,7 +379,7 @@ def run_sub_tests_in_parallel(n_parallel, sub_tests):
                 if first_exc is None:
                     first_exc = sys.exc_info()
         if first_exc is not None:
-            six.reraise(*first_exc)
+            raise first_exc[1].with_traceback(first_exc[2])
     finally:
         test_pool.shutdown(wait=True)
 
@@ -450,8 +450,8 @@ def get_code_mode():
 
 
 def py_and_c(modules=None, reloader=None):
-    fixture_name = "mod_reloader_%s" % random.randint(0, 99999)
-    if isinstance(modules, six.string_types):
+    fixture_name = f"mod_reloader_{random.randint(0, 99999)}"
+    if isinstance(modules, str):
         modules = [modules]
     if "odps.crc" not in modules:
         modules.append("odps.crc")
@@ -468,12 +468,12 @@ def py_and_c(modules=None, reloader=None):
         if impl == "c" and not has_cython:
             pytest.skip("Must install cython to run this test.")
 
-        old_config = getattr(options, "force_{0}".format(impl))
-        setattr(options, "force_{0}".format(impl), True)
+        old_config = getattr(options, f"force_{impl}")
+        setattr(options, f"force_{impl}", True)
 
         for mod_name in modules or []:
             mod = importlib.import_module(mod_name)
-            compat.reload_module(mod)
+            importlib.reload(mod)
 
         if callable(reloader):
             reloader()
@@ -483,10 +483,10 @@ def py_and_c(modules=None, reloader=None):
         try:
             yield
         finally:
-            setattr(options, "force_{0}".format(impl), old_config)
+            setattr(options, f"force_{impl}", old_config)
             for mod_name in modules or []:
                 mod = importlib.import_module(mod_name)
-                compat.reload_module(mod)
+                importlib.reload(mod)
             if callable(reloader):
                 reloader()
 

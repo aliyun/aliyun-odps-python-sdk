@@ -39,7 +39,6 @@ except ImportError:
 
 from ... import types
 from .... import types as odps_types
-from ....compat import six
 from ....models import TableSchema
 from ....tunnel.io.types import arrow_type_to_odps_type
 
@@ -75,7 +74,7 @@ if np is not None:
     _np_to_df_types[np.dtype("<M8[ms]")] = types.datetime
     _np_to_df_types[np.dtype("<M8[ns]")] = types.timestamp
 
-    _df_to_np_types = dict((v, k) for k, v in six.iteritems(_np_to_df_types))
+    _df_to_np_types = dict((v, k) for k, v in _np_to_df_types.items())
 
 
 _pd_ext_type_name_to_df_type = {
@@ -127,9 +126,9 @@ def np_type_to_df_type(
     for it in arr:
         if it is None or is_na_func(it):
             continue
-        if isinstance(it, six.string_types):
+        if isinstance(it, str):
             return types.string
-        elif isinstance(it, six.integer_types):
+        elif isinstance(it, int):
             return types.int64
         elif isinstance(it, float):
             return types.float64
@@ -221,7 +220,7 @@ def cast_composite_sequence(pd_seq, df_type):
             return [_cast(it, df_type.value_type) for it in v]
         elif isinstance(df_type, types.Dict) and isinstance(v, dict):
             return OrderedDict((_cast(it_key, df_type.key_type), _cast(it_value, df_type.value_type))
-                               for it_key, it_value in six.iteritems(v))
+                               for it_key, it_value in v.items())
         else:
             raise TypeError('Cannot convert value %r into dtype %s' % (v, df_type))
 

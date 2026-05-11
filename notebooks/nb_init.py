@@ -18,15 +18,14 @@ You can edit your ipython_config.py to detect and add this file to
  exec_lines to help create pre-defined objects.
 """
 import sys
+from configparser import ConfigParser
 
-from six.moves.configparser import ConfigParser
-
-sys.path.append('../')
+sys.path.append("../")
 
 config = ConfigParser()
-config.read('../odps/tests/test.conf')
+config.read("../odps/tests/test.conf")
 
-access_id = config.get('odps', 'access_id')
-secret_access_key = config.get('odps', 'secret_access_key')
-project = config.get('odps', 'project')
-endpoint = config.get('odps', 'endpoint')
+access_id = config.get("odps", "access_id")
+secret_access_key = config.get("odps", "secret_access_key")
+project = config.get("odps", "project")
+endpoint = config.get("odps", "endpoint")

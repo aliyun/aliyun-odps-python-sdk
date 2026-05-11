@@ -14,28 +14,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import absolute_import
-
 import itertools
 import inspect
 import traceback
 import threading
 from collections import OrderedDict
+from collections.abc import Iterable
 from datetime import datetime
 from decimal import Decimal
 
-from ...compat import six
 from ...models import FileResource, TableResource
 from .. import types
 
-try:
-    from collections.abc import Iterable
-except ImportError:
-    from collections import Iterable
-
 
 def add_method(expr, methods):
-    for k, v in six.iteritems(methods):
+    for k, v in methods.items():
         setattr(expr, k, v)
 
 
@@ -122,7 +115,7 @@ def is_called_by_inspector():
 
 
 def to_list(field):
-    if isinstance(field, six.string_types):
+    if isinstance(field, str):
         return [field, ]
     if isinstance(field, Iterable):
         return list(field)

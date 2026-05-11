@@ -13,8 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import print_function
-
 import logging
 import textwrap
 
@@ -207,7 +205,7 @@ def test_tree_text_format():
 
 
 def test_tree_gv_format():
-    expected = textwrap.dedent(u"""
+    expected = textwrap.dedent("""
     digraph {
     root [shape=record,label=<
         ROOT

@@ -14,14 +14,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import enum
 import logging
 import struct
 import sys
+from io import BytesIO, StringIO
 
 from requests.exceptions import StreamConsumedError
 
 from .. import options, serializers
-from ..compat import Enum, irange, six
 from ..models import errors
 from ..utils import to_binary, to_text
 from . import io
@@ -35,7 +36,7 @@ MAX_CHUNK_SIZE = 256 * 1024 * 1024
 MIN_CHUNK_SIZE = 1
 CHECKSUM_SIZE = 4
 
-CHECKSUM_PACKER = ">i" if six.PY2 else ">I"
+CHECKSUM_PACKER = ">I"
 
 
 class VolumeTunnel(BaseTunnel):
@@ -60,7 +61,7 @@ class VolumeTunnel(BaseTunnel):
         compress_strategy=None,
         tags=None,
     ):
-        if not isinstance(volume, six.string_types):
+        if not isinstance(volume, str):
             volume = volume.name
         volume = self._project.volumes[volume]
         if compress_option is None and compress_algo is not None:
@@ -92,7 +93,7 @@ class VolumeTunnel(BaseTunnel):
         compress_strategy=None,
         tags=None,
     ):
-        if not isinstance(volume, six.string_types):
+        if not isinstance(volume, str):
             volume = volume.name
         volume = self._project.volumes[volume]
         if compress_option is None and compress_algo is not None:
@@ -126,7 +127,7 @@ class VolumeFSTunnel(BaseTunnel):
         compress_strategy=None,
         tags=None,
     ):
-        if not isinstance(volume, six.string_types):
+        if not isinstance(volume, str):
             volume = volume.name
         volume = self._project.volumes[volume]
 
@@ -139,7 +140,7 @@ class VolumeFSTunnel(BaseTunnel):
         headers = VolumeDownloadSession.get_common_headers(tags=tags)
         headers.update(
             {
-                "Range": "bytes={0}-{1}".format(start, start + length - 1),
+                "Range": f"bytes={start}-{start + length - 1}",
                 "x-odps-volume-fs-path": "/" + volume.name + "/" + path.lstrip("/"),
             }
         )
@@ -189,7 +190,7 @@ class VolumeFSTunnel(BaseTunnel):
         compress_strategy=None,
         tags=None,
     ):
-        if not isinstance(volume, six.string_types):
+        if not isinstance(volume, str):
             volume = volume.name
         volume = self._project.volumes[volume]
 
@@ -248,7 +249,7 @@ class BaseVolumeTunnelSession(serializers.JSONSerializableModel):
             header["Content-Length"] = content_length
         tags = tags or options.tunnel.tags
         if tags:
-            if isinstance(tags, six.string_types):
+            if isinstance(tags, str):
                 tags = tags.split(",")
             header["odps-tunnel-tags"] = ",".join(tags)
         return header
@@ -263,7 +264,7 @@ class VolumeDownloadSession(BaseVolumeTunnelSession):
         "_tags",
     )
 
-    class Status(Enum):
+    class Status(enum.Enum):
         UNKNOWN = "UNKNOWN"
         NORMAL = "NORMAL"
         CLOSED = "CLOSED"
@@ -300,7 +301,7 @@ class VolumeDownloadSession(BaseVolumeTunnelSession):
         self.file_name = file_name
 
         self._tags = tags or options.tunnel.tags
-        if isinstance(self._tags, six.string_types):
+        if isinstance(self._tags, str):
             self._tags = self._tags.split(",")
 
         if download_id is None:
@@ -315,15 +316,17 @@ class VolumeDownloadSession(BaseVolumeTunnelSession):
 
     def __repr__(self):
         return (
-            "<VolumeDownloadSession id=%s project_name=%s volume_name=%s partition_spec=%s>"
-            % (self.id, self.project_name, self.volume_name, self.partition_spec)
+            f"<VolumeDownloadSession id={self.id}"
+            f" project_name={self.project_name}"
+            f" volume_name={self.volume_name}"
+            f" partition_spec={self.partition_spec}>"
         )
 
     def resource(self, client=None, endpoint=None, with_schema=False):
         endpoint = (
             endpoint if endpoint is not None else (client or self._client).endpoint
         )
-        return endpoint + "/projects/%s/tunnel/downloads" % self.project_name
+        return endpoint + f"/projects/{self.project_name}/tunnel/downloads"
 
     def _init(self):
         headers = self.get_common_headers(content_length=0, tags=self._tags)
@@ -379,7 +382,7 @@ class VolumeDownloadSession(BaseVolumeTunnelSession):
             raise TunnelError("invalid compression option")
 
         params["data"] = ""
-        params["range"] = "(%s,%s)" % (start, length)
+        params["range"] = f"({start},{length})"
         if self._quota_name is not None:
             params["quotaName"] = self._quota_name
 
@@ -436,15 +439,14 @@ class VolumeReader(object):
         chunk_size = struct.unpack(">I", size_buf)[0]
         if chunk_size > MAX_CHUNK_SIZE or chunk_size < MIN_CHUNK_SIZE:
             raise IOError(
-                "ChunkSize should be in [%d, %d], now is %d."
-                % (MIN_CHUNK_SIZE, MAX_CHUNK_SIZE, chunk_size)
+                f"ChunkSize should be in [{MIN_CHUNK_SIZE}, {MAX_CHUNK_SIZE}], now is {chunk_size}."
             )
         self._buffer_size = CHECKSUM_SIZE + chunk_size
 
     def _read_buf(self):
         has_stuff = False
 
-        data_buffer = six.BytesIO()
+        data_buffer = BytesIO()
         if self._chunk_left:
             # we have cached chunk left, add to buffer
             data_buffer.write(self._chunk_left)
@@ -490,7 +492,7 @@ class VolumeReader(object):
         if self._eof:
             return None
         if size == 0:
-            return six.binary_type()
+            return bytes()
 
         if not self._initialized:
             self._initialized = True
@@ -498,7 +500,7 @@ class VolumeReader(object):
 
         has_stuff = False
 
-        out_buf = six.BytesIO()
+        out_buf = BytesIO()
         if self._left_part:
             if break_line:
                 # deal with Windows line endings
@@ -508,7 +510,7 @@ class VolumeReader(object):
                     self._last_line_ending = None
                     self._left_part_pos += 1
 
-                for idx in irange(self._left_part_pos, len(self._left_part)):
+                for idx in range(self._left_part_pos, len(self._left_part)):
                     if self._left_part[idx] not in (ord("\r"), ord("\n")):
                         continue
                     self._last_line_ending = self._left_part[idx]
@@ -539,7 +541,7 @@ class VolumeReader(object):
             if break_line:
                 if buf[0] == ord("\n") and self._last_line_ending == ord("\r"):
                     start_pos = 1
-                for idx in irange(start_pos, len(buf)):
+                for idx in range(start_pos, len(buf)):
                     if buf[idx] not in (ord("\r"), ord("\n")):
                         continue
                     self._last_line_ending = buf[idx]
@@ -596,7 +598,7 @@ class VolumeUploadSession(BaseVolumeTunnelSession):
         "_tags",
     )
 
-    class Status(Enum):
+    class Status(enum.Enum):
         UNKNOWN = "UNKNOWN"
         NORMAL = "NORMAL"
         CLOSING = "CLOSING"
@@ -635,7 +637,7 @@ class VolumeUploadSession(BaseVolumeTunnelSession):
         self.partition_spec = partition_spec
 
         self._tags = tags or options.tunnel.tags
-        if isinstance(self._tags, six.string_types):
+        if isinstance(self._tags, str):
             self._tags = self._tags.split(",")
 
         if upload_id is None:
@@ -651,15 +653,17 @@ class VolumeUploadSession(BaseVolumeTunnelSession):
 
     def __repr__(self):
         return (
-            "<VolumeUploadSession id=%s project_name=%s volume_name=%s partition_spec=%s>"
-            % (self.id, self.project_name, self.volume_name, self.partition_spec)
+            f"<VolumeUploadSession id={self.id}"
+            f" project_name={self.project_name}"
+            f" volume_name={self.volume_name}"
+            f" partition_spec={self.partition_spec}>"
         )
 
     def resource(self, client=None, endpoint=None, with_schema=False):
         endpoint = (
             endpoint if endpoint is not None else (client or self._client).endpoint
         )
-        return endpoint + "/projects/%s/tunnel/uploads" % self.project_name
+        return endpoint + f"/projects/{self.project_name}/tunnel/uploads"
 
     def _init(self):
         headers = self.get_common_headers(content_length=0, tags=self._tags)
@@ -693,7 +697,7 @@ class VolumeUploadSession(BaseVolumeTunnelSession):
 
     @staticmethod
     def _format_file_name(file_name):
-        buf = six.StringIO()
+        buf = StringIO()
         if file_name and file_name[0] == "/":
             raise TunnelError(
                 "FileName cannot start with '/', file name is " + file_name
@@ -751,7 +755,7 @@ class VolumeUploadSession(BaseVolumeTunnelSession):
     def commit(self, files):
         if not files:
             raise ValueError("`files` not supplied")
-        if isinstance(files, six.string_types):
+        if isinstance(files, str):
             files = [files]
         formatted = [self._format_file_name(fn) for fn in files]
 
@@ -801,7 +805,7 @@ class VolumeWriter(object):
             raise errors.InvalidArgument("Invalid compression algorithm.")
 
         self._tags = tags or options.tunnel.tags
-        if isinstance(self._tags, six.string_types):
+        if isinstance(self._tags, str):
             self._tags = self._tags.split(",")
 
         self._crc = Checksum(method="crc32")
@@ -816,9 +820,9 @@ class VolumeWriter(object):
 
     def write(self, buf, encoding="utf-8"):
         buf = to_binary(buf, encoding=encoding)
-        if isinstance(buf, six.integer_types):
+        if isinstance(buf, int):
             buf = bytes(bytearray([buf]))
-        elif isinstance(buf, six.BytesIO):
+        elif isinstance(buf, BytesIO):
             buf = buf.getvalue()
         if not self._initialized:
             self._initialized = True

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,13 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import print_function
-
+import inspect
 import re
 from collections import namedtuple
 
 from .. import ODPS, options, utils
-from ..compat import getargspec, six
 from ..inter import list_rooms
 
 PROJECT_REGEX = re.compile(r".*project *= *(?P<project>[^\(\),]+)")
@@ -71,7 +69,7 @@ class BaseCompleter(object):
             return None
         code, quote = call_tuple
         if quote is None:
-            quote = '\''
+            quote = "'"
         else:
             quote = ""
 
@@ -128,7 +126,7 @@ class ObjectCompleter(BaseCompleter):
         method_type = namedtuple("MethodType", "use_prefix list_method")
 
         for m_name, lister in self.iter_methods():
-            arg_tuple = getargspec(getattr(ODPS, lister))
+            arg_tuple = inspect.getfullargspec(getattr(ODPS, lister))
             use_prefix = "prefix" in arg_tuple[0]
             self._methods[m_name] = method_type(
                 use_prefix=use_prefix, list_method=lister
@@ -136,7 +134,7 @@ class ObjectCompleter(BaseCompleter):
 
         _regex_str = (
             r"(^|.*[\(\)\s,=]+)(?P<odps>[^\(\)\s,]+)\.(?P<getfn>"
-            + "|".join(six.iterkeys(self._methods))
+            + "|".join(self._methods.keys())
             + r")\("
         )
         self._regex = re.compile(_regex_str + r"(?P<args>[^\(\)]*)$")
@@ -164,10 +162,10 @@ class ObjectCompleter(BaseCompleter):
 
         quote = None
         if name_str != "" and not (
-            name_str.startswith('\'') or name_str.startswith('\"')
+            name_str.startswith("'") or name_str.startswith('"')
         ):
             return None
-        if name_str.endswith('\"') or name_str.endswith('\''):
+        if name_str.endswith('"') or name_str.endswith("'"):
             return None
         if name_str:
             quote = name_str[0]

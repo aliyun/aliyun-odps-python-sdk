@@ -806,9 +806,9 @@ ResultFrame 可以迭代取出每条记录：
     >>> result = iris.head(3)
     >>> for r in result:
     >>>     print(list(r))
-    [5.0999999999999996, 3.5, 1.3999999999999999, 0.20000000000000001, u'Iris-setosa']
-    [4.9000000000000004, 3.0, 1.3999999999999999, 0.20000000000000001, u'Iris-setosa']
-    [4.7000000000000002, 3.2000000000000002, 1.3, 0.20000000000000001, u'Iris-setosa']
+    [5.0999999999999996, 3.5, 1.3999999999999999, 0.20000000000000001, 'Iris-setosa']
+    [4.9000000000000004, 3.0, 1.3999999999999999, 0.20000000000000001, 'Iris-setosa']
+    [4.7000000000000002, 3.2000000000000002, 1.3, 0.20000000000000001, 'Iris-setosa']
 
 
 ResultFrame 也支持在安装有 pandas 的前提下转换为 pandas DataFrame 或使用 pandas 后端的 PyODPS DataFrame：
@@ -964,7 +964,7 @@ persist 时，默认会覆盖原有数据。例如，当 persist 到一张分区
     4         2.9          1.4         0.2  Iris-setosa
 
     >>> print(my_logs)
-    ['Sql compiled:', 'SELECT t1.`sepalwidth`, t1.`petallength`, t1.`petalwidth`, t1.`name` \nFROM odps_test_sqltask_finance.`pyodps_iris` t1 \nWHERE t1.`sepallength` < 5 \nLIMIT 5', 'logview:', u'http://logview']
+    ['Sql compiled:', 'SELECT t1.`sepalwidth`, t1.`petallength`, t1.`petalwidth`, t1.`name` \nFROM odps_test_sqltask_finance.`pyodps_iris` t1 \nWHERE t1.`sepallength` < 5 \nLIMIT 5', 'logview:', 'http://logview']
 
 缓存中间Collection计算结果
 ~~~~~~~~~~~~~~~~~~~~~~~~~~

@@ -22,25 +22,22 @@ import platform
 import shutil
 import sys
 
-from setuptools import Extension, find_packages, setup
+from setuptools import Command, Extension, setup
 from setuptools.command.install import install
 
-try:
-    from setuptools import Command
-except ImportError:
-    from distutils.cmd import Command
-try:
-    from sysconfig import get_config_var
-except ImportError:
-    from distutils.sysconfig import get_config_var
 try:
     from packaging.version import Version
 except ImportError:
     from distutils.version import LooseVersion as Version
 
+try:
+    from sysconfig import get_config_var
+except ImportError:
+    from distutils.sysconfig import get_config_var
+
 # From https://github.com/pandas-dev/pandas/pull/24274:
 # For mac, ensure extensions are built for macos 10.9 when compiling on a
-# 10.9 system or above, overriding distuitls behaviour which is to target
+# 10.9 system or above, overriding distutils behaviour which is to target
 # the version that python was built for. This may be overridden by setting
 # MACOSX_DEPLOYMENT_TARGET before calling setup.py
 if sys.platform == "darwin":
@@ -52,39 +49,11 @@ if sys.platform == "darwin":
 
 repo_root = os.path.dirname(os.path.abspath(__file__))
 
-try:
-    execfile  # noqa
-except NameError:
-
-    def execfile(fname, globs, locs=None):
-        locs = locs or globs
-        exec(compile(open(fname).read(), fname, "exec"), globs, locs)
-
-
 version_ns = {}
-execfile(os.path.join(repo_root, "odps", "_version.py"), version_ns)
+with open(os.path.join(repo_root, "odps", "_version.py")) as f:
+    exec(f.read(), version_ns)
 
 extra_install_cmds = []
-
-
-def which(program):
-    import os
-
-    def is_exe(fpath):
-        return os.path.isfile(fpath) and os.access(fpath, os.X_OK)
-
-    fpath, fname = os.path.split(program)
-    if fpath:
-        if is_exe(program):
-            return program
-    else:
-        for path in os.environ["PATH"].split(os.pathsep):
-            path = path.strip('"')
-            exe_file = os.path.join(path, program)
-            if is_exe(exe_file):
-                return exe_file
-
-    return None
 
 
 # http://stackoverflow.com/questions/12683834/how-to-copy-directory-recursively-in-python-and-overwrite-all
@@ -114,33 +83,24 @@ class CustomInstall(install):
         [self.run_command(cmd) for cmd in extra_install_cmds]
 
 
-version = sys.version_info
-PY2 = version[0] == 2
-PY3 = version[0] == 3
-PYPY = platform.python_implementation().lower() == "pypy"
-
-if PY2 and version[:2] < (2, 7):
-    raise Exception("PyODPS supports Python 2.7+ (including Python 3+).")
-
-try:
-    import distribute
-
+if sys.version_info[:2] < (3, 7):
     raise Exception(
-        "PyODPS cannot be installed when 'distribute' is installed. "
-        "Please uninstall it before installing PyODPS."
+        "Since PyODPS 0.13.0, supports for Python 3.6 or below is dropped, "
+        "please install an older version."
     )
-except ImportError:
-    pass
-
 try:
-    import pip
+    try:
+        from importlib.metadata import distributions
+    except ImportError:
+        from importlib_metadata import distributions
 
-    for pk in pip.get_installed_distributions():
-        if pk.key == "odps":
+    for pk in distributions():
+        pk_name = pk.metadata["Name"]
+        if pk_name.lower() in ("odps", "distribute"):
             raise Exception(
-                "Package `odps` collides with PyODPS. Please uninstall it before installing PyODPS."
+                f"Package `{pk_name}` collides with PyODPS. Please uninstall it before installing PyODPS."
             )
-except (ImportError, AttributeError):
+except (ImportError, KeyError):
     pass
 
 try:
@@ -155,90 +115,23 @@ if len(sys.argv) > 1 and sys.argv[1] == "clean":
 else:
     build_cmd = None
 
-requirements = []
-with open("requirements.txt") as f:
-    requirements.extend(f.read().splitlines())
-
-full_requirements = [
-    "jupyter>=1.0.0",
-    "ipython>=4.0.0",
-    "numpy>=1.6.0",
-    "pandas>=0.17.0",
-    "matplotlib>=1.4",
-    "graphviz>=0.4",
-    "greenlet>=0.4.10",
-    "ipython<6.0.0; python_version < \"3\"",
-    "cython>=0.20; sys_platform != \"win32\"",
-]
-
-long_description = None
-if os.path.exists("README.rst"):
-    with open("README.rst") as f:
-        long_description = f.read()
-
 setup_options = dict(
-    name="pyodps",
-    version=version_ns["__version__"],
-    description="ODPS Python SDK and data analysis framework",
-    long_description=long_description,
-    author="Wu Wei",
-    author_email="weiwu@cacheme.net",
-    maintainer="Wenjun Si",
-    maintainer_email="wenjun.swj@alibaba-inc.com",
-    url="http://github.com/aliyun/aliyun-odps-python-sdk",
-    license="Apache License 2.0",
-    classifiers=[
-        "Operating System :: OS Independent",
-        "Programming Language :: Python",
-        "Programming Language :: Python :: 2",
-        "Programming Language :: Python :: 2.7",
-        "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.5",
-        "Programming Language :: Python :: 3.6",
-        "Programming Language :: Python :: 3.7",
-        "Programming Language :: Python :: 3.8",
-        "Programming Language :: Python :: 3.9",
-        "Programming Language :: Python :: 3.10",
-        "Programming Language :: Python :: 3.11",
-        "Programming Language :: Python :: 3.12",
-        "Programming Language :: Python :: 3.13",
-        "Programming Language :: Python :: 3.14",
-        "Programming Language :: Python :: Free Threading :: 1 - Unstable",
-        "Programming Language :: Python :: Implementation :: CPython",
-        "Programming Language :: Python :: Implementation :: PyPy",
-        "Topic :: Software Development :: Libraries",
-    ],
     cmdclass={"install": CustomInstall},
-    packages=find_packages(exclude=("*.tests.*", "*.tests")),
-    include_package_data=True,
-    install_requires=requirements,
-    include_dirs=[],
-    extras_require={"full": full_requirements},
-    entry_points={
-        "sqlalchemy.dialects": [
-            "odps = odps.sqlalchemy_odps:ODPSDialect",
-            "maxcompute = odps.sqlalchemy_odps:ODPSDialect",
-        ],
-        "superset.db_engine_specs": [
-            "odps = odps.superset_odps:ODPSEngineSpec",
-            "maxcompute = odps.superset_odps:ODPSEngineSpec",
-        ],
-        "console_scripts": [
-            "pyou = odps_scripts.pyou:main",
-            "pyodps-pack = odps_scripts.pyodps_pack:main",
-            "pyodpswrapper = odps_scripts.pyodpswrapper.__main__:main",
-        ],
-    },
+    ext_modules=[],
+    version=version_ns["__version__"],
 )
+
+PYPY = platform.python_implementation().lower() == "pypy"
 
 if build_cmd != "clean" and not PYPY:  # skip cython in pypy
     try:
-        import cython
         from Cython.Build import cythonize
         from Cython.Distutils import build_ext
 
         # detect if cython works
         if sys.platform == "win32":
+            import cython
+
             cython.inline("return a + b", a=1, b=1)
 
         cythonize_kw = dict(language_level=sys.version_info[0])
@@ -248,19 +141,19 @@ if build_cmd != "clean" and not PYPY:  # skip cython in pypy
         is_free_threaded = False
         if sys.version_info >= (3, 13):
             # Check for free-threaded Python 3.13+
-            is_free_threaded = not getattr(sys, '_is_gil_enabled', lambda: True)()
+            is_free_threaded = not getattr(sys, "_is_gil_enabled", lambda: True)()
 
         # Set up define macros
-        define_macros = list(extension_kw.get('define_macros', []))
+        define_macros = list(extension_kw.get("define_macros", []))
         if is_free_threaded:
-            define_macros.append(('Py_GIL_DISABLED', '1'))
-        extension_kw['define_macros'] = define_macros
+            define_macros.append(("Py_GIL_DISABLED", "1"))
+        extension_kw["define_macros"] = define_macros
 
         # Set up Cython compiler directives
-        compiler_directives = cythonize_kw.get('compiler_directives', {})
+        compiler_directives = cythonize_kw.get("compiler_directives", {})
         if is_free_threaded:
-            compiler_directives['freethreading_compatible'] = True
-        cythonize_kw['compiler_directives'] = compiler_directives
+            compiler_directives["freethreading_compatible"] = True
+        cythonize_kw["compiler_directives"] = compiler_directives
 
         if "MSC" in sys.version:
             extra_compile_args = ["/Ot", "/I" + os.path.join(repo_root, "misc")]
@@ -285,22 +178,22 @@ if build_cmd != "clean" and not PYPY:  # skip cython in pypy
             Extension(
                 "odps.tunnel.pb.encoder_c",
                 ["odps/tunnel/pb/encoder_c.pyx"],
-                **extension_kw
+                **extension_kw,
             ),
             Extension(
                 "odps.tunnel.pb.decoder_c",
                 ["odps/tunnel/pb/decoder_c.pyx"],
-                **extension_kw
+                **extension_kw,
             ),
             Extension(
                 "odps.tunnel.io.writer_c",
                 ["odps/tunnel/io/writer_c.pyx"],
-                **extension_kw
+                **extension_kw,
             ),
             Extension(
                 "odps.tunnel.io.reader_c",
                 ["odps/tunnel/io/reader_c.pyx"],
-                **extension_kw
+                **extension_kw,
             ),
             Extension(
                 "odps.tunnel.checksum_c", ["odps/tunnel/checksum_c.pyx"], **extension_kw
@@ -359,7 +252,7 @@ if build_cmd != "clean" and has_jupyter:
             pass
 
         def run(self):
-            if not which("npm"):
+            if not shutil.which("npm"):
                 raise Exception("You need to install npm before building the scripts.")
 
             cwd = os.getcwd()
@@ -376,13 +269,13 @@ if build_cmd != "clean" and has_jupyter:
             ret = os.system(cmd)
             ret >>= 8
             if ret != 0:
-                print(cmd + " exited with error: %d" % ret)
+                print(f"{cmd} exited with error: {ret}")
 
             print("executing grunt")
             ret = os.system("npm run grunt")
             ret >>= 8
             if ret != 0:
-                print("grunt exited with error: %d" % ret)
+                print(f"grunt exited with error: {ret}")
 
             os.chdir(cwd)
 
@@ -397,14 +290,14 @@ if build_cmd == "clean":
         c_file_pairs = []
         if "__pycache__" in dirs:
             full_path = os.path.join(root, "__pycache__")
-            print("removing '%s'" % full_path)
+            print(f"removing '{full_path}'")
             shutil.rmtree(full_path)
         for f in files:
             fn, ext = os.path.splitext(f)
             # delete compiled binaries
             if ext.lower() in (".pyd", ".so", ".pyc"):
                 full_path = os.path.join(root, f)
-                print("removing '%s'" % full_path)
+                print(f"removing '{full_path}'")
                 os.unlink(full_path)
             elif ext.lower() == ".pyx":
                 pyx_files.add(fn)
@@ -415,5 +308,5 @@ if build_cmd == "clean":
         for cfn, cf in c_file_pairs:
             if cfn in pyx_files:
                 full_path = os.path.join(root, cf)
-                print("removing '%s'" % full_path)
+                print(f"removing '{full_path}'")
                 os.unlink(full_path)

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -199,7 +199,7 @@ def test_download_by_raw_tunnel(config, instance_tunnel):
     data = _gen_data()
 
     _upload_data(config.tunnel, test_table_name, data)
-    inst = config.odps.execute_sql("select * from %s" % test_table_name)
+    inst = config.odps.execute_sql(f"select * from {test_table_name}")
     records = _download_instance_data(instance_tunnel, inst)
     assert list(data) == list(records)
 
@@ -213,7 +213,7 @@ def test_download_by_buffered_tunnel(config, instance_tunnel):
     data = _gen_data()
 
     _upload_data(config.tunnel, test_table_name, data)
-    inst = config.odps.execute_sql("select * from %s" % test_table_name)
+    inst = config.odps.execute_sql(f"select * from {test_table_name}")
     records = _download_instance_data(
         instance_tunnel, inst, buffered=True, row_batch_size=2
     )
@@ -231,7 +231,7 @@ def test_tunnel_read_with_retry(config, instance_tunnel):
     data = _gen_data()
 
     _upload_data(config.tunnel, test_table_name, data)
-    inst = config.odps.execute_sql("select * from %s" % test_table_name)
+    inst = config.odps.execute_sql(f"select * from {test_table_name}")
 
     try:
         ranges = []
@@ -275,7 +275,7 @@ def test_upload_and_download_with_compress(config, instance_tunnel, algo, module
         _upload_data(
             config.tunnel, test_table_name, data, compress=True, compress_algo=algo
         )
-        inst = config.odps.execute_sql("select * from %s" % test_table_name)
+        inst = config.odps.execute_sql(f"select * from {test_table_name}")
         records = _download_instance_data(
             instance_tunnel, inst, compress=True, compress_algo=algo
         )
@@ -299,7 +299,7 @@ def test_partition_upload_and_download_by_raw_tunnel(config, instance_tunnel):
     _upload_data(
         config.tunnel, test_table_name, data, partition_spec=test_table_partition
     )
-    inst = config.odps.execute_sql("select * from %s where ds='test'" % test_table_name)
+    inst = config.odps.execute_sql(f"select * from {test_table_name} where ds='test'")
     records = _download_instance_data(instance_tunnel, inst)
     assert data == [r[:-1] for r in records]
 

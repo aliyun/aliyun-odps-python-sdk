@@ -129,7 +129,7 @@ def _convert_pd_type(values, table):
     import pandas as pd
 
     retvals = []
-    for val, t in compat.izip(values, table.table_schema.types):
+    for val, t in zip(values, table.table_schema.types):
         isnull = pd.isnull(val)
         if isinstance(isnull, bool) and isnull:
             retvals.append(None)
