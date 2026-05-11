@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,8 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import enum
+
 from .. import errors, serializers, utils
-from ..compat import Enum, six
 from .cache import cache_parent
 from .core import XMLIterable, XMLLazyLoad, XMLRemoteModel
 from .volumes import Volume
@@ -79,7 +80,7 @@ class VolumePartition(XMLLazyLoad):
 
     __slots__ = "_volume_tunnel", "_id_thread_local", "length", "file_number"  # meta
 
-    class Type(Enum):
+    class Type(enum.Enum):
         NEW = "NEW"
         OLD = "OLD"
 
@@ -309,10 +310,10 @@ class VolumePartition(XMLLazyLoad):
 
             @staticmethod
             def close():
-                for w in six.itervalues(file_dict):
+                for w in file_dict.values():
                     w.close()
 
-                upload_session.commit(list(six.iterkeys(file_dict)))
+                upload_session.commit(list(file_dict.keys()))
 
             def __enter__(self):
                 return self
@@ -342,7 +343,7 @@ class PartedVolume(Volume):
             return VolumePartition(client=self._client, parent=self.parent, name=item)
 
         def __contains__(self, item):
-            if isinstance(item, six.string_types):
+            if isinstance(item, str):
                 partition = self._get(item)
             elif isinstance(item, VolumePartition):
                 partition = item

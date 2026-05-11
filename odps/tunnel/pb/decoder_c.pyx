@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,10 +15,11 @@
 
 include "util_c.pxi"
 
+import time
+
 from libc.stdint cimport *
 from libc.string cimport *
 
-from ...lib.monotonic import monotonic
 from .wire_format import _TAG_TYPE_MASK as _PY_TAG_TYPE_MASK
 from .wire_format import TAG_TYPE_BITS as PY_TAG_TYPE_BITS
 
@@ -43,13 +44,13 @@ cdef class CDecoder:
         self._stream = stream
 
         if self._record_network_time:
-            ts = monotonic()
+            ts = time.monotonic()
 
         self._buffer = stream.read(_BUFFER_SIZE)
 
         if self._record_network_time:
             self._network_wall_time_ns += <long long>(
-                NANO_SEC_PER_SEC * (<double>monotonic() - ts)
+                NANO_SEC_PER_SEC * (<double>time.monotonic() - ts)
             )
 
         self._begin = self._buffer
@@ -161,13 +162,13 @@ cdef class CDecoder:
             raise EOFError
 
         if self._record_network_time:
-            ts = monotonic()
+            ts = time.monotonic()
 
         cdef bytes data = self._stream.read(_BUFFER_SIZE)
 
         if self._record_network_time:
             self._network_wall_time_ns += <long long>(
-                NANO_SEC_PER_SEC * (<double>monotonic() - ts)
+                NANO_SEC_PER_SEC * (<double>time.monotonic() - ts)
             )
 
         cdef size_t length = len(data)

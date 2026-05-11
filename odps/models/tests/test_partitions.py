@@ -28,7 +28,7 @@ from ..storage_tier import StorageTier
 
 def test_partitions(odps):
     test_table_name = tn("pyodps_t_tmp_partitions_table")
-    partitions = ["s=%s" % i for i in range(3)]
+    partitions = [f"s={i}" for i in range(3)]
     schema = TableSchema.from_lists(["id"], ["string"], ["s"], ["string"])
 
     odps.delete_table(test_table_name, if_exists=True)
@@ -60,7 +60,7 @@ def test_partitions(odps):
 def test_sub_partitions(odps):
     test_table_name = tn("pyodps_t_tmp_sub_partitions_table")
     root_partition = "type=test"
-    sub_partitions = ["s=%s" % i for i in range(3)]
+    sub_partitions = [f"s={i}" for i in range(3)]
     schema = TableSchema.from_lists(
         ["id"], ["string"], ["type", "s"], ["string", "string"]
     )

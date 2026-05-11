@@ -16,7 +16,6 @@ from datetime import datetime
 
 import pytest
 
-from ...compat import six
 from .. import Project, Projects
 
 
@@ -50,14 +49,14 @@ def test_project(odps):
     assert project.is_loaded is False
 
     assert isinstance(project.extended_properties, dict)
-    assert isinstance(project.owner, six.string_types)
+    assert isinstance(project.owner, str)
     assert project.type == Project.ProjectType.MANAGED
     assert isinstance(project.creation_time, datetime)
     assert isinstance(project.last_modified_time, datetime)
     assert isinstance(project.properties, dict)
     assert len(project.properties) > 0
     assert len(project.extended_properties) > 0
-    assert isinstance(project.state, six.string_types)
+    assert isinstance(project.state, str)
     assert isinstance(project.status, Project.ProjectStatus)
     assert project.status == Project.ProjectStatus.AVAILABLE
 

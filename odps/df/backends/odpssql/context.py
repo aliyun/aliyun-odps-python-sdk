@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import io
 import itertools
 import json
 import os
@@ -23,7 +24,6 @@ import time
 from collections import OrderedDict
 
 from .... import options, tempobj
-from ....compat import BytesIO, six
 from ....utils import TEMP_TABLE_PREFIX
 from ....errors import ODPSError
 
@@ -156,7 +156,7 @@ class ODPSContext(object):
                 ret_libs.append(self._path_to_resources[lib])
                 continue
 
-            tarbinary = BytesIO()
+            tarbinary = io.BytesIO()
             tar = tarfile.open(fileobj=tarbinary, mode='w:gz')
             if os.path.isfile(lib):
                 with open(lib, 'rb') as fo:
@@ -191,7 +191,7 @@ class ODPSContext(object):
     def create_udfs(self, libraries=None):
         self._func_to_functions.clear()
 
-        for func, udf in six.iteritems(self._func_to_udfs):
+        for func, udf in self._func_to_udfs.items():
             udf_name = self._registered_funcs[func]
             py_resource = self._odps.create_resource(
                 udf_name + '.py', 'py', file_obj=udf, schema=self._default_schema, temp=True
@@ -237,7 +237,7 @@ class ODPSContext(object):
         return symbol
 
     def get_all_need_alias_column_symbols(self):
-        for col_id, column in six.iteritems(self._need_alias_columns):
+        for col_id, column in self._need_alias_columns.items():
             symbol = self._need_alias_column_indexes[col_id]
             yield symbol, column
 

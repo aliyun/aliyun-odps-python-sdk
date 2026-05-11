@@ -14,7 +14,6 @@
 
 """Restful client enhanced by URL building and request signing facilities.
 """
-from __future__ import absolute_import
 
 import json
 import logging
@@ -23,6 +22,7 @@ import platform
 import re
 import threading
 from string import Template
+from urllib.parse import urlparse
 
 import requests
 
@@ -36,7 +36,6 @@ except ImportError:
     requests_unixsocket = None
 
 from . import __version__, errors, utils
-from .compat import six, urlparse
 from .config import options
 from .utils import clear_survey_calls, get_package_version, get_survey_calls
 
@@ -96,9 +95,9 @@ def default_user_agent():
             or "$pyodps_version $mars_version $maxframe_version $python_version $os_version"
         )
         substitutes = dict(
-            pyodps_version="%s/%s" % ("pyodps", __version__),
-            python_version="%s/%s" % (py_implementation, py_version),
-            os_version="%s/%s" % (py_system, py_release),
+            pyodps_version=f"pyodps/{__version__}",
+            python_version=f"{py_implementation}/{py_version}",
+            os_version=f"{py_system}/{py_release}",
             mars_version="",
             maxframe_version="",
         )
@@ -108,14 +107,14 @@ def default_user_agent():
         except:
             mars_version = None
         if mars_version:
-            substitutes["mars_version"] = "%s/%s" % ("mars", mars_version)
+            substitutes["mars_version"] = f"mars/{mars_version}"
 
         try:
             maxframe_version = get_package_version("maxframe")
         except:
             maxframe_version = None
         if maxframe_version:
-            substitutes["maxframe_version"] = "%s/%s" % ("maxframe", maxframe_version)
+            substitutes["maxframe_version"] = f"maxframe/{maxframe_version}"
 
         _default_user_agent = ua_template.safe_substitute(**substitutes)
         _default_user_agent = re.sub(" +", " ", _default_user_agent).strip()
@@ -157,7 +156,7 @@ class RestClient(object):
         self._proxy = kwargs.get("proxy")
         self._app_account = kwargs.get("app_account")
         self._tag = kwargs.get("tag")
-        if isinstance(self._proxy, six.string_types):
+        if isinstance(self._proxy, str):
             self._proxy = dict(http=self._proxy, https=self._proxy)
 
     @property
@@ -294,7 +293,7 @@ class RestClient(object):
         # Construct user agent without handling the letter case.
         headers = dict(options.custom_headers or {})
         headers.update(kwargs.get("headers", {}))
-        headers = {k: str(v) for k, v in six.iteritems(headers)}
+        headers = {k: str(v) for k, v in headers.items()}
         headers["User-Agent"] = self._user_agent
         if self.namespace:
             headers["x-odps-namespace-id"] = self.namespace
@@ -302,7 +301,7 @@ class RestClient(object):
         params = kwargs.setdefault("params", {})
 
         actions = kwargs.pop("actions", None) or kwargs.pop("action", None) or []
-        if isinstance(actions, six.string_types):
+        if isinstance(actions, str):
             actions = [actions]
         if actions:
             separator = "?" if "?" not in url else "&"
@@ -334,7 +333,7 @@ class RestClient(object):
         if any(v is None for v in prepared_req.headers.values()):
             none_headers = [k for k, v in prepared_req.headers.items() if v is None]
             raise TypeError(
-                "Value of headers %s cannot be None" % ", ".join(none_headers)
+                f"Value of headers {', '.join(none_headers)} cannot be None"
             )
 
         try:
@@ -347,7 +346,7 @@ class RestClient(object):
             )
         except ConnectTimeout:
             raise errors.ConnectTimeout(
-                "Connecting to endpoint %s timeout." % self._endpoint
+                f"Connecting to endpoint {self._endpoint} timeout."
             )
 
         logger.debug("response.status_code %d", res.status_code)
@@ -364,14 +363,12 @@ class RestClient(object):
 
     def post(self, url, data=None, **kwargs):
         data = (
-            utils.to_binary(data, encoding="utf-8")
-            if isinstance(data, six.string_types)
-            else data
+            utils.to_binary(data, encoding="utf-8") if isinstance(data, str) else data
         )
         return self.request(url, "post", data=data, **kwargs)
 
     def put(self, url, data=None, **kwargs):
-        data = utils.to_binary(data) if isinstance(data, six.string_types) else data
+        data = utils.to_binary(data) if isinstance(data, str) else data
         return self.request(url, "put", data=data, **kwargs)
 
     def head(self, url, **kwargs):

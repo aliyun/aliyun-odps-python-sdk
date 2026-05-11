@@ -102,7 +102,7 @@ def call_in_process(args, odps):
         mem_limit = DEFAULT_SHARED_MEM_LIMIT
 
     if mem_limit:
-        print("Execution memory is limited to %s" % mem_limit)
+        print(f"Execution memory is limited to {mem_limit}")
 
     # Use threading.Event for thread-safe signaling
     _shutdown_event = threading.Event()
@@ -160,7 +160,7 @@ def call_in_process(args, odps):
                 if paths:
                     for path in paths:
                         subprocess.call(
-                            r"find %s -depth -type d -print -exec rmdir {} \;" % path,
+                            f"find {path} -depth -type d -print -exec rmdir {{}} \\;",
                             shell=True,
                             stdout=subprocess.PIPE,
                         )
@@ -279,7 +279,7 @@ def wrapper_main(args, args_loader=None):
                 # set d2 label to user agent, this has to be performed before creation of ODPS entrance
                 ua_parts = [
                     options.user_agent_pattern,
-                    "Python%d-DW" % sys.version_info[0],
+                    f"Python{sys.version_info[0]}-DW",
                 ]
                 if "SKYNET_ID" in os.environ:
                     ua_parts.append("SKYNET-ID-" + os.environ["SKYNET_ID"])
@@ -342,8 +342,7 @@ def wrapper_main(args, args_loader=None):
             args.biz_id = os.environ.pop("biz_id", None)
             pyver_str = "%s.%s" % tuple(sys.version_info[:2])
             print(
-                "Executing user script with PyODPS %s(W) under Python %s"
-                % (pyodps_version, pyver_str)
+                f"Executing user script with PyODPS {pyodps_version}(W) under Python {pyver_str}"
             )
             return_code = call_in_process(args, odps)
         if sign_server:

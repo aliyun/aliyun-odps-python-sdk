@@ -82,7 +82,7 @@ class McqaV2Methods(object):
         conn_header = maxqa_quota.mcqa_conn_header
         if conn_header is None:
             raise errors.ODPSError(
-                "x-odps-mcqa-conn not available with quota %s" % maxqa_quota._name(),
+                f"x-odps-mcqa-conn not available with quota {maxqa_quota._name()}",
                 request_id=maxqa_quota._last_reload_request_id,
             )
         return MCQAConnectionInfo(

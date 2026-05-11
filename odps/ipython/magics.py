@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,12 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import io
 import logging
 import time
 
 from .. import ODPS, options
 from .. import types as odps_types
-from ..compat import StringIO, six
 from ..df import DataFrame, Delay, NullScalar, Scalar
 from ..df.backends.frame import ResultFrame
 from ..df.backends.odpssql.types import odps_schema_to_df_schema, odps_type_to_df_type
@@ -175,7 +175,7 @@ else:
                     if sql is None:
                         sql = s
                     else:
-                        sql = "%s;%s" % (sql, s)
+                        sql = f"{sql};{s}"
 
             # replace user defined parameters
             sql = replace_sql_parameters(sql, self.shell.user_ns)
@@ -207,7 +207,7 @@ else:
                     if inst_progress is not None and len(inst_progress.tasks) > 0:
                         percent = sum(
                             self._get_task_percent(task)
-                            for task in six.itervalues(inst_progress.tasks)
+                            for task in inst_progress.tasks.values()
                         ) / len(inst_progress.tasks)
                     else:
                         percent = 0
@@ -245,7 +245,7 @@ else:
                                 )
                             else:
                                 try:
-                                    res = pd.read_csv(StringIO(reader.raw))
+                                    res = pd.read_csv(io.StringIO(reader.raw))
                                     if len(res.values) > 0:
                                         schema = DataFrame(res).schema
                                     else:
@@ -312,7 +312,7 @@ else:
             if self._odps.exist_table(
                 table_name, project=project_name, schema=schema_name
             ):
-                raise TypeError("%s already exists" % table_name)
+                raise TypeError(f"{table_name} already exists")
 
             if isinstance(frame, DataFrame):
                 frame.persist(

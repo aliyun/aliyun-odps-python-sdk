@@ -21,7 +21,6 @@ from ..expr.expressions import SequenceExpr, Column, CollectionExpr
 from ..expr.groupby import SequenceGroupBy
 from ..utils import output
 from .. import types
-from ...compat import six
 
 
 path = os.path.dirname(os.path.abspath(__file__))
@@ -49,7 +48,7 @@ def hll_count(expr, error_rate=0.01, splitter=None):
     # to make the class pickled right by the cloudpickle
     with open(os.path.join(path, 'lib', 'hll.py')) as hll_file:
         local = {}
-        six.exec_(hll_file.read(), local)
+        exec(hll_file.read(), local)
         HyperLogLog = local['HyperLogLog']
 
         return expr.agg(HyperLogLog, rtype=types.int64, args=(error_rate, splitter))
@@ -85,7 +84,7 @@ def bloomfilter(collection, on, column, capacity=3000, error_rate=0.01):
     # to make the class pickled right by the cloudpickle
     with open(os.path.join(path, 'lib', 'bloomfilter.py')) as bloomfilter_file:
         local = {}
-        six.exec_(bloomfilter_file.read(), local)
+        exec(bloomfilter_file.read(), local)
         BloomFilter = local['BloomFilter']
 
         col_name = column.source_name or column.name

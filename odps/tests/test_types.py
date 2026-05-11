@@ -72,7 +72,7 @@ def test_nullable_record():
         col_types.extend(["interval_day_time", "timestamp", "timestamp_ntz"])
 
     s = TableSchema.from_lists(
-        ["col%s" % i for i in range(len(col_types))],
+        [f"col{i}" for i in range(len(col_types))],
         col_types,
     )
     s.build_snapshot()
@@ -104,7 +104,7 @@ def test_record_max_field_size():
 @py_and_c_deco
 def test_record_set_and_get_by_index():
     s = TableSchema.from_lists(
-        ["col%s" % i for i in range(10)],
+        [f"col{i}" for i in range(10)],
         [
             "bigint",
             "double",
@@ -163,7 +163,7 @@ def test_record_set_and_get_by_index():
 @py_and_c_deco
 def test_record_set_and_get_by_name():
     s = TableSchema.from_lists(
-        ["col%s" % i for i in range(9)],
+        [f"col{i}" for i in range(9)],
         [
             "bigint",
             "double",
@@ -446,15 +446,15 @@ def test_schema_cases():
 
 @py_and_c_deco
 def test_chinese_schema():
-    s = TableSchema.from_lists([u"用户"], ["string"], ["分区"], ["bigint"])
+    s = TableSchema.from_lists(["用户"], ["string"], ["分区"], ["bigint"])
     s.build_snapshot()
     assert "用户" in s
     assert s.get_column("用户").type.name == "string"
-    assert s.get_partition(u"分区").type.name == "bigint"
+    assert s.get_partition("分区").type.name == "bigint"
     assert s["用户"].type.name == "string"
-    assert s[u"分区"].type.name == "bigint"
+    assert s["分区"].type.name == "bigint"
 
-    s2 = TableSchema.from_lists(["用户"], ["string"], [u"分区"], ["bigint"])
+    s2 = TableSchema.from_lists(["用户"], ["string"], ["分区"], ["bigint"])
     s2.build_snapshot()
     assert s == s2
 
@@ -478,7 +478,7 @@ def test_string_as_binary():
         assert r["col1", "col2"] == [b"1", 2]
         assert isinstance(r[0], bytes)
 
-        r[0] = u"junk"
+        r[0] = "junk"
         assert r[0] == b"junk"
         assert isinstance(r[0], bytes)
 

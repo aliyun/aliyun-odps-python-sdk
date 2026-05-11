@@ -32,7 +32,7 @@ Or from source code (not recommended for production use):
 Dependencies
 ------------
 
-- Python (>=2.7), including Python 3+, pypy, Python 3.7 recommended
+- Python (>=3.7), pypy, Python 3.11 recommended
 - setuptools (>=3.0)
 
 Run Tests
@@ -145,7 +145,7 @@ source:
 
    git clone https://github.com/aliyun/aliyun-odps-python-sdk.git
    cd pyodps
-   pip install -r requirements.txt -e .
+   pip install -e .
 
 License
 -------

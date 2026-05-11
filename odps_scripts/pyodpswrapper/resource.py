@@ -192,7 +192,7 @@ def load_resource_package(name, odps_entry, project=None, supersede=True):
 
     if not is_wheel:
         logger.warning(
-            "Package %s loaded from MaxCompute resource. "
-            "Note that non-wheel packages might not function as expected." % name
+            f"Package {name} loaded from MaxCompute resource. "
+            "Note that non-wheel packages might not function as expected."
         )
     return [p for p in sys.path if p not in old_paths]

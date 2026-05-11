@@ -14,14 +14,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import io
 import tokenize
 import ast
 import operator
 from collections import OrderedDict
+from functools import reduce
 
 from . import element as ele
-from .expressions import Expr, ExpressionError
-from ...compat import reduce, StringIO
+from .expressions import Expr
+from .errors import ExpressionError
 
 LOCAL_TAG = '_local_var_'
 
@@ -71,7 +73,7 @@ class ExprVisitor(ast.NodeVisitor):
         self.env = env
 
     def _preparse(self, expr):
-        reader = StringIO(expr).readline
+        reader = io.StringIO(expr).readline
         return tokenize.untokenize(list(_tokenize_str(reader)))
 
     def eval(self, expr, rewrite=True):

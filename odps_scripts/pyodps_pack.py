@@ -555,7 +555,7 @@ def _makedirs(name, mode=0o777, exist_ok=False):
 
 
 def _to_unix(s):
-    if isinstance(s, unicode):
+    if isinstance(s, str):
         s = s.encode()
     return s.replace(b"\r\n", b"\n")
 
@@ -774,7 +774,7 @@ def _create_temp_work_dir(
         if tmp_path and os.path.exists(tmp_path):
             if _is_windows:
                 # permission error may occur when using shutil.rmtree in Windows.
-                os.system("rd /s /q \"" + tmp_path + "\"")
+                os.system('rd /s /q "' + tmp_path + '"')
             else:
                 shutil.rmtree(tmp_path)
             if os.path.exists(tmp_path):
@@ -1006,7 +1006,7 @@ def _rewrite_minikube_command(docker_cmd, done_timeout=10):
                 break
             try:
                 line_str = line.decode("utf-8").rstrip()
-                logger.debug(u"Output of minikube mount: %s", line_str)
+                logger.debug("Output of minikube mount: %s", line_str)
             except:
                 logger.debug("Output of minikube mount: %r", line)
             if b"mounted" in line:

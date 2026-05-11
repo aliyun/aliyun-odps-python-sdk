@@ -19,6 +19,7 @@ import itertools
 import logging
 import multiprocessing
 import os
+import queue
 import socket
 import struct
 import sys
@@ -26,7 +27,9 @@ import threading
 import uuid
 import warnings
 from collections import OrderedDict, defaultdict
-from types import GeneratorType, MethodType
+from collections.abc import Iterable
+from concurrent.futures import ThreadPoolExecutor
+from types import GeneratorType
 
 try:
     import pyarrow as pa
@@ -40,7 +43,6 @@ except ImportError:
 from .. import errors
 from .. import types as odps_types
 from .. import utils
-from ..compat import Iterable, futures, six
 from ..config import options
 from ..dag import DAG
 from ..lib import cloudpickle
@@ -56,34 +58,12 @@ _SERVER_ERROR_CMD = 0xFD
 _STOP_SERVER_CMD = 0xFE
 
 
-if sys.version_info[0] == 2:
-    _ord_if_possible = ord
+def _ord_if_possible(x):
+    return x
 
-    def _load_classmethod(cls, func_name):
-        return getattr(cls, func_name)
 
-    class InstanceMethodWrapper(object):
-        """Trick for classmethods under Python 2.7 to be pickleable"""
-
-        def __init__(self, func):
-            assert isinstance(func, MethodType)
-            assert isinstance(func.im_self, type)
-            self._func = func
-
-        def __call__(self, *args, **kw):
-            return self._func()
-
-        def __reduce__(self):
-            return _load_classmethod, (self._func.im_self, self._func.im_func.__name__)
-
-    _wrap_classmethod = InstanceMethodWrapper
-else:
-
-    def _ord_if_possible(x):
-        return x
-
-    def _wrap_classmethod(x):
-        return x
+def _wrap_classmethod(x):
+    return x
 
 
 class SpawnedTableReaderMixin(object):
@@ -258,9 +238,7 @@ class MPBlockServer(object):
                     (count,) = struct.unpack("<H", data[pos : pos + 2])
                     pos += 2
                     assert 4 * count < len(data), "Data too short for block count"
-                    block_ids = struct.unpack(
-                        "<%dI" % count, data[pos : pos + 4 * count]
-                    )
+                    block_ids = struct.unpack(f"<{count}I", data[pos : pos + 4 * count])
                     blocks_queue.put(block_ids)
                     self._sock.sendto(struct.pack("<B", _PUT_WRITTEN_BLOCKS_CMD), addr)
                 elif cmd_code == _STOP_SERVER_CMD:
@@ -269,7 +247,7 @@ class MPBlockServer(object):
                     ), "Cannot stop server from other hosts"
                     break
                 else:  # pragma: no cover
-                    raise AssertionError("Unrecognized command %x", cmd_code)
+                    raise AssertionError(f"Unrecognized command {cmd_code:x}")
             except BaseException:
                 pk_exc_info = cloudpickle.dumps(sys.exc_info())
                 data = (
@@ -325,7 +303,7 @@ class MPBlockClient(object):
             return
         (pk_len,) = struct.unpack("<I", recv_data[1:5])
         exc_info = cloudpickle.loads(recv_data[5 : 5 + pk_len])
-        six.reraise(*exc_info)
+        raise exc_info[1].with_traceback(exc_info[2])
 
     def get_next_block_id(self):
         sock = self._get_socket()
@@ -346,7 +324,7 @@ class MPBlockClient(object):
                 self._authkey
                 + struct.pack("<B", _PUT_WRITTEN_BLOCKS_CMD)
                 + struct.pack("<H", len(sub_block_ids))
-                + struct.pack("<%dI" % len(sub_block_ids), *sub_block_ids)
+                + struct.pack(f"<{len(sub_block_ids)}I", *sub_block_ids)
             )
             sock.sendto(data, self._addr)
             recv_data, server_addr = sock.recvfrom(1024)
@@ -456,7 +434,7 @@ class AbstractTableWriter(object):
         self._mp_server = MPBlockServer(self)
         self._mp_server.start()
         # replace mp queue with ordinary queue
-        self._used_block_id_queue = six.moves.queue.Queue()
+        self._used_block_id_queue = queue.Queue()
 
     def __reduce__(self):
         rest_client = self._table._client
@@ -528,7 +506,7 @@ class AbstractTableWriter(object):
 
         block_id = kwargs.get("block_id")
         if block_id is None:
-            if type(args[0]) in six.integer_types:
+            if isinstance(args[0], int):
                 block_id = args[0]
                 args = args[1:]
             else:
@@ -640,7 +618,7 @@ class ToRecordsMixin(object):
         elif isinstance(arg, GeneratorType):
             try:
                 # peek the first element and then put back
-                next_arg = six.next(arg)
+                next_arg = next(arg)
                 chained = itertools.chain((next_arg,), arg)
                 return convert_records(chained, next_arg)
             except StopIteration:
@@ -759,10 +737,10 @@ class TableUpsertWriter(ToRecordsMixin):
 class TableIOMethods(object):
     @classmethod
     def _get_table_obj(cls, odps, name, project=None, schema=None):
-        if isinstance(name, six.string_types) and "." in name:
+        if isinstance(name, str) and "." in name:
             project, schema, name = odps._split_object_dots(name)
 
-        if not isinstance(name, six.string_types):
+        if not isinstance(name, str):
             if name.get_schema():
                 schema = name.get_schema().name
             project, name = name.project.name, name.name
@@ -946,17 +924,17 @@ class TableIOMethods(object):
         if not partition_cols and not partition:
             if table_schema.partitions:
                 raise ValueError(
-                    "Partition spec is required for table %s with partitions, "
+                    f"Partition spec is required for table {table_name} with partitions, "
                     "please specify a partition with `partition` argument or "
                     "specify a list of columns with `partition_cols` argument "
-                    "to enable dynamic partitioning." % table_name
+                    "to enable dynamic partitioning."
                 )
             return partition_cols
         else:
             if not table_schema.partitions:
                 raise ValueError(
-                    "Cannot store into a non-partitioned table %s when `partition` "
-                    "or `partition_cols` is specified." % table_name
+                    f"Cannot store into a non-partitioned table {table_name} when `partition` "
+                    "or `partition_cols` is specified."
                 )
             all_parts = (
                 [n.lower() for n in odps_types.PartitionSpec(partition).keys()]
@@ -970,14 +948,14 @@ class TableIOMethods(object):
             no_exist_parts = req_all_parts_set - set(table_all_parts)
             if no_exist_parts:
                 raise ValueError(
-                    "Partitions %s are not in table %s whose partitions are (%s)."
-                    % (sorted(no_exist_parts), table_name, table_all_parts)
+                    f"Partitions {sorted(no_exist_parts)} are not in table {table_name} "
+                    f"whose partitions are ({table_all_parts})."
                 )
             no_specified_parts = set(table_all_parts) - req_all_parts_set
             if no_specified_parts:
                 raise ValueError(
-                    "Partitions %s in table %s are not specified in `partition_cols` or "
-                    "`partition` argument." % (sorted(no_specified_parts), table_name)
+                    f"Partitions {sorted(no_specified_parts)} in table {table_name} "
+                    "are not specified in `partition_cols` or `partition` argument."
                 )
             return partition_cols
 
@@ -1131,8 +1109,8 @@ class TableIOMethods(object):
                     )
                     if len(data) != len(input_schema):
                         raise ValueError(
-                            "Need to specify %d values when writing table "
-                            "with dynamic partition." % len(input_schema)
+                            f"Need to specify {len(input_schema)} values when writing table "
+                            "with dynamic partition."
                         )
                 data = Record(schema=input_schema, values=data)
 
@@ -1159,9 +1137,7 @@ class TableIOMethods(object):
                     Record(schema=table_schema, values=values)
                 )
             else:
-                raise ValueError(
-                    "Cannot accept data with type %s" % type(data).__name__
-                )
+                raise ValueError(f"Cannot accept data with type {type(data).__name__}")
         return parted_data
 
     @classmethod
@@ -1189,7 +1165,7 @@ class TableIOMethods(object):
             return
 
         futs = []
-        pool = futures.ThreadPoolExecutor(n_threads)
+        pool = ThreadPoolExecutor(n_threads)
         assert group_rows is not None
         if pd and isinstance(data, pd.DataFrame):
             splits = [
@@ -1337,7 +1313,7 @@ class TableIOMethods(object):
         if lifecycle:
             table_kwargs["lifecycle"] = lifecycle
 
-        if isinstance(partition_cols, six.string_types):
+        if isinstance(partition_cols, str):
             partition_cols = [partition_cols]
 
         try:
@@ -1360,8 +1336,8 @@ class TableIOMethods(object):
         if not odps.exist_table(name, project=project, schema=schema):
             if not create_table:
                 raise errors.NoSuchTable(
-                    "Target table %s not exist. To create a new table "
-                    "you can add an argument `create_table=True`." % name
+                    f"Target table {name} not exist. To create a new table "
+                    "you can add an argument `create_table=True`."
                 )
             if callable(table_schema_callback):
                 table_schema = table_schema_callback(table_schema)
@@ -1415,7 +1391,7 @@ class TableIOMethods(object):
             ).items():
                 data_lists[key][block].extend(parted_data)
 
-        if partition is None or isinstance(partition, six.string_types):
+        if partition is None or isinstance(partition, str):
             partition_str = partition
         else:
             partition_str = str(odps_types.PartitionSpec(partition))
@@ -1523,7 +1499,7 @@ class TableIOMethods(object):
             be passed through to execute_sql method
         """
         partition_cols = partition_cols or kwargs.pop("partitions", None)
-        if isinstance(partition_cols, six.string_types):
+        if isinstance(partition_cols, str):
             partition_cols = [partition_cols]
 
         temp_table_name = "_".join(
@@ -1575,8 +1551,7 @@ class TableIOMethods(object):
         if not odps.exist_table(table_name, project=project, schema=schema):
             if not create_table:
                 raise ValueError(
-                    "Table %s does not exist and create_table is set to False."
-                    % table_name
+                    f"Table {table_name} does not exist and create_table is set to False."
                 )
             elif (
                 not partition
@@ -1589,7 +1564,7 @@ class TableIOMethods(object):
                 if not lifecycle:
                     lifecycle_clause = ""
                 else:
-                    lifecycle_clause = "LIFECYCLE %d " % lifecycle
+                    lifecycle_clause = f"LIFECYCLE {lifecycle} "
                 sql_stmt = _format_raw_sql(
                     "CREATE TABLE %s %sAS %s",
                     (utils.backquote_string(table_name), lifecycle_clause, sql),
@@ -1678,8 +1653,8 @@ class TableIOMethods(object):
                     target_table.create_partition(static_part_spec)
                 else:
                     raise ValueError(
-                        "Partition %s does not exist and create_partition is set to False."
-                        % static_part_spec
+                        f"Partition {static_part_spec} does not exist and "
+                        "create_partition is set to False."
                     )
 
             all_parts, part_specs, dyn_parts = [], [], []
@@ -1699,8 +1674,7 @@ class TableIOMethods(object):
                         continue
                     else:
                         raise ValueError(
-                            "Partition column %s does not exist in source query."
-                            % col.name
+                            f"Partition column {col.name} does not exist in source query."
                         )
                 else:
                     has_dyn_parts = True
@@ -1711,7 +1685,7 @@ class TableIOMethods(object):
             if not part_specs:
                 part_clause = ""
             else:
-                part_clause = "PARTITION (%s) " % ", ".join(part_specs)
+                part_clause = f"PARTITION ({', '.join(part_specs)}) "
 
             if overwrite:
                 insert_mode = "INTO"
@@ -1738,7 +1712,7 @@ class TableIOMethods(object):
                         col: (
                             v
                             if col not in generated_cols
-                            else "%s AS %s" % (v, utils.backquote_string(col))
+                            else f"{v} AS {utils.backquote_string(col)}"
                         )
                         for col, v in part_expr_map.items()
                     }
@@ -1756,7 +1730,7 @@ class TableIOMethods(object):
                     with distinct_inst.open_reader(tunnel=True) as reader:
                         for row in reader:
                             local_part_specs = [
-                                "%s='%s'" % (c, utils.escape_odps_string(row[c]))
+                                f"{c}='{utils.escape_odps_string(row[c])}'"
                                 if c in row
                                 else c
                                 for c in all_parts

@@ -37,13 +37,12 @@ from ..seahawks.models import SeahawksTable
 
 def assertPandasEqual(df1, df2):
     from .... import types as o_types
-    from ....compat import six
 
     from pandas.testing import assert_frame_equal
 
     # compare column types
     def get_odps_type(p_type):
-        for data_type, builtin_type in six.iteritems(o_types._odps_primitive_to_builtin_types):
+        for data_type, builtin_type in o_types._odps_primitive_to_builtin_types.items():
             if issubclass(p_type.type, builtin_type):
                 return data_type
 

@@ -14,13 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import absolute_import
-
 import itertools
 import weakref
 from collections import deque, defaultdict, OrderedDict
+from collections.abc import Iterable
 
-from ...compat import six, Iterable
 from ...dag import DAG, Queue
 from . import utils
 
@@ -56,7 +54,7 @@ class NodeMetaclass(type):
         return super(NodeMetaclass, self).__instancecheck__(instance)
 
 
-class Node(six.with_metaclass(NodeMetaclass)):
+class Node(metaclass=NodeMetaclass):
     __slots__ = '_args_indexes', '__weakref__'
     _args = ()  # the child(ren) of the current node
     _extra_args = ()
@@ -70,7 +68,7 @@ class Node(six.with_metaclass(NodeMetaclass)):
         for arg, value in zip(self._args, args):
             setattr(self, arg, value)
 
-        for key, value in six.iteritems(kwargs):
+        for key, value in kwargs.items():
             setattr(self, key, value)
 
     @property
@@ -381,7 +379,7 @@ def _extract_df_inputs(o):
     if isinstance(o, Node):
         yield o
     elif isinstance(o, dict):
-        for v in itertools.chain(*(_extract_df_inputs(dv) for dv in six.itervalues(o))):
+        for v in itertools.chain(*(_extract_df_inputs(dv) for dv in o.values())):
             if v is not None:
                 yield v
     elif isinstance(o, (list, set, tuple)):
@@ -482,7 +480,7 @@ class ExprDAG(DAG):
 
     def prune(self):
         while True:
-            nodes = [n for n, succ in six.iteritems(self._graph) if len(succ) == 0]
+            nodes = [n for n, succ in self._graph.items() if len(succ) == 0]
             if len(nodes) == 1 and nodes[0] is self.root:
                 break
             for node in nodes:
@@ -559,11 +557,6 @@ class ExprDictionary(dict):
             return d
         return dict.get(self, self._ref(k), d)
 
-    def has_key(self, k):
-        if k is None:
-            return False
-        return dict.has_key(self, self._ref(k))
-
     def pop(self, k, d=None):
         if k is None:
             return False
@@ -588,28 +581,18 @@ class ExprDictionary(dict):
             for k, v in E:
                 self[k] = v
         else:
-            for k, v in six.iteritems(F):
+            for k, v in F.items():
                 self[k] = v
 
-    if six.PY2:
-        def items(self):
-            return [(k(), v) for k, v in dict.items(self)]
+    # Python 3 uses native dict methods
+    def items(self):
+        for k, v in dict.items(self):
+            yield k(), v
 
-        def keys(self):
-            return [k() for k in dict.keys(self)]
+    def keys(self):
+        for k in dict.keys(self):
+            yield k()
 
-        def iteritems(self):
-            for k, v in dict.iteritems(self):
-                yield k(), v
-
-        def iterkeys(self):
-            for k in dict.iterkeys(self):
-                yield k()
-    else:
-        def items(self):
-            for k, v in dict.items(self):
-                yield k(), v
-
-        def keys(self):
-            for k in dict.keys(self):
-                yield k()
+    def values(self):
+        for v in dict.values(self):
+            yield v

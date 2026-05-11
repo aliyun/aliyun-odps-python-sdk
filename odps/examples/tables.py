@@ -1,5 +1,5 @@
 # encoding: utf-8
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,13 +13,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import functools
 import gzip
 import os
+import pickle
 import warnings
 from collections import OrderedDict
 from itertools import groupby, product
+from urllib.request import urlretrieve
 
-from ..compat import pickle, six, urlretrieve
 from ..tunnel import TableTunnel
 from ..utils import build_pyodps_dir, load_static_text_file
 
@@ -36,7 +38,7 @@ def table_creator(func):
     Decorator for table creating method
     """
 
-    @six.wraps(func)
+    @functools.wraps(func)
     def method(self, table_name, **kwargs):
         if self.odps.exist_table(table_name):
             table = self.odps.get_table(table_name)
@@ -63,7 +65,7 @@ Simple DataFrames
 def create_ionosphere(odps, table_name, tunnel=None, project=None):
     if tunnel is None:
         tunnel = TableTunnel(odps, project=project)
-    fields = ",".join("a%02d double" % i for i in range(1, 35)) + ", class bigint"
+    fields = ",".join(f"a{i:02d} double" for i in range(1, 35)) + ", class bigint"
     odps.delete_table(table_name, if_exists=True, project=project)
     odps.create_table(table_name, fields, project=project)
 
@@ -88,18 +90,17 @@ def create_ionosphere_one_part(
 ):
     if tunnel is None:
         tunnel = TableTunnel(odps, project=project)
-    fields = ",".join("a%02d double" % i for i in range(1, 35)) + ", class bigint"
+    fields = ",".join(f"a{i:02d} double" for i in range(1, 35)) + ", class bigint"
     odps.delete_table(table_name, if_exists=True, project=project)
     odps.create_table(table_name, (fields, "part bigint"), project=project)
     for part_id in range(partition_count):
         odps.execute_sql(
-            "alter table %s add if not exists partition (part=%d)"
-            % (table_name, part_id),
+            f"alter table {table_name} add if not exists partition (part={part_id})",
             project=project,
         )
 
     upload_sses = [
-        tunnel.create_upload_session(table_name, "part=%d" % part_id)
+        tunnel.create_upload_session(table_name, f"part={part_id}")
         for part_id in range(partition_count)
     ]
     writers = [session.open_record_writer(0) for session in upload_sses]
@@ -126,7 +127,7 @@ def create_ionosphere_two_parts(
 ):
     if tunnel is None:
         tunnel = TableTunnel(odps, project=project)
-    fields = ",".join("a%02d double" % i for i in range(1, 35)) + ", class bigint"
+    fields = ",".join(f"a{i:02d} double" for i in range(1, 35)) + ", class bigint"
     odps.delete_table(table_name, if_exists=True, project=project)
     odps.create_table(
         table_name, (fields, "part1 bigint, part2 bigint"), project=project
@@ -140,7 +141,7 @@ def create_ionosphere_two_parts(
 
     upload_sses = [
         [
-            tunnel.create_upload_session(table_name, "part1=%d,part2=%d" % (id1, id2))
+            tunnel.create_upload_session(table_name, f"part1={id1},part2={id2}")
             for id2 in range(partition2_count)
         ]
         for id1 in range(partition1_count)
@@ -207,9 +208,7 @@ def create_iris_kv(odps, table_name, tunnel=None, project=None):
     for line in load_static_text_file("data/iris.txt").splitlines():
         rec = upload_ss.new_record()
         line_parts = line.split(",")
-        rec.set(
-            0, ",".join("%s:%s" % (idx, c) for idx, c in enumerate(line_parts[:-1]))
-        )
+        rec.set(0, ",".join(f"{idx}:{c}" for idx, c in enumerate(line_parts[:-1])))
         rec.set(1, 0 if "setosa" in line_parts[-1] else 1)
         writer.write(rec)
     writer.close()
@@ -504,19 +503,17 @@ def create_user_item_table(odps, table_name, tunnel=None, mode=None, project=Non
         ):
             items[k] = {k2: 1 for k2 in set(it2[1] for it2 in g1)}
         products = set(it[1] for it in data_rows)
-        for k, g in six.iteritems(items):
-            unexist_set = products - set(six.iterkeys(g))
+        for k, g in items.items():
+            unexist_set = products - set(g.keys())
             for it in unexist_set:
                 g[it] = 0
-        data_rows = [
-            (u, p, l) for u, ud in six.iteritems(items) for p, l in six.iteritems(ud)
-        ]
+        data_rows = [(u, p, l) for u, ud in items.items() for p, l in ud.items()]
         odps.create_table(
             table_name, "user string, item string, label bigint", project=project
         )
     elif mode == "kv":
         data_rows = [
-            (k[0], "{0}:{1}".format(k[1], len(list(p))))
+            (k[0], f"{k[1]}:{len(list(p))}")
             for k, p in groupby(
                 sorted(data_rows, key=lambda item: (item[0], item[1])),
                 lambda item: (item[0], item[1]),
@@ -552,9 +549,7 @@ def create_dow_jones(odps, table_name, tunnel=None, project=None):
     field_types["quarter"] = "bigint"
     field_types["stock"] = "string"
     field_types["date"] = "string"
-    fields_str = ",".join(
-        "`{0}` {1}".format(k, v) for k, v in six.iteritems(field_types)
-    )
+    fields_str = ",".join(f"`{k}` {v}" for k, v in field_types.items())
 
     odps.delete_table(table_name, if_exists=True, project=project)
     odps.create_table(table_name, fields_str, project=project)
@@ -613,8 +608,8 @@ def create_mnist_table(odps, table_name, part_id=0, tunnel=None, project=None):
 
     for feature, label in zip(train_data[0], train_data[1]):
         rec = upload_ss.new_record()
-        rec.set(0, six.text_type(",".join(str(n) for n in feature)))
-        rec.set(1, six.text_type(label))
+        rec.set(0, str(",".join(str(n) for n in feature)))
+        rec.set(1, str(label))
         writer.write(rec)
 
     writer.close()

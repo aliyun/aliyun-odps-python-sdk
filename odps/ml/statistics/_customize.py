@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import io
 import json
 from collections import namedtuple
 from functools import partial
@@ -20,7 +21,6 @@ from functools import partial
 from ..expr.exporters import get_ml_input
 from ..utils import parse_hist_repr
 from ... import utils
-from ...compat import StringIO, six
 from ...df import DataFrame
 
 try:
@@ -72,14 +72,14 @@ class TTestResult(object):
 
         self._items = set()
 
-        for k, v in six.iteritems(convs):
+        for k, v in convs.items():
             if v in result:
                 setattr(self, k, result[v])
                 self._items.add(k)
 
         if result.get('comment'):
             comm_values = json.loads('{' + result.get('comment') + '}')
-            for k, v in six.iteritems(convs_comment):
+            for k, v in convs_comment.items():
                 if v in comm_values:
                     setattr(self, k, comm_values[v])
                     self._items.add(k)
@@ -89,14 +89,14 @@ class TTestResult(object):
         self._convs = convs
 
     def __repr__(self):
-        buf = StringIO()
+        buf = io.StringIO()
         space = 2 * max(len(it) for it in self._items)
         for name in self._items:
             buf.write('\n{0}{1}'.format(name.ljust(space), repr(getattr(self, name))))
         return 'TTestResult {{{0}\n}}'.format(utils.indent(buf.getvalue(), 2))
 
     def _repr_html_(self):
-        buf = StringIO()
+        buf = io.StringIO()
         buf.write('<table><tr><th>Field</th><th>Name</th><th>Value</th></tr>')
         for name in self._items:
             buf.write('<tr><td>{0}</td><td>{1}</td><td>{2}</td></tr>'.format(name, self._convs[name], getattr(self, name)))

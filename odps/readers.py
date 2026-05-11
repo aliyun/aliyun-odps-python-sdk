@@ -16,15 +16,187 @@
 
 import copy
 import csv
+import io
 import itertools
 import math
 from collections import OrderedDict
+from collections.abc import Iterator
 
 from requests import Response
 
-from . import compat, options, types, utils
-from .compat import StringIO, six
+from . import options, types, utils
 from .models.record import Record
+
+
+def _split_at_depth(s, delimiter, max_splits=None):
+    """
+    Split a string at the given delimiter, but only when at bracket depth 0
+    and not inside quotes.
+    """
+    depth = 0
+    in_quote = None  # None, '"', or "'"
+    escape = False
+    start = 0
+    splits = 0
+
+    for i, ch in enumerate(s):
+        if escape:
+            escape = False
+            continue
+        if ch == "\\":
+            escape = True
+            continue
+        if in_quote:
+            if ch == in_quote:
+                in_quote = None
+            continue
+        if ch in ('"', "'"):
+            in_quote = ch
+            continue
+        if ch in ("{", "["):
+            depth += 1
+            continue
+        if ch in ("}", "]"):
+            depth -= 1
+            continue
+        if ch == delimiter and depth == 0:
+            yield s[start:i]
+            start = i + 1
+            splits += 1
+            if max_splits is not None and splits >= max_splits:
+                break
+    yield s[start:]
+
+
+_COMPOSITE_TYPES = (types.Array, types.Map, types.Struct)
+
+
+def _is_composite_type(data_type):
+    return isinstance(data_type, _COMPOSITE_TYPES)
+
+
+def _unquote_value(s):
+    """Strip surrounding quotes from a value and unescape inner content."""
+    if len(s) >= 2 and s[0] in ('"', "'") and s[-1] == s[0]:
+        inner = s[1:-1]
+    else:
+        inner = s
+    # unescape: \" -> " and \' -> '
+    return inner.replace('\\"', '"').replace("\\'", "'")
+
+
+def parse_complex_value(value_str, data_type, keep_strings=False):
+    """
+    Parse a string representation of a complex ODPS type value into a Python object.
+
+    Supports nested Map, Array, and Struct types with correct handling of
+    bracket depth and quoting.
+    """
+    if isinstance(data_type, types.Array):
+        return _parse_array(value_str, data_type, keep_strings=keep_strings)
+    elif isinstance(data_type, types.Map):
+        return _parse_map(value_str, data_type, keep_strings=keep_strings)
+    elif isinstance(data_type, types.Struct):
+        return _parse_struct(value_str, data_type, keep_strings=keep_strings)
+    else:
+        raise ValueError(f"Unsupported complex type: {data_type}")
+
+
+def _cast_primitive(part, data_type, keep_strings):
+    """Cast a primitive value string based on the keep_strings mode."""
+    part = _unquote_value(part)
+    if keep_strings:
+        return data_type.cast_value(part, types.string)
+    else:
+        return types.validate_value(part, data_type)
+
+
+def _parse_array(value_str, data_type, keep_strings=False):
+    if not (value_str.startswith("[") and value_str.endswith("]")):
+        raise ValueError(f"Array format error: {value_str}")
+    inner = value_str[1:-1].strip()
+    if not inner:
+        return []
+    element_type = data_type.value_type
+    items = []
+    for part in _split_at_depth(inner, ","):
+        part = part.strip()
+        if part == CsvRecordReader.NULL_TOKEN:
+            items.append(None)
+        elif _is_composite_type(element_type):
+            items.append(
+                parse_complex_value(part, element_type, keep_strings=keep_strings)
+            )
+        else:
+            items.append(_cast_primitive(part, element_type, keep_strings))
+    return items
+
+
+def _parse_map(value_str, data_type, keep_strings=False):
+    if not (value_str.startswith("{") and value_str.endswith("}")):
+        raise ValueError(f"Map format error: {value_str}")
+    inner = value_str[1:-1].strip()
+    if not inner:
+        return OrderedDict()
+    key_type = data_type.key_type
+    value_type = data_type.value_type
+    items = []
+    for entry in _split_at_depth(inner, ","):
+        entry = entry.strip()
+        kv_parts = list(_split_at_depth(entry, ":", max_splits=1))
+        if len(kv_parts) != 2:
+            raise ValueError(f"Map entry format error: {entry}")
+        k_str, v_str = kv_parts[0].strip(), kv_parts[1].strip()
+
+        if _is_composite_type(key_type):
+            k = parse_complex_value(k_str, key_type, keep_strings=keep_strings)
+        else:
+            k = _cast_primitive(k_str, key_type, keep_strings)
+
+        if v_str == CsvRecordReader.NULL_TOKEN:
+            v = None
+        elif _is_composite_type(value_type):
+            v = parse_complex_value(v_str, value_type, keep_strings=keep_strings)
+        else:
+            v = _cast_primitive(v_str, value_type, keep_strings)
+
+        items.append((k, v))
+    return OrderedDict(items)
+
+
+def _parse_struct(value_str, data_type, keep_strings=False):
+    if not (value_str.startswith("{") and value_str.endswith("}")):
+        raise ValueError(f"Struct format error: {value_str}")
+    inner = value_str[1:-1].strip()
+    if not inner:
+        values = [None] * len(data_type.field_types)
+    else:
+        values = []
+        field_type_iter = iter(data_type.field_types.values())
+        for part in _split_at_depth(inner, ","):
+            part = part.strip()
+            # split field_name:value on first colon at depth 0
+            fv_parts = list(_split_at_depth(part, ":", max_splits=1))
+            if len(fv_parts) == 2:
+                v_str = fv_parts[1].strip()
+            else:
+                # no colon found, treat entire part as value
+                v_str = part
+
+            field_type = next(field_type_iter)
+
+            if v_str == CsvRecordReader.NULL_TOKEN:
+                values.append(None)
+            elif _is_composite_type(field_type):
+                values.append(
+                    parse_complex_value(v_str, field_type, keep_strings=keep_strings)
+                )
+            else:
+                values.append(_cast_primitive(v_str, field_type, keep_strings))
+    if data_type._struct_as_dict:
+        dict_hook = OrderedDict if data_type._use_ordered_dict else dict
+        return dict_hook(zip(data_type.field_types.keys(), values))
+    return data_type.namedtuple_type(*values)
 
 
 class AbstractRecordReader(object):
@@ -49,7 +221,7 @@ class AbstractRecordReader(object):
 
     @classmethod
     def _get_slice(cls, item):
-        if isinstance(item, six.integer_types):
+        if isinstance(item, int):
             start = item
             end = start + 1
             step = 1
@@ -70,15 +242,15 @@ class AbstractRecordReader(object):
             raise ValueError("start, count, or step cannot be negative")
 
         it = self._get_slice_iter(start=start, end=end, step=step)
-        if isinstance(item, six.integer_types):
+        if isinstance(item, int):
             try:
                 return next(it)
             except StopIteration:
-                raise IndexError("Index out of range: %s" % item)
+                raise IndexError(f"Index out of range: {item}")
         return it
 
     def _get_slice_iter(self, start=None, end=None, step=None):
-        class SliceIterator(six.Iterator):
+        class SliceIterator(Iterator):
             def __init__(self, it):
                 self.it = it
 
@@ -158,7 +330,7 @@ class AbstractRecordReader(object):
 
                 from .df.backends.pd.types import pd_to_df_schema
 
-                data = pd.read_csv(StringIO(self.raw))
+                data = pd.read_csv(io.StringIO(self.raw))
                 schema = kw["schema"] = pd_to_df_schema(
                     data, unknown_as_string=unknown_as_string, as_type=as_type
                 )
@@ -172,7 +344,7 @@ class AbstractRecordReader(object):
 
         if not kw:
             raise ValueError(
-                "Cannot convert to ResultFrame from %s." % type(self).__name__
+                f"Cannot convert to ResultFrame from {type(self).__name__}."
             )
 
         return ResultFrame(data, **kw)
@@ -201,7 +373,7 @@ class AbstractRecordReader(object):
             # data represented as raw csv: just skip iteration
             data = [r for r in self._iter(start=start, end=end, **iter_kw)]
         else:
-            offset_iter = itertools.cycle(compat.irange(read_row_batch_size))
+            offset_iter = itertools.cycle(range(read_row_batch_size))
             data = [None] * read_row_batch_size
             for offset, rec in zip(
                 offset_iter, self._iter(start=start, end=end, **iter_kw)
@@ -241,9 +413,6 @@ class CsvRecordReader(AbstractRecordReader):
     NULL_TOKEN = "\\N"
     BACK_SLASH_ESCAPE = "\\x%02x" % ord("\\")
     UNSUPPORTED_TYPES = (
-        types.Array,
-        types.Map,
-        types.Struct,
         types.Binary,
         types.Blob,
         types.Vector,
@@ -259,14 +428,14 @@ class CsvRecordReader(AbstractRecordReader):
         self._csv_columns = None
         self._fp = stream
         if isinstance(self._fp, Response):
-            self.raw = self._fp.content if six.PY2 else self._fp.text
+            self.raw = self._fp.text
         else:
             self.raw = self._fp
 
         if options.tunnel.string_as_binary:
-            self._csv = csv.reader(six.StringIO(self._escape_csv_bin(self.raw)))
+            self._csv = csv.reader(io.StringIO(self._escape_csv_bin(self.raw)))
         else:
-            self._csv = csv.reader(six.StringIO(self._escape_csv(self.raw)))
+            self._csv = csv.reader(io.StringIO(self._escape_csv(self.raw)))
 
         self._filtered_col_names = (
             set(x.lower() for x in kwargs["columns"]) if "columns" in kwargs else None
@@ -326,11 +495,31 @@ class CsvRecordReader(AbstractRecordReader):
         return [cast_value(i, unescape_csv(v)) for i, v in enumerate(values)]
 
     @classmethod
+    def _contains_unsupported_type(cls, col_type):
+        """Check whether a type (or any of its nested element types) is unsupported."""
+        if isinstance(col_type, cls.UNSUPPORTED_TYPES):
+            return True
+        if isinstance(col_type, types.Array):
+            return cls._contains_unsupported_type(col_type.value_type)
+        if isinstance(col_type, types.Map):
+            return cls._contains_unsupported_type(
+                col_type.key_type
+            ) or cls._contains_unsupported_type(col_type.value_type)
+        if isinstance(col_type, types.Struct):
+            return any(
+                cls._contains_unsupported_type(ft)
+                for ft in col_type.field_types.values()
+            )
+        return False
+
+    @classmethod
     def _get_caster(cls, col_type):
         if col_type == types.boolean:
             return utils.str_to_bool
-        elif isinstance(col_type, cls.UNSUPPORTED_TYPES):
+        elif cls._contains_unsupported_type(col_type):
             return None
+        elif isinstance(col_type, (types.Array, types.Map, types.Struct)):
+            return lambda v: parse_complex_value(v, col_type, keep_strings=False)
         return lambda v: types.validate_value(v, col_type)
 
     def _cast_value(self, idx, value):
@@ -352,23 +541,8 @@ class CsvRecordReader(AbstractRecordReader):
             if value == "false":
                 return False
             return value
-        if col and isinstance(col.type, types.Map):
-            if not (value.startswith("{") and value.endswith("}")):
-                raise ValueError("Dict format error")
-            items = []
-            for kv in value[1:-1].split(","):
-                k, v = kv.split(":", 1)
-                k = col.type.key_type.cast_value(k.strip(), types.string)
-                v = col.type.value_type.cast_value(v.strip(), types.string)
-                items.append((k, v))
-            return OrderedDict(items)
-        if col and isinstance(col.type, types.Array):
-            if not (value.startswith("[") and value.endswith("]")):
-                raise ValueError("Array format error")
-            return [
-                col.type.value_type.cast_value(item.strip(), types.string)
-                for item in value[1:-1].split(",")
-            ]
+        if col and isinstance(col.type, (types.Array, types.Map, types.Struct)):
+            return parse_complex_value(value, col.type, keep_strings=True)
         return value
 
     def __next__(self):

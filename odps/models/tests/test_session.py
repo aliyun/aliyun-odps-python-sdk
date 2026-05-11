@@ -482,7 +482,7 @@ def test_mcqa_v2_session(odps_with_mcqa2):
     ):
         with pytest.raises(ODPSError) as exc_info:
             odps.execute_sql_interactive(
-                "select * from %s where id is not null" % table_name, use_mcqa_v2=True
+                f"select * from {table_name} where id is not null", use_mcqa_v2=True
             )
         assert odps_with_mcqa2.quota_name in str(exc_info.value)
         assert exc_info.value.request_id is not None
@@ -493,14 +493,14 @@ def test_mcqa_v2_session(odps_with_mcqa2):
         new=_mock_init_mcqa_quota_by_connection_api,
     ):
         inst = odps.execute_sql_interactive(
-            "select * from %s where id is not null" % table_name, use_mcqa_v2=True
+            f"select * from {table_name} where id is not null", use_mcqa_v2=True
         )
         with inst.open_reader(tunnel=True) as reader:
             result = [res.values for res in reader]
         assert result == test_data
 
     inst = odps.execute_sql_interactive(
-        "select * from %s where id is not null" % table_name, use_mcqa_v2=True
+        f"select * from {table_name} where id is not null", use_mcqa_v2=True
     )
     with inst.open_reader(tunnel=True) as reader:
         result = [res.values for res in reader]
@@ -514,9 +514,7 @@ def test_mcqa_v2_session(odps_with_mcqa2):
     assert result == test_data
 
     # query again will reuse current conn
-    inst = odps.execute_sql_interactive(
-        "select * from %s" % table_name, use_mcqa_v2=True
-    )
+    inst = odps.execute_sql_interactive(f"select * from {table_name}", use_mcqa_v2=True)
 
     with inst.open_reader(tunnel=False) as reader:
         result = [res.values for res in reader]

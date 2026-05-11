@@ -18,7 +18,6 @@ import collections
 import functools
 import json
 import struct
-import sys
 import warnings
 from collections import OrderedDict
 from decimal import Decimal
@@ -41,10 +40,11 @@ try:
 except (AttributeError, ImportError):
     pac = None
 
+import time
+
 from ... import compat, types, utils
 from ...config import options
 from ...errors import ChecksumError, DatetimeOverflowError
-from ...lib.monotonic import monotonic
 from ...models import Record
 from ...readers import AbstractRecordReader
 from ...types import PartitionSpec
@@ -102,7 +102,7 @@ if BaseTunnelRecordReader is None:
             self._reader = None
 
             if self._enable_client_metrics:
-                ts = monotonic()
+                ts = time.monotonic()
 
             self._read_limit = options.table_read_limit
             self._to_datetime = utils.MillisecondsConverter().from_milliseconds
@@ -117,17 +117,17 @@ if BaseTunnelRecordReader is None:
 
             map_as_ordered_dict = options.map_as_ordered_dict
             if map_as_ordered_dict is None:
-                map_as_ordered_dict = sys.version_info[:2] <= (3, 6)
+                map_as_ordered_dict = False
             self._map_dict_hook = OrderedDict if map_as_ordered_dict else dict
 
             struct_as_ordered_dict = options.struct_as_ordered_dict
             if struct_as_ordered_dict is None:
-                struct_as_ordered_dict = sys.version_info[:2] <= (3, 6)
+                struct_as_ordered_dict = False
             self._struct_dict_hook = OrderedDict if struct_as_ordered_dict else dict
 
             if self._enable_client_metrics:
-                self._local_wall_time_ms += compat.long_type(
-                    MICRO_SEC_PER_SEC * (monotonic() - ts)
+                self._local_wall_time_ms += int(
+                    MICRO_SEC_PER_SEC * (time.monotonic() - ts)
                 )
 
             self._on_exception = on_exception
@@ -152,11 +152,11 @@ if BaseTunnelRecordReader is None:
 
         def _reopen_reader(self, row_number=None, raw_size=None):
             if self._enable_client_metrics:
-                ts = monotonic()
+                ts = time.monotonic()
 
             if self._enable_client_metrics:
-                self._acc_network_time_ms += compat.long_type(
-                    MICRO_SEC_PER_SEC * (monotonic() - ts)
+                self._acc_network_time_ms += int(
+                    MICRO_SEC_PER_SEC * (time.monotonic() - ts)
                 )
                 if self._reader is not None:
                     self._acc_network_time_ms += self._reader.network_wall_time_ms
@@ -182,8 +182,8 @@ if BaseTunnelRecordReader is None:
                 )
 
             if self._enable_client_metrics:
-                self._local_wall_time_ms += compat.long_type(
-                    MICRO_SEC_PER_SEC * (monotonic() - ts)
+                self._local_wall_time_ms += int(
+                    MICRO_SEC_PER_SEC * (time.monotonic() - ts)
                 )
 
         def _read_field(self, data_type):
@@ -275,7 +275,7 @@ if BaseTunnelRecordReader is None:
             elif isinstance(data_type, types.Vector):
                 val = self._read_vector(data_type)
             else:
-                raise IOError("Unsupported type %s" % data_type)
+                raise IOError(f"Unsupported type {data_type}")
             return val
 
         def _read_array(self, value_type):
@@ -307,8 +307,7 @@ if BaseTunnelRecordReader is None:
 
             if dim != data_type.dimension:
                 raise ValueError(
-                    "Vector dimension mismatch: expected %d, got %d"
-                    % (data_type.dimension, dim)
+                    f"Vector dimension mismatch: expected {data_type.dimension}, got {dim}"
                 )
 
             result = []
@@ -423,7 +422,7 @@ if BaseTunnelRecordReader is None:
 
         def read(self):
             if self._enable_client_metrics:
-                ts = monotonic()
+                ts = time.monotonic()
 
             if self._reader is None:
                 self._reopen_reader()
@@ -434,7 +433,9 @@ if BaseTunnelRecordReader is None:
                 on_exception_func=self._on_exception,
             )
             if self._enable_client_metrics:
-                self._local_wall_time_ms += int(MICRO_SEC_PER_SEC * (monotonic() - ts))
+                self._local_wall_time_ms += int(
+                    MICRO_SEC_PER_SEC * (time.monotonic() - ts)
+                )
             return result
 
         def reads(self):
@@ -1070,16 +1071,16 @@ if convert_legacy_decimal_bytes is None:
         if intg + frac == 0:
             return Decimal("0")
 
-        sio = BytesIO() if compat.PY27 else StringIO()
+        sio = StringIO()
         if sign > 0:
             sio.write("-")
-        intg_nums = struct.unpack("<%dI" % intg, value[12 : 12 + intg * 4])
-        intg_val = "".join("%09d" % d for d in reversed(intg_nums)).lstrip("0")
+        intg_nums = struct.unpack(f"<{intg}I", value[12 : 12 + intg * 4])
+        intg_val = "".join(f"{d:09d}" for d in reversed(intg_nums)).lstrip("0")
         sio.write(intg_val or "0")
         if frac > 0:
             sio.write(".")
-            frac_nums = struct.unpack("<%dI" % frac, value[12 - frac * 4 : 12])
-            sio.write("".join("%09d" % d for d in reversed(frac_nums)))
+            frac_nums = struct.unpack(f"<{frac}I", value[12 - frac * 4 : 12])
+            sio.write("".join(f"{d:09d}" for d in reversed(frac_nums)))
         return Decimal(sio.getvalue())
 
 

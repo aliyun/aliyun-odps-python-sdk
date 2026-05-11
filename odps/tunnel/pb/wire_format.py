@@ -68,7 +68,7 @@ def pack_tag(field_number, wire_type):
       wire_type: One of the WIRETYPE_* constants.
     """
     if not 0 <= wire_type <= _WIRETYPE_MAX:
-        raise errors.EncodeError("Unknown wire type: %d" % wire_type)
+        raise errors.EncodeError(f"Unknown wire type: {wire_type}")
     return (field_number << TAG_TYPE_BITS) | wire_type
 
 
@@ -215,7 +215,7 @@ def _var_uint64_byte_size_no_tag(uint64):
     uint64 must be unsigned.
     """
     if uint64 > UINT64_MAX:
-        raise errors.EncodeError("Value out of range: %d" % uint64)
+        raise errors.EncodeError(f"Value out of range: {uint64}")
     bytes = 1
     while uint64 > 0x7F:
         bytes += 1

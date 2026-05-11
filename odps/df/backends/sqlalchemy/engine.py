@@ -14,8 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import absolute_import
-
+import io
 import logging
 import types as tps
 from decimal import Decimal
@@ -48,7 +47,7 @@ class SQLExecuteNode(ExecuteNode):
         raise NotImplementedError
 
     def __repr__(self):
-        buf = six.StringIO()
+        buf = io.StringIO()
 
         sql = self._sql()
         buf.write('MPP SQL compiled: \n\n')
@@ -57,7 +56,7 @@ class SQLExecuteNode(ExecuteNode):
         return buf.getvalue()
 
     def _repr_html_(self):
-        buf = six.StringIO()
+        buf = io.StringIO()
 
         sql = self._sql()
         buf.write('<h4>MPP SQL compiled</h4>')
@@ -124,7 +123,7 @@ class SQLAlchemyEngine(Engine):
             types.Integer: int,
             types.Float: float
         }
-        for df_type, builtin_type in six.iteritems(df_types_to_builtin_types):
+        for df_type, builtin_type in df_types_to_builtin_types.items():
             if isinstance(tp, df_type):
                 return lambda value: builtin_type(value)
         return lambda value: value

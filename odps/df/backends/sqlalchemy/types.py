@@ -24,7 +24,6 @@ except ImportError:
     has_sqlalchemy = False
 
 from ... import types
-from ....compat import six
 from ....models import TableSchema
 
 
@@ -43,7 +42,7 @@ if has_sqlalchemy:
         _sqlalchemy_to_df_types[sqlalchemy.DECIMAL] = types.decimal
         _sqlalchemy_to_df_types[sqlalchemy.DateTime] = types.datetime
 
-        _df_to_sqlalchemy_types = dict((v, k) for k, v in six.iteritems(_sqlalchemy_to_df_types))
+        _df_to_sqlalchemy_types = dict((v, k) for k, v in _sqlalchemy_to_df_types.items())
         _df_to_sqlalchemy_types[types.string] = sqlalchemy.Text  # we store text
     except AttributeError as ex:
         warnings.warn(
@@ -54,7 +53,7 @@ if has_sqlalchemy:
 
 
 def sqlalchemy_to_df_type(sqlalchemy_type):
-    for sqlalchemy_type_cls, df_type in six.iteritems(_sqlalchemy_to_df_types):
+    for sqlalchemy_type_cls, df_type in _sqlalchemy_to_df_types.items():
         if isinstance(sqlalchemy_type, sqlalchemy_type_cls):
             return df_type
 
@@ -72,7 +71,7 @@ def sqlalchemy_to_df_schema(sqlalchemy_columns):
 
 
 def df_type_to_sqlalchemy_type(df_type, engine=None):
-    if isinstance(df_type, six.string_types):
+    if isinstance(df_type, str):
         df_type = types.validate_data_type(df_type)
 
     if isinstance(df_type, types.Datetime):

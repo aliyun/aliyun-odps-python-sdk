@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -57,22 +57,22 @@ def test_dbapi_execute_sql(odps):
     conn = connect(odps)
     cursor = conn.cursor()
 
-    cursor.execute("desc %s" % table_name)
+    cursor.execute(f"desc {table_name}")
     assert cursor.description[0][:2] == ("_c0", "string")
     recs = list(cursor)
     assert odps.project in recs[0][0]
 
-    cursor.execute("select * from %s" % table_name)
+    cursor.execute(f"select * from {table_name}")
     assert [("col1", "string"), ("col2", "bigint")] == [
         tp[:2] for tp in cursor.description
     ]
     assert cursor.fetchall() == [["str1", 1234], ["str2", 5678]]
 
-    cursor.execute("select * from %s" % table_name)
+    cursor.execute(f"select * from {table_name}")
     assert cursor.fetchmany(1) == [["str1", 1234]]
 
     cursor = conn.cursor()
-    cursor.execute("select * from %s where col2=?" % table_name, (5678,))
+    cursor.execute(f"select * from {table_name} where col2=?", (5678,))
     assert cursor.fetchone() == ["str2", 5678]
 
     odps.delete_table(table_name, if_exists=True)
@@ -92,7 +92,7 @@ def test_dbapi_execute_sql_with_sqa(odps):
         fallback_policy="all",
     )
     cursor = conn.cursor()
-    cursor.execute("select * from %s" % table_name)
+    cursor.execute(f"select * from {table_name}")
     assert list(cursor) == [["str1", 1234], ["str2", 5678]]
 
     def new_run_sql_interactive(self, *args, **kwargs):
@@ -100,7 +100,7 @@ def test_dbapi_execute_sql_with_sqa(odps):
 
     cursor = conn.cursor()
     with mock.patch("odps.core.ODPS.run_sql_interactive", new=new_run_sql_interactive):
-        cursor.execute("select * from %s" % table_name)
+        cursor.execute(f"select * from {table_name}")
     assert list(cursor) == [["str1", 1234], ["str2", 5678]]
 
     odps.delete_table(table_name, if_exists=True)

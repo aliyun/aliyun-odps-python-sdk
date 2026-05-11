@@ -1,4 +1,4 @@
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ...compat import StringIO
+import io
+
 from ...config import options
 from ...tests.core import tn
 from ..tools.runners import DirectCollector, get_csv_runner, get_table_runner
@@ -26,7 +27,7 @@ csv_data = """
 
 
 def test_csv_runner():
-    text_io = StringIO(csv_data)
+    text_io = io.StringIO(csv_data)
     runner = get_csv_runner(Plus, stdin=text_io, collector_cls=DirectCollector)
     runner.run()
     assert runner.collector.results == [1, 7, 3]

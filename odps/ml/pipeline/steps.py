@@ -14,17 +14,17 @@
 # limitations under the License.
 
 from ...utils import camel_to_underline
-from ...compat import six, getargspec
+import inspect
 from .core import PipelineStep
 from ..expr.mixin import merge_data
 
 
 class SimpleDataFrameStep(PipelineStep):
     def __init__(self, method, **kwargs):
-        super(SimpleDataFrameStep, self).__init__(camel_to_underline(self.__class__.__name__), list(six.iterkeys(kwargs)),
+        super(SimpleDataFrameStep, self).__init__(camel_to_underline(self.__class__.__name__), list(kwargs.keys()),
                                                   ['output', ])
         self._method = method
-        [setattr(self, k, v) for k, v in six.iteritems(kwargs)]
+        [setattr(self, k, v) for k, v in kwargs.items()]
 
     def transform(self, *args, **kwargs):
         attr_vals = dict((k, getattr(self, k)) for k in self._param_names)
@@ -33,15 +33,15 @@ class SimpleDataFrameStep(PipelineStep):
 
 class SimpleFunctionStep(PipelineStep):
     def __init__(self, func, **kwargs):
-        argtuple = getargspec(func)
+        argtuple = inspect.getfullargspec(func)
         defaults = [None, ] * (len(argtuple.args) - len(argtuple.defaults) - 1) + list(argtuple.defaults)
         new_kwargs = dict(zip(argtuple.args[1:], defaults))
         new_kwargs.update(kwargs)
-        super(SimpleFunctionStep, self).__init__(camel_to_underline(self.__class__.__name__), list(six.iterkeys(new_kwargs)),
+        super(SimpleFunctionStep, self).__init__(camel_to_underline(self.__class__.__name__), list(new_kwargs.keys()),
                                                  ['output', ])
 
         self._func = func
-        [setattr(self, k, v) for k, v in six.iteritems(new_kwargs)]
+        [setattr(self, k, v) for k, v in new_kwargs.items()]
 
     def transform(self, *args, **kwargs):
         attr_vals = dict((k, getattr(self, k)) for k in self._param_names)

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,9 +15,9 @@
 # limitations under the License.
 
 import itertools
+from collections.abc import Iterable
 from copy import deepcopy
-
-from .compat import Iterable, Queue, six
+from queue import Queue
 
 
 class DAGValidationError(Exception):
@@ -57,14 +57,14 @@ class DAG(object):
         self._graph.pop(id(node))
         self._map.pop(id(node))
 
-        for edges in six.itervalues(self._graph):
+        for edges in self._graph.values():
             if id(node) in edges:
                 edges.remove(id(node))
 
         if self._reversed_graph is not None:
             self._reversed_graph.pop(id(node))
 
-            for edges in six.itervalues(self._reversed_graph):
+            for edges in self._reversed_graph.values():
                 if id(node) in edges:
                     edges.remove(id(node))
 
@@ -116,7 +116,7 @@ class DAG(object):
         if reversed_graph is not None:
             return [
                 node
-                for node, precessors in six.iteritems(reversed_graph)
+                for node, precessors in reversed_graph.items()
                 if len(precessors) == 0
             ]
 
@@ -134,17 +134,17 @@ class DAG(object):
         reversed_graph = reversed_graph or self._reversed_graph
         if reversed_graph is not None:
             return reversed_graph[node_id]
-        return [nid for nid, deps in six.iteritems(graph) if node_id in deps]
+        return [nid for nid, deps in graph.items() if node_id in deps]
 
     def predecessors(self, node):
         if id(node) not in self._graph:
-            raise KeyError("Node does not exist: %s" % node)
+            raise KeyError(f"Node does not exist: {node}")
 
         return [self._map.get(node_id) for node_id in self._predecessor_ids(id(node))]
 
     def successors(self, node):
         if id(node) not in self._graph:
-            raise KeyError("Node does not exist: %r" % node)
+            raise KeyError(f"Node does not exist: {node!r}")
 
         return [self._map.get(node_id) for node_id in self._graph[id(node)]]
 

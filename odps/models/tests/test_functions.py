@@ -1,4 +1,4 @@
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import configparser
 import itertools
 
 from ... import errors
-from ...compat import ConfigParser
 from ...tests.core import tn
 from ...utils import to_text
 from .. import Resource
@@ -76,7 +76,7 @@ def test_create_delete_update_function(config, odps):
     try:
         secondary_project = config.get("test", "secondary_project")
         secondary_user = config.get("test", "secondary_user")
-    except ConfigParser.NoOptionError:
+    except configparser.NoOptionError:
         secondary_project = secondary_user = None
 
     test_resource_name = tn("pyodps_t_tmp_test_function_resource") + ".py"

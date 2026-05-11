@@ -24,7 +24,7 @@ try:
 except ImportError:
     pd = None
 
-from ..compat import datetime_utcnow, six
+from ..compat import datetime_utcnow
 from ..utils import camel_to_underline
 
 _func_registry_lock = threading.RLock()
@@ -57,7 +57,7 @@ class ExprFunction(object):
         try:
             return ExprFunction._load_name_to_funcs()[func_name.lower()]
         except KeyError:
-            six.raise_from(ValueError("%s function not found" % func_name), None)
+            raise ValueError(f"{func_name} function not found") from None
 
     @classmethod
     def call(cls, *args):
@@ -65,7 +65,7 @@ class ExprFunction(object):
 
     @classmethod
     def to_str(cls, arg_strs):
-        return "%s(%s)" % (cls._func_name, ", ".join(arg_strs))
+        return f"{cls._func_name}({', '.join(arg_strs)})"
 
 
 _date_patterns = {
@@ -88,7 +88,7 @@ class TruncateTime(ExprFunction):
 
     @classmethod
     def call(cls, arg, date_part):
-        assert isinstance(date_part, six.string_types)
+        assert isinstance(date_part, str)
         date_part = date_part.lower()
         if pa and isinstance(arg, (pa.Array, pa.ChunkedArray)):
             res = [cls._call_single(x, date_part) for x in arg.to_pandas()]

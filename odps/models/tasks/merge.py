@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@ import time
 import warnings
 from collections import namedtuple
 
-from ... import compat, serializers, utils
+from ... import serializers, utils
 from ...config import options
 from .core import Task, build_execute_method
 
@@ -61,9 +61,7 @@ class MergeTask(Task):
     def __init__(self, name=None, **kwargs):
         name_prefix = kwargs.pop("name_prefix", None) or "merge_task"
         if name is None:
-            name = "{0}_{1}_{2}".format(
-                name_prefix, int(time.time()), random.randint(100000, 999999)
-            )
+            name = f"{name_prefix}_{int(time.time())}_{random.randint(100000, 999999)}"
         kwargs["name"] = name
         super(MergeTask, self).__init__(**kwargs)
 
@@ -72,7 +70,7 @@ class MergeTask(Task):
         from ...core import ODPS
 
         schema = schema or odps.schema
-        if not isinstance(table, compat.six.string_types):
+        if not isinstance(table, str):
             if table.get_schema():
                 schema = table.get_schema().name
             table_name = table.full_table_name
@@ -81,7 +79,7 @@ class MergeTask(Task):
             table = odps.get_table(table, project=project, schema=schema)
             _, schema, _ = odps._split_object_dots(table_name)
         if partition:
-            table_name += " partition(%s)" % (ODPS._parse_partition_string(partition))
+            table_name += f" partition({ODPS._parse_partition_string(partition)})"
         tb_name_parts = [utils.strip_backquotes(s) for s in table_name.split(".")]
         return _MergeTaskTableProps(table, schema, ".".join(tb_name_parts))
 
@@ -211,7 +209,7 @@ class MergeTask(Task):
             force_mode, recent_hours, kwargs
         )
         if kwargs:
-            raise TypeError("Unsupported keyword arguments %s" % ", ".join(kwargs))
+            raise TypeError(f"Unsupported keyword arguments {', '.join(kwargs)}")
 
         prefix = "merge_task" if compact_type is None else "compact_task"
         task, props = cls._create_base_merge_task(
@@ -242,9 +240,9 @@ class MergeTask(Task):
                 ):
                     warnings.warn(
                         "setting 'recentHoursThresholdForPartialCompact' below the data "
-                        "retention period (%s hours) prevents past time travel. "
+                        f"retention period ({props.table.acid_data_retain_hours} hours) prevents past time travel. "
                         "It's now set to match the retention period. "
-                        "Use -f to override." % props.table.acid_data_retain_hours
+                        "Use -f to override."
                     )
                     recent_hours = props.table.acid_data_retain_hours
                 recent_hours = recent_hours or -1

@@ -35,7 +35,7 @@
 .. code:: python
 
     >>> iris.name.unique().cat(sep=',')
-    u'Iris-setosa,Iris-versicolor,Iris-virginica'
+    'Iris-setosa,Iris-versicolor,Iris-virginica'
 
 
 如果所有列支持同一种聚合操作，也可以直接在整个 DataFrame 上执行聚合操作：

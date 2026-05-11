@@ -14,16 +14,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import enum
+import functools
 import itertools
 import logging
 import sys
 import time
+from datetime import datetime
 
 import requests
 
 from .. import errors, options, serializers, types, utils
-from ..compat import Enum, six
-from ..lib.monotonic import monotonic
 from ..models import Projects, Record, TableSchema
 from ..types import Column
 from .base import TUNNEL_VERSION, BaseTunnel
@@ -60,7 +61,7 @@ DEFAULT_UPSERT_COMMIT_TIMEOUT = 120
 
 def _wrap_upload_call(request_id):
     def wrapper(func):
-        @six.wraps(func)
+        @functools.wraps(func)
         def wrapped(*args, **kwargs):
             try:
                 return func(*args, **kwargs)
@@ -95,14 +96,14 @@ class BaseTableTunnelSession(serializers.JSONSerializableModel):
             )
         tags = tags or options.tunnel.tags
         if tags:
-            if isinstance(tags, six.string_types):
+            if isinstance(tags, str):
                 tags = tags.split(",")
             header["odps-tunnel-tags"] = ",".join(tags)
         return header
 
     @staticmethod
     def normalize_partition_spec(partition_spec):
-        if isinstance(partition_spec, six.string_types):
+        if isinstance(partition_spec, str):
             partition_spec = types.PartitionSpec(partition_spec)
         if isinstance(partition_spec, types.PartitionSpec):
             partition_spec = str(partition_spec).replace("'", "")
@@ -172,7 +173,7 @@ class TableDownloadSession(BaseTableTunnelSession):
         "_tags",
     )
 
-    class Status(Enum):
+    class Status(enum.Enum):
         Unknown = "UNKNOWN"
         Normal = "NORMAL"
         Closes = "CLOSES"
@@ -214,10 +215,10 @@ class TableDownloadSession(BaseTableTunnelSession):
         if "async_" in kw:
             async_mode = kw.pop("async_")
         if kw:
-            raise TypeError("Cannot accept arguments %s" % ", ".join(kw.keys()))
+            raise TypeError(f"Cannot accept arguments {', '.join(kw.keys())}")
 
         self._tags = tags or options.tunnel.tags
-        if isinstance(self._tags, six.string_types):
+        if isinstance(self._tags, str):
             self._tags = self._tags.split(",")
 
         if download_id is None:
@@ -232,12 +233,7 @@ class TableDownloadSession(BaseTableTunnelSession):
             options.tunnel_session_create_callback(self)
 
     def __repr__(self):
-        return "<TableDownloadSession id=%s project=%s table=%s partition_spec=%r>" % (
-            self.id,
-            self._table.project.name,
-            self._table.name,
-            self._partition_spec,
-        )
+        return f"<TableDownloadSession id={self.id} project={self._table.project.name} table={self._table.name} partition_spec={self._partition_spec!r}>"
 
     def _init(self, async_mode, timeout):
         params = self.get_common_params(downloads="")
@@ -246,7 +242,7 @@ class TableDownloadSession(BaseTableTunnelSession):
             params["asyncmode"] = "true"
 
         url = self._table.table_resource()
-        ts = monotonic()
+        ts = time.monotonic()
         try:
             resp = self._client.post(
                 url, {}, params=params, headers=headers, timeout=timeout
@@ -260,11 +256,10 @@ class TableDownloadSession(BaseTableTunnelSession):
         delay_time = 0.1
         self.parse(resp, obj=self)
         while self.status == self.Status.Initiating:
-            if timeout and monotonic() - ts > timeout:
+            if timeout and time.monotonic() - ts > timeout:
                 try:
                     raise TunnelReadTimeout(
-                        "Waiting for tunnel ready timed out. id=%s, table=%s"
-                        % (self.id, self._table.name)
+                        f"Waiting for tunnel ready timed out. id={self.id}, table={self._table.name}"
                     )
                 except TunnelReadTimeout:
                     if callable(options.tunnel_session_create_timeout_callback):
@@ -301,7 +296,7 @@ class TableDownloadSession(BaseTableTunnelSession):
             if encoding:
                 headers["Accept-Encoding"] = encoding
 
-        params["rowrange"] = "(%s,%s)" % (start, count)
+        params["rowrange"] = f"({start},{count})"
         if columns is not None and len(columns) > 0:
             col_name = lambda col: col.name if isinstance(col, types.Column) else col
             params["columns"] = ",".join(col_name(col) for col in columns)
@@ -487,7 +482,7 @@ class TableUploadSession(BaseTableTunnelSession):
         "_tags",
     )
 
-    class Status(Enum):
+    class Status(enum.Enum):
         Unknown = "UNKNOWN"
         Normal = "NORMAL"
         Closing = "CLOSING"
@@ -528,7 +523,7 @@ class TableUploadSession(BaseTableTunnelSession):
         self._overwrite = overwrite
 
         self._tags = tags or options.tunnel.tags
-        if isinstance(self._tags, six.string_types):
+        if isinstance(self._tags, str):
             self._tags = self._tags.split(",")
 
         if upload_id is None:
@@ -543,15 +538,10 @@ class TableUploadSession(BaseTableTunnelSession):
             options.tunnel_session_create_callback(self)
 
     def __repr__(self):
-        repr_args = "id=%s project=%s table=%s partition_spec=%r" % (
-            self.id,
-            self._table.project.name,
-            self._table.name,
-            self._partition_spec,
-        )
+        repr_args = f"id={self.id} project={self._table.project.name} table={self._table.name} partition_spec={self._partition_spec!r}"
         if self._overwrite:
             repr_args += " overwrite=True"
-        return "<TableUploadSession %s>" % repr_args
+        return f"<TableUploadSession {repr_args}>"
 
     def _create_or_reload_session(self, reload=False):
         headers = self.get_common_headers(content_length=0, tags=self._tags)
@@ -759,7 +749,7 @@ class TableUploadSession(BaseTableTunnelSession):
         """
         if blocks is None:
             raise ValueError("Invalid parameter: blocks.")
-        if isinstance(blocks, six.integer_types):
+        if isinstance(blocks, int):
             blocks = [blocks]
 
         server_block_map = dict(
@@ -776,9 +766,7 @@ class TableUploadSession(BaseTableTunnelSession):
 
         for block_id in blocks:
             if block_id not in server_block_map:
-                raise TunnelError(
-                    "Block not exists on server, block id is %s" % (block_id,)
-                )
+                raise TunnelError(f"Block not exists on server, block id is {block_id}")
 
         self._complete_upload()
 
@@ -827,7 +815,7 @@ class Slot(object):
 
     def set_server(self, server, check_empty=False):
         if len(server.split(":")) != 2:
-            raise TunnelError("Invalid slot format: {}".format(server))
+            raise TunnelError(f"Invalid slot format: {server}")
 
         ip, port = server.split(":")
 
@@ -857,6 +845,8 @@ class TableStreamUploadSession(BaseTableTunnelSession):
         "_allow_schema_mismatch",
         "_schema_version_reloader",
         "_tags",
+        "_slot_num",
+        "_dynamic_partition",
     )
 
     class Slots(object):
@@ -894,6 +884,15 @@ class TableStreamUploadSession(BaseTableTunnelSession):
     )
     quota_name = serializers.JSONNodeField("QuotaName")
     schema_version = serializers.JSONNodeField("schema_version")
+    last_batch_id = serializers.JSONNodeField(
+        "last_batch_id", parse_callback=utils.skip_na_call(int)
+    )
+    last_batch_commit_time = serializers.JSONNodeField(
+        "last_batch_commit_time",
+        parse_callback=utils.skip_na_call(
+            lambda v: datetime.fromtimestamp(int(v) / 1000.0)
+        ),
+    )
 
     def __init__(
         self,
@@ -909,6 +908,8 @@ class TableStreamUploadSession(BaseTableTunnelSession):
         upload_id=None,
         tags=None,
         schema_version_reloader=None,
+        slot_num=0,
+        dynamic_partition=False,
     ):
         super(TableStreamUploadSession, self).__init__()
 
@@ -922,9 +923,11 @@ class TableStreamUploadSession(BaseTableTunnelSession):
         self._allow_schema_mismatch = allow_schema_mismatch
         self.schema_version = schema_version
         self._schema_version_reloader = schema_version_reloader
+        self._slot_num = slot_num
+        self._dynamic_partition = dynamic_partition
 
         self._tags = tags or options.tunnel.tags
-        if isinstance(self._tags, six.string_types):
+        if isinstance(self._tags, str):
             self._tags = self._tags.split(",")
 
         if upload_id is None:
@@ -943,13 +946,10 @@ class TableStreamUploadSession(BaseTableTunnelSession):
 
     def __repr__(self):
         return (
-            "<TableStreamUploadSession id=%s project=%s table=%s partition_spec=%s>"
-            % (
-                self.id,
-                self._table.project.name,
-                self._table.name,
-                self._partition_spec,
-            )
+            f"<TableStreamUploadSession id={self.id}"
+            f" project={self._table.project.name}"
+            f" table={self._table.name}"
+            f" partition_spec={self._partition_spec}>"
         )
 
     def _init(self):
@@ -957,14 +957,18 @@ class TableStreamUploadSession(BaseTableTunnelSession):
         headers = self.get_common_headers(content_length=0, tags=self._tags)
 
         if self._create_partition:
-            params["create_partition"] = "true"
+            params["create_partition"] = ""
         if self.schema_version is not None:
             params["schema_version"] = str(self.schema_version)
         if self._zorder_columns:
             cols = self._zorder_columns
-            if not isinstance(self._zorder_columns, six.string_types):
+            if not isinstance(self._zorder_columns, str):
                 cols = ",".join(self._zorder_columns)
             params["zorder_columns"] = cols
+        if self._dynamic_partition:
+            params["dynamic_partition"] = "true"
+        if self._slot_num > 0:
+            headers["odps-slot-num"] = str(self._slot_num)
         params["check_latest_schema"] = str(not self._allow_schema_mismatch).lower()
 
         url = self._get_resource()
@@ -990,6 +994,8 @@ class TableStreamUploadSession(BaseTableTunnelSession):
     def reload(self):
         params = self.get_common_params(uploadid=self.id)
         headers = self.get_common_headers(content_length=0, tags=self._tags)
+        if self.schema_version is not None:
+            params["schema_version"] = str(self.schema_version)
 
         url = self._get_resource()
         resp = self._client.get(url, params=params, headers=headers)
@@ -1017,7 +1023,8 @@ class TableStreamUploadSession(BaseTableTunnelSession):
         if len(self.slots) != slot_num:
             self.reload()
         else:
-            slot.set_server(server)
+            if slot.server != server:
+                slot.set_server(server)
 
     def _open_writer(self, compress=False):
         compress_option = self._compress_option or CompressOption()
@@ -1038,6 +1045,17 @@ class TableStreamUploadSession(BaseTableTunnelSession):
                 headers["Content-Encoding"] = encoding
 
         params = self.get_common_params(uploadid=self.id, slotid=slot.slot)
+        if self.schema_version is not None:
+            params["schema_version"] = str(self.schema_version)
+        if self._zorder_columns:
+            cols = self._zorder_columns
+            if not isinstance(self._zorder_columns, str):
+                cols = ",".join(self._zorder_columns)
+            params["zorder_columns"] = cols
+        if self._dynamic_partition:
+            params["dynamic_partition"] = "true"
+        params["check_latest_schema"] = str(not self._allow_schema_mismatch).lower()
+
         url = self._get_resource()
         option = compress_option if compress else None
 
@@ -1088,7 +1106,7 @@ class TableUpsertSession(BaseTableTunnelSession):
     UPSERT_KEY_COLS_KEY = "__key_cols"
     UPSERT_VALUE_COLS_KEY = "__value_cols"
 
-    class Status(Enum):
+    class Status(enum.Enum):
         Normal = "NORMAL"
         Committing = "COMMITTING"
         Committed = "COMMITTED"
@@ -1127,6 +1145,7 @@ class TableUpsertSession(BaseTableTunnelSession):
     quota_name = serializers.JSONNodeField("quota_name")
     hash_keys = serializers.JSONNodeField("hash_key")
     hasher = serializers.JSONNodeField("hasher")
+    support_partial_update = serializers.JSONNodeField("enable_partial_update")
 
     def __init__(
         self,
@@ -1153,7 +1172,7 @@ class TableUpsertSession(BaseTableTunnelSession):
         self._commit_timeout = commit_timeout
 
         self._tags = tags or options.tunnel.tags
-        if isinstance(self._tags, six.string_types):
+        if isinstance(self._tags, str):
             self._tags = self._tags.split(",")
 
         if upsert_id is None:
@@ -1168,12 +1187,7 @@ class TableUpsertSession(BaseTableTunnelSession):
             options.tunnel_session_create_callback(self)
 
     def __repr__(self):
-        return "<TableUpsertSession id=%s project=%s table=%s partition_spec=%s>" % (
-            self.id,
-            self._table.project.name,
-            self._table.name,
-            self._partition_spec,
-        )
+        return f"<TableUpsertSession id={self.id} project={self._table.project.name} table={self._table.name} partition_spec={self._partition_spec}>"
 
     @property
     def endpoint(self):
@@ -1212,8 +1226,8 @@ class TableUpsertSession(BaseTableTunnelSession):
 
         url = self._get_resource()
         if not reload:
-            if self._lifecycle:
-                params["lifecycle"] = self._lifecycle
+            if self._lifecycle and 0 < self._lifecycle <= 24:
+                params["lifecycle"] = str(self._lifecycle)
             resp = self._client.post(url, {}, params=params, headers=headers)
         else:
             resp = self._client.get(url, params=params, headers=headers)
@@ -1305,13 +1319,13 @@ class TableUpsertSession(BaseTableTunnelSession):
             return
 
         delay = 1
-        start = monotonic()
+        start = time.monotonic()
         while self.status in (
             TableUpsertSession.Status.Committing,
             TableUpsertSession.Status.Normal,
         ):
             try:
-                if monotonic() - start > self._commit_timeout:
+                if time.monotonic() - start > self._commit_timeout:
                     raise TunnelError("Commit session timeout")
                 time.sleep(delay)
 
@@ -1340,13 +1354,13 @@ class TableTunnel(BaseTunnel):
         project_odps = None
         try:
             project_odps = self._project.odps
-            if isinstance(table, six.string_types):
+            if isinstance(table, str):
                 table = project_odps.get_table(table, project=self._project.name)
         except:
             pass
 
         project_name = self._project.name
-        if not isinstance(table, six.string_types):
+        if not isinstance(table, str):
             project_name = table.project.name or project_name
             schema = schema or getattr(table.get_schema(), "name", None)
             table = table.name
@@ -1408,7 +1422,7 @@ class TableTunnel(BaseTunnel):
         if "async_" in kw:
             async_mode = kw.pop("async_")
         if kw:
-            raise TypeError("Cannot accept arguments %s" % ", ".join(kw.keys()))
+            raise TypeError(f"Cannot accept arguments {', '.join(kw.keys())}")
         return TableDownloadSession(
             self.tunnel_rest,
             table,
@@ -1488,6 +1502,8 @@ class TableTunnel(BaseTunnel):
         tags=None,
         allow_schema_mismatch=True,
         create_partition=False,
+        slot_num=0,
+        dynamic_partition=False,
     ):
         """
         Create a stream upload session for table.
@@ -1503,10 +1519,14 @@ class TableTunnel(BaseTunnel):
         :param int compress_level: compress level
         :param str schema: name of schema of the table
         :param str schema_version: schema version of the upload
+        :param zorder_columns: zorder columns for clustering
+        :type zorder_columns: str | list
         :param tags: tags of the upload session
         :type tags: str | list
         :param bool allow_schema_mismatch: whether to allow table schema to be mismatched
         :param bool create_partition: whether to create partition if not exist
+        :param int slot_num: number of slots for the session
+        :param bool dynamic_partition: whether to enable dynamic partition
 
         :return: :class:`TableStreamUploadSession`
         """
@@ -1538,6 +1558,8 @@ class TableTunnel(BaseTunnel):
             schema_version_reloader=schema_version_reloader,
             create_partition=create_partition,
             zorder_columns=zorder_columns,
+            slot_num=slot_num,
+            dynamic_partition=dynamic_partition,
         )
 
     def create_upsert_session(
@@ -1553,6 +1575,7 @@ class TableTunnel(BaseTunnel):
         schema=None,
         upsert_id=None,
         tags=None,
+        lifecycle=None,
     ):
         """
         Create an upsert session for table.
@@ -1570,6 +1593,7 @@ class TableTunnel(BaseTunnel):
         :param str schema: name of schema of the table
         :param tags: tags of the upload session
         :type tags: str | list
+        :param int lifecycle: session lifecycle in hours, valid range 1-24
 
         :return: :class:`TableUpsertSession`
         """
@@ -1589,6 +1613,7 @@ class TableTunnel(BaseTunnel):
             compress_option=compress_option,
             quota_name=self._quota_name,
             tags=tags,
+            lifecycle=lifecycle,
         )
 
     def open_preview_reader(

@@ -26,7 +26,6 @@ from pstats import Stats
 import pytest
 
 from ..... import options
-from .....compat import six
 from .....udf.tools import runners
 from .....models import TableSchema
 from .....utils import to_timestamp, to_milliseconds, to_text
@@ -122,7 +121,7 @@ def _testify_udf(expected, inputs, engine, annotation=None):
 
     udf = list(engine._ctx._func_to_udfs.values())[0]
     d = dict()
-    six.exec_(udf, d, d)
+    exec(udf, d, d)
     udf = d[UDF_CLASS_NAME]
     assert list(expected) == list(runners.simple_run(udf, inputs))
 
@@ -668,12 +667,8 @@ def test_arithmetic_compilation(odps, exprs):
     expr = exprs.expr.birth - millisecond(100)
     engine = ODPSEngine(odps)
     engine.compile(expr)
-    if sys.version_info[0] == 2:
-        _testify_udf([to_milliseconds(d - timedelta(milliseconds=100)) for d in data],
-                          [(d, 100, '-') for d in data], engine)
-    else:
-        _testify_udf([d - timedelta(milliseconds=100) for d in data],
-                          [(d, 100, '-') for d in data], engine)
+    _testify_udf([d - timedelta(milliseconds=100) for d in data],
+                      [(d, 100, '-') for d in data], engine)
 
     expr = exprs.expr.birth - datetime.now()
     engine = ODPSEngine(odps)

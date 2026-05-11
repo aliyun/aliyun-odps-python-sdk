@@ -13,26 +13,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import io
 import itertools
 import uuid
 from collections import namedtuple, OrderedDict
+from collections.abc import Iterable
+from functools import reduce
 
 from . import op
 from .core import AlgoExprMixin
 from ..enums import FieldRole
 from ..utils import KVConfig, MLField
-from ...compat import six, reduce
 from ...df import DataFrame
 from ...df.backends.odpssql.types import odps_schema_to_df_schema, df_schema_to_odps_schema, \
     df_type_to_odps_type
 from ...df.expr.collections import Node, CollectionExpr, SequenceExpr, Column
 from ...df.expr.dynamic import DynamicMixin, DynamicCollectionExpr, DynamicSchema
 from ...models.table import TableSchema
-
-try:
-    from collections.abc import Iterable
-except ImportError:
-    from collections import Iterable
 
 
 class DynamicDataFrame(DynamicMixin, DataFrame):
@@ -61,10 +58,10 @@ def _get_field_name(field):
 
 
 def _render_field_set(fields):
-    if isinstance(fields, six.string_types) or not isinstance(fields, Iterable):
+    if isinstance(fields, str) or not isinstance(fields, Iterable):
         fields = [fields, ]
     fields = [f.name if isinstance(f, SequenceExpr) else f for f in fields]
-    field_arrays = map(lambda v: v.replace(',', ' ').split(' ') if isinstance(v, six.string_types) else v, fields)
+    field_arrays = map(lambda v: v.replace(',', ' ').split(' ') if isinstance(v, str) else v, fields)
     return reduce(lambda a, b: set(a) | set(b), field_arrays, set()) - set(['', ])
 
 
@@ -90,7 +87,7 @@ class MLCollectionMixin(Node):
         if getattr(self, '_ml_fields_cache', None) is None:
             fields = OrderedDict((col.name, MLField.from_column(col))
                                  for col in df_schema_to_odps_schema(self.schema))
-            to_be_fixed = dict((k, k) for k in six.iterkeys(fields))
+            to_be_fixed = dict((k, k) for k in fields.keys())
 
             for n in self.traverse(top_down=True, unique=True,
                                    stop_cond=lambda it: getattr(it, '_ml_fields_cache', None) is not None):
@@ -106,10 +103,10 @@ class MLCollectionMixin(Node):
                             continue
                         field_obj = [f for f in n._ml_fields_cache if f.name == col.name]
                         fields[to_be_fixed[col.name]].role = field_obj[0].role
-            for f in six.itervalues(fields):
+            for f in fields.values():
                 if not f.role:
                     f.role = set([FieldRole.FEATURE])
-            self._ml_fields_cache = list(six.itervalues(fields))
+            self._ml_fields_cache = list(fields.values())
         return self._ml_fields_cache
 
     @_ml_fields.setter
@@ -272,10 +269,10 @@ class MLCollectionMixin(Node):
         :return:
         """
         field_roles = dict((k, v.name if isinstance(v, SequenceExpr) else v)
-                           for k, v in six.iteritems(field_roles))
-        self._assert_ml_fields_valid(*list(six.itervalues(field_roles)))
+                           for k, v in field_roles.items())
+        self._assert_ml_fields_valid(*list(field_roles.values()))
         field_roles = dict((_get_field_name(f), MLField.translate_role_name(role))
-                           for role, f in six.iteritems(field_roles))
+                           for role, f in field_roles.items())
         if field_roles:
             return _change_singleton_roles(self, field_roles, clear_features)
         else:
@@ -330,7 +327,7 @@ class MLCollectionMixin(Node):
         from .. import preprocess
 
         if weights is not None:
-            if not isinstance(weights, (six.string_types, SequenceExpr)):
+            if not isinstance(weights, (str, SequenceExpr)):
                 raise ValueError('weights should be the name of the weight column.')
             algo_cls = getattr(preprocess, '_WeightedSample')
             algo_obj = algo_cls(sample_size=n, sample_ratio=frac, prob_col=_get_field_name(weights),
@@ -339,7 +336,7 @@ class MLCollectionMixin(Node):
             def dict_to_kv(d):
                 if not isinstance(d, dict):
                     return d
-                return ','.join('{0}:{1}'.format(k, v) for k, v in six.iteritems(d))
+                return ','.join('{0}:{1}'.format(k, v) for k, v in d.items())
 
             if replace:
                 raise ValueError('Stratified sampling with replacement is not supported.')
@@ -513,7 +510,7 @@ def ml_collection_mixin(cls):
         def role_setter(self, field_name):
             if field_name is None:
                 raise ValueError("Field name cannot be None.")
-            if isinstance(field_name, six.string_types):
+            if isinstance(field_name, str):
                 return _change_singleton_roles(self, {field_name: role}, clear_feature=clear_feature)
             else:
                 return _batch_change_roles(self, field_name, role, False)
@@ -570,7 +567,7 @@ def merge_data(*data_frames, **kwargs):
                 exclude = False
             else:
                 df, cols, exclude = pair
-            if isinstance(cols, six.string_types):
+            if isinstance(cols, str):
                 cols = cols.split(',')
         else:
             df, cols, exclude = pair, None, False
@@ -620,7 +617,7 @@ class MLSchema(TableSchema):
 
     def _repr(self, strip=True):
         original_repr = super(MLSchema, self)._repr(strip=False)
-        sio = six.StringIO()
+        sio = io.StringIO()
         ml_attrs = self.ml_attr
         for line in original_repr.splitlines():
             if not line.startswith(' '):

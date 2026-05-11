@@ -81,7 +81,7 @@ class Encoder(object):
         """
         sign = (value & 0x80000000) and -1 or 0
         if value >> 32 != sign:
-            raise errors.EncodeError("SFixed32 out of range: %d" % value)
+            raise errors.EncodeError(f"SFixed32 out of range: {value}")
         self._stream.append_little_endian32(value & 0xFFFFFFFF)
 
     def append_sfixed64(self, value):
@@ -90,7 +90,7 @@ class Encoder(object):
         """
         sign = (value & 0x8000000000000000) and -1 or 0
         if value >> 64 != sign:
-            raise errors.EncodeError("SFixed64 out of range: %d" % value)
+            raise errors.EncodeError(f"SFixed64 out of range: {value}")
         self._stream.append_little_endian64(value & 0xFFFFFFFFFFFFFFFF)
 
     def append_float(self, value):

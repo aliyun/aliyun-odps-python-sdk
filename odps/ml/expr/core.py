@@ -19,7 +19,6 @@ import weakref
 from collections import namedtuple
 
 from ..utils import import_class_member
-from ...compat import six
 from ...utils import hashable
 from ...df import DataFrame
 from ...df.expr.collections import CollectionExpr, Expr, FilterPartitionCollectionExpr
@@ -112,15 +111,15 @@ class AlgoExprMixin(Expr):
             exec_lock.acquire()
 
     def convert_params(self, src_expr=None):
-        params = dict((k, v) for k, v in six.iteritems(self._params) if k in self._exported)
+        params = dict((k, v) for k, v in self._params.items() if k in self._exported)
 
-        for name, exporter in six.iteritems(self._exporters):
+        for name, exporter in self._exporters.items():
             if src_expr is not None:
                 params[name] = exporter(src_expr)
             if not params[name]:
                 params[name] = exporter(self)
 
-        for k, v in list(six.iteritems(params)):
+        for k, v in list(params.items()):
             if v is None:
                 params.pop(k)
             if isinstance(v, (list, tuple, set)) and len(v) == 0:
@@ -159,8 +158,8 @@ class AlgoExprMixin(Expr):
         if getattr(self, '_exec_id', None) is None:
             return dict()
         out_dict = expr_output_registry.get(self._exec_id, dict())
-        out_dict = dict((k, v()) for k, v in six.iteritems(out_dict))
-        return dict((k, v) for k, v in six.iteritems(out_dict) if v is not None and not v.is_extra_expr)
+        out_dict = dict((k, v()) for k, v in out_dict.items())
+        return dict((k, v) for k, v in out_dict.items() if v is not None and not v.is_extra_expr)
 
     @property
     def is_extra_expr(self):
@@ -175,7 +174,7 @@ class AlgoCollectionExpr(AlgoExprMixin, CollectionExpr):
         register_expr = kwargs.pop('register_expr', False)
 
         p_args = [a.cache() if isinstance(a, Expr) else a for a in args]
-        p_kw = dict((k, self.cache_input(v)) for k, v in six.iteritems(kwargs))
+        p_kw = dict((k, self.cache_input(v)) for k, v in kwargs.items())
 
         absent_args = (a for a in self._args[len(args):] if a not in p_kw)
         for a in absent_args:
@@ -213,7 +212,7 @@ class MetricsResultExpr(AlgoExprMixin, Expr):
         kwargs.pop('register_expr', False)
 
         p_args = [a.cache() if isinstance(a, Expr) else a for a in args]
-        p_kw = dict((k, self.cache_input(v)) for k, v in six.iteritems(kwargs))
+        p_kw = dict((k, self.cache_input(v)) for k, v in kwargs.items())
 
         absent_args = (a for a in self._args[len(args):] if a not in p_kw)
         for a in absent_args:
@@ -222,7 +221,7 @@ class MetricsResultExpr(AlgoExprMixin, Expr):
         super(MetricsResultExpr, self)._init(*p_args, **p_kw)
 
         if getattr(self, '_metrics_hash', None) is None:
-            param_hash = hash(frozenset(six.iteritems(hashable(self._params))))
+            param_hash = hash(frozenset(hashable(self._params).items()))
             port_hash = hash(frozenset(self.get_input_hash(pt) for pt in self.input_ports))
             self._metrics_hash = hash((self.node_name, param_hash, port_hash))
 

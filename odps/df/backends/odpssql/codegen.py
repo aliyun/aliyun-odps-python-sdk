@@ -30,7 +30,6 @@ from ...expr.utils import get_executed_collection_project_table_name
 from ...utils import make_copy
 from ....config import options
 from ....lib import cloudpickle
-from ....compat import six
 from ....models import FileResource, TableResource, ArchiveResource
 from ....utils import to_str
 
@@ -82,6 +81,7 @@ from odps.udf import annotate
 from odps.distcache import get_cache_file, get_cache_table, get_cache_archive
 
 PY2 = sys.version_info[0] == 2
+PY3 = sys.version_info[0] == 3
 
 try:
     from odps.distcache import get_cache_archive_filenames
@@ -754,7 +754,7 @@ def gen_udf(expr, func_cls_name=None, libraries=None):
     func_params = dict()
     if libraries is not None:
         def _get_library_name(res):
-            if isinstance(res, six.string_types):
+            if isinstance(res, str):
                 return res
             elif isinstance(res, ArchiveResource):
                 return 'a:' + res.name
@@ -767,7 +767,7 @@ def gen_udf(expr, func_cls_name=None, libraries=None):
         func = getattr(node, 'func', None)
         if func is None:
             continue
-        if isinstance(func, six.string_types):
+        if isinstance(func, str):
             continue
 
         resources = []

@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from .. import errors, serializers
-from ..compat import six
 from .core import XMLIterable
 from .quota import Quota
 
@@ -39,7 +38,7 @@ class Quotas(XMLIterable):
         return self._get(nickname, tenant_id=tenant_id, region_id=region_id)
 
     def __contains__(self, item):
-        if isinstance(item, six.string_types):
+        if isinstance(item, str):
             quota = self._get(item)
         elif isinstance(item, Quota):
             quota = item

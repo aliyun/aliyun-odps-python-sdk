@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,8 +17,8 @@
 import base64
 import functools
 import warnings
+from enum import Enum
 
-from .compat import enum
 from .config import options
 from .core import ODPS
 from .errors import InstanceTypeNotSupported, NotSupportedError, ODPSError
@@ -35,7 +35,7 @@ class Error(Exception):
     pass
 
 
-class State(enum.Enum):
+class State(Enum):
     NONE = 0
     RUNNING = 1
     FINISHED = 2
@@ -46,7 +46,7 @@ class Binary(object):
         self.value = value
 
     def __str__(self):
-        return "unbase64('%s')" % base64.b64encode(self.value).decode()
+        return f"unbase64('{base64.b64encode(self.value).decode()}')"
 
 
 def connect(*args, **kwargs):
@@ -216,8 +216,8 @@ class Cursor(object):
             self._arraysize = max(int(value), default_arraysize)
         except TypeError:
             warnings.warn(
-                "arraysize has to be a integer, got {}, "
-                "will set default value 1000".format(value)
+                f"arraysize has to be a integer, got {value}, "
+                "will set default value 1000"
             )
             self._arraysize = default_arraysize
 
@@ -297,7 +297,7 @@ class Cursor(object):
             # check if all parameters provided
             for pos, key in placeholders:
                 if key not in parameters:
-                    raise KeyError("Missing parameter '%s'" % key)
+                    raise KeyError(f"Missing parameter '{key}'")
             # collect replacements
             replacements = []
             for pos, key in placeholders:
@@ -319,7 +319,7 @@ class Cursor(object):
             num_params = len(parameters)
             if num_placeholders != num_params:
                 raise ValueError(
-                    "Expected %d parameters, got %d" % (num_placeholders, num_params)
+                    f"Expected {num_placeholders} parameters, got {num_params}"
                 )
             # split sql statement into parts
             positions = [pos for pos, _ in placeholders]

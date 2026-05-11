@@ -14,22 +14,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import absolute_import
 import inspect
 import functools
 import operator
 import sys
 from collections import defaultdict, OrderedDict
+from collections.abc import Iterable
+from concurrent.futures import Future
+from functools import reduce
 
 from .core import Node, NodeMetaclass
 from .errors import ExpressionError
 from .utils import get_attrs, is_called_by_inspector, highest_precedence_data_type, new_id, \
     is_changed, get_proxied_expr
 from .. import types
-from ...compat import reduce, isvalidattr, dir2, lkeys, six, futures, Iterable
 from ...config import options
 from ...errors import NoSuchObject, DependencyNotInstalledError
-from ...utils import TEMP_TABLE_PREFIX, to_binary, to_lower_str, deprecated, survey
+from ...utils import TEMP_TABLE_PREFIX, to_binary, to_lower_str, deprecated, survey, isvalidattr
 from ...models import TableSchema
 
 
@@ -160,16 +161,13 @@ class Expr(Node):
                 return result
             async_ = kwargs.get('async_', kwargs.get('async', False))
             if async_:
-                user_future = futures.Future()
+                user_future = Future()
 
                 def _relay(f):
                     try:
                         user_future.set_result(wrapper(f.result()))
                     except:
-                        if hasattr(f, 'exception_info'):
-                            user_future.set_exception_info(*f.exception_info())
-                        else:
-                            user_future.set_exception(f.exception())
+                        user_future.set_exception(f.exception())
 
                 result.add_done_callback(_relay)
                 return user_future
@@ -551,7 +549,8 @@ class CollectionExpr(Expr):
             raise TypeError('Schema cannot has field whose name is None')
 
     def __dir__(self):
-        dir_set = set(dir2(self)) | set([c.name for c in self.schema if isvalidattr(c.name)])
+        cur_dir = object.__dir__(self)
+        dir_set = set(cur_dir) | set([c.name for c in self.schema if isvalidattr(c.name)])
         return sorted(dir_set)
 
     def __getitem__(self, item):
@@ -561,7 +560,7 @@ class CollectionExpr(Expr):
         if isinstance(item, CollectionExpr):
             item = [item, ]
 
-        if isinstance(item, six.string_types):
+        if isinstance(item, str):
             return self._get_field(item)
         elif isinstance(item, slice):
             if item.start is None and item.stop is None and item.step is None:
@@ -690,7 +689,7 @@ class CollectionExpr(Expr):
         """
         from .query import CollectionVisitor
 
-        if not isinstance(expr, six.string_types):
+        if not isinstance(expr, str):
             raise ValueError('expr must be a string')
 
         frame = sys._getframe(2).f_locals
@@ -722,7 +721,7 @@ class CollectionExpr(Expr):
                 "and change the predicate parameter into `pt1=1,pt2=2/pt1=2,pt2=1` form.")
     @survey
     def filter_partition(self, predicate='', exclude=True):
-        if isinstance(predicate, six.string_types):
+        if isinstance(predicate, str):
             part_reprs = '/'.join(','.join(p.split('/')) for p in predicate.split(','))
         else:
             part_reprs = predicate
@@ -754,7 +753,7 @@ class CollectionExpr(Expr):
                 raise ExpressionError('`%s` is not a partition column' % field_name)
             part_col = self[field_name]
             if field_value.startswith('\'') or field_value.startswith('\"'):
-                encoding = 'string-escape' if six.PY2 else 'unicode-escape'
+                encoding = 'unicode-escape'
                 field_value = to_binary(field_value.strip('"\'')).decode(encoding)
 
             if isinstance(part_col.data_type, types.Integer):
@@ -769,11 +768,11 @@ class CollectionExpr(Expr):
         if isinstance(predicate, Partition):
             predicate = predicate.partition_spec
         if isinstance(predicate, PartitionSpec):
-            predicate = ','.join("%s='%s'" % (k, v) for k, v in six.iteritems(predicate.kv))
+            predicate = ','.join("%s='%s'" % (k, v) for k, v in predicate.kv.items())
 
         if isinstance(predicate, list):
             predicate = '/'.join(str(s) for s in predicate)
-        elif not isinstance(predicate, six.string_types):
+        elif not isinstance(predicate, str):
             raise ExpressionError('Only accept string predicates.')
 
         if not predicate:
@@ -833,7 +832,7 @@ class CollectionExpr(Expr):
 
         field = self._defunc(field)
 
-        if isinstance(field, six.string_types):
+        if isinstance(field, str):
             if field not in self._schema:
                 raise ValueError('Field(%s) does not exist, please check schema' % field)
             cls = Column
@@ -977,7 +976,7 @@ class CollectionExpr(Expr):
                     it = Scalar(it)
                 return it
             fields.extend([handle(f).rename(new_name)
-                           for new_name, f in six.iteritems(kw)])
+                           for new_name, f in kw.items()])
 
         return self._project(fields)
 
@@ -996,7 +995,7 @@ class CollectionExpr(Expr):
             exclude_fields = list(fields)
 
         exclude_fields = [self._defunc(it) for it in exclude_fields]
-        exclude_fields = [field.name if not isinstance(field, six.string_types) else field
+        exclude_fields = [field.name if not isinstance(field, str) else field
                           for field in exclude_fields]
 
         fields = [name for name in self._schema.names
@@ -1005,9 +1004,9 @@ class CollectionExpr(Expr):
         return self._project(fields)
 
     def _summary(self, fields):
-        names = [field if isinstance(field, six.string_types) else field.name
+        names = [field if isinstance(field, str) else field.name
                  for field in fields]
-        typos = [self._schema.get_type(field) if isinstance(field, six.string_types)
+        typos = [self._schema.get_type(field) if isinstance(field, str)
                  else field.dtype for field in fields]
         if None in names:
             raise ExpressionError('Column does not have a name, '
@@ -1157,7 +1156,7 @@ class CollectionExpr(Expr):
             output_names.append(col.name)
             fields = []
             tps = []
-            for func in six.itervalues(methods):
+            for func in methods.values():
                 field = func(self[col.name])
                 fields.append(field)
                 tps.append(field.dtype)
@@ -1176,7 +1175,7 @@ class CollectionExpr(Expr):
                 produce_stat_fields(col, string_methods)
 
         summary = self[aggs]
-        methods_names = lkeys(methods)
+        methods_names = list(methods.keys())
 
         @output(['type'] + output_names, ['string'] + output_types)
         def to_methods(row):
@@ -1358,7 +1357,7 @@ class TypedExpr(Expr):
     def eval(self, str_expr, rewrite=False):
         from .query import SequenceVisitor
 
-        if not isinstance(str_expr, six.string_types):
+        if not isinstance(str_expr, str):
             raise ValueError('expr must be a string')
 
         frame = sys._getframe(2).f_locals

@@ -19,14 +19,13 @@ import decimal
 import json
 import sys
 import threading
+import time
 import warnings
 from collections import OrderedDict
 
 from cpython.datetime cimport import_datetime
 from libc.stdint cimport *
 from libc.string cimport *
-
-from ...lib.monotonic import monotonic
 
 from ...src.types_c cimport BaseRecord
 from ...src.utils_c cimport CMillisecondsConverter, to_date, _load_pandas_type, _load_numpy
@@ -93,7 +92,7 @@ cdef class BaseTunnelRecordReader:
         self._c_acc_network_time_ms = 0
 
         if self._enable_client_metrics:
-            ts = monotonic()
+            ts = time.monotonic()
 
         self._schema = schema
         if columns is None:
@@ -122,7 +121,7 @@ cdef class BaseTunnelRecordReader:
 
         if self._enable_client_metrics:
             self._c_local_wall_time_ms += <long>(
-                MICRO_SEC_PER_SEC * (<double>monotonic() - ts)
+                MICRO_SEC_PER_SEC * (<double>time.monotonic() - ts)
             )
 
         self._curr_cursor = 0
@@ -130,13 +129,13 @@ cdef class BaseTunnelRecordReader:
         self._reader = None
 
         if self._enable_client_metrics:
-            ts = monotonic()
+            ts = time.monotonic()
 
         self._read_limit = -1 if options.table_read_limit is None else options.table_read_limit
 
         if self._enable_client_metrics:
             self._c_local_wall_time_ms += <long>(
-                MICRO_SEC_PER_SEC * (<double>monotonic() - ts)
+                MICRO_SEC_PER_SEC * (<double>time.monotonic() - ts)
             )
 
         self._n_injected_error_cursor = -1
@@ -153,11 +152,11 @@ cdef class BaseTunnelRecordReader:
         cdef double ts
 
         if self._enable_client_metrics:
-            ts = monotonic()
+            ts = time.monotonic()
 
         if self._enable_client_metrics:
             self._c_acc_network_time_ms += <long>(
-                MICRO_SEC_PER_SEC * (<double>monotonic() - ts)
+                MICRO_SEC_PER_SEC * (<double>time.monotonic() - ts)
             )
             if self._reader is not None:
                 self._c_acc_network_time_ms += (
@@ -188,7 +187,7 @@ cdef class BaseTunnelRecordReader:
 
         if self._enable_client_metrics:
             self._c_local_wall_time_ms += <long>(
-                MICRO_SEC_PER_SEC * (<double>monotonic() - ts)
+                MICRO_SEC_PER_SEC * (<double>time.monotonic() - ts)
             )
 
     def _inject_error(self, cursor, exc):
@@ -305,7 +304,7 @@ cdef class BaseTunnelRecordReader:
             object result
 
         if self._enable_client_metrics:
-            ts = monotonic()
+            ts = time.monotonic()
         if self._reader is None:
             self._reopen_reader()
 
@@ -314,7 +313,7 @@ cdef class BaseTunnelRecordReader:
                 result = self._read()
                 if self._enable_client_metrics:
                     self._c_local_wall_time_ms += <long>(
-                        MICRO_SEC_PER_SEC * (<double>monotonic() - ts)
+                        MICRO_SEC_PER_SEC * (<double>time.monotonic() - ts)
                     )
                 return result
             except Exception as ex:
@@ -397,7 +396,7 @@ cdef _build_field_reader(BaseTunnelRecordReader record_reader, object data_type)
     elif isinstance(data_type, (types.Char, types.Varchar)):
         return StringFieldReader(record_reader)
     else:
-        raise IOError("Unsupported type %s" % data_type)
+        raise IOError(f"Unsupported type {data_type}")
 
 
 cdef class AbstractFieldReader:
@@ -712,7 +711,7 @@ cdef class VectorFieldReader(AbstractFieldReader):
 
         if dim != self._dimension:
             raise ValueError(
-                "Vector dimension mismatch: expected %d, got %d" % (self._dimension, dim)
+                f"Vector dimension mismatch: expected {self._dimension}, got {dim}"
             )
 
         # Optimized path: read directly into numpy array using typed memoryviews

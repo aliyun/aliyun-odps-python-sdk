@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import functools
 import re
 import sys
 import math as pymath
@@ -199,7 +200,7 @@ class Analyzer(BaseAnalyzer):
             tps = list(intact_types)
             kv_slot_map = dict()
 
-            for col, key_str in compat.izip(result.columns, result[0]):
+            for col, key_str in zip(result.columns, result[0]):
                 kv_slot_map[col.name] = dict()
                 for k in key_str.split(item_delimiter):
                     names.append('%s_%s' % (col.name, k))
@@ -563,8 +564,8 @@ class Analyzer(BaseAnalyzer):
 
             if end is None and step is None:
                 raise NotImplementedError
-            if isinstance(start, six.integer_types) and \
-                    isinstance(end, six.integer_types) and step is None:
+            if isinstance(start, int) and \
+                    isinstance(end, int) and step is None:
                 if start >= 0 and end >= 0:
                     raise NotImplementedError
 
@@ -641,7 +642,7 @@ class Analyzer(BaseAnalyzer):
             elif isinstance(expr, (Isnumeric, Isdecimal)):
                 def u_safe(s):
                     try:
-                        return unicode(s, "unicode_escape")
+                        return str(s, "unicode_escape")
                     except:
                         return s
 

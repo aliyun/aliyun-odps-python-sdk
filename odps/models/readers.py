@@ -14,8 +14,8 @@
 
 import sys
 import threading
+from concurrent.futures import Future
 
-from ..compat import futures, six
 from ..config import options
 from ..errors import ODPSClientError
 from ..lib.tblib import pickling_support
@@ -40,8 +40,7 @@ class TunnelReaderMixin(object):
             _mp_context = multiprocessing.get_context("fork")
         except ValueError:
             _mp_context = multiprocessing.get_context("spawn")
-        except AttributeError:
-            # for py27 compatibility
+        except AttributeError:  # pragma: no cover
             _mp_context = multiprocessing
 
         parent_conn, child_conn = Pipe()
@@ -56,15 +55,12 @@ class TunnelReaderMixin(object):
             try:
                 idx, data, is_success = parent_conn.recv()
             except EOFError:
-                six.raise_from(
-                    ODPSClientError(
-                        "Read process ended unexpectedly. Try finding errors "
-                        "outputed above."
-                    ),
-                    None,
-                )
+                raise ODPSClientError(
+                    "Read process ended unexpectedly. Try finding errors "
+                    "outputed above."
+                ) from None
             if not is_success:
-                six.reraise(*data)
+                raise data[1].with_traceback(data[2])
             return idx, data
 
         return waiter
@@ -72,7 +68,7 @@ class TunnelReaderMixin(object):
     def _spawn_reader_in_thread(
         self, session_id, start, split_count, split_id, **get_split_reader_kw
     ):
-        fut = futures.Future()
+        fut = Future()
 
         def thread_runner():
             func = self._get_split_reader(**get_split_reader_kw)
@@ -80,10 +76,7 @@ class TunnelReaderMixin(object):
                 fut.set_result(func(None, session_id, start, split_count, split_id))
             except:
                 ex_info = sys.exc_info()
-                if sys.version_info[0] == 2:
-                    fut.set_exception_info(ex_info[1], ex_info[2])
-                else:
-                    fut.set_exception(ex_info[1])
+                fut.set_exception(ex_info[1])
 
         thread = threading.Thread(target=thread_runner)
         thread.start()

@@ -20,7 +20,6 @@ from collections import OrderedDict
 from ....models import TableSchema
 from .... import types as odps_types
 from ... import types as df_types
-from ....compat import six
 from ....config import options
 
 
@@ -79,7 +78,7 @@ def is_odps_type(typ):
 
 
 def odps_type_to_df_type(odps_type):
-    if isinstance(odps_type, six.string_types):
+    if isinstance(odps_type, str):
         odps_type = odps_types.validate_data_type(odps_type)
 
     if odps_type in _odps_to_df_types:
@@ -117,7 +116,7 @@ def df_type_to_odps_type(df_type, use_odps2_types=None, project=None):
         df_to_odps_types = _df_to_odps_types2
     else:
         df_to_odps_types = _df_to_odps_types
-    if isinstance(df_type, six.string_types):
+    if isinstance(df_type, str):
         df_type = df_types.validate_data_type(df_type)
 
     if df_type in df_to_odps_types:

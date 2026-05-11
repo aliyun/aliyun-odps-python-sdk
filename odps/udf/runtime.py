@@ -1,4 +1,4 @@
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,16 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import sys
-
-from ..compat import six
 from ..counters import Counters
-
-PY2 = sys.version_info[0] == 2
-if PY2:
-    long_type = long
-else:
-    long_type = type("DummyLong", (object,), {})
 
 _original_int = int
 _annotated_classes = {}
@@ -66,18 +57,15 @@ def get_execution_context():
 def int(v, silent=True):
     v = _original_int(v)
     try:
-        if not PY2:
-            # when in python 3, check long value by bytes conversion
-            v.to_bytes(8, byteorder="little", signed=True)
-        elif type(v) is long_type:
-            raise OverflowError
+        # check long value by bytes conversion
+        v.to_bytes(8, byteorder="little", signed=True)
     except OverflowError:
         if silent:
             return None
         else:
-            six.raise_from(
-                OverflowError("Python int too large to convert to bigint: %s" % v), None
-            )
+            raise OverflowError(
+                f"Python int too large to convert to bigint: {v}"
+            ) from None
     return v
 
 

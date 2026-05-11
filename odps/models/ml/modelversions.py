@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from ... import errors, serializers
-from ...compat import six
 from ..core import JSONContainer
 from .model import Model
 
@@ -40,7 +39,7 @@ class ModelVersions(JSONContainer):
         )
 
     def __contains__(self, item):
-        if isinstance(item, six.string_types):
+        if isinstance(item, str):
             model = self._get(item)
         elif isinstance(item, Model):
             model = item

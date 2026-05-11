@@ -16,10 +16,10 @@
 
 import operator
 from collections import namedtuple
+from functools import reduce
 
 import pytest
 
-from ....compat import reduce
 from ... import types, Scalar, DataFrame
 from ..tests.core import MockTable
 from ..merge import *

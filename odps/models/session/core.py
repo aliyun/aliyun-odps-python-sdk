@@ -14,14 +14,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import functools
+
 from ... import utils
-from ...compat import six
 from .v1 import McqaV1Methods
 from .v2 import McqaV2Methods
 
 
 def _redirect_v1(func):
-    @six.wraps(func)
+    @functools.wraps(func)
     def wrapped(*args, **kwargs):
         meth = getattr(McqaV1Methods, func.__name__)
         if args and isinstance(args[0], type):

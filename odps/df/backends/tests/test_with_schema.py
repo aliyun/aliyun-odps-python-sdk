@@ -16,10 +16,10 @@ import functools
 import uuid
 from collections import namedtuple
 from datetime import datetime
+from decimal import Decimal
 
 import pytest
 
-from ....compat import Decimal
 from ....errors import ODPSError
 from ....models import TableSchema
 from ....tests.core import force_drop_schema, tn, pandas_case, get_result, run_sub_tests_in_parallel

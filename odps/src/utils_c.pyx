@@ -62,9 +62,6 @@ cdef extern from "timegm.c":
     tm* localtime_safe(time_t* timer, tm* buf) noexcept nogil
 
 cdef bint _is_windows = sys.platform.lower().startswith("win")
-cdef bint _is_py3 = sys.version_info[0] == 3
-cdef bint _datetime_inited = False
-cdef object _time_init_lock = threading.Lock()
 cdef int64_t _antique_mills, _min_datetime_mills
 cdef object _py_local_epoch
 cdef object _pd_type_import_lock = threading.Lock()
@@ -119,15 +116,6 @@ cdef class CMillisecondsConverter:
             return tz
 
     def __init__(self, local_tz=None, is_dst=False):
-        global _datetime_inited
-
-        if not _is_py3 and not _datetime_inited:
-            # due to cython implementations, make sure the line below is always invoked
-            with _time_init_lock:
-                if not _datetime_inited:
-                    import_datetime()
-                    _datetime_inited = True
-
         self._local_tz = local_tz if local_tz is not None else options.local_timezone
         if self._local_tz is None:
             self._local_tz = True
@@ -278,7 +266,7 @@ cdef to_date(int32_t days):
 
 
 cpdef inline str to_str(s, encoding="utf-8"):
-    return <str>to_text(s, encoding) if _is_py3 else <str>to_binary(s, encoding)
+    return <str>to_text(s, encoding)
 
 
 cpdef inline bytes to_binary(s, encoding="utf-8"):
@@ -292,7 +280,7 @@ cpdef inline bytes to_binary(s, encoding="utf-8"):
     elif s is None:
         return None
     else:
-        return str(s).encode(encoding) if _is_py3 else bytes(s)
+        return str(s).encode(encoding)
 
 
 cpdef inline unicode to_text(s, encoding="utf-8"):
@@ -306,16 +294,13 @@ cpdef inline unicode to_text(s, encoding="utf-8"):
     elif s is None:
         return None
     else:
-        return str(s) if _is_py3 else str(s).decode(encoding)
+        return str(s)
 
 
 cpdef str to_lower_str(s, encoding="utf-8"):
     if s is None:
         return None
-    if _is_py3:
-        return <str>(to_text(s, encoding).lower())
-    else:
-        return <str>(to_binary(s, encoding).lower())
+    return <str>(to_text(s, encoding).lower())
 
 
 @cython.nonecheck(False)
@@ -341,7 +326,7 @@ cdef object _load_pandas_type(str type_name, str error_msg=None):
             return pd_type
         except (ImportError, ValueError, AttributeError):
             if error_msg is None:
-                error_msg = "To use %s in pyodps, you need to install pandas." % type_name.upper()
+                error_msg = f"To use {type_name.upper()} in pyodps, you need to install pandas."
             raise ImportError(error_msg)
 
 

@@ -30,7 +30,6 @@ except ImportError:
     from sqlalchemy.databases import mysql
 
 from . import options, types
-from .compat import six
 from .core import DEFAULT_ENDPOINT, ODPS
 from .errors import BaseODPSError, InternalServerError, NoSuchObject
 from .models import Table
@@ -47,13 +46,13 @@ def update_test_setting(**kw):
     for k in kw:
         old_values[k] = getattr(test_setting, k)
 
-    for k, v in six.iteritems(kw):
+    for k, v in kw.items():
         setattr(test_setting, k, v)
 
     yield
 
     # set back value
-    for k, v in six.iteritems(old_values):
+    for k, v in old_values.items():
         setattr(test_setting, k, v)
 
 
@@ -194,9 +193,7 @@ class ODPSCompiler(compiler.SQLCompiler):
     def visit_column(self, *args, **kwargs):
         result = super(ODPSCompiler, self).visit_column(*args, **kwargs)
         dot_count = result.count(".")
-        assert dot_count in (0, 1, 2), "Unexpected visit_column result {}".format(
-            result
-        )
+        assert dot_count in (0, 1, 2), f"Unexpected visit_column result {result}"
         if dot_count == 2:
             # we have something of the form schema.table.column
             # hive doesn't like the schema in front, so chop it out
@@ -204,7 +201,7 @@ class ODPSCompiler(compiler.SQLCompiler):
         return result
 
     def visit_char_length_func(self, fn, **kw):
-        return "length{}".format(self.function_argspec(fn, **kw))
+        return f"length{self.function_argspec(fn, **kw)}"
 
     def __unicode__(self):
         return to_text(self)
@@ -352,14 +349,14 @@ class ODPSDialect(default.DefaultDialect):
             kwargs.pop("secret_access_key", None)
             kwargs["account"] = options.account
 
-        for k, v in six.iteritems(kwargs):
+        for k, v in kwargs.items():
             if v is None:
                 raise ValueError(
-                    "{} should be provided to create connection, "
+                    f"{k} should be provided to create connection, "
                     "you can either specify in connection string as format: "
                     '"odps://<access_id>:<access_key>@<project_name>", '
                     "or create an ODPS object and call `.to_global()` "
-                    "to set it to global".format(k)
+                    "to set it to global"
                 )
         if logview_host is not None:
             kwargs["logview_host"] = logview_host
@@ -568,7 +565,7 @@ class ODPSDialect(default.DefaultDialect):
                 "tag",
             ):
                 setattr(new_err, attr, getattr(ex, attr))
-            six.reraise(ODPSPingError, new_err, tb)
+            raise new_err.with_traceback(tb)
 
     def do_rollback(self, dbapi_connection):
         # No transactions for ODPS

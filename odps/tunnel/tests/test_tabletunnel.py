@@ -14,8 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import print_function
-
+import configparser
+import decimal
 import json
 import math
 import random
@@ -25,8 +25,6 @@ import warnings
 from collections import OrderedDict
 from datetime import date, datetime
 from multiprocessing.pool import ThreadPool
-
-import six
 
 try:
     from string import letters
@@ -46,7 +44,7 @@ import pytest
 import requests
 
 from ... import options, types
-from ...compat import DECIMAL_TYPES, ConfigParser, Decimal, Monthdelta, Version
+from ...compat import Monthdelta, Version
 from ...errors import DatetimeOverflowError, throw_if_parsable
 from ...models import Record, TableSchema
 from ...rest import RestClient
@@ -82,7 +80,7 @@ def check_malicious_requests(odps):
             try:
                 throw_if_parsable(resp, *args, **kw)
             except:
-                raise AssertionError("Malicious request detected: %s" % resp.url)
+                raise AssertionError(f"Malicious request detected: {resp.url}")
         else:
             throw_if_parsable(resp, *args, **kw)
 
@@ -113,7 +111,7 @@ class TunnelTestUtil(object):
         return random.uniform(-1, 1) > 0
 
     def _gen_random_decimal(self):
-        return Decimal(str(self._gen_random_double()))
+        return decimal.Decimal(str(self._gen_random_double()))
 
     def _gen_random_array_type(self):
         t = random.choice(["string", "bigint", "double", "boolean"])
@@ -133,7 +131,7 @@ class TunnelTestUtil(object):
         random_type = types.validate_data_type(random_type)
         if isinstance(random_type, types.Array):
             random_type = random_type.value_type
-        method = getattr(self, "_gen_random_%s" % random_type.name)
+        method = getattr(self, f"_gen_random_{random_type.name}")
         array = [method() for _ in range(size)]
 
         return array
@@ -192,7 +190,7 @@ class TunnelTestUtil(object):
             lifecycle=1,
         )
         if partition_val:
-            table.create_partition("%s=%s" % (partition, partition_val))
+            table.create_partition(f"{partition}={partition_val}")
 
         data = []
         for i in range(size):
@@ -224,11 +222,11 @@ class TunnelTestUtil(object):
         data = [r.values if isinstance(r, Record) else r for r in data]
 
         sortable_types = (
-            six.string_types,
-            six.integer_types,
+            str,
+            int,
             bool,
             float,
-            DECIMAL_TYPES,
+            decimal.Decimal,
             datetime,
             date,
         )
@@ -407,7 +405,7 @@ class TunnelTestUtil(object):
                 math.pi,
                 datetime(2015, 9, 19, 2, 11, 25, 33000),
                 True,
-                Decimal("3.14"),
+                decimal.Decimal("3.14"),
                 ["simple", "easy"],
                 OrderedDict({"s": 1}),
             ),
@@ -417,7 +415,7 @@ class TunnelTestUtil(object):
                 math.e,
                 datetime(2020, 3, 10),
                 False,
-                Decimal("1234567898765431"),
+                decimal.Decimal("1234567898765431"),
                 ["true", None],
                 OrderedDict({"true": 1}),
             ),
@@ -427,7 +425,7 @@ class TunnelTestUtil(object):
                 -2.222,
                 datetime(1999, 5, 25, 3, 10),
                 True,
-                Decimal(28318318318318318),
+                decimal.Decimal(28318318318318318),
                 ["false"],
                 OrderedDict({"false": 0}),
             ),
@@ -437,7 +435,7 @@ class TunnelTestUtil(object):
                 2.222,
                 datetime(1961, 10, 30, 11, 32),
                 True,
-                Decimal("12345678.98765431"),
+                decimal.Decimal("12345678.98765431"),
                 ["true"],
                 OrderedDict({"false": 0}),
             ),
@@ -580,10 +578,10 @@ def test_upload_and_download_wrapped_strings(odps):
     odps.delete_table(test_table_name, if_exists=True)
     odps.create_table(test_table_name, "col1 string, col2 binary")
 
-    class U(str if six.PY3 else unicode):  # noqa: F821
+    class U(str):  # noqa: F821
         pass
 
-    class B(bytes if six.PY3 else str):
+    class B(bytes):
         pass
 
     tunnel = TableTunnel(odps)
@@ -1070,9 +1068,24 @@ def test_decimal2(odps):
     assert table.table_schema.types[3].scale == 3
 
     contents = [
-        [0, Decimal("2.34"), Decimal("34567"), Decimal("56.789")],
-        [1, Decimal("11.76"), Decimal("9321"), Decimal("19.125")],
-        [2, Decimal("134.21"), Decimal("1642"), Decimal("999.214")],
+        [
+            0,
+            decimal.Decimal("2.34"),
+            decimal.Decimal("34567"),
+            decimal.Decimal("56.789"),
+        ],
+        [
+            1,
+            decimal.Decimal("11.76"),
+            decimal.Decimal("9321"),
+            decimal.Decimal("19.125"),
+        ],
+        [
+            2,
+            decimal.Decimal("134.21"),
+            decimal.Decimal("1642"),
+            decimal.Decimal("999.214"),
+        ],
     ]
     odps.write_table(table_name, contents)
     written = list(odps.read_table(table_name))
@@ -1095,10 +1108,10 @@ def test_intervals(odps):
     table_name = tn("test_hivetunnel_interval_io_" + get_code_mode())
     odps.delete_table(table_name, if_exists=True)
     odps.execute_sql(
-        "create table %s lifecycle 1 as\n"
+        f"create table {table_name} lifecycle 1 as\n"
         "select interval_day_time('2 1:2:3') as col1,"
         "  interval_year_month('10-11') as col2\n"
-        "from %s" % (table_name, empty_table_name)
+        f"from {empty_table_name}"
     )
     table = odps.get_table(table_name)
     assert table.table_schema.types == [
@@ -1248,7 +1261,12 @@ def test_decimal_with_complex_types(odps):
     )
 
     try:
-        data_to_write = [[[Decimal("12.345"), Decimal("18.41")], (Decimal("514.321"),)]]
+        data_to_write = [
+            [
+                [decimal.Decimal("12.345"), decimal.Decimal("18.41")],
+                (decimal.Decimal("514.321"),),
+            ]
+        ]
         with table.open_writer() as writer:
             writer.write(data_to_write)
 
@@ -1295,8 +1313,7 @@ def test_antique_datetime(odps):
     options.tunnel.overflow_date_as_none = False
     try:
         odps.execute_sql(
-            "INSERT INTO %s(col) VALUES (cast('1900-01-01 00:00:00' as datetime))"
-            % table_name
+            f"INSERT INTO {table_name}(col) VALUES (cast('1900-01-01 00:00:00' as datetime))"
         )
         with pytest.raises(DatetimeOverflowError):
             with table.open_reader() as reader:
@@ -1309,8 +1326,7 @@ def test_antique_datetime(odps):
 
         table.truncate()
         odps.execute_sql(
-            "INSERT INTO %s(col) VALUES (cast('0000-01-01 00:00:00' as datetime))"
-            % table_name
+            f"INSERT INTO {table_name}(col) VALUES (cast('0000-01-01 00:00:00' as datetime))"
         )
         with pytest.raises(DatetimeOverflowError):
             with table.open_reader() as reader:
@@ -1339,7 +1355,7 @@ def test_tunnel_read_with_retry(odps, setup):
     table = odps.create_table(test_table_name, "col string")
 
     try:
-        data = [["str%d" % idx] for idx in range(10)]
+        data = [[f"str{idx}"] for idx in range(10)]
         with table.open_writer() as writer:
             writer.write(data)
 
@@ -1460,12 +1476,12 @@ def test_tunnel_preview_legacy_decimal(odps):
 
     values = [
         None,
-        Decimal("0.0"),
-        Decimal("0.571428"),
-        Decimal("21.3456"),
-        Decimal("-5678"),
-        Decimal("134567234121.561345671892"),
-        Decimal("-453462321413.2345643456336"),
+        decimal.Decimal("0.0"),
+        decimal.Decimal("0.571428"),
+        decimal.Decimal("21.3456"),
+        decimal.Decimal("-5678"),
+        decimal.Decimal("134567234121.561345671892"),
+        decimal.Decimal("-453462321413.2345643456336"),
     ]
 
     try:
@@ -1503,14 +1519,14 @@ def test_tunnel_preview_table_complex_types(odps, struct_as_dict):
     )
     data = [
         [
-            Decimal("1234.52"),
+            decimal.Decimal("1234.52"),
             pd.Timestamp("2023-07-15 23:08:12.134567123"),
             {"abcd": [1234, None], "egh": [5472]},
             [{"uvw": 123, "xyz": 567}, {"abcd": 345}],
             ("this_key", {"pqr": 47, "st": 56}),
         ],
         [
-            Decimal("5473.12"),
+            decimal.Decimal("5473.12"),
             pd.Timestamp("2023-07-16 10:01:23.345673214"),
             {"uvw": [9876, None], "tre": [3421]},
             [{"mrp": 342, "vcs": 165}],
@@ -1569,7 +1585,7 @@ def test_upsert_table(odps):
 
         upsert_session.commit()
 
-        inst = odps.execute_sql("SELECT * FROM %s" % table_name)
+        inst = odps.execute_sql(f"SELECT * FROM {table_name}")
         with inst.open_reader() as reader:
             records = [list(rec.values) for rec in reader]
         assert sorted(records) == [["0", "v3"], ["1", "v1"]]
@@ -1698,7 +1714,7 @@ def test_table_upsert_tunnel_with_quota(odps_with_tunnel_quota, config):
     assert request_counts[0] > 0, "No tunnel requests were made via patch"
 
     # Verify upsert operations worked correctly (outside mock context)
-    inst = odps.execute_sql("SELECT * FROM %s" % table_name)
+    inst = odps.execute_sql(f"SELECT * FROM {table_name}")
     with inst.open_reader() as reader:
         records = [list(rec.values) for rec in reader]
     assert sorted(records) == [["0", "v1"], ["1", "v1"]]
@@ -1716,7 +1732,7 @@ def test_read_write_long_binary(odps_with_long_string):
         * 1024
     )
     if data_len > maxsize_prop:
-        pytest.skip("maxsize on project %s not configured." % odps.project)
+        pytest.skip(f"maxsize on project {odps.project} not configured.")
 
     test_str = "abcd" * (data_len // 4)
 
@@ -1744,7 +1760,7 @@ def test_read_write_long_binary(odps_with_long_string):
 def test_read_secondary_project_table(config, odps):
     try:
         secondary_project = config.get("test", "secondary_project")
-    except ConfigParser.NoOptionError:
+    except configparser.NoOptionError:
         pytest.skip("secondary_project not configured.")
 
     table_name = tn("test_secondary_project_table")

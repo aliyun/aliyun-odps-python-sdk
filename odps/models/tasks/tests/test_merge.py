@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -76,7 +76,7 @@ def test_run_merge(odps, test_table):
         pass
 
     inst = odps.run_sql(
-        "alter table %s partition (part1=1,part2=1) merge smallfiles;" % test_table
+        f"alter table {test_table} partition (part1=1,part2=1) merge smallfiles;"
     )
     wait_filled(lambda: inst.tasks)
     task = inst.tasks[0]
@@ -89,7 +89,7 @@ def test_run_merge(odps, test_table):
 
 def test_run_compact(odps, test_table):
     inst = odps.run_sql(
-        "alter table %s partition (part1=1,part2=1) compact major;" % test_table
+        f"alter table {test_table} partition (part1=1,part2=1) compact major;"
     )
     wait_filled(lambda: inst.tasks)
     task = inst.tasks[0]
@@ -104,7 +104,7 @@ def test_run_compact(odps, test_table):
         pass
 
     inst = odps.run_sql(
-        "alter table %s partition (part1=1,part2=1) compact minor -h 5 -f;" % test_table
+        f"alter table {test_table} partition (part1=1,part2=1) compact minor -h 5 -f;"
     )
     wait_filled(lambda: inst.tasks)
     task = inst.tasks[0]
@@ -120,7 +120,7 @@ def test_run_compact(odps, test_table):
 
 def test_run_archive(odps, test_table):
     inst = odps.run_sql(
-        "alter table %s partition (part1=1,part2=1) archive;" % test_table
+        f"alter table {test_table} partition (part1=1,part2=1) archive;"
     )
     wait_filled(lambda: inst.tasks)
     task = inst.tasks[0]
@@ -133,9 +133,7 @@ def test_run_archive(odps, test_table):
 
 
 def test_run_freeze(odps, test_table):
-    inst = odps.run_sql(
-        "alter table %s partition (part1=1,part2=1) freeze;" % test_table
-    )
+    inst = odps.run_sql(f"alter table {test_table} partition (part1=1,part2=1) freeze;")
     wait_filled(lambda: inst.tasks)
     task = inst.tasks[0]
     assert isinstance(task, MergeTask)

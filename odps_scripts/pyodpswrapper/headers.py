@@ -17,7 +17,7 @@ import re
 import sys
 import threading
 
-_re_flag = 0 if sys.version_info[0] == 2 else re.ASCII
+_re_flag = re.ASCII
 MARS_VERSION_RE = re.compile(
     r"^[ \t\f]*#.*?mars_version[ \t]*[:=][ \t]*([-\w.]+)", _re_flag
 )

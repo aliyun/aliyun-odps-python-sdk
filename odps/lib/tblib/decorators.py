@@ -1,7 +1,6 @@
 import sys
 from functools import wraps
 
-from ..six import PY3, raise_from, reraise
 from . import Traceback
 
 
@@ -16,10 +15,7 @@ class Error(object):
         return self.__traceback.as_traceback()
 
     def reraise(self):
-        if PY3:
-            raise_from(self.exc_value.with_traceback(self.traceback), None)
-        else:
-            reraise(self.exc_type, self.exc_value, self.traceback)
+        raise self.exc_value.with_traceback(self.traceback) from None
 
 
 def return_error(func, exc_type=Exception):

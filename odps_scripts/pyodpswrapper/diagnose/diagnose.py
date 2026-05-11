@@ -180,10 +180,10 @@ def diagnose_pyodps_errors(code, exc, tb, logger):
 
 def diagnose_exit_code(exitcode, logger):
     if exitcode == -9:  # SIGKILL
-        logger.error("Got killed (%s)" % exitcode)
+        logger.error(f"Got killed ({exitcode})")
         logger.error(OOM_KILL_MSG)
     else:
-        logger.error("Exited accidentally with exit code %s" % exitcode)
+        logger.error(f"Exited accidentally with exit code {exitcode}")
         logger.error(OTHER_KILL_MSG)
 
 
@@ -231,11 +231,6 @@ def log_replaced_vars(var_names, logger):
         "{REPLACED_VARS}", ", ".join(var_names)
     )
     logger.warning(msg)
-
-
-def log_python2_deprecation_warning(logger):
-    if sys.version_info[0] == 2:
-        logger.warning(str(PYTHON2_DEPRECATE_MSG))
 
 
 def log_dev_project_warning(project_name, logger):

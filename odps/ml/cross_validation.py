@@ -16,7 +16,6 @@
 import time
 
 from ..df import RandomScalar, Delay
-from ..compat import six
 from ..utils import with_wait_argument
 from .utils import get_function_args
 from .metrics import SCORERS
@@ -67,13 +66,13 @@ def cross_val_score(trainer, df, col_true=None, col_pred=None, col_score=None, s
                     close_and_notify=True):
     if cv is None:
         cv = k_fold()
-    elif isinstance(cv, six.integer_types):
+    elif isinstance(cv, int):
         cv = k_fold(cv)
     if scoring is None:
         scoring = SCORERS['accuracy']
 
     if fit_params:
-        [setattr(trainer, param, val) for param, val in six.iteritems(fit_params)]
+        [setattr(trainer, param, val) for param, val in fit_params.items()]
 
     kwargs = dict(col_true=col_true, col_pred=col_pred)
     if 'col_score' in get_function_args(scoring):

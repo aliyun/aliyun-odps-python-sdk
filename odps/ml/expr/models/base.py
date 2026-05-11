@@ -20,7 +20,6 @@ import warnings
 from .. import op, exporters
 from ..core import AlgoExprMixin, AlgoCollectionExpr
 from ...utils import MLField, FieldRole, FieldContinuity, import_class_member, build_model_table_name, ML_ARG_PREFIX
-from ....compat import six
 from ....config import options
 from ....errors import NoSuchObject
 from ....df.expr.collections import CollectionExpr, Expr
@@ -120,7 +119,7 @@ class ODPSModelExpr(AlgoExprMixin, Expr):
         register_expr = kwargs.pop('register_expr', False)
 
         p_args = [a.cache() if isinstance(a, Expr) else a for a in args]
-        p_kw = dict((k, self.cache_input(v)) for k, v in six.iteritems(kwargs))
+        p_kw = dict((k, self.cache_input(v)) for k, v in kwargs.items())
 
         super(ODPSModelExpr, self)._init(*p_args, **p_kw)
         self.cache(False)
@@ -220,7 +219,7 @@ class ODPSModelExpr(AlgoExprMixin, Expr):
                                 _predictor=data.params.get('predictor'),
                                 _recommender=data.params.get('recommender'))
             data_exprs = dict()
-            for k, v in six.iteritems(data.tables):
+            for k, v in data.tables.items():
                 data_exprs[k] = ModelDataCollectionExpr(_mlattr_model=mod, _data_item=k)
                 data_exprs[k]._source_data = v
             mod._model_collections = data_exprs
@@ -328,7 +327,7 @@ class TablesModel(ODPSModelExpr):
                 raise ValueError('Name of the TablesModel should be provided.')
 
         model_collection = dict()
-        for name, tb in six.iteritems(model.tables):
+        for name, tb in model.tables.items():
             model_collection[name] = DataFrame(tb)
 
         kwargs['_source_data'] = model

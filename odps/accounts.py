@@ -18,18 +18,21 @@ import base64
 import calendar
 import hashlib
 import hmac
+import http.server
 import json
 import logging
 import os
+import socketserver
 import threading
 import time
 from collections import OrderedDict
 from datetime import datetime
+from urllib.parse import parse_qs, parse_qsl, unquote, urlparse
 
 import requests
 
 from . import options, utils
-from .compat import cgi, datetime_utcnow, parse_qsl, six, unquote, urlparse
+from .compat import cgi, datetime_utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -62,11 +65,11 @@ class BaseAccount(object):
             convert = lambda kv: kv if kv[1] != "" else (kv[0],)
             params_str = "&".join(["=".join(convert(kv)) for kv in params_list])
 
-            canonical_resource = "%s?%s" % (canonical_resource, params_str)
+            canonical_resource = f"{canonical_resource}?{params_str}"
 
         headers = req.headers
         logger.debug("headers before signing: %s", headers)
-        for k, v in six.iteritems(headers):
+        for k, v in headers.items():
             k = k.lower()
             if k in ("content-type", "content-md5") or k.startswith("x-odps"):
                 headers_to_sign[k] = v
@@ -79,7 +82,7 @@ class BaseAccount(object):
             headers["Date"] = req_date
             date_str = req_date
         headers_to_sign["date"] = date_str
-        for param_key, param_value in six.iteritems(params):
+        for param_key, param_value in params.items():
             if param_key.startswith("x-odps-"):
                 headers_to_sign[param_key] = param_value
 
@@ -87,9 +90,9 @@ class BaseAccount(object):
             [(k, headers_to_sign[k]) for k in sorted(headers_to_sign)]
         )
         logger.debug("headers to sign: %s", headers_to_sign)
-        for k, v in six.iteritems(headers_to_sign):
+        for k, v in headers_to_sign.items():
             if k.startswith("x-odps-"):
-                lines.append("%s:%s" % (k, v))
+                lines.append(f"{k}:{v}")
             else:
                 lines.append(v)
 
@@ -155,13 +158,13 @@ class CloudAccount(BaseAccount):
                     hashlib.sha1,
                 ).digest()
             )
-            return "ODPS %s:%s" % (self.access_id, utils.to_str(signature))
+            return f"ODPS {self.access_id}:{utils.to_str(signature)}"
         else:
             # use v4 sign
             sig_prefix = _get_v4_signature_prefix()
             date_str = datetime.strftime(datetime_utcnow(), "%Y%m%d")
             credential = "/".join(
-                [self.access_id, date_str, region_name, "odps/%s_request" % sig_prefix]
+                [self.access_id, date_str, region_name, f"odps/{sig_prefix}_request"]
             )
             sign_key = self._get_v4_signature_key(date_str, region_name)
             signature = base64.b64encode(
@@ -169,7 +172,7 @@ class CloudAccount(BaseAccount):
                     sign_key, utils.to_binary(canonical_str), hashlib.sha1
                 ).digest()
             )
-            return "ODPS %s:%s" % (credential, utils.to_str(signature))
+            return f"ODPS {credential}:{utils.to_str(signature)}"
 
     def sign_request(self, req, endpoint, region_name=None):
         url = req.url[len(endpoint) :]
@@ -210,7 +213,7 @@ class AppAccount(BaseAccount):
 
 
 class SignServer(object):
-    class SignServerHandler(six.moves.BaseHTTPServer.BaseHTTPRequestHandler):
+    class SignServerHandler(http.server.BaseHTTPRequestHandler):
         def do_GET(self):
             self.send_response(200)
             self.send_header("Content-type", "text/plain")
@@ -231,9 +234,7 @@ class SignServer(object):
                 postvars = cgi.parse_multipart(self.rfile, pdict)
             elif ctype == "application/x-www-form-urlencoded":
                 length = int(self.headers.get("content-length"))
-                postvars = six.moves.urllib.parse.parse_qs(
-                    self.rfile.read(length), keep_blank_values=1
-                )
+                postvars = parse_qs(self.rfile.read(length), keep_blank_values=1)
             else:
                 self.send_response(400)
                 self.end_headers()
@@ -280,14 +281,12 @@ class SignServer(object):
         def log_message(self, *args):
             return
 
-    class SignServerCore(
-        six.moves.socketserver.ThreadingMixIn, six.moves.BaseHTTPServer.HTTPServer
-    ):
+    class SignServerCore(socketserver.ThreadingMixIn, http.server.HTTPServer):
         def __init__(self, *args, **kwargs):
             self._accounts = kwargs.pop("accounts", {})
             self._token = kwargs.pop("token", None)
             self._ready = False
-            six.moves.BaseHTTPServer.HTTPServer.__init__(self, *args, **kwargs)
+            http.server.HTTPServer.__init__(self, *args, **kwargs)
             self._ready = True
 
         def stop(self):
@@ -407,7 +406,7 @@ class SignServerAccount(BaseAccount):
                 err_msg = repr(resp_err)
 
             raise SignServerError(
-                "Sign server returned error code: %d\n%s" % (resp.status_code, err_msg),
+                f"Sign server returned error code: {resp.status_code}\n{err_msg}",
                 resp.status_code,
                 resp_err,
             )

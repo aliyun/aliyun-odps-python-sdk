@@ -219,9 +219,7 @@ def test_security_query(odps, project):
     assert "RAM" in odps.run_security_query("LIST ACCOUNTPROVIDERS")
     assert "RAM" in odps.execute_security_query("LIST ACCOUNTPROVIDERS")
 
-    inst = odps.run_security_query(
-        "INSTALL PACKAGE %s.non_exist_package" % project.name
-    )
+    inst = odps.run_security_query(f"INSTALL PACKAGE {project.name}.non_exist_package")
     assert isinstance(inst, project.AuthQueryInstance)
 
     with pytest.raises(SecurityQueryError):
@@ -230,9 +228,7 @@ def test_security_query(odps, project):
     assert not inst.is_successful
 
     with pytest.raises(SecurityQueryError):
-        odps.execute_security_query(
-            "INSTALL PACKAGE %s.non_exist_package" % project.name
-        )
+        odps.execute_security_query(f"INSTALL PACKAGE {project.name}.non_exist_package")
 
 
 def test_generate_auth_token(odps, project):

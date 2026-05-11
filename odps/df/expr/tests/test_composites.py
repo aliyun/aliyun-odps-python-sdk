@@ -134,7 +134,7 @@ def test_builders(src_expr):
     assert expr.dtype == validate_data_type('list<float64>')
     expr = make_list(1, 2, 3, 65535)
     assert expr.dtype == validate_data_type('list<int32>')
-    expr = make_list(1, 2, 3, compat.long_type(12345678910))
+    expr = make_list(1, 2, 3, int(12345678910))
     assert expr.dtype == validate_data_type('list<int64>')
     expr = make_list(1, 2, 3, 3.5)
     assert expr.dtype == validate_data_type('list<float64>')

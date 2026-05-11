@@ -18,7 +18,6 @@ from .diagnose import (
     diagnose_exit_code,
     diagnose_pyodps_errors,
     log_dev_project_warning,
-    log_python2_deprecation_warning,
     log_reload_usage_warning,
     log_replaced_vars,
 )

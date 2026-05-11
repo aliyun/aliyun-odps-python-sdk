@@ -16,9 +16,9 @@
 
 import threading
 import warnings
+from urllib.parse import quote_plus
 
 from .. import options, serializers, utils
-from ..compat import quote_plus, six
 from ..utils import get_instance_lock
 from .cache import cache, del_cache
 
@@ -43,8 +43,7 @@ class XMLRemoteModel(serializers.XMLSerializableModel):
         if not frozenset(kwargs).issubset(self.__slots__):
             unexpected = sorted(set(kwargs) - set(self.__slots__))
             raise TypeError(
-                "%s() meet illegal arguments (%s)"
-                % (type(self).__name__, ", ".join(unexpected))
+                f"{type(self).__name__}() meet illegal arguments ({', '.join(unexpected)})"
             )
         kwargs["_resource_cache"] = {}
         kwargs["_resource_cache_lock"] = threading.RLock()
@@ -71,8 +70,7 @@ class JSONRemoteModel(serializers.JSONSerializableModel):
         if not frozenset(kwargs).issubset(self.__slots__):
             unexpected = sorted(set(kwargs) - set(self.__slots__))
             raise TypeError(
-                "%s() meet illegal arguments (%s)"
-                % (type(self).__name__, ", ".join(unexpected))
+                f"{type(self).__name__}() meet illegal arguments ({', '.join(unexpected)})"
             )
         kwargs["_resource_cache"] = {}
         kwargs["_resource_cache_lock"] = threading.RLock()
@@ -264,7 +262,7 @@ class LazyLoadMixin:
     def _repr(self):
         name = self._name()
         if name:
-            return "<%s %s>" % (type(self).__name__, name)
+            return f"<{type(self).__name__} {name}>"
         else:
             raise ValueError
 
@@ -353,12 +351,12 @@ class ContainerMixin:
         raise NotImplementedError
 
     def __getitem__(self, item):
-        if isinstance(item, six.string_types):
+        if isinstance(item, str):
             item = item.strip()
             if not item:
                 raise ValueError("Empty string not supported")
             return self._get(item)
-        raise ValueError("Unsupported getitem value: %s" % item)
+        raise ValueError(f"Unsupported getitem value: {item}")
 
     @del_cache
     def __delitem__(self, key):

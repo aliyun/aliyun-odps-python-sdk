@@ -134,10 +134,9 @@ class Partition(XMLLazyLoad):
         return str(self.partition_spec)
 
     def __repr__(self):
-        return "<Partition %s.%s(%s)>" % (
-            str(self.table.project.name),
-            str(utils.backquote_string(self.table.name)),
-            str(self.partition_spec),
+        return (
+            f"<Partition {self.table.project.name}."
+            f"{utils.backquote_string(self.table.name)}({self.partition_spec})>"
         )
 
     def _is_field_set(self, attr):

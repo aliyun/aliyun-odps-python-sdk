@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,15 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import absolute_import
-
 import os
 import pickle
 import shutil
 import sys
 from hashlib import md5
 
-from .compat import six
 from .config import options
 from .core import ODPS
 from .df.backends.frame import ResultFrame
@@ -51,13 +48,13 @@ class Room(object):
 
         odps_file = os.path.join(self._room_dir, ODPS_FILE_NAME)
         if not os.path.exists(odps_file):
-            raise InteractiveError("This room(%s) is not configured" % self._room_name)
+            raise InteractiveError(f"This room({self._room_name}) is not configured")
 
         with open(odps_file, "rb") as f:
             try:
                 obj = pickle.load(f)
             except pickle.UnpicklingError:
-                raise InteractiveError("Failed to enter a room: %s" % self._room_name)
+                raise InteractiveError(f"Failed to enter a room: {self._room_name}")
 
             def _config_rooms(
                 access_id,
@@ -130,7 +127,7 @@ class Room(object):
         path = self._obj_store_dir(name)
 
         if os.path.exists(path):
-            raise InteractiveError("%s already exists" % name)
+            raise InteractiveError(f"{name} already exists")
 
         os.makedirs(path)
         with open(os.path.join(path, INFO_FILE_NAME), "wb") as f:
@@ -143,7 +140,7 @@ class Room(object):
         path = self._obj_store_dir(name)
 
         if not os.path.exists(path):
-            raise InteractiveError("%s does not exist" % name)
+            raise InteractiveError(f"{name} does not exist")
 
         with open(os.path.join(path, OBJECT_FILE_NAME), "rb") as f:
             return pickle.load(f)
@@ -219,18 +216,16 @@ def setup(
     odps_file = os.path.join(room_dir, ODPS_FILE_NAME)
 
     if with_options:
-        trivial_types = (six.string_types, six.integer_types, float, type(None))
+        trivial_types = (str, int, float, type(None))
         options_dump = {
-            k: v
-            for k, v in six.iteritems(options.dumps())
-            if isinstance(v, trivial_types)
+            k: v for k, v in options.dumps().items() if isinstance(v, trivial_types)
         }
         kwargs["options"] = options_dump
 
     if os.path.exists(odps_file):
         raise InteractiveError(
-            "This room(%s) has been configured before, "
-            "you can teardown it first" % room
+            f"This room({room}) has been configured before, "
+            f"you can teardown it first"
         )
 
     kwargs["quota_name"] = quota_name

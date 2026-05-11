@@ -43,24 +43,21 @@ from .worker import Worker
 from .xflow import XFlow
 from .xflows import XFlows
 
-if sys.version_info[:2] < (3, 7):
-    Schema = TableSchema  # Schema is to keep compatible
-else:
 
-    def __getattr__(name):
-        if name != "Schema":
-            raise AttributeError(name)
+def __getattr__(name):
+    if name != "Schema":
+        raise AttributeError(name)
 
-        from .. import utils
+    from .. import utils
 
-        warnings.warn(
-            "Importing Schema from odps.models is deprecated, "
-            "please use odps.models.TableSchema instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        utils.add_survey_call("odps.models.Schema")
-        return TableSchema
+    warnings.warn(
+        "Importing Schema from odps.models is deprecated, "
+        "please use odps.models.TableSchema instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    utils.add_survey_call("odps.models.Schema")
+    return TableSchema
 
 
 Column = TableSchema.TableColumn

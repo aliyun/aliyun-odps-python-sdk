@@ -13,12 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 from collections import namedtuple, OrderedDict
+from collections.abc import Iterable
 from copy import deepcopy
+from functools import reduce
 from types import MethodType
 
-from ...compat import reduce, six, Iterable
 from ...utils import camel_to_underline, is_namedtuple
 from ..expr.mixin import merge_data
 from ..utils import FieldRole
@@ -52,8 +52,8 @@ class PipelineStep(object):
             name = None
         self._input_args = [PipelineBit(v._final_step, v._final_step._output_names[0]) if isinstance(v, Pipeline) else v for v in args]
         self._input_kwargs = dict((k, PipelineBit(v._final_step, v._final_step._output_names[0]))
-                                  if isinstance(v, Pipeline) else v for k, v in six.iteritems(kwargs))
-        inputs = set(self._input_args) | set(six.itervalues(self._input_kwargs))
+                                  if isinstance(v, Pipeline) else v for k, v in kwargs.items())
+        inputs = set(self._input_args) | set(self._input_kwargs.values())
         first_input = next(iter(inputs))
         self._pipeline = first_input._step._pipeline
         self._ml_uplink = [bit._step for bit in inputs]
@@ -65,7 +65,7 @@ class PipelineStep(object):
     def _eval(self, method_name, result_dict, *args, **kwargs):
         if not (args or kwargs):
             args = [result_dict[b._step][b._output] for b in self._input_args]
-            kwargs = dict((k, result_dict[b._step][b._output]) for k, b in six.iteritems(self._input_kwargs))
+            kwargs = dict((k, result_dict[b._step][b._output]) for k, b in self._input_kwargs.items())
         results = getattr(self, method_name)(*args, **kwargs)
 
         # check namedtuple
@@ -90,7 +90,7 @@ class GroupedStep(PipelineStep):
         return self.__class__.__name__ + '(steps=[' + ', '.join('("%s", %s)' % step for step in self._steps) + '])'
 
     def __getitem__(self, item):
-        if isinstance(item, six.integer_types):
+        if isinstance(item, int):
             return self._steps[item][1]
         else:
             item = camel_to_underline(item)
@@ -236,8 +236,8 @@ class Pipeline(GroupedStep):
             raise ValueError('Multiple input steps is not allowed.')
         rev_dict = dict((s, []) for _, s in self._steps)
         [rev_dict[ul].append(dl) for _, dl in self._steps for ul in dl._ml_uplink]
-        mid_items = [s for s, dl in six.iteritems(rev_dict) if dl]
-        last_items = [s for s, dl in six.iteritems(rev_dict) if not dl]
+        mid_items = [s for s, dl in rev_dict.items() if dl]
+        last_items = [s for s, dl in rev_dict.items() if not dl]
         if len(last_items) > 1:
             raise ValueError('Multiple output steps is not allowed.')
         for mid_item in mid_items:
@@ -269,7 +269,7 @@ class Pipeline(GroupedStep):
         self._eval_steps(self._final_step, method_name, result_dict, args, kwargs)
         ret_val = result_dict[self._final_step]
 
-        ret_type = namedtuple('PipelineResult', list(six.iterkeys(ret_val)))
+        ret_type = namedtuple('PipelineResult', list(ret_val.keys()))
         ret_val = ret_type(**ret_val)
 
         if len(ret_val) == 1:
@@ -358,13 +358,13 @@ class FeatureUnion(GroupedStep):
         result_dict = dict()
         [step._eval('transform', result_dict, *args, **kwargs) for _, step in self._steps]
 
-        processed = reduce(lambda a, b: [(a[0], v) for v in six.itervalues(a[1])] + [(a[0], v) for v in six.itervalues(b[1])],
-                           six.iteritems(result_dict))
+        processed = reduce(lambda a, b: [(a[0], v) for v in a[1].values()] + [(a[0], v) for v in b[1].values()],
+                           result_dict.items())
         results = []
         role_exported = dict((r, False) for r in self._include_roles)
         for src, result in processed:
             user_inclusive = set(self._append_col_dict[src]) if src in self._append_col_dict else set()
-            for r in six.iterkeys(role_exported):
+            for r in role_exported.keys():
                 role_fields = [f.name for f in result._ml_fields if r in f.role]
                 if role_fields and not role_exported[r]:
                     user_inclusive.update(role_fields)

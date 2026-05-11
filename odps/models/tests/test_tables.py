@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -31,7 +31,6 @@ except (AttributeError, ImportError):
 import pytest
 
 from ... import types as odps_types
-from ...compat import six
 from ...config import options
 from ...tests.core import tn
 from ...utils import to_text
@@ -135,8 +134,8 @@ def test_table(odps):
         assert isinstance(table.table_schema, TableSchema)
         assert len(table.table_schema.simple_columns) > 0
         assert len(table.table_schema.partitions) >= 0
-        assert isinstance(table.owner, six.string_types)
-        assert isinstance(table.table_label, six.string_types)
+        assert isinstance(table.owner, str)
+        assert isinstance(table.table_label, str)
         assert isinstance(table.last_data_modified_time, datetime)
         assert isinstance(table.last_meta_modified_time, datetime)
         assert isinstance(table.is_virtual_view, bool)
@@ -354,13 +353,13 @@ def test_create_table_with_chinese_column(odps):
     test_table_name = tn("pyodps_t_tmp_create_table_with_chinese_columns")
     columns = [
         Column(name="序列", type="bigint", comment="注释"),
-        Column(name=u"值", type=u"string", comment=u"注释2"),
-        Column(name=u"值2", type=u"string", comment=u"注释'3"),
-        Column(name=u"值3", type=u"string", comment=u"注释\"4"),
+        Column(name="值", type="string", comment="注释2"),
+        Column(name="值2", type="string", comment="注释'3"),
+        Column(name="值3", type="string", comment='注释"4'),
     ]
     partitions = [
         Partition(name="ds", type="string", comment="分区注释"),
-        Partition(name=u"ds2", type=u"string", comment=u"分区注释2"),
+        Partition(name="ds2", type="string", comment="分区注释2"),
     ]
     schema = TableSchema(columns=columns, partitions=partitions)
 
@@ -385,7 +384,7 @@ def test_create_table_with_chinese_column(odps):
     ).strip()
 
     ddl_string_comment = textwrap.dedent(
-        u"""
+        """
     CREATE TABLE `table_name` (
       `序列` BIGINT COMMENT '注释',
       `值` STRING COMMENT '注释2',
@@ -398,7 +397,7 @@ def test_create_table_with_chinese_column(odps):
     )"""
     ).strip()
     ddl_string = textwrap.dedent(
-        u"""
+        """
     CREATE TABLE `table_name` (
       `序列` BIGINT,
       `值` STRING,
@@ -429,7 +428,7 @@ def test_create_table_with_chinese_column(odps):
     ]
 
     # test repr with not null columns
-    schema[u"序列"].nullable = False
+    schema["序列"].nullable = False
     columns_repr = (
         "[<column 序列, type bigint, not null>, <column 值, type string>, "
         "<column 值2, type string>, <column 值3, type string>]"
@@ -528,9 +527,9 @@ def test_create_clustered_table(odps):
     assert odps.exist_table(test_table_name) is False
 
     odps.execute_sql(
-        "create table %s (a STRING, b STRING, c BIGINT) "
+        f"create table {test_table_name} (a STRING, b STRING, c BIGINT) "
         "partitioned by (dt STRING) "
-        "clustered by (c) sorted by (c) into 10 buckets lifecycle 1" % test_table_name
+        "clustered by (c) sorted by (c) into 10 buckets lifecycle 1"
     )
     table = odps.get_table(test_table_name)
     assert table.cluster_info.cluster_type == ClusterType.HASH
@@ -546,9 +545,9 @@ def test_create_clustered_table(odps):
     assert odps.exist_table(test_table_name) is False
 
     odps.execute_sql(
-        "create table %s (a STRING, b STRING, c BIGINT) "
+        f"create table {test_table_name} (a STRING, b STRING, c BIGINT) "
         "partitioned by (dt STRING) "
-        "range clustered by (c) sorted by (c) lifecycle 1" % test_table_name
+        "range clustered by (c) sorted by (c) lifecycle 1"
     )
     table = odps.get_table(test_table_name)
     assert table.cluster_info.cluster_type == ClusterType.RANGE
@@ -580,8 +579,8 @@ def test_create_view(odps):
     test_view_name = tn("pyodps_v_tmp_view")
     odps.delete_view(test_view_name, if_exists=True)
     odps.execute_sql(
-        "create view %s comment 'comment_text' "
-        "as select * from %s" % (test_view_name, test_table_name)
+        f"create view {test_view_name} comment 'comment_text' "
+        f"as select * from {test_table_name}"
     )
     view = odps.get_table(test_view_name)
     assert view.type == Table.Type.VIRTUAL_VIEW
@@ -592,10 +591,10 @@ def test_create_view(odps):
     test_view_name = tn("pyodps_v_tmp_mt_view")
     odps.delete_materialized_view(test_view_name, if_exists=True)
     odps.execute_sql(
-        "create materialized view %s "
+        f"create materialized view {test_view_name} "
         "disable rewrite "
         "partitioned on (pt) "
-        "as select * from %s" % (test_view_name, test_table_name)
+        f"as select * from {test_table_name}"
     )
     view = odps.get_table(test_view_name)
     assert view.type == Table.Type.MATERIALIZED_VIEW
@@ -612,11 +611,11 @@ def test_run_sql_clear_cache(odps):
     odps.create_table(test_table_name, "col string")
     odps.get_table(test_table_name)
 
-    odps.execute_sql("ALTER TABLE %s ADD COLUMN col2 string" % test_table_name)
+    odps.execute_sql(f"ALTER TABLE {test_table_name} ADD COLUMN col2 string")
     assert "col2" in odps.get_table(test_table_name).table_schema
 
     odps.execute_sql(
-        "ALTER TABLE %s.%s ADD COLUMN col3 string" % (odps.project, test_table_name)
+        f"ALTER TABLE {odps.project}.{test_table_name} ADD COLUMN col3 string"
     )
     assert "col3" in odps.get_table(test_table_name).table_schema
 
@@ -629,7 +628,7 @@ def test_max_partition(odps):
 
     table = odps.create_table(test_table_name, ("col string", "pt1 string, pt2 string"))
     for pt1, pt2 in (("a", "a"), ("a", "b"), ("b", "c")):
-        part_spec = "pt1=%s,pt2=%s" % (pt1, pt2)
+        part_spec = f"pt1={pt1},pt2={pt2}"
         odps.write_table(
             test_table_name, [["value"]], partition=part_spec, create_partition=True
         )
@@ -654,11 +653,8 @@ def test_max_partition(odps):
 
 
 def test_schema_arg_backward_compat(odps):
-    if six.PY2:
+    with pytest.deprecated_call():
         from .. import Schema
-    else:
-        with pytest.deprecated_call():
-            from .. import Schema
 
     columns = [
         Column(name="num", type="bigint", comment="the column"),

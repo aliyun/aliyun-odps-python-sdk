@@ -27,9 +27,8 @@ from ...src.types_c cimport BaseRecord, SchemaSnapshot
 from ..checksum_c cimport Checksum
 from ..pb.encoder_c cimport CEncoder
 
-from ... import compat, types, utils
+from ... import types, utils
 from ...config import options
-from ...lib.monotonic import monotonic
 from ...src.utils_c cimport CMillisecondsConverter, to_days, _load_numpy
 from ..pb.wire_format import WIRETYPE_FIXED32 as PY_WIRETYPE_FIXED32
 from ..pb.wire_format import WIRETYPE_FIXED64 as PY_WIRETYPE_FIXED64
@@ -173,7 +172,7 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
         self._c_local_wall_time_ms = 0
 
         if self._c_enable_client_metrics:
-            ts = monotonic()
+            ts = time.monotonic()
 
         self._encoding = encoding
         self._is_utf8 = encoding == "utf-8"
@@ -190,7 +189,7 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
 
         if self._c_enable_client_metrics:
             self._c_local_wall_time_ms += <long>(
-                MICRO_SEC_PER_SEC * (<double>monotonic() - ts)
+                MICRO_SEC_PER_SEC * (<double>time.monotonic() - ts)
             )
 
         import_datetime()
@@ -227,7 +226,7 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
             double ts
 
         if self._c_enable_client_metrics:
-            ts = monotonic()
+            ts = time.monotonic()
 
         n_record_fields = len(record)
 
@@ -250,7 +249,7 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
             if data_type_id >= 0 and data_type_to_wired_type[data_type_id] != -1:
                 self._write_tag(pb_index, data_type_to_wired_type[data_type_id])
             else:
-                raise IOError("Invalid data type: %s" % data_type)
+                raise IOError(f"Invalid data type: {data_type}")
 
             (<AbstractFieldWriter>self._field_writers[i]).write(val)
 
@@ -265,7 +264,7 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
 
         if self._c_enable_client_metrics:
             self._c_local_wall_time_ms += <long>(
-                MICRO_SEC_PER_SEC * (<double>monotonic() - ts)
+                MICRO_SEC_PER_SEC * (<double>time.monotonic() - ts)
             )
 
     @property
@@ -341,7 +340,7 @@ def _build_field_writer(BaseRecordWriter record_writer, object field_type):
     elif data_type_id == VECTOR_TYPE_ID:
         return VectorFieldWriter(record_writer, field_type)
     else:
-        raise IOError("Invalid data type: %s" % field_type)
+        raise IOError(f"Invalid data type: {field_type}")
 
 
 cdef class AbstractFieldWriter:

@@ -13,13 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import print_function
-
 import os
 import uuid
 import warnings
+from collections.abc import Iterable
 
-from odps.compat import six, Iterable
 from odps.config import options
 from odps.df import CollectionExpr
 from odps.df.core import DataFrame
@@ -96,7 +94,7 @@ class MLTestUtil(TestDataMixIn):
 
         input_types = [PortType.DATA if isinstance(o, CollectionExpr) else PortType.MODEL for o in sources]
 
-        if isinstance(output_desc, six.integer_types):
+        if isinstance(output_desc, int):
             output_types = [PortType.DATA for _ in range(output_desc)]
         else:
             output_types = [PortType.DATA if ch == 'd' else PortType.MODEL for ch in output_desc]
@@ -106,7 +104,7 @@ class MLTestUtil(TestDataMixIn):
             expr_cls = build_mock_expr_class(input_types, idx, ot)
             init_args = dict(register_expr=True, _exec_id=exec_id, _params=dict(message=msg), action=action)
             if ot == PortType.DATA:
-                init_args['_schema'] = six.next(s for s in sources if isinstance(s, CollectionExpr)).schema
+                init_args['_schema'] = next(s for s in sources if isinstance(s, CollectionExpr)).schema
             outputs.append(expr_cls(**init_args))
         return tuple(outputs) if len(outputs) != 1 else outputs[0]
 
@@ -118,7 +116,7 @@ class MLTestUtil(TestDataMixIn):
     def gen_print_params_case():
         def _case(_, gen_params):
             gen_params = dict([(k, BaseNodeRunner._format_value(v))
-                               for k, v in six.iteritems(gen_params) if v])
+                               for k, v in gen_params.items() if v])
             print(repr(gen_params))
 
         return _case
@@ -128,9 +126,9 @@ class MLTestUtil(TestDataMixIn):
 
         def _case(_, gen_params):
             gen_params = dict([(k, BaseNodeRunner._format_value(v))
-                               for k, v in six.iteritems(gen_params) if k not in ignores and v])
+                               for k, v in gen_params.items() if k not in ignores and v])
             targets = dict()
-            for k, v in six.iteritems(target_params):
+            for k, v in target_params.items():
                 if k in ignores:
                     continue
                 if k.startswith('input') and k.endswith('TableName') and '.' not in v:

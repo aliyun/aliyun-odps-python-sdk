@@ -125,7 +125,7 @@ def test_read_thread(storage_api_client):
         count += 1
 
     if cal_count == 5:
-        logger.info("average count: %f" % (cal_total_count / 5.0))
+        logger.info(f"average count: {cal_total_count / 5.0}")
     else:
         logger.info("less than 5 valid result generated.")
 

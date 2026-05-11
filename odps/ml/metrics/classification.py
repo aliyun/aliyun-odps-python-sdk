@@ -127,8 +127,8 @@ def accuracy_score(df, col_true=None, col_pred=None, normalize=True):
     else:
         diag_sum = mat_sum = 0
         mat_size = len(mat)
-        for i in compat.irange(mat_size):
-            for j in compat.irange(mat_size):
+        for i in range(mat_size):
+            for j in range(mat_size):
                 if i == j:
                     diag_sum += mat[i][j]
                 mat_sum += mat[i][j]

@@ -16,7 +16,6 @@
 import contextlib
 import decimal
 import json
-import sys
 from collections import OrderedDict
 
 import mock
@@ -76,8 +75,8 @@ def create_one_row_complex(o):
         if o.exist_table(table):
             continue
 
-        ddl = """
-        CREATE TABLE {} (
+        ddl = f"""
+        CREATE TABLE {table} (
             `boolean` BOOLEAN,
             `tinyint` TINYINT,
             `smallint` SMALLINT,
@@ -93,9 +92,7 @@ def create_one_row_complex(o):
             `struct` STRUCT<a: int, b: int>,
             `decimal` DECIMAL(10, 1)
         );
-        """.format(
-            table
-        )
+        """
         o.execute_sql(ddl)
         need_writes[i] = True
 
@@ -168,11 +165,9 @@ def create_test(o):
 
 @pytest.fixture
 def engine(odps, request):
-    engine_url = "odps://{}:{}@{}/?endpoint={}&SKYNET_PYODPS_HINT=hint".format(
-        odps.account.access_id,
-        odps.account.secret_access_key,
-        odps.project,
-        odps.endpoint,
+    engine_url = (
+        f"odps://{odps.account.access_id}:{odps.account.secret_access_key}@{odps.project}"
+        f"/?endpoint={odps.endpoint}&SKYNET_PYODPS_HINT=hint"
     )
     if getattr(request, "param", None):
         engine_url += "&" + request.param
@@ -320,12 +315,9 @@ def test_interactive_modes(mode, odps, odps_with_mcqa2):
 
     create_one_row(odps)
 
-    engine_url = "odps://{}:{}@{}/?endpoint={}{}".format(
-        odps.account.access_id,
-        odps.account.secret_access_key,
-        odps.project,
-        odps.endpoint,
-        url_suffix,
+    engine_url = (
+        f"odps://{odps.account.access_id}:{odps.account.secret_access_key}@{odps.project}"
+        f"/?endpoint={odps.endpoint}{url_suffix}"
     )
     engine = create_engine(engine_url)
     connection = engine.connect()
@@ -396,7 +388,6 @@ def test_reflect_partitions(engine, connection):
     assert len(many_rows.c) == 1
 
 
-@pytest.mark.skipif(sys.version_info[0] < 3, reason="Need Python 3 to run the test")
 def test_unicode(engine, connection):
     """Verify that unicode strings make it through SQLAlchemy and the backend"""
     unicode_str = "中文"

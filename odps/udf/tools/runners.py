@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,7 +18,6 @@ UDF runners implementing the local test framework. NOT ACTUAL udf runners.
 
 import csv
 import re
-import sys
 
 from ... import distcache
 from ... import types as odps_types
@@ -28,7 +27,6 @@ from . import utils
 
 __all__ = ["get_csv_runner", "get_table_runner"]
 
-PY2 = sys.version_info[0] == 2
 _table_bracket_re = re.compile(r"[^\(]+\([^\)]+\)")
 
 
@@ -125,7 +123,7 @@ def _get_runner_class(udf_class):
 def parse_proto(proto):
     tokens = proto.lower().split("->")
     if len(tokens) != 2:
-        raise ValueError("Illegal format of @annotate(%s)" % proto)
+        raise ValueError(f"Illegal format of @annotate({proto})")
     return _get_in_types(tokens[0].strip()), _get_types(tokens[1].strip())
 
 
@@ -141,33 +139,7 @@ def _convert_value(value, tp):
     finally:
         odps_types._date_allow_int_conversion = False
 
-    if not PY2:
-        return value
-
-    if isinstance(tp, odps_types.Datetime):
-        return to_milliseconds(value)
-    elif isinstance(tp, odps_types.Date):
-        return to_date(value)
-    elif isinstance(tp, odps_types.Array):
-        return [_convert_value(v, tp.value_type) for v in value]
-    elif isinstance(tp, odps_types.Map):
-        return {
-            _convert_value(k, tp.key_type): _convert_value(v, tp.value_type)
-            for k, v in value.items()
-        }
-    elif isinstance(tp, odps_types.Struct):
-        if isinstance(value, dict):
-            vals = {
-                k: _convert_value(value[k], ftp) for k, ftp in tp.field_types.items()
-            }
-        else:
-            vals = {
-                k: _convert_value(getattr(value, k), ftp)
-                for k, ftp in tp.field_types.items()
-            }
-        return tp.namedtuple_type(**vals)
-    else:
-        return value
+    return value
 
 
 def _validate_values(values, types):
@@ -185,7 +157,7 @@ def _validate_values(values, types):
         try:
             ret_vals[idx] = _convert_value(d, tp)
         except:
-            raise ValueError("Input type mismatch: expected %s, received %r" % (tp, d))
+            raise ValueError(f"Input type mismatch: expected {tp}, received {d!r}")
     return ret_vals
 
 

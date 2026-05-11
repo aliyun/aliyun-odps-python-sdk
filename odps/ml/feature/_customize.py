@@ -16,7 +16,6 @@
 from collections import namedtuple
 
 from ...df import DataFrame
-from ...compat import six
 from ...utils import underline_to_capitalized
 
 
@@ -26,12 +25,12 @@ class ColImportanceResult(dict):
         self._titles = [(fn, underline_to_capitalized(fn)) for fn in stats_type._fields]
 
     def _repr_html_(self):
-        sio = six.StringIO()
+        sio = io.StringIO()
         sio.write('<table><tr><th>Column</th>')
         for _, ft in self._titles:
             sio.write('<th>{0}</th>'.format(ft))
         sio.write('</tr>')
-        for col, stats in six.iteritems(self):
+        for col, stats in self.items():
             sio.write('<tr><td>{0}</td>'.format(col))
             for fn, _ in self._titles:
                 sio.write('<td>{0}</td>'.format(getattr(stats, fn)))

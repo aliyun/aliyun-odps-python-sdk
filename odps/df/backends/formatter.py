@@ -14,12 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import io
 import itertools
+from collections.abc import Iterable
 from textwrap import dedent
 
 from ... import compat
 from ...config import options
-from ...compat import cgi, u, izip, Iterable
+from ...compat import cgi
 from ...console import get_terminal_size
 from ...utils import to_text, to_str, indent, require_package
 from ...models import Table
@@ -29,15 +31,15 @@ from ..utils import is_source_collection, traverse_until_source
 
 
 def is_integer(val):
-    return isinstance(val, six.integer_types)
+    return isinstance(val, int)
 
 
 def is_sequence(x):
     try:
         iter(x)
         len(x)  # it has a length
-        return not isinstance(x, six.string_types) and \
-               not isinstance(x, six.binary_type)
+        return not isinstance(x, str) and \
+               not isinstance(x, bytes)
     except (TypeError, AttributeError):
         return False
 
@@ -50,9 +52,9 @@ def _pprint_seq(seq, _nest_lvl=0, max_seq_items=None, **kwds):
     bounds length of printed sequence, depending on options
     """
     if isinstance(seq, set):
-        fmt = u("set([%s])")
+        fmt = "set([%s])"
     else:
-        fmt = u("[%s]") if hasattr(seq, '__setitem__') else u("(%s)")
+        fmt = "[%s]" if hasattr(seq, '__setitem__') else "(%s)"
 
     if max_seq_items is False:
         nitems = len(seq)
@@ -78,10 +80,10 @@ def _pprint_dict(seq, _nest_lvl=0, max_seq_items=None, **kwds):
     internal. pprinter for iterables. you should probably use pprint_thing()
     rather then calling this directly.
     """
-    fmt = u("{%s}")
+    fmt = "{%s}"
     pairs = []
 
-    pfmt = u("%s: %s")
+    pfmt = "%s: %s"
 
     if max_seq_items is False:
         nitems = len(seq)
@@ -123,7 +125,7 @@ def pprint_thing(thing, _nest_lvl=0, escape_chars=None, default_escapes=False,
 
     Returns
     -------
-    result - unicode object on py2, str on py3. Always Unicode.
+    result: str.
 
     """
     def as_escaped_unicode(thing, escape_chars=escape_chars):
@@ -132,10 +134,10 @@ def pprint_thing(thing, _nest_lvl=0, escape_chars=None, default_escapes=False,
         # should deal with it himself.
 
         try:
-            result = six.text_type(thing)  # we should try this first
+            result = str(thing)  # we should try this first
         except UnicodeDecodeError:
             # either utf-8 or we replace errors
-            result = str(thing).decode('utf-8', "replace")
+            result = bytes(thing).decode('utf-8', "replace")
 
         translate = {'\t': r'\t',
                      '\n': r'\n',
@@ -152,10 +154,10 @@ def pprint_thing(thing, _nest_lvl=0, escape_chars=None, default_escapes=False,
         for c in escape_chars:
             result = result.replace(c, translate[c])
 
-        return six.text_type(result)
+        return str(result)
 
-    if (six.PY3 and hasattr(thing, '__next__')) or hasattr(thing, 'next'):
-        return six.text_type(thing)
+    if hasattr(thing, '__next__'):
+        return str(thing)
     elif (isinstance(thing, dict) and
           _nest_lvl < options.display.pprint_nest_depth):
         result = _pprint_dict(thing, _nest_lvl, quote_strings=True, max_seq_items=max_seq_items)
@@ -163,16 +165,13 @@ def pprint_thing(thing, _nest_lvl=0, escape_chars=None, default_escapes=False,
             options.display.pprint_nest_depth:
         result = _pprint_seq(thing, _nest_lvl, escape_chars=escape_chars,
                              quote_strings=quote_strings, max_seq_items=max_seq_items)
-    elif isinstance(thing, six.string_types) and quote_strings:
-        if six.PY3:
-            fmt = "'%s'"
-        else:
-            fmt = "u'%s'"
+    elif isinstance(thing, str) and quote_strings:
+        fmt = "'%s'"
         result = fmt % as_escaped_unicode(thing)
     else:
         result = as_escaped_unicode(thing)
 
-    return six.text_type(result)  # always unicode
+    return str(result)  # always unicode
 
 
 def _justify(texts, max_len, mode='right'):
@@ -191,8 +190,8 @@ def _join_unicode(lines, sep=''):
     try:
         return sep.join(lines)
     except UnicodeDecodeError:
-        sep = six.text_type(sep)
-        return sep.join([x.decode('utf-8') if isinstance(x, str) else x
+        sep = str(sep)
+        return sep.join([x.decode('utf-8') if isinstance(x, bytes) else x
                          for x in lines])
 
 
@@ -285,8 +284,8 @@ class TextAdjustment(object):
     def __init__(self):
         self.encoding = options.display.encoding
 
-    def len(self, text):
-        return compat.strlen(text, encoding=self.encoding)
+    def len(self, text, **__):
+        return len(text)
 
     def justify(self, texts, max_len, mode='right'):
         return _justify(texts, max_len, mode=mode)
@@ -368,7 +367,7 @@ class ResultFrameFormatter(TableFormatter):
                  index_names=True, line_width=None, max_rows=None,
                  max_cols=None, show_dimensions=False, **kwds):
         self.frame = frame
-        self.buf = buf if buf is not None else six.StringIO()
+        self.buf = buf if buf is not None else io.StringIO()
         self.show_index_names = index_names
 
         if sparsify is None:
@@ -661,7 +660,7 @@ class ResultFrameFormatter(TableFormatter):
                                       notebook=notebook)
         if hasattr(self.buf, 'write'):
             html_renderer.write_result(self.buf)
-        elif isinstance(self.buf, six.string_types):
+        elif isinstance(self.buf, str):
             with open(self.buf, 'w') as f:
                 html_renderer.write_result(f)
         else:
@@ -849,7 +848,7 @@ class HTMLFormatter(TableFormatter):
 
         self.write('</table>', indent)
         if self.should_show_dimensions:
-            by = chr(215) if six.PY3 else unichr(215)  # ×
+            by = chr(215)  # ×
             self.write(u('<p>%d rows %s %d columns</p>') %
                        (len(frame), by, len(frame.columns)))
 
@@ -986,7 +985,7 @@ class HTMLFormatter(TableFormatter):
         row_levels = self.frame.index.nlevels
 
         idx_values = frame.index.format(sparsify=False, adjoin=False, names=False)
-        idx_values = compat.lzip(*idx_values)
+        idx_values = list(zip(*idx_values))
 
         if self.fmt.sparsify:
             # GH3547
@@ -1007,7 +1006,7 @@ class HTMLFormatter(TableFormatter):
                         elif tag + span > ins_row:
                             rec_new[tag] = span + 1
                             dot_row = list(idx_values[ins_row - 1])
-                            dot_row[-1] = u('...')
+                            dot_row[-1] = '...'
                             idx_values.insert(ins_row, tuple(dot_row))
                         else:
                             rec_new[tag] = span
@@ -1238,8 +1237,8 @@ def _has_names(index):
 
 
 def _put_lines(buf, lines):
-    if any(isinstance(x, six.text_type) for x in lines):
-        lines = [six.text_type(x) for x in lines]
+    if any(isinstance(x, str) for x in lines):
+        lines = [str(x) for x in lines]
     buf.write('\n'.join(lines))
 
 
@@ -1325,7 +1324,7 @@ class ExprExecutionGraphFormatter(object):
                     node_name.capitalize(), t, expr.name, expr.dtype)
 
     def _to_str(self):
-        buffer = six.StringIO()
+        buffer = io.StringIO()
 
         nodes = self._dag.topological_sort()
         for i, node in enumerate(nodes):
@@ -1339,7 +1338,7 @@ class ExprExecutionGraphFormatter(object):
         return to_str(buffer.getvalue())
 
     def _to_html(self):
-        buffer = six.StringIO()
+        buffer = io.StringIO()
 
         for i, node in enumerate(self._dag.topological_sort()):
             sid = i + 1
@@ -1350,7 +1349,7 @@ class ExprExecutionGraphFormatter(object):
         return to_str(buffer.getvalue())
 
     def _to_dot(self):
-        buffer = six.StringIO()
+        buffer = io.StringIO()
         write = lambda x: buffer.write(to_text(x))
         write_newline = lambda x: write(x if x.endswith('\n') else x + '\n')
         write_indent_newline = lambda x, ind=1: write_newline(indent(x, 2 * ind))
@@ -1362,7 +1361,7 @@ class ExprExecutionGraphFormatter(object):
 
         nodes = self._dag.topological_sort()
         traversed = dict()
-        for sid, node in izip(itertools.count(1), nodes):
+        for sid, node in zip(itertools.count(1), nodes):
             expr_node = node.expr
             traversed[id(node)] = sid
 

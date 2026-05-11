@@ -14,14 +14,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import sys
 from collections import namedtuple, OrderedDict
 
-try:
-    string_types = (unicode, basestring)
-    iteritems = lambda d: d.iteritems()
-except:
+if sys.version_info[0] >= 3:
     string_types = (bytes, str)
     iteritems = lambda d: d.items()
+else:
+    string_types = (unicode, basestring)
+    iteritems = lambda d: d.iteritems()
 
 
 class NamedTupleMixin(object):

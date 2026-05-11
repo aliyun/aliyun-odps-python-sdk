@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import io
 import re
 from datetime import date, datetime
 from decimal import Decimal
@@ -383,7 +384,7 @@ class OdpsSQLCompiler(Backend):
 
     def _fill_back_columns(self, sql, symbols_to_columns):
         symbol_compiled = dict()
-        for symbol, column in six.iteritems(symbols_to_columns):
+        for symbol, column in symbols_to_columns.items():
             try:
                 collection, name = self._retrieve_column_alias_collection(column)
             except KeyError:
@@ -607,7 +608,7 @@ class OdpsSQLCompiler(Backend):
         if not self._beautify:
             return ', '.join(fields)
         else:
-            buf = six.StringIO()
+            buf = io.StringIO()
             buf.write('\n')
 
             split_fields = [field.rsplit(' AS ', 1) for field in fields]
@@ -901,7 +902,7 @@ class OdpsSQLCompiler(Backend):
         elif isinstance(expr, strings.Startswith):
             compiled = 'INSTR(%s, %s) == 1' % (input, self._ctx.get_expr_compiled(expr._pat))
         elif isinstance(expr, strings.Find):
-            if isinstance(expr.start, six.integer_types):
+            if isinstance(expr.start, int):
                 start = expr.start + 1 if expr.start >= 0 else expr.start
             else:
                 start = 'IF(%(start)s >= 0, %(start)s + 1, %(start)s)' % {
@@ -1170,7 +1171,7 @@ class OdpsSQLCompiler(Backend):
 
     def visit_user_defined_aggregator(self, expr):
         is_func_created = False
-        if isinstance(expr._aggregator, six.string_types):
+        if isinstance(expr._aggregator, str):
             func_name = expr._aggregator
         elif isinstance(expr._aggregator, Function):
             func_name = expr._aggregator.name
@@ -1212,7 +1213,7 @@ class OdpsSQLCompiler(Backend):
         if isinstance(expr, Func):
             func_name = expr._func_name
         else:
-            if isinstance(expr._func, six.string_types):
+            if isinstance(expr._func, str):
                 func_name = expr._func
             elif isinstance(expr._func, Function):
                 func_name = expr._func.name
@@ -1270,7 +1271,7 @@ class OdpsSQLCompiler(Backend):
 
     def visit_apply_collection(self, expr):
         is_func_created = False
-        if isinstance(expr._func, six.string_types):
+        if isinstance(expr._func, str):
             func_name = expr._func
         elif isinstance(expr._func, Function):
             func_name = expr._func.name
@@ -1407,7 +1408,7 @@ class OdpsSQLCompiler(Backend):
         if expr._value is not None:
             if expr.dtype == df_types.string:
                 val = utils.to_str(expr.value) \
-                    if isinstance(expr.value, six.text_type) else expr.value
+                    if isinstance(expr.value, str) else expr.value
                 compiled = "'{0}'".format(val.replace("'", "\\'"))
             elif isinstance(expr.dtype, df_types.Integer) and types.get_local_use_odps2_types():
                 if expr.dtype == df_types.int8:

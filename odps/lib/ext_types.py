@@ -16,10 +16,10 @@
 import sys
 import re
 
-if sys.version_info[0] <= 2:
-    string_types = basestring
-else:
+if sys.version_info[0] >= 3:
     string_types = str
+else:
+    string_types = basestring
 
 _MD_PATTERNS = [
     re.compile(r'^(?P<month>(\d+|-\d+))$'),

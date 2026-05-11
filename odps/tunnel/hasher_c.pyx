@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,12 +13,11 @@
 # limitations under the License.
 
 import calendar
-import sys
 
 from cpython.datetime cimport import_datetime
 from libc.stdint cimport *
 
-from .. import compat, types
+from .. import types
 
 from ..src.types_c cimport BaseRecord
 from ..src.utils_c cimport CMillisecondsConverter
@@ -38,8 +37,6 @@ cdef:
     int64_t INTERVAL_YEAR_MONTH_TYPE_ID = types.interval_year_month._type_id
     int64_t DECIMAL_TYPE_ID = types.Decimal._type_id
     int64_t JSON_TYPE_ID = types.Json._type_id
-
-    bint _is_py2 = sys.version_info[0] == 2
 
 import_datetime()
 
@@ -274,10 +271,7 @@ cdef class DecimalFieldHasher(FieldHasher):
         if not num_without_exp:
             tmp_result = 0
         else:
-            if not _is_py2:
-                tmp_result = int(num_without_exp)
-            else:
-                tmp_result = compat.long_type(num_without_exp)
+            tmp_result = int(num_without_exp)
 
             if value_scale > self._scale:
                 tmp_result //= <object>int(10) ** (value_scale - self._scale)
@@ -303,7 +297,7 @@ cpdef AbstractHasher get_hasher(hasher_type):
     elif hasher_type == "default":
         return DefaultHasher()
     else:
-        raise ValueError("Hasher type %s not supported" % hasher_type)
+        raise ValueError(f"Hasher type {hasher_type} not supported")
 
 
 def _hash_timestamp(hasher, x):

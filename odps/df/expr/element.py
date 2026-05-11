@@ -24,7 +24,6 @@ from . import utils
 from . import errors
 from .. import types
 from ..utils import FunctionWrapper
-from ...compat import six
 
 
 class AnyOpNodeMetaClass(NodeMetaclass):
@@ -35,7 +34,7 @@ class AnyOpNodeMetaClass(NodeMetaclass):
         return super(AnyOpNodeMetaClass, mcs).__new__(mcs, name, bases, kv)
 
 
-class AnyOp(six.with_metaclass(AnyOpNodeMetaClass, TypedExpr)):
+class AnyOp(TypedExpr, metaclass=AnyOpNodeMetaClass):
     __slots__ = ()
 
     @classmethod
@@ -360,7 +359,7 @@ class Func(AnyOp):
 
 class FuncFactory(object):
     def __getattr__(self, item):
-        if not isinstance(item, six.string_types):
+        if not isinstance(item, str):
             raise TypeError('Function name should be provided, expect str, got %s' % type(item))
 
         def gen_func(*args, **kwargs):
@@ -423,7 +422,7 @@ def _map(expr, func, rtype=None, resources=None, cu_request=None, args=(), **kwa
     rtype = rtype or expr.dtype
     output_type = types.validate_data_type(rtype)
 
-    if isinstance(func, six.string_types):
+    if isinstance(func, str):
         pass
     elif isinstance(func, Function):
         pass

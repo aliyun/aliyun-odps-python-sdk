@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,13 +14,13 @@
 # limitations under the License.
 
 import datetime
+import io
 import json
 import logging
 import time
 import uuid
 from collections import OrderedDict
 
-from ..compat import six
 from ..config import options
 from ..errors import InternalServerError, RequestTimeTooSkewed
 from ..models.instance import Instance
@@ -67,24 +67,19 @@ class _TaskProgressJSON(JSONSerializableModel):
     stages = JSONNodesReferencesField(_StageProgressJSON, "stages")
 
     def get_stage_progress_formatted_string(self):
-        buf = six.StringIO()
+        buf = io.StringIO()
 
         buf.write(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
         buf.write(" ")
 
         for stage in self.stages:
-            buf.write(
-                "{0}:{1}/{2}/{3}{4}[{5}%]\t".format(
-                    stage.name,
-                    stage.running_workers,
-                    stage.terminated_workers,
-                    stage.total_workers,
-                    "(+%s backups)" % stage.backup_workers
-                    if stage.backup_workers > 0
-                    else "",
-                    stage.finished_percentage,
-                )
+            worker_str = (
+                f"{stage.running_workers}/{stage.terminated_workers}"
+                f"/{stage.total_workers}"
             )
+            if stage.backup_workers > 0:
+                worker_str += f"(+{stage.backup_workers} backups)"
+            buf.write(f"{stage.name}:{worker_str}[{stage.finished_percentage}%]\t")
 
         return buf.getvalue()
 
@@ -100,7 +95,7 @@ class _InstanceProgressJSON(JSONSerializableModel):
     tasks = JSONNodeField(
         "tasks",
         parse_callback=lambda v: _InstanceProgressJSON._parse_tasks(v),
-        serialize_callback=lambda v: [d.serial() for d in six.itervalues(v)],
+        serialize_callback=lambda v: [d.serial() for d in v.values()],
     )
 
     @staticmethod
@@ -116,7 +111,7 @@ class _InstancesProgressJSON(JSONSerializableModel):
     instances = JSONNodeField(
         "instances",
         parse_callback=lambda v: _InstancesProgressJSON._parse_instances(v),
-        serialize_callback=lambda v: [d.serial() for d in six.itervalues(v)],
+        serialize_callback=lambda v: [d.serial() for d in v.values()],
     )
 
     @staticmethod
@@ -128,7 +123,7 @@ class _InstancesProgressJSON(JSONSerializableModel):
 
 
 def create_instance_group(name):
-    key = "%x_%s" % (int(time.time()), str(uuid.uuid4()).lower())
+    key = f"{int(time.time()):x}_{uuid.uuid4()}"
     group_json = _InstancesProgressJSON(name=name, key=key, instances=OrderedDict())
     group_json.gen_time = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     PROGRESS_REPO[key] = group_json
@@ -161,7 +156,7 @@ def _reload_instance_status(odps, group_id, instance_id):
     inst_json.logview = _logview_cache[instance_id]
 
     if old_status != Instance.Status.TERMINATED:
-        for task_name, task in six.iteritems(sub_inst.get_task_statuses()):
+        for task_name, task in sub_inst.get_task_statuses().items():
             if task_name in inst_json.tasks:
                 task_json = inst_json.tasks[task_name]
                 task_json.status = task.status
@@ -183,7 +178,7 @@ def _reload_instance_status(odps, group_id, instance_id):
 
             for stage in task_prog.stages:
                 stage_json = _StageProgressJSON()
-                for field_name in six.iterkeys(_StageProgressJSON.__fields):
+                for field_name in _StageProgressJSON.__fields.keys():
                     if hasattr(stage, field_name):
                         val = getattr(stage, field_name)
                         if val is not None:
@@ -252,7 +247,7 @@ else:
                 self.send(json.dumps(dict(action="update", content=[])))
 
             def update_group(self, group_jsons):
-                if isinstance(group_jsons, six.string_types):
+                if isinstance(group_jsons, str):
                     group_jsons = [group_jsons]
                 try:
                     self.send(json.dumps(dict(action="update", content=group_jsons)))
@@ -260,7 +255,7 @@ else:
                     pass
 
             def delete_group(self, group_keys):
-                if isinstance(group_keys, six.string_types):
+                if isinstance(group_keys, str):
                     group_keys = [group_keys]
                 try:
                     self.send(json.dumps(dict(action="delete", content=group_keys)))
@@ -306,18 +301,18 @@ class ProgressGroupUI(object):
         self._update_text()
 
     def has_keys(self, keys):
-        if isinstance(keys, six.string_types):
+        if isinstance(keys, str):
             keys = [keys]
         return all(k in self._group_keys for k in keys)
 
     def add_keys(self, keys):
-        if isinstance(keys, six.string_types):
+        if isinstance(keys, str):
             keys = [keys]
         self._group_keys.update(keys)
         self._update_group(keys)
 
     def remove_keys(self, keys):
-        if isinstance(keys, six.string_types):
+        if isinstance(keys, str):
             keys = [keys]
         self._group_keys -= set(keys)
         self._widget.delete_group(keys)
@@ -342,7 +337,7 @@ class ProgressGroupUI(object):
                 self._widget = InstancesProgress()
                 if is_widgets_available():
                     display(self._widget)
-        if isinstance(keys, six.string_types):
+        if isinstance(keys, str):
             keys = [keys]
         data = [
             fetch_instance_group(key).serialize()

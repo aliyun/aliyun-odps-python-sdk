@@ -18,7 +18,6 @@ import textwrap
 
 import pytest
 
-from ....compat import LESS_PY35
 from ....models import TableSchema
 from ...types import validate_data_type
 from ..tests.core import MockTable
@@ -144,30 +143,29 @@ def test_map(src_expr):
     assert isinstance(expr, MappedExpr)
     assert expr._data_type is types.float64
 
-    if not LESS_PY35:
-        l = locals().copy()
-        six.exec_(textwrap.dedent("""
-        from typing import Optional
-        
-        def fun(v) -> float:
-            return float(v + 1)
-        expr = src_expr.id.map(fun)
-        """), globals(), l)
-        expr = l['expr']
-        assert isinstance(expr, MappedExpr)
-        assert isinstance(expr._data_type, types.Float)
+    l = locals().copy()
+    exec(textwrap.dedent("""
+    from typing import Optional
 
-        l = locals().copy()
-        six.exec_(textwrap.dedent("""
-        from typing import Optional
-        
-        def fun(v) -> Optional[float]:
-            return float(v + 1)
-        expr = src_expr.id.map(fun)
-        """), globals(), l)
-        expr = l['expr']
-        assert isinstance(expr, MappedExpr)
-        assert isinstance(expr._data_type, types.Float)
+    def fun(v) -> float:
+        return float(v + 1)
+    expr = src_expr.id.map(fun)
+    """), globals(), l)
+    expr = l['expr']
+    assert isinstance(expr, MappedExpr)
+    assert isinstance(expr._data_type, types.Float)
+
+    l = locals().copy()
+    exec(textwrap.dedent("""
+    from typing import Optional
+
+    def fun(v) -> Optional[float]:
+        return float(v + 1)
+    expr = src_expr.id.map(fun)
+    """), globals(), l)
+    expr = l['expr']
+    assert isinstance(expr, MappedExpr)
+    assert isinstance(expr._data_type, types.Float)
 
 
 def test_reduce_apply(src_expr):
@@ -176,13 +174,12 @@ def test_reduce_apply(src_expr):
 
     assert isinstance(expr._fields[1], MappedExpr)
 
-    if not LESS_PY35:
-        l = locals().copy()
-        six.exec_(textwrap.dedent("""
-        def fun(r) -> float:
-            return r.id + r.fid
-        expr = src_expr[src_expr.id, src_expr['id', 'fid'].apply(fun, axis=1, reduce=True).rename('idfid')]
-        """), globals(), l)
-        expr = l['expr']
-        assert isinstance(expr._fields[1], MappedExpr)
-        assert isinstance(expr._fields[1]._data_type, types.Float)
+    l = locals().copy()
+    exec(textwrap.dedent("""
+    def fun(r) -> float:
+        return r.id + r.fid
+    expr = src_expr[src_expr.id, src_expr['id', 'fid'].apply(fun, axis=1, reduce=True).rename('idfid')]
+    """), globals(), l)
+    expr = l['expr']
+    assert isinstance(expr._fields[1], MappedExpr)
+    assert isinstance(expr._fields[1]._data_type, types.Float)

@@ -1,4 +1,4 @@
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import configparser
 import logging
 import os
 
-from ...compat import ConfigParser
 from ...core import ODPS
 
 CONF_FILENAME = "~/.pyouconfig"
@@ -44,7 +44,7 @@ def get_conf():
     if not os.path.exists(f):
         return
 
-    config = ConfigParser.RawConfigParser()
+    config = configparser.RawConfigParser()
     config.read(f)
     access_id = config.get("access_id")
     access_key = config.get("secret_access_key")

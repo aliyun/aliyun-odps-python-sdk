@@ -13,14 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import enum
 from functools import partial
 
 from ..expr.exporters import get_ml_input, get_input_field_names, get_input_field_ids, get_input_field_id
 from ..expr.mixin import ml_collection_mixin
-from ...compat import Enum
 
 
-class TextFieldRole(Enum):
+class TextFieldRole(enum.Enum):
     DOC_ID = 'DOC_ID'
     DOC_CONTENT = 'DOC_CONTENT'
     WORD = 'WORD'

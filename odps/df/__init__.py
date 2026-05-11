@@ -24,7 +24,6 @@ from .expr.composites import make_list, make_dict
 from .expr.reduction import aggregate, agg
 from .utils import output_types, output_names, output
 from .delay import Delay
-from ..compat import six
 
 
 def NullScalar(tp):
@@ -57,7 +56,7 @@ try:
 
         return inner
 
-    for k, v in six.iteritems(dict(locals())):
+    for k, v in dict(locals()).items():
         if k.startswith("read_") and inspect.isfunction(v):
             locals()[k] = wrap(v)
 except (ImportError, ValueError):

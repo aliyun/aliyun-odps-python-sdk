@@ -20,7 +20,6 @@ from contextlib import contextmanager
 
 from ....errors import ODPSError, NoPermission
 from ....types import PartitionSpec
-from ....compat import izip
 from ....models import Table
 from ....tunnel.tabletunnel import TableDownloadSession
 from ...expr.arithmetic import And, Equal
@@ -140,7 +139,7 @@ class TunnelEngine(object):
 
     @classmethod
     def _partition_prefix(cls, all_partitions, filtered_partitions):
-        filtered_partitions = sorted(six.iteritems(filtered_partitions.kv),
+        filtered_partitions = sorted(filtered_partitions.kv.items(),
                                      key=lambda x: all_partitions.index(x[0]))
         if len(filtered_partitions) > len(all_partitions):
             return
@@ -253,7 +252,7 @@ class TunnelEngine(object):
 
                 cum = 0
                 last_percent = 0
-                for curr_part, partition in izip(itertools.count(1), fetch_partitions):
+                for curr_part, partition in zip(itertools.count(1), fetch_partitions):
                     rest = size - cum if size is not None else None
                     finished = False
 
@@ -263,7 +262,7 @@ class TunnelEngine(object):
                             start = s if start is None else max(s, start)
 
                         unique_columns = list(OrderedDict.fromkeys(columns)) if columns is not None else None
-                        for i, r in izip(itertools.count(1),
+                        for i, r in zip(itertools.count(1),
                                          reader.read(start=start, count=rest, columns=unique_columns)):
                             if size is not None and cum > size - 1:
                                 finished = True
@@ -302,7 +301,7 @@ class TunnelEngine(object):
     @classmethod
     def _fill_back_partition_values(cls, record, table, pkv):
         if pkv:
-            for k, v in six.iteritems(pkv):
+            for k, v in pkv.items():
                 if k in record and record[k] is None:
                     # fill back the partition data which is lost in the tunnel
                     record[k] = types.odps_types.validate_value(

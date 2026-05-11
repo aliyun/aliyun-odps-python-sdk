@@ -18,7 +18,6 @@ import textwrap
 
 import pytest
 
-from ....compat import six, LESS_PY35
 from ..reduction import *
 from ... import types
 
@@ -208,27 +207,22 @@ def test_agg(src_expr):
     assert isinstance(expr, Aggregation)
     assert expr.dtype == types.int64
 
-    if not LESS_PY35:
-        l = locals().copy()
-        six.exec_(textwrap.dedent("""
-        class Agg(object):
-            def buffer(self):
-                return [0]
+    class Agg(object):
+        def buffer(self):
+            return [0]
 
-            def __call__(self, buffer, val):
-                buffer[0] += val
+        def __call__(self, buffer, val):
+            buffer[0] += val
 
-            def merge(self, buffer, pbuffer):
-                buffer[0] += pbuffer[0]
+        def merge(self, buffer, pbuffer):
+            buffer[0] += pbuffer[0]
 
-            def getvalue(self, buffer) -> float:
-                return buffer[0]
+        def getvalue(self, buffer) -> float:
+            return buffer[0]
 
-        expr = src_expr.int64.agg(Agg)
-        """), globals(), l)
-        expr = l['expr']
-        assert isinstance(expr, Aggregation)
-        assert isinstance(expr.dtype, types.Float)
+    expr = src_expr.int64.agg(Agg)
+    assert isinstance(expr, Aggregation)
+    assert isinstance(expr.dtype, types.Float)
 
 
 def test_to_list(src_expr):

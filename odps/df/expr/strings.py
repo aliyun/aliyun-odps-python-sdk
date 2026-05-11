@@ -14,12 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 from .element import ElementWise
 from .expressions import Expr, StringSequenceExpr, Scalar, StringScalar, SequenceExpr
 from . import utils
 from .. import types
-from ...compat import six
 
 
 class StringOp(ElementWise):
@@ -285,7 +283,7 @@ def _capitalize(expr):
 
 
 def _cat(expr, others, sep=None, na_rep=None):
-    if isinstance(others, six.string_types):
+    if isinstance(others, str):
         raise ValueError('Did you mean to supply a `sep` keyword?')
     return _string_op(expr, CatStr, _others=others, _sep=sep, _na_rep=na_rep)
 
@@ -303,7 +301,7 @@ def _contains(expr, pat, case=True, flags=0, regex=True):
     :return: sequence or scalar
     """
 
-    if regex and isinstance(pat, six.string_types):
+    if regex and isinstance(pat, str):
         import re
         try:
             re.compile(pat, flags=flags)
@@ -584,7 +582,7 @@ def _pad(expr, width, side='left', fillchar=' '):
     :return: sequence or scalar
     """
 
-    if not isinstance(fillchar, six.string_types):
+    if not isinstance(fillchar, str):
         msg = 'fillchar must be a character, not {0}'
         raise TypeError(msg.format(type(fillchar).__name__))
 
@@ -624,7 +622,7 @@ def _slice(expr, start=None, stop=None, step=None):
 
 
 def _getitem(expr, item):
-    if isinstance(item, six.integer_types) or \
+    if isinstance(item, int) or \
             (isinstance(item, (SequenceExpr, Scalar)) and isinstance(item.dtype, types.Integer)):
         return _get(expr, item)
     elif isinstance(item, slice):

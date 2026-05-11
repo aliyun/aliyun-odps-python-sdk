@@ -1,4 +1,4 @@
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import functools
 import importlib
 import itertools
 import json
@@ -19,7 +20,6 @@ import textwrap
 from collections import OrderedDict
 
 from ... import errors, serializers
-from ...compat import six
 from ..core import AbstractXMLRemoteModel
 
 _type_to_task_classes = dict()
@@ -42,7 +42,7 @@ class Task(AbstractXMLRemoteModel):
         if _type_to_task_classes:
             return
         mod = importlib.import_module("odps.models.tasks")
-        for v in six.itervalues(mod.__dict__):
+        for v in mod.__dict__.values():
             if not isinstance(v, type) or not issubclass(v, Task) or v is Task:
                 continue
             cls_type = getattr(v, "_root", v.__name__)
@@ -68,7 +68,7 @@ class Task(AbstractXMLRemoteModel):
         def update(kv, dest):
             if not kv:
                 return
-            for k, v in six.iteritems(kv):
+            for k, v in kv.items():
                 if isinstance(v, bool):
                     dest[k] = "true" if v else "false"
                 else:
@@ -163,7 +163,7 @@ def format_cdata(query, semicolon=False):
     stripped_query = query.strip()
     if semicolon and not stripped_query.endswith(";"):
         stripped_query += ";"
-    return "<![CDATA[%s]]>" % stripped_query
+    return f"<![CDATA[{stripped_query}]]>"
 
 
 def build_execute_method(func, head_docstr):
@@ -173,7 +173,7 @@ def build_execute_method(func, head_docstr):
         unwrap_func = func.__func__
         ext_wrapper = classmethod
 
-    @six.wraps(unwrap_func)
+    @functools.wraps(unwrap_func)
     def wrapped(cls, *args, **kw):
         inst = unwrap_func(cls, *args, **kw)
         inst.wait_for_success()

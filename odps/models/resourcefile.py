@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,11 +13,11 @@
 # limitations under the License.
 
 import hashlib
+import io
 import os
 import random
 
 from .. import compat
-from ..compat import six
 from ..config import options
 from .resource import FileResource
 
@@ -51,9 +51,9 @@ class ResourceFile(object):
         self._overwrite = overwrite
 
     def _convert(self, content):
-        if self._open_binary and isinstance(content, six.text_type):
+        if self._open_binary and isinstance(content, str):
             return content.encode(self._encoding)
-        elif not self._open_binary and isinstance(content, six.binary_type):
+        elif not self._open_binary and isinstance(content, bytes):
             return content.decode(self._encoding)
         return content
 
@@ -67,7 +67,7 @@ class ResourceFile(object):
         )
 
     def _new_buffer(self, content=None):
-        io_clz = six.BytesIO if self._open_binary else six.StringIO
+        io_clz = io.BytesIO if self._open_binary else io.StringIO
         return io_clz() if content is None else io_clz(content)
 
     def read(self, size=-1):
@@ -85,7 +85,7 @@ class ResourceFile(object):
     def writelines(self, seq):
         raise NotImplementedError
 
-    def seek(self, pos, whence=compat.SEEK_SET):  # io.SEEK_SET
+    def seek(self, pos, whence=io.SEEK_SET):  # io.SEEK_SET
         raise NotImplementedError
 
     def seekable(self):
@@ -142,7 +142,7 @@ class LocalResourceFile(ResourceFile):
 
     def _sync_size(self):
         curr_pos = self.tell()
-        self.seek(0, compat.SEEK_END)
+        self.seek(0, io.SEEK_END)
         self.size = self.tell()
         self.seek(curr_pos)
 
@@ -158,7 +158,7 @@ class LocalResourceFile(ResourceFile):
     def _check_size(self):
         if self.size > RESOURCE_SIZE_MAX:
             raise IOError(
-                "Single resource's max size is %sM" % (RESOURCE_SIZE_MAX / (1024**2))
+                f"Single resource's max size is {RESOURCE_SIZE_MAX / (1024**2)}M"
             )
 
     def write(self, content):
@@ -166,7 +166,7 @@ class LocalResourceFile(ResourceFile):
 
         length = len(content)
         if self.mode in (FileResource.Mode.APPEND, FileResource.Mode.APPENDREADWRITE):
-            self.seek(0, compat.SEEK_END)
+            self.seek(0, io.SEEK_END)
 
         if length > 0:
             self._need_commit = True
@@ -181,7 +181,7 @@ class LocalResourceFile(ResourceFile):
 
         length = sum(len(s) for s in seq)
         if self.mode in (FileResource.Mode.APPEND, FileResource.Mode.APPENDREADWRITE):
-            self.seek(0, compat.SEEK_END)
+            self.seek(0, io.SEEK_END)
 
         if length > 0:
             self._need_commit = True
@@ -191,7 +191,7 @@ class LocalResourceFile(ResourceFile):
         self._check_size()
         return res
 
-    def seek(self, pos, whence=compat.SEEK_SET):
+    def seek(self, pos, whence=io.SEEK_SET):
         return self._fp.seek(pos, whence)
 
     def seekable(self):
@@ -204,7 +204,7 @@ class LocalResourceFile(ResourceFile):
         curr_pos = self.tell()
         self._fp.truncate(size)
 
-        self.seek(0, compat.SEEK_END)
+        self.seek(0, io.SEEK_END)
         self.size = self.tell()
 
         self.seek(curr_pos)
@@ -265,7 +265,7 @@ class StreamResourceFile(ResourceFile):
 
         if self.mode not in (FileResource.Mode.READ, FileResource.Mode.WRITE):
             raise compat.UnsupportedOperation(
-                "Unsupported access mode %s under streaming mode" % mode
+                f"Unsupported access mode {mode} under streaming mode"
             )
 
         self._md5_digest = hashlib.md5()
@@ -285,10 +285,9 @@ class StreamResourceFile(ResourceFile):
         return buffer
 
     def _build_part_resource_name(self):
-        name = "%s.part.tmp.%06d.%06d" % (
-            self.resource.name,
-            self._rand_id,
-            self._resource_counter,
+        name = (
+            f"{self.resource.name}.part.tmp.{self._rand_id:06d}"
+            f".{self._resource_counter:06d}"
         )
         self._resource_counter += 1
         return name
@@ -424,7 +423,7 @@ class StreamResourceFile(ResourceFile):
         self._buffered_size += content_size
         self.size += content_size
 
-    def seek(self, pos, whence=compat.SEEK_SET):
+    def seek(self, pos, whence=io.SEEK_SET):
         raise compat.UnsupportedOperation("File or stream is not seekable.")
 
     def seekable(self):

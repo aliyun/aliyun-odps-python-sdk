@@ -14,9 +14,9 @@
 
 import json
 from collections import OrderedDict
+from enum import Enum
 
 from ... import serializers
-from ...compat import enum, six
 from ...config import options
 from .core import Task
 
@@ -26,7 +26,7 @@ class MaxFrameTask(Task):
     _root = "MaxFrame"
     _anonymous_task_name = "AnonymousMaxFrameTask"
 
-    class CommandType(enum.Enum):
+    class CommandType(Enum):
         CREATE_SESSION = "CREATE_SESSION"
         PYTHON_PACK = "PYTHON_PACK"
         RAY_CLUSTER_INIT = "RAY_CLUSTER_INIT"
@@ -65,7 +65,7 @@ class MaxFrameTask(Task):
 
         final_settings = OrderedDict()
         for k, v in settings.items():
-            if isinstance(v, six.string_types):
+            if isinstance(v, str):
                 final_settings[k] = v
             elif isinstance(v, bool):
                 final_settings[k] = str(v).lower()

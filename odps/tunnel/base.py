@@ -16,9 +16,9 @@
 
 import json
 import threading
+from urllib.parse import urlparse
 
 from .. import options
-from ..compat import six, urlparse
 from ..models import Projects
 from ..rest import RestClient
 from .errors import TunnelError
@@ -86,8 +86,8 @@ class TunnelMetrics(object):
     def __repr__(self):
         d = self.to_dict()
         owner = d.pop("owner", None)
-        repr_body = ", ".join("%s=%s" % pair for pair in sorted(d.items()))
-        return "<TunnelMetrics owner=%s, %s>" % (owner, repr_body)
+        repr_body = ", ".join(f"{k}={v}" for k, v in sorted(d.items()))
+        return f"<TunnelMetrics owner={owner}, {repr_body}>"
 
     def __add__(self, other):
         if not isinstance(other, TunnelMetrics):  # pragma: no cover
@@ -119,8 +119,8 @@ class BaseTunnel(object):
         self._client = odps.rest if odps is not None else client
         self._account = self._client.account
         if project is None and odps is None:
-            raise AttributeError("%s requires project parameter." % type(self).__name__)
-        if isinstance(project, six.string_types):
+            raise AttributeError(f"{type(self).__name__} requires project parameter.")
+        if isinstance(project, str):
             if odps is not None:
                 self._project = odps.get_project(project or odps.project)
             else:
@@ -158,7 +158,7 @@ class BaseTunnel(object):
     def _get_tunnel_server(self, project):
         protocol = urlparse(self._client.endpoint).scheme
         if protocol is None or protocol not in ("http", "https"):
-            raise TunnelError("Invalid protocol: %s" % protocol)
+            raise TunnelError(f"Invalid protocol: {protocol}")
 
         ep_cache_key = (self._client.endpoint, project.name, self._quota_name)
         if ep_cache_key in _endpoint_cache:
@@ -172,7 +172,7 @@ class BaseTunnel(object):
 
         if self._client.is_ok(resp):
             addr = resp.text
-            server_ep = urlparse("%s://%s" % (protocol, addr)).geturl()
+            server_ep = urlparse(f"{protocol}://{addr}").geturl()
             with _endpoint_cache_lock:
                 _endpoint_cache[ep_cache_key] = server_ep
             return server_ep

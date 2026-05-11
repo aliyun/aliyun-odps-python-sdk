@@ -422,14 +422,3 @@ RELOAD_SYS_WARN_MSG = I18NMessage(
     如果你需要解决编码问题，请使用 Python 3 处理编码问题。
     """,
 )
-PYTHON2_DEPRECATE_MSG = I18NMessage(
-    """
-    Support of Python 2.7 is discontinued since January 1, 2020. Though the package PyODPS
-    still supports it for now, supports for new functionalities might be dropped at some time.
-    Please consider migrating to Python 3 instead.
-    """,
-    cn="""
-    Python 2.7 已经于2020年1月1日停止后续支持。尽管目前 PyODPS 仍然支持在 Python 2.7 上运行，
-    未来某一时刻我们可能会停止支持为 Python 2 增加新功能。请考虑将你的代码迁移到 Python 3。
-    """,
-)

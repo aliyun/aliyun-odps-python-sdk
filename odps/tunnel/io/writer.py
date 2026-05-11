@@ -14,8 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import enum
+import io
 import json
 import struct
+from concurrent.futures import ThreadPoolExecutor
+from decimal import Decimal
 
 try:
     import pyarrow as pa
@@ -34,9 +38,9 @@ try:
 except (ImportError, ValueError):
     pd = None
 
-from ... import compat, options, types, utils
-from ...compat import Decimal, Enum, futures, six
-from ...lib.monotonic import monotonic
+import time
+
+from ... import options, types, utils
 from ..base import TunnelMetrics
 from ..checksum import Checksum
 from ..errors import TunnelError
@@ -191,7 +195,7 @@ if BaseRecordWriter is None:
             n_columns = len(self._columns)
 
             if self._enable_client_metrics:
-                ts = monotonic()
+                ts = time.monotonic()
 
             if n_record_fields > n_columns:
                 raise IOError("record fields count is more than schema.")
@@ -230,7 +234,7 @@ if BaseRecordWriter is None:
                 ):
                     self._write_tag(pb_index, WIRETYPE_LENGTH_DELIMITED)
                 else:
-                    raise IOError("Invalid data type: %s" % data_type)
+                    raise IOError(f"Invalid data type: {data_type}")
                 self._write_field(val, data_type)
 
             checksum = utils.long_to_int(self._crc.getvalue())
@@ -241,7 +245,9 @@ if BaseRecordWriter is None:
             self._curr_cursor += 1
 
             if self._enable_client_metrics:
-                self._local_wall_time_ms += int(MICRO_SEC_PER_SEC * (monotonic() - ts))
+                self._local_wall_time_ms += int(
+                    MICRO_SEC_PER_SEC * (time.monotonic() - ts)
+                )
 
         def _write_bool(self, data):
             self._crc.update_bool(data)
@@ -260,7 +266,7 @@ if BaseRecordWriter is None:
             self._write_raw_double(data)
 
         def _write_string(self, data):
-            if isinstance(data, six.text_type):
+            if isinstance(data, str):
                 data = data.encode(self._encoding)
             self._crc.update(data)
             self._write_raw_string(data)
@@ -347,15 +353,15 @@ if BaseRecordWriter is None:
                 self._write_array(val, data_type.value_type)
             elif isinstance(data_type, types.Map):
                 self._write_raw_uint(len(val))
-                self._write_array(compat.lkeys(val), data_type.key_type)
+                self._write_array(list(val.keys()), data_type.key_type)
                 self._write_raw_uint(len(val))
-                self._write_array(compat.lvalues(val), data_type.value_type)
+                self._write_array(list(val.values()), data_type.value_type)
             elif isinstance(data_type, types.Struct):
                 self._write_struct(val, data_type)
             elif isinstance(data_type, types.Vector):
                 self._write_vector(val, data_type)
             else:
-                raise IOError("Invalid data type: %s" % data_type)
+                raise IOError(f"Invalid data type: {data_type}")
 
         @property
         def count(self):
@@ -424,7 +430,7 @@ class RecordWriter(BaseRecordWriter):
         self._enable_client_metrics = options.tunnel.enable_client_metrics
         self._server_metrics_string = None
         if self._enable_client_metrics:
-            ts = monotonic()
+            ts = time.monotonic()
 
         self._req_io = RequestsIO(
             request_callback,
@@ -437,7 +443,7 @@ class RecordWriter(BaseRecordWriter):
         self._req_io.start()
 
         if self._enable_client_metrics:
-            self._local_wall_time_ms += int(MICRO_SEC_PER_SEC * (monotonic() - ts))
+            self._local_wall_time_ms += int(MICRO_SEC_PER_SEC * (time.monotonic() - ts))
 
     @property
     def metrics(self):
@@ -459,7 +465,7 @@ class RecordWriter(BaseRecordWriter):
         """
         if self._req_io._async_err:
             ex_type, ex_value, tb = self._req_io._async_err
-            six.reraise(ex_type, ex_value, tb)
+            raise ex_value.with_traceback(tb)
         super(RecordWriter, self).write(record)
 
     def close(self):
@@ -467,13 +473,13 @@ class RecordWriter(BaseRecordWriter):
         Close the writer and flush all data to server.
         """
         if self._enable_client_metrics:
-            ts = monotonic()
+            ts = time.monotonic()
 
         super(RecordWriter, self).close()
         resp = self._req_io.finish()
 
         if self._enable_client_metrics:
-            self._local_wall_time_ms += int(MICRO_SEC_PER_SEC * (monotonic() - ts))
+            self._local_wall_time_ms += int(MICRO_SEC_PER_SEC * (time.monotonic() - ts))
 
         self._server_metrics_string = resp.headers.get("odps-tunnel-metrics")
 
@@ -526,7 +532,7 @@ class BufferedRecordWriter(BaseRecordWriter):
         self._request_callback = request_callback
         self._block_id = block_id or 0
         self._blocks_written = []
-        self._buffer = compat.BytesIO()
+        self._buffer = io.BytesIO()
         self._n_bytes_written = 0
         self._compress_option = compress_option
         self._block_id_gen = block_id_gen
@@ -538,7 +544,7 @@ class BufferedRecordWriter(BaseRecordWriter):
             self._accumulated_metrics = None
         else:
             self._accumulated_metrics = TunnelMetrics(type(self).__name__)
-            ts = monotonic()
+            ts = time.monotonic()
 
         out = get_compress_stream(self._buffer, compress_option)
         super(BufferedRecordWriter, self).__init__(schema, out, encoding=encoding)
@@ -547,7 +553,7 @@ class BufferedRecordWriter(BaseRecordWriter):
         self._buffer_size = buffer_size or options.tunnel.block_buffer_size
 
         if self._enable_client_metrics:
-            self._local_wall_time_ms += int(MICRO_SEC_PER_SEC * (monotonic() - ts))
+            self._local_wall_time_ms += int(MICRO_SEC_PER_SEC * (time.monotonic() - ts))
 
     @property
     def cur_block_id(self):
@@ -596,9 +602,9 @@ class BufferedRecordWriter(BaseRecordWriter):
     def _reset_writer(self, write_response):
         self._collect_metrics()
         if self._enable_client_metrics:
-            ts = monotonic()
+            ts = time.monotonic()
 
-        self._buffer = compat.BytesIO()
+        self._buffer = io.BytesIO()
 
         out = get_compress_stream(self._buffer, self._compress_option)
         self._re_init(out)
@@ -607,19 +613,21 @@ class BufferedRecordWriter(BaseRecordWriter):
         self._crc.reset()
 
         if self._enable_client_metrics:
-            self._local_wall_time_ms += int(MICRO_SEC_PER_SEC * (monotonic() - ts))
+            self._local_wall_time_ms += int(MICRO_SEC_PER_SEC * (time.monotonic() - ts))
 
     def _send_buffer(self):
         if self._enable_client_metrics:
-            ts = monotonic()
+            ts = time.monotonic()
         resp = self._request_callback(self._block_id, self._buffer.getvalue())
         if self._enable_client_metrics:
-            self._network_wall_time_ms += int(MICRO_SEC_PER_SEC * (monotonic() - ts))
+            self._network_wall_time_ms += int(
+                MICRO_SEC_PER_SEC * (time.monotonic() - ts)
+            )
         return resp
 
     def _flush(self):
         if self._enable_client_metrics:
-            ts = monotonic()
+            ts = time.monotonic()
 
         self._write_finish_tags()
         self._n_bytes_written += self._n_raw_bytes
@@ -631,7 +639,7 @@ class BufferedRecordWriter(BaseRecordWriter):
         self._block_id = self._get_next_block_id()
 
         if self._enable_client_metrics:
-            self._local_wall_time_ms += int(MICRO_SEC_PER_SEC * (monotonic() - ts))
+            self._local_wall_time_ms += int(MICRO_SEC_PER_SEC * (time.monotonic() - ts))
 
         self._reset_writer(resp)
 
@@ -695,12 +703,12 @@ class StreamRecordWriter(BufferedRecordWriter):
         slot_num = int(write_response.headers["odps-tunnel-slot-num"])
 
         if self._enable_client_metrics:
-            ts = monotonic()
+            ts = time.monotonic()
 
         self.session.reload_slots(self.slot, slot_server, slot_num)
 
         if self._enable_client_metrics:
-            time_cost = int(MICRO_SEC_PER_SEC * (monotonic() - ts))
+            time_cost = int(MICRO_SEC_PER_SEC * (time.monotonic() - ts))
             self._local_wall_time_ms += time_cost
             self._network_wall_time_ms += time_cost
 
@@ -708,7 +716,7 @@ class StreamRecordWriter(BufferedRecordWriter):
 
     def _send_buffer(self):
         if self._enable_client_metrics:
-            ts = monotonic()
+            ts = time.monotonic()
 
         def gen():  # synchronize chunk upload
             data = self._buffer.getvalue()
@@ -723,7 +731,7 @@ class StreamRecordWriter(BufferedRecordWriter):
         finally:
             if self._enable_client_metrics:
                 self._network_wall_time_ms += int(
-                    MICRO_SEC_PER_SEC * (monotonic() - ts)
+                    MICRO_SEC_PER_SEC * (time.monotonic() - ts)
                 )
 
 
@@ -915,7 +923,7 @@ class BaseArrowWriter(object):
                 lower_name = name.lower()
                 if lower_name not in column_dict:
                     raise ValueError(
-                        "Input record batch does not contain column %s" % name
+                        f"Input record batch does not contain column {name}"
                     )
 
                 if isinstance(tp, pa.TimestampType):
@@ -945,9 +953,7 @@ class BaseArrowWriter(object):
                     try:
                         arrays.append(column_dict[lower_name].cast(tp, safe=False))
                     except (pa.ArrowInvalid, pa.ArrowNotImplementedError):
-                        raise ValueError(
-                            "Failed to cast column %s to type %s" % (name, tp)
-                        )
+                        raise ValueError(f"Failed to cast column {name} to type {tp}")
             pa_type = type(arrow_data)
             arrow_data = pa_type.from_arrays(arrays, names=self._arrow_schema.names)
 
@@ -1081,7 +1087,7 @@ class BufferedArrowWriter(BaseArrowWriter):
         self._request_callback = request_callback
         self._block_id = block_id or 0
         self._blocks_written = []
-        self._buffer = compat.BytesIO()
+        self._buffer = io.BytesIO()
         self._compress_option = compress_option
         self._n_bytes_written = 0
         self._block_id_gen = block_id_gen
@@ -1110,7 +1116,7 @@ class BufferedArrowWriter(BaseArrowWriter):
         self._buffer.close()
 
     def _reset_writer(self):
-        self._buffer = compat.BytesIO()
+        self._buffer = io.BytesIO()
 
         out = get_compress_stream(self._buffer, self._compress_option)
         self._re_init(out)
@@ -1185,11 +1191,11 @@ class Upsert(object):
     DEFAULT_MAX_BUFFER_SIZE = 64 * 1024**2
     DEFAULT_SLOT_BUFFER_SIZE = 1024**2
 
-    class Operation(Enum):
+    class Operation(enum.Enum):
         UPSERT = "UPSERT"
         DELETE = "DELETE"
 
-    class Status(Enum):
+    class Status(enum.Enum):
         NORMAL = "NORMAL"
         ERROR = "ERROR"
         CLOSED = "CLOSED"
@@ -1276,7 +1282,7 @@ class Upsert(object):
         retry = 0
         while True:
             futs = []
-            pool = futures.ThreadPoolExecutor(len(self._bucket_writers))
+            pool = ThreadPoolExecutor(len(self._bucket_writers))
             try:
                 self._check_status()
                 for bucket, writer in self._bucket_writers.items():
@@ -1309,7 +1315,7 @@ class Upsert(object):
             self._status = Upsert.Status.CLOSED
 
     def _build_bucket_writer(self, slot):
-        self._bucket_buffers[slot] = compat.BytesIO()
+        self._bucket_buffers[slot] = io.BytesIO()
         self._bucket_writers[slot] = BaseRecordWriter(
             self._schema,
             get_compress_stream(self._bucket_buffers[slot], self._compress_option),

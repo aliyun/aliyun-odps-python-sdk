@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,7 +20,6 @@ import time
 from collections import OrderedDict
 
 from .. import compat, errors, options, serializers
-from ..compat import six
 from .core import XMLIterable, XMLRemoteModel
 from .instance import Instance
 from .xflow import XFlow
@@ -37,7 +36,7 @@ class XFlows(XMLIterable):
         return XFlow(client=self._client, parent=self, name=name)
 
     def __contains__(self, item):
-        if isinstance(item, six.string_types):
+        if isinstance(item, str):
             xflow = self._get(item)
         elif isinstance(item, XFlow):
             xflow = item
@@ -158,7 +157,7 @@ class XFlows(XMLIterable):
             settings.update(exist_settings)
             str_settings = OrderedDict()
             for k, v in settings.items():
-                if isinstance(v, six.string_types):
+                if isinstance(v, str):
                     str_settings[k] = v
                 elif isinstance(v, bool):
                     str_settings[k] = "true" if v else "false"
@@ -170,11 +169,11 @@ class XFlows(XMLIterable):
             kw["properties"] = props
         if parameters:
             new_params = OrderedDict()
-            for k, v in six.iteritems(parameters):
+            for k, v in parameters.items():
                 if k == "modelName" and "/" not in v:
-                    new_params[k] = "%s/offlinemodels/%s" % (project.name, v)
+                    new_params[k] = f"{project.name}/offlinemodels/{v}"
                 elif k in ("inputTableName", "outputTableName") and "." not in v:
-                    new_params[k] = "%s.%s" % (project.name, v)
+                    new_params[k] = f"{project.name}.{v}"
                 else:
                     new_params[k] = v
             parameters = new_params
@@ -221,7 +220,7 @@ class XFlows(XMLIterable):
         inst_dict = OrderedDict()
         for x_result in filter(
             lambda xr: xr.node_type != "Local",
-            six.itervalues(self.get_xflow_results(instance)),
+            self.get_xflow_results(instance).values(),
         ):
             if x_result.node_type == "Instance":
                 inst_dict[x_result.name] = self.parent.instances[x_result.instance_id]
@@ -235,7 +234,7 @@ class XFlows(XMLIterable):
         inst_id_set = set()
         while not instance.is_terminated(retry=True):
             sub_tasks_result = self.get_xflow_sub_instances(instance)
-            for k, v in six.iteritems(sub_tasks_result):
+            for k, v in sub_tasks_result.items():
                 if v.id not in inst_id_set:
                     inst_id_set.add(v.id)
                     yield k, v

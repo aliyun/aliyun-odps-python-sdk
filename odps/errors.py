@@ -18,13 +18,13 @@ import json
 import logging
 import operator
 from datetime import datetime
+from functools import reduce
 
 from requests import ConnectTimeout as RequestsConnectTimeout
 
 from . import utils
 from .compat import ElementTree as ET
 from .compat import ElementTreeParseError as ETParseError
-from .compat import TimeoutError, reduce, six
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +87,7 @@ def parse_response(resp, endpoint=None, tag=None):
     if resp.status_code == 404:
         msg = "Not found error reported by server."
         if endpoint:
-            msg += " Endpoint %s might be malfunctioning." % endpoint
+            msg += f" Endpoint {endpoint} might be malfunctioning."
         return NoSuchObject(
             msg, endpoint=endpoint, tag=tag, status_code=resp.status_code
         )
@@ -96,7 +96,7 @@ def parse_response(resp, endpoint=None, tag=None):
             "Unauthorized.", endpoint=endpoint, tag=tag, status_code=resp.status_code
         )
     else:
-        text = resp.content.decode() if six.PY3 else resp.content
+        text = resp.content.decode()
         if text:
             if resp.status_code == 502 and _nginx_bad_gateway_message in text:
                 return BadGatewayError(
@@ -223,18 +223,18 @@ class BaseODPSError(Exception):
 
         head_parts = []
         if self.code:
-            head_parts.append("%s:" % self.code)
+            head_parts.append(f"{self.code}:")
         if self.request_id:
-            head_parts.append("RequestId: %s" % self.request_id)
+            head_parts.append(f"RequestId: {self.request_id}")
         if self.instance_id:
-            head_parts.append("InstanceId: %s" % self.instance_id)
+            head_parts.append(f"InstanceId: {self.instance_id}")
         if self.tag:
-            head_parts.append("Tag: %s" % self.tag)
+            head_parts.append(f"Tag: {self.tag}")
         if self.endpoint:
-            head_parts.append("Endpoint: %s" % self.endpoint)
+            head_parts.append(f"Endpoint: {self.endpoint}")
 
         if head_parts:
-            return "%s\n%s" % (" ".join(head_parts), message)
+            return f"{' '.join(head_parts)}\n{message}"
         return message
 
     @classmethod
@@ -461,7 +461,7 @@ class SecurityQueryError(ODPSError):
 
 class OSSSignUrlError(ODPSError):
     def __init__(self, err):
-        if isinstance(err, six.string_types):
+        if isinstance(err, str):
             super(OSSSignUrlError, self).__init__(err)
             self.oss_exception = None
         else:

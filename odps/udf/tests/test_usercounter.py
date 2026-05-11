@@ -1,4 +1,4 @@
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,7 +14,6 @@
 
 import json
 
-from ...compat import six
 from ...counters import *
 
 
@@ -42,7 +41,7 @@ def test_counter_group():
 def test_counters():
     def _normalize_counter(json_str):
         obj = json.loads(json_str)
-        for v in six.itervalues(obj):
+        for v in obj.values():
             if "counters" not in v:
                 continue
             v["counters"] = sorted(v["counters"], key=lambda item: item["name"])

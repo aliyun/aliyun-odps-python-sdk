@@ -17,6 +17,7 @@ import contextlib
 import logging
 import os
 import sys
+from concurrent.futures import ThreadPoolExecutor
 
 logger = logging.getLogger(__name__)
 CODE_FILE_NAME = "<pyodps_user_code>"
@@ -112,8 +113,6 @@ def is_limit_exceeded(mem_limit):
 def kill_process_tree(pid, signum):
     import psutil
 
-    from odps.compat import futures
-
     def _kill(process, signum):
         try:
             process.send_signal(signum)
@@ -125,7 +124,7 @@ def kill_process_tree(pid, signum):
     try:
         p = psutil.Process(pid)
 
-        tpe = futures.ThreadPoolExecutor(max_workers=1)
+        tpe = ThreadPoolExecutor(max_workers=1)
         fut = tpe.submit(lambda: list(p.children(recursive=True)))
 
         try:

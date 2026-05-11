@@ -14,8 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import absolute_import
-
 from .expressions import *
 from .groupby import *
 from . import utils
@@ -698,7 +696,7 @@ def moment(expr, order, central=False):
     :param central: if central moments are to be computed.
     :return:
     """
-    if not isinstance(order, six.integer_types):
+    if not isinstance(order, int):
         raise ValueError('Only integer-ordered moments are supported.')
     if order < 0:
         raise ValueError('Only non-negative orders are supported.')

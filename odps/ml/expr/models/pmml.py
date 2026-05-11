@@ -14,14 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import absolute_import
-
+import io
 import re
 import sys
 import logging
 from collections import namedtuple
+from functools import reduce
 
-from ....compat import six, ElementTree as ET, reduce
+from ....compat import ElementTree as ET
 from ....utils import require_package
 
 PMML_VOLUME = 'pyodps_volume'
@@ -36,10 +36,8 @@ class PmmlRepr(object):
         r = self._repr()
         if r is None:
             return ''
-        elif not six.PY2:
-            return r
         else:
-            return r.encode('utf-8') if isinstance(r, six.text_type) else r
+            return r
 
 
 class PmmlPredictor(PmmlRepr):
@@ -203,7 +201,7 @@ def build_text_tree(root):
                 write_node_step(writer, node, header + append_header, False)
             write_node_step(writer, sub_nodes[-1], header + append_header, True)
 
-    sio = six.StringIO()
+    sio = io.StringIO()
     sio.write(root.text + '\n')
     root_children = list(root.children())
     for snode in root_children[:-1]:
@@ -231,7 +229,7 @@ def build_gv_tree(root):
                 write_gv_step(writer, node, struct_str)
                 writer.write(u'%s -> %s;\n' % (parent_key,  struct_str))
 
-    sio = six.StringIO()
+    sio = io.StringIO()
     sio.write(u'digraph {{\nroot {0};\n'.format(root.gv_text))
     root_children = list(root.children())
     for snode in root_children:
@@ -240,22 +238,18 @@ def build_gv_tree(root):
         write_gv_step(sio, snode, struct_str)
         sio.write('root -> %s;\n' % struct_str)
     sio.write('}\n')
-    return six.text_type(sio.getvalue())
+    return str(sio.getvalue())
 
 
-if six.PY2:
-    def unescape_string(s):
-        return s.decode('string-escape')
-else:
-    def unescape_string(s):
-        return s.encode('utf-8').decode('unicode-escape')
+def unescape_string(s):
+    return s.encode('utf-8').decode('unicode-escape')
 
 
 def parse_pmml_array(element):
     if element is None:
         return None
     parts = []
-    sio = six.StringIO()
+    sio = io.StringIO()
     quoted = False
     last_ch = None
     for ch in element.text:
@@ -268,7 +262,7 @@ def parse_pmml_array(element):
             s = sio.getvalue()
             if s:
                 parts.append(unescape_string(s))
-                sio = six.StringIO()
+                sio = io.StringIO()
         else:
             sio.write(ch)
         last_ch = ch
@@ -311,11 +305,11 @@ class PmmlPredicate(PmmlRepr):
 
     @classmethod
     def exists(cls, element):
-        return any(element.find(s) is not None for s in six.iterkeys(cls._subclasses))
+        return any(element.find(s) is not None for s in cls._subclasses.keys())
 
     @classmethod
     def iterate(cls, element):
-        return (cls(el) for el in reduce(lambda a, b: a + b, (element.findall('./' + c) for c in six.iterkeys(cls._subclasses)), []))
+        return (cls(el) for el in reduce(lambda a, b: a + b, (element.findall('./' + c) for c in cls._subclasses.keys()), []))
 
     @property
     def field(self):
@@ -442,8 +436,6 @@ class PmmlTreeNode(PmmlRepr):
             dists = [u'%s:%s' % (e.attrib['value'], e.attrib['recordCount'])
                      for e in self._element.findall('./ScoreDistribution')]
             expr = repr(self.predicate)
-            if six.PY2:
-                expr = expr.decode('utf-8')
             label_lines.append(u'<FONT POINT-SIZE="{0}">{1}</FONT>'.format(DETAIL_SIZE, escape_graphviz(expr)))
             if dists:
                 label_lines.append(u'<FONT POINT-SIZE="{0}">LABELS: {1}</FONT>'.format(DETAIL_SIZE, ', '.join(dists)))
@@ -499,7 +491,7 @@ class PmmlResult(object):
             obj = object.__new__(cls)
         else:
             if not cls._result_types:
-                for c in six.itervalues(globals()):
+                for c in globals().values():
                     if c is not PmmlResult and isinstance(c, type) and issubclass(c, PmmlResult):
                         cls._result_types.append(c)
 
@@ -551,7 +543,7 @@ class PmmlRegressionResult(PmmlResult, PmmlRepr):
         return (PmmlRegressionTable(e) for e in self._reg_element.findall('RegressionTable'))
 
     def _repr(self):
-        sio = six.StringIO()
+        sio = io.StringIO()
         sio.write('Function: %s\n' % self.function)
         sio.write('Target Field: %s\n' % self.target_field)
         if self.normalization:
@@ -561,7 +553,7 @@ class PmmlRegressionResult(PmmlResult, PmmlRepr):
         return sio.getvalue()
 
     def _repr_html_(self):
-        sio = six.StringIO()
+        sio = io.StringIO()
         sio.write('<div><span style="font-weight: bold">Function</span>: %s</div>\n' % self.function)
         sio.write('<div><span style="font-weight: bold">Target Field</span>: %s</div>\n' % self.target_field)
         if self.normalization:
@@ -587,14 +579,7 @@ class PmmlSegmentsResult(PmmlResult):
             raise ValueError('Unrecognized PMML node.')
 
     def __getitem__(self, item):
-        if sys.version_info[:2] < (2, 7):
-            xsegment = None
-            for seg in self._seg_element.findall('Segment'):
-                if seg.attrib.get('id') == str(item):
-                    xsegment = seg
-                    break
-        else:
-            xsegment = self._seg_element.find('Segment[@id="{0}"]'.format(item))
+        xsegment = self._seg_element.find('Segment[@id="{0}"]'.format(item))
 
         if xsegment is None:
             raise KeyError('No segments found in PMML result.')
@@ -610,7 +595,7 @@ class PmmlSegmentsResult(PmmlResult):
         return repr(self._get_segments_summary())
 
     def _repr_html_(self):
-        html_writer = six.StringIO()
+        html_writer = io.StringIO()
         html_writer.write('<table><tr><th>ID</th><th>Type</th><th>Weight</th></tr>')
         for seg in self._get_segments_summary():
             html_writer.write('<tr><td>{0}</td><td>{1}</td><td>{2}</td></tr>'.format(seg.id, seg.type, seg.weight))

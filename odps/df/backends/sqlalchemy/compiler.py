@@ -27,7 +27,6 @@ from ...expr.merge import *
 from ...expr.utils import highest_precedence_data_type
 from ... import types as df_types
 from ...utils import is_constant_scalar, traverse_until_source, is_source_collection
-from ....compat import lzip
 from .... import utils
 from . import types
 
@@ -48,7 +47,7 @@ BINARY_OP = {
     'Add': operator.add,
     'Substract': operator.sub,
     'Multiply': operator.mul,
-    'Divide': operator.div if six.PY2 else operator.truediv,
+    'Divide': operator.truediv,
     'Mod': operator.mod,
     'FloorDivide': operator.floordiv,
     'Greater': operator.gt,
@@ -242,9 +241,9 @@ class SQLAlchemyCompiler(Backend):
             sa_else = self._expr_to_sqlalchemy[expr._default] \
                 if expr._default is not None else expr._default
             if expr._input is None:
-                sa_expr = case(lzip(conditions, thens), else_=sa_else)
+                sa_expr = case(list(zip(conditions, thens)), else_=sa_else)
             else:
-                sa_expr = case(dict(lzip(conditions, thens)),
+                sa_expr = case(dict(zip(conditions, thens)),
                                value=input, else_=sa_else)
         else:
             raise NotImplementedError
@@ -255,7 +254,7 @@ class SQLAlchemyCompiler(Backend):
         if isinstance(expr, Power):
             op = func.pow
         elif isinstance(expr, FloorDivide):
-            op = operator.div if six.PY2 else operator.truediv
+            op = operator.truediv
         elif isinstance(expr, (Add, Substract)) and expr.dtype == df_types.datetime:
             if isinstance(expr, Add) and \
                     all(child.dtype == df_types.datetime for child in (expr.lhs, expr.rhs)):
@@ -400,8 +399,8 @@ class SQLAlchemyCompiler(Backend):
             if expr.end is None and expr.step is None:
                 sa_expr = func.substr(self._expr_to_sqlalchemy[expr._input],
                                       self._expr_to_sqlalchemy[expr._start] + 1)
-            elif isinstance(expr.start, six.integer_types) and \
-                    isinstance(expr.end, six.integer_types) and \
+            elif isinstance(expr.start, int) and \
+                    isinstance(expr.end, int) and \
                     expr.step is None and expr.start > 0 and expr.end > 0:
                 length = expr.end - expr.start
                 sa_expr = func.substr(self._expr_to_sqlalchemy[expr._input],
@@ -606,7 +605,7 @@ class SQLAlchemyCompiler(Backend):
         if expr._value is not None:
             if expr.dtype == df_types.string:
                 val = utils.to_str(expr.value) \
-                    if isinstance(expr.value, six.text_type) else expr.value
+                    if isinstance(expr.value, str) else expr.value
                 self._add(expr, val)
                 return
             else:

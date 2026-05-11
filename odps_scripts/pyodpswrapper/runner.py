@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import builtins
 import contextlib
 import cProfile
 import datetime
@@ -36,7 +37,6 @@ from .diagnose import (
     config_warning_messages,
     diagnose_pyodps_errors,
     log_dev_project_warning,
-    log_python2_deprecation_warning,
     log_reload_usage_warning,
     log_replaced_vars,
 )
@@ -62,8 +62,6 @@ class GlobalCopyDict(dict):
     """
 
     def __init__(self, wrapped, **kw):
-        from odps.compat import builtins
-
         dict.__init__(self, **kw)
         self.update(wrapped)
         self._lock = threading.RLock()  # Instance-level lock for thread-safety
@@ -111,9 +109,9 @@ class GlobalCopyDict(dict):
                 self._new_keys.add(key)
             elif key in self._globals and self._globals[key] is not value:
                 warnings.warn(
-                    "Global variable %s you are about to set conflicts "
+                    f"Global variable {key} you are about to set conflicts "
                     "with pyodpswrapper or builtin variables. "
-                    "It might not be runnable with multiprocessing." % key
+                    "It might not be runnable with multiprocessing."
                 )
 
     def __delitem__(self, key):
@@ -161,7 +159,6 @@ class GlobalCopyDict(dict):
 @contextlib.contextmanager
 def build_user_locals(odps, args):
     from odps import DataFrame, NullScalar, Scalar, options
-    from odps.compat import builtins
 
     if args.args is not None:
         args_dict = dict([a.split("=", 1) for a in args.args if "=" in a])
@@ -169,17 +166,14 @@ def build_user_locals(odps, args):
         args_dict = dict()
 
     # customize reload
-    if sys.version_info[0] < 3:
-        _old_reload = builtins.reload
-    else:
-        try:
-            import importlib
+    try:
+        import importlib
 
-            _old_reload = importlib.reload
-        except ImportError:
-            import imp
+        _old_reload = importlib.reload
+    except ImportError:
+        import imp
 
-            _old_reload = imp.reload
+        _old_reload = imp.reload
 
     def _custom_reload(mod):
         _stdout = sys.stdout
@@ -427,8 +421,6 @@ def set_running_options(odps, args):
 
 
 def run_code(odps, args, uid=None, conn=None):
-    from odps.compat import StringIO, six
-
     # limit_resource(args.cpu_timeout, args.mem or args.mem_limit)
     import_all_sub_modules("odps")
     run_flags = get_run_flags()
@@ -476,12 +468,11 @@ def run_code(odps, args, uid=None, conn=None):
 
     set_running_options(odps, args)
 
-    log_python2_deprecation_warning(logger)
     log_dev_project_warning(odps.project, logger)
     log_reload_usage_warning(code, logger)
 
     try:
-        lines = StringIO(code).readlines()
+        lines = io.StringIO(code).readlines()
         if lines and not lines[-1].endswith("\n"):
             lines[-1] += "\n"
         linecache.cache[CODE_FILE_NAME] = (
@@ -508,7 +499,7 @@ def run_code(odps, args, uid=None, conn=None):
             with enable_profiling(run_flags), enable_dumper_thread(
                 run_flags
             ), build_user_locals(odps, args) as local:
-                six.exec_(compiled, local)
+                exec(compiled, local)
         finally:
             if use_spawn_method() and old_start_method:
                 multiprocessing.set_start_method(old_start_method, force=True)

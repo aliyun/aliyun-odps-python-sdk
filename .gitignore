@@ -11,6 +11,7 @@
 *.egg-info
 dist
 build
+wheelhouse
 eggs
 parts
 var
@@ -38,6 +39,7 @@ npm-debug.log*
 
 # Unit test / coverage reports
 .coverage
+.coverage.*
 htmlcov
 .tox
 nosetests.xml
@@ -66,7 +68,6 @@ odps/src/*/*_c.c*
 odps/src/*_c.c*
 odps/tunnel/pb/*_c.c*
 odps/tunnel/io/*_c.c*
-odps/tunnel/pdio/*_c.c*
 odps/tunnel/*_c.c*
 
 # benchmark
@@ -83,6 +84,18 @@ bin/test_pyodpswrapper.py
 *.tmp
 *.swp
 
+# nohup outputs
+nohup.out
+
 # documentation
 docs/**/*.mo
-/odps/lab_extension/lib/
+
+# bazel output files
+bazel-*
+MODULE.bazel.lock
+
+# AI tool settings
+.claude
+
+# Files making troubles
+\\*

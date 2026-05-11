@@ -1,4 +1,4 @@
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import logging
-import sys
 import time
 
 import pytest
@@ -23,11 +22,11 @@ try:
 except ImportError:
     pa = None
 
-if sys.version_info[0] >= 3 and pa is not None:
+if pa is not None:
     from ..storage_api import *
     from .util import *
 else:
-    pytestmark = pytest.mark.skip("Need python3.5+ to run this test")
+    pytestmark = pytest.mark.skip("Need pyarrow to run this test")
 
 logger = logging.getLogger(__name__)
 

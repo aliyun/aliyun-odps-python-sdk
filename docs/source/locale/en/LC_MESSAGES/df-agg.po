@@ -69,7 +69,7 @@ msgstr ""
 #: ../../source/df-agg.rst:40
 msgid ""
 ">>> iris.name.unique().cat(sep=',')\n"
-"u'Iris-setosa,Iris-versicolor,Iris-virginica'"
+"'Iris-setosa,Iris-versicolor,Iris-virginica'"
 msgstr ""
 
 #: ../../source/df-agg.rst:41

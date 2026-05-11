@@ -16,6 +16,7 @@
 
 import operator
 import random
+from functools import reduce
 
 from ...models import TableSchema
 from .expressions import Expr, CollectionExpr, BooleanSequenceExpr, \
@@ -23,7 +24,6 @@ from .expressions import Expr, CollectionExpr, BooleanSequenceExpr, \
 from .collections import SortedExpr, ReshuffledCollectionExpr
 from .errors import ExpressionError
 from . import utils
-from ...compat import reduce, six
 from .. import types
 from ..utils import is_constant_scalar
 from ...utils import object_getattr, camel_to_underline
@@ -49,20 +49,20 @@ class BaseGroupBy(Expr):
             self._to_agg = self._input.schema
 
     def __getitem__(self, item):
-        if isinstance(item, six.string_types):
+        if isinstance(item, str):
             if item in self._to_agg:
                 return SequenceGroupBy(_input=self, _name=item,
                                        _data_type=self._input._schema[item].type)
             else:
                 raise KeyError('Fail to get group by field, unknown field: %s' % repr_obj(item))
 
-        is_field = lambda it: isinstance(it, six.string_types) or isinstance(it, Column)
+        is_field = lambda it: isinstance(it, str) or isinstance(it, Column)
         if not all(is_field(it) for it in item):
             raise TypeError('Fail to get group by fields, unknown type: %s' % type(item))
         if any(col.is_renamed() for col in item if isinstance(col, Column)):
             raise ValueError('Fail to get group by fields, column cannot be renamed')
 
-        get_name = lambda it: it if isinstance(it, six.string_types) else it.source_name
+        get_name = lambda it: it if isinstance(it, str) else it.source_name
         _to_agg = type(self._input.schema)(
             columns=self._input.schema[[get_name(field) for field in item
                                         if get_name(field) in self._to_agg]])
@@ -113,7 +113,7 @@ class BaseGroupBy(Expr):
         windows = [self._defunc(win) for win in windows]
         if kw:
             windows.extend([self._defunc(win).rename(new_name)
-                            for new_name, win in six.iteritems(kw)])
+                            for new_name, win in kw.items()])
 
         from .window import Window
 
@@ -244,7 +244,7 @@ class GroupBy(BaseGroupBy):
         aggregations = [self._defunc(it) for it in aggregations]
         if kw:
             aggregations.extend([self._defunc(agg).rename(new_name)
-                                 for new_name, agg in six.iteritems(kw)])
+                                 for new_name, agg in kw.items()])
 
         # keep sequence to ensure that test cases work well
         if sort_by_name:

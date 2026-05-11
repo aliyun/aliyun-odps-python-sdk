@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ def test_dag():
     node1, node2, node3, node4, node5 = labels
 
     for i in range(1, 6):
-        dag.add_node(locals()["node%d" % i])
+        dag.add_node(locals()[f"node{i}"])
 
     dag.add_edge(node1, node3)
     dag.add_edge(node2, node4)
@@ -35,7 +35,7 @@ def test_dag():
     dag.add_edge(node4, node5)
 
     loc_vars = locals()
-    assert sorted([loc_vars["node%d" % i] for i in range(1, 6)]) == sorted(dag.nodes())
+    assert sorted([loc_vars[f"node{i}"] for i in range(1, 6)]) == sorted(dag.nodes())
 
     assert dag.contains_node(node1) is True
     assert dag.contains_edge(node2, node4) is True
@@ -91,7 +91,7 @@ def test_reversed_dag():
     node1, node2, node3, node4, node5 = labels
 
     for i in range(1, 6):
-        dag.add_node(locals()["node%d" % i])
+        dag.add_node(locals()[f"node{i}"])
 
     dag.add_edge(node1, node3)
     dag.add_edge(node2, node4)
@@ -99,7 +99,7 @@ def test_reversed_dag():
     dag.add_edge(node4, node5)
 
     loc_vars = locals()
-    assert sorted([loc_vars["node%d" % i] for i in range(1, 6)]) == sorted(dag.nodes())
+    assert sorted([loc_vars[f"node{i}"] for i in range(1, 6)]) == sorted(dag.nodes())
 
     assert dag.contains_node(node1) is True
     assert dag.contains_edge(node2, node4) is True

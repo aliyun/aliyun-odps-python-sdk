@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import copy
+import enum
 import glob
 import hashlib
 import itertools
@@ -26,8 +27,6 @@ import time
 import warnings
 
 from ... import errors, readers, utils
-from ...compat import enum, six
-from ...lib.monotonic import monotonic
 from ...utils import call_with_retry
 from .. import tasks
 from ..instance import Instance, InstanceArrowReader, InstanceRecordReader
@@ -106,7 +105,7 @@ class FallbackPolicy:
             for s in ["generic", "unsupported", "upgrading", "noresource", "timeout"]
             if getattr(self, s, None)
         ]
-        return "<FallbackPolicy %s>" % ",".join(policies)
+        return f"<FallbackPolicy {','.join(policies)}>"
 
 
 @enum.unique
@@ -193,14 +192,14 @@ class SessionInstance(Instance):
         :raise: :class:`odps.errors.WaitTimeoutError` if wait timeout and session is not started.
         :return: None
         """
-        start_time = monotonic()
+        start_time = time.monotonic()
         end_time = start_time + timeout
         while not self.is_running(retry):
             if timeout > 0:
-                if monotonic() > end_time:
+                if time.monotonic() > end_time:
                     raise errors.WaitTimeoutError(
                         "Waited %.1f seconds, but session is not started."
-                        % (monotonic() - start_time),
+                        % (time.monotonic() - start_time),
                         instance_id=self.id,
                     )
             try:
@@ -227,7 +226,7 @@ class SessionInstance(Instance):
             splited = utils.split_sql_by_semicolon(sql_statement)
         except Exception as ex:
             warnings.warn(
-                "Cannot split sql statement %s: %s" % (sql_statement, str(ex)),
+                f"Cannot split sql statement {sql_statement}: {ex}",
                 RuntimeWarning,
             )
             return False
@@ -266,13 +265,10 @@ class SessionInstance(Instance):
             if created_subquery_id == -1:
                 raise errors.parse_instance_error(query_subresult)
         except KeyError as ex:
-            six.raise_from(
-                errors.ODPSError(
-                    "Invalid Response Format: %s\n Response JSON:%s\n"
-                    % (str(ex), resp_content.decode())
-                ),
-                None,
-            )
+            raise errors.ODPSError(
+                "Invalid Response Format: %s\n Response JSON:%s\n"
+                % (str(ex), resp_content.decode())
+            ) from None
         instance = InSessionInstance(
             session_project_name=project_name,
             session_task_name=self._task_name,
@@ -296,7 +292,7 @@ class SessionInstance(Instance):
             error_string = _get_session_failure_info(self)
             if error_string:
                 self._status = Instance.Status.TERMINATED
-                six.raise_from(errors.parse_instance_error(error_string), None)
+                raise errors.parse_instance_error(error_string) from None
             else:
                 # this is a task meta info update problem. Just retry.
                 self._status = Instance.Status.SUSPENDED
@@ -405,7 +401,7 @@ class InSessionInstance(Instance):
         self._task_data = None
         if self._subquery_id < 0:
             raise errors.InternalServerError(
-                "Subquery id not legal: %s" % self._subquery_id
+                f"Subquery id not legal: {self._subquery_id}"
             )
         super(InSessionInstance, self).__init__(**kw)
 
@@ -424,8 +420,7 @@ class InSessionInstance(Instance):
         self.reload()
         if not self.is_successful(retry=True):
             raise errors.ODPSError(
-                "Cannot open reader, instance(%s) may fail or has not finished yet"
-                % self.id
+                f"Cannot open reader, instance({self.id}) may fail or has not finished yet"
             )
         return readers.CsvRecordReader(schema, self._report_result)
 
@@ -459,7 +454,7 @@ class InSessionInstance(Instance):
         except errors.InternalServerError:
             e, tb = sys.exc_info()[1:]
             e.__class__ = Instance.DownloadSessionCreationError
-            six.reraise(Instance.DownloadSessionCreationError, e, tb)
+            raise e.with_traceback(tb)
 
         self._download_id = download_session.id
 
@@ -470,7 +465,7 @@ class InSessionInstance(Instance):
 
     def reload(self, blocking=False):
         resp_text = self.get_task_info(
-            self._session_task_name, "result_%s" % self._subquery_id
+            self._session_task_name, f"result_{self._subquery_id}"
         )
         try:
             query_result = json.loads(resp_text)
@@ -567,7 +562,7 @@ class InSessionInstance(Instance):
 
         def _load_task_data():
             resp_text_list[0] = self.get_task_info(
-                self._session_task_name, "sourcexml_%s" % self._subquery_id
+                self._session_task_name, f"sourcexml_{self._subquery_id}"
             )
             xml_data = json.loads(resp_text_list[0])["result"]
             return tasks.SQLTask.parse(None, xml_data)
@@ -603,19 +598,19 @@ class InSessionInstance(Instance):
     def get_task_detail2(self, task_name=None, **kw):
         assert task_name is None or task_name == self._session_task_name
         self._wait_subquery_id_ready()
-        kw["subquery_id"] = "session_query_%d" % self._subquery_id
+        kw["subquery_id"] = f"session_query_{self._subquery_id}"
         return super(InSessionInstance, self).get_task_detail2(
             task_name=task_name, **kw
         )
 
     def _get_queueing_info(self, **kw):
         self._wait_subquery_id_ready()
-        kw["subquery_id"] = "session_query_%d" % self._subquery_id
+        kw["subquery_id"] = f"session_query_{self._subquery_id}"
         return super(InSessionInstance, self)._get_queueing_info(**kw)
 
     def get_logview_address(self, hours=None, use_legacy=None):
         self._wait_subquery_id_ready()
-        subquery_suffix = "&subQuery=%s" % self.subquery_id
+        subquery_suffix = f"&subQuery={self.subquery_id}"
         return (
             super(InSessionInstance, self).get_logview_address(
                 hours=hours, use_legacy=use_legacy
@@ -892,7 +887,7 @@ class McqaV1Methods(object):
         :param bool wait_fallback: wait fallback instance to finish, True by default.
         :return: instance.
         """
-        if isinstance(fallback, (six.string_types, set, list, tuple)):
+        if isinstance(fallback, (str, set, list, tuple)):
             fallback_policy = FallbackPolicy(fallback)
         elif fallback is False:
             fallback_policy = None
@@ -944,10 +939,9 @@ class McqaV1Methods(object):
                     fallback_callback(inst, ex)
 
                 if inst is not None:
-                    hints["odps.sql.session.fallback.instance"] = "%s_%s" % (
-                        inst.id,
-                        inst.subquery_id,
-                    )
+                    hints[
+                        "odps.sql.session.fallback.instance"
+                    ] = f"{inst.id}_{inst.subquery_id}"
                 else:
                     hints[
                         "odps.sql.session.fallback.instance"

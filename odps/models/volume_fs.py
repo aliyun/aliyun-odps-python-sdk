@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,7 +15,6 @@
 # limitations under the License.
 
 from .. import errors, serializers, utils
-from ..compat import long_type, six
 from .cache import cache_parent
 from .core import XMLIterable, XMLLazyLoad, cache
 from .volumes import Volume
@@ -44,9 +43,9 @@ class FSVolumeObject(XMLLazyLoad):
     _isdir = serializers.XMLNodeField("Isdir", type="bool")
     permission = serializers.XMLNodeField("permission")
     _replication = serializers.XMLNodeField("BlockReplications", parse_callback=int)
-    length = serializers.XMLNodeField("Length", parse_callback=long_type)
-    quota = serializers.XMLNodeField("Quota", parse_callback=long_type)
-    block_size = serializers.XMLNodeField("BlockSize", parse_callback=long_type)
+    length = serializers.XMLNodeField("Length", parse_callback=int)
+    quota = serializers.XMLNodeField("Quota", parse_callback=int)
+    block_size = serializers.XMLNodeField("BlockSize", parse_callback=int)
     owner = serializers.XMLNodeField("Owner")
     group = serializers.XMLNodeField("Group")
     creation_time = serializers.XMLNodeField("CreationTime", type="rfc822")
@@ -460,7 +459,7 @@ class FSVolumeObjects(XMLIterable):
         )
 
     def __contains__(self, item):
-        if isinstance(item, six.string_types):
+        if isinstance(item, str):
             try:
                 # as reload() will be done in constructor of VolumeFSObject, we return directly.
                 return self._get(item)

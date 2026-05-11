@@ -36,10 +36,9 @@ try:
 except ImportError:
     pa = None
 
-from ... import compat, errors, options
+from ... import errors, options
 from ... import types as odps_types
 from ... import utils
-from ...compat import six
 from ...config import option_context
 from ...core import ODPS
 from ...errors import NotSupportedError, ODPSError
@@ -160,15 +159,13 @@ def test_list_instances_in_page(odps):
         function_name, class_type=resource_name + ".Delayer", resources=[res]
     )
 
-    data = [[random.randint(0, 1000)] for _ in compat.irange(100)]
+    data = [[random.randint(0, 1000)] for _ in range(100)]
     odps.delete_table(test_table, if_exists=True)
     t = odps.create_table(test_table, TableSchema.from_lists(["num"], ["bigint"]))
     odps.write_table(t, data)
 
     instance = odps.run_sql(
-        "select sum({0}(num)), 1 + '1' as warn_col from {1} group by num".format(
-            function_name, test_table
-        )
+        f"select sum({function_name}(num)), 1 + '1' as warn_col from {test_table} group by num"
     )
 
     try:
@@ -277,7 +274,7 @@ def test_create_instance_xml(odps):
 def test_create_instance(odps):
     test_table = tn("pyodps_t_tmp_create_instance")
 
-    task = SQLTask(query="drop table if exists %s" % test_table)
+    task = SQLTask(query=f"drop table if exists {test_table}")
     unique_id = str(uuid.uuid4())
     instance = odps._project.instances.create(task=task, unique_identifier_id=unique_id)
     assert instance.get_sql_query().rstrip(";") == task.query.rstrip(";")
@@ -288,23 +285,23 @@ def test_create_instance(odps):
     assert instance.start_time < datetime.now()
     assert instance.start_time > datetime.now() - timedelta(hours=1)
 
-    task = SQLTask(query="create table %s(id string);" % test_table)
+    task = SQLTask(query=f"create table {test_table}(id string);")
     instance = odps._project.instances.create(task=task)
     instance.wait_for_completion()
     assert instance.is_successful() is True
     assert odps.exist_table(test_table) is True
 
-    instance = odps.execute_sql("select id `中文标题` from %s" % test_table)
+    instance = odps.execute_sql(f"select id `中文标题` from {test_table}")
     assert instance.is_successful() is True
 
     instance = odps.execute_sql(
-        "set PARAM.KEY=VALUE; select id `中文标题` from %s" % test_table,
+        f"set PARAM.KEY=VALUE; select id `中文标题` from {test_table}",
         hints={"odps.sql.submit.mode": "script"},
     )
     assert instance.is_successful() is True
     assert json.loads(instance.tasks[0].properties["settings"])["PARAM.KEY"] == "VALUE"
 
-    instance = odps.execute_sql("drop table %s" % test_table)
+    instance = odps.execute_sql(f"drop table {test_table}")
     assert instance.is_successful() is True
     assert odps.exist_table(test_table) is False
 
@@ -328,20 +325,18 @@ def test_read_sql_instance(odps):
     odps.write_table(table, 0, [table.new_record([1]), table.new_record([2])])
     odps.write_table(table, [table.new_record([3])])
 
-    instance = odps.execute_sql("select * from %s" % test_table)
+    instance = odps.execute_sql(f"select * from {test_table}")
     with instance.open_reader(table.table_schema) as reader:
         assert len(list(reader[::2])) == 2
     with instance.open_reader(table.table_schema) as reader:
         assert len(list(reader[1::2])) == 1
 
     hints = {"odps.sql.mapper.split.size": "16"}
-    instance = odps.run_sql(
-        "select sum(size) as count from %s" % test_table, hints=hints
-    )
+    instance = odps.run_sql(f"select sum(size) as count from {test_table}", hints=hints)
 
     while (
         len(instance.get_task_names()) == 0
-        or compat.lvalues(instance.get_task_statuses())[0].status
+        or list(instance.get_task_statuses().values())[0].status
         == Instance.Task.TaskStatus.WAITING
     ):
         continue
@@ -421,7 +416,7 @@ def test_instance_to_pandas(odps):
     )
     odps.write_table(test_table, data, create_table=True, lifecycle=1)
 
-    instance = odps.execute_sql("select * from %s" % test_table)
+    instance = odps.execute_sql(f"select * from {test_table}")
 
     result = instance.to_pandas(columns=["a", "b"])
     pd.testing.assert_frame_equal(result, data[["a", "b"]])
@@ -475,7 +470,7 @@ def test_limited_instance_tunnel(odps):
     odps.write_table(table, 0, [table.new_record([1]), table.new_record([2])])
     odps.write_table(table, [table.new_record([3])])
 
-    instance = odps.execute_sql("select * from %s" % test_table)
+    instance = odps.execute_sql(f"select * from {test_table}")
     instance = TunnelLimitedInstance(
         client=instance._client, parent=instance.parent, name=instance.id
     )
@@ -517,7 +512,7 @@ def test_read_sql_write(odps):
     table2 = odps.create_table(test_table2, table.table_schema)
 
     try:
-        with odps.execute_sql("select * from %s" % test_table).open_reader() as reader:
+        with odps.execute_sql(f"select * from {test_table}").open_reader() as reader:
             with table2.open_writer() as writer:
                 for record in reader:
                     writer.write(table2.new_record(record.values))
@@ -540,22 +535,16 @@ def test_read_binary_sql_instance(odps):
         data = [
             [
                 1,
-                u"中".encode("utf-8")
-                + b"\\\\n\\\n"
-                + u"文".encode("utf-8")
-                + b" ,\r\xe9",
+                "中".encode("utf-8") + b"\\\\n\\\n" + "文".encode("utf-8") + b" ,\r\xe9",
             ],
             [
                 2,
-                u"测试".encode("utf-8")
-                + b"\x00\x01\x02"
-                + u"数据".encode("utf-8")
-                + b"\xe9",
+                "测试".encode("utf-8") + b"\x00\x01\x02" + "数据".encode("utf-8") + b"\xe9",
             ],
         ]
         odps.write_table(table, 0, [table.new_record(it) for it in data])
 
-        with odps.execute_sql("select name from %s" % test_table).open_reader(
+        with odps.execute_sql(f"select name from {test_table}").open_reader(
             tunnel=False
         ) as reader:
             read_data = sorted([r[0] for r in reader])
@@ -580,7 +569,7 @@ def test_read_non_ascii_sql_instance(odps):
     data = [[1, "中\\\\n\\\n文 ,\r "], [2, "测试\x00\x01\x02数据"]]
     odps.write_table(table, 0, [table.new_record(it) for it in data])
 
-    with odps.execute_sql("select name from %s" % test_table).open_reader(
+    with odps.execute_sql(f"select name from {test_table}").open_reader(
         tunnel=False
     ) as reader:
         read_data = sorted([utils.to_str(r[0]) for r in reader])
@@ -612,7 +601,7 @@ def test_read_map_array_sql_instance(odps):
     ]
     odps.write_table(test_table, data)
 
-    inst = odps.execute_sql("select * from %s" % test_table)
+    inst = odps.execute_sql(f"select * from {test_table}")
 
     # CSV inline mode cannot parse complex types; use legacy mode
     orig = options.legacy_cast_csv_result
@@ -666,21 +655,18 @@ def test_sql_alias_instance(odps):
     res1 = odps.create_resource(res_name1, "file", file_obj="1")
     res2 = odps.create_resource(res_name2, "file", file_obj="2")
 
-    test_func_content = (
-        """
+    test_func_content = f"""
     from odps.udf import annotate
     from odps.distcache import get_cache_file
 
     @annotate('bigint->bigint')
     class Example(object):
         def __init__(self):
-            self.n = int(get_cache_file('%s').read())
+            self.n = int(get_cache_file('{res_name1}').read())
 
         def evaluate(self, arg):
             return arg + self.n
     """
-        % res_name1
-    )
     test_func_content = textwrap.dedent(test_func_content)
 
     py_res_name = tn("pyodps_t_tmp_func_res")
@@ -698,7 +684,7 @@ def test_sql_alias_instance(odps):
         pass
     func = odps.create_function(
         test_func_name,
-        class_type="{0}.Example".format(py_res_name),
+        class_type=f"{py_res_name}.Example",
         resources=[py_res_name + ".py", res_name1],
     )
 
@@ -707,7 +693,7 @@ def test_sql_alias_instance(odps):
         if i == 2:
             aliases = {res_name1: res_name2}
         with odps.execute_sql(
-            "select %s(size) from %s" % (test_func_name, test_table), aliases=aliases
+            f"select {test_func_name}(size) from {test_table}", aliases=aliases
         ).open_reader() as reader:
             data = reader[0]
             assert int(data[0]) == i + 1
@@ -727,7 +713,7 @@ def test_read_non_select_sql_instance(odps):
     pt_spec = "pt=20170410"
     table.create_partition(pt_spec)
 
-    inst = odps.execute_sql("desc %s" % test_table)
+    inst = odps.execute_sql(f"desc {test_table}")
 
     with pytest.raises(
         (Instance.DownloadSessionCreationError, errors.InstanceTypeNotSupported)
@@ -737,7 +723,7 @@ def test_read_non_select_sql_instance(odps):
     reader = inst.open_reader()
     assert hasattr(reader, "raw") is True
 
-    inst = odps.execute_sql("show partitions %s" % test_table)
+    inst = odps.execute_sql(f"show partitions {test_table}")
     reader = inst.open_reader()
     assert hasattr(reader, "raw") is True
     assert utils.to_text(pt_spec) in utils.to_text(reader.raw)
@@ -752,7 +738,7 @@ def test_instance_result_to_result_frame(odps):
     )
     odps.write_table(table, [[1], [2], [3]])
 
-    inst = odps.execute_sql("select * from %s" % test_table)
+    inst = odps.execute_sql(f"select * from {test_table}")
     tunnel_pd = inst.open_reader(tunnel=True).to_pandas()
     result_pd = inst.open_reader(tunnel=False).to_pandas()
     assert tunnel_pd.values.tolist() == result_pd.values.tolist()
@@ -763,7 +749,7 @@ def test_instance_logview(odps):
         options.use_legacy_logview = True
         instance = odps.run_sql("drop table if exists non_exist_table_name")
         addr = odps.get_logview_address(instance.id, 12)
-        assert isinstance(addr, six.string_types)
+        assert isinstance(addr, str)
         assert "logview" in addr
     finally:
         options.use_legacy_logview = None
@@ -798,7 +784,7 @@ def test_instance_job_insight(odps):
 def test_instance_queueing_info(odps):
     instance = odps.run_sql("select * from dual")
     queue_info, resp = instance._get_queueing_info()
-    if json.loads(resp.content if six.PY2 else resp.text):
+    if json.loads(resp.text):
         assert queue_info.instance is instance
         assert queue_info.instance_id is not None
         assert queue_info.priority is not None
@@ -820,9 +806,7 @@ def test_instance_queueing_infos(odps):
 
     infos = [
         info
-        for i, info in compat.izip(
-            itertools.count(0), odps.list_instance_queueing_infos()
-        )
+        for i, info in zip(itertools.count(0), odps.list_instance_queueing_infos())
         if i < 5
     ]
     if len(infos) > 0:
@@ -841,7 +825,7 @@ def test_sql_cost_instance(odps):
     )
     odps.write_table(table, [[1], [2], [3]])
 
-    sql_cost = odps.execute_sql_cost("select * from %s" % test_table)
+    sql_cost = odps.execute_sql_cost(f"select * from {test_table}")
     assert isinstance(sql_cost, Instance.SQLCost)
     assert sql_cost.udf_num == 0
     assert sql_cost.complexity == 1.0
@@ -854,7 +838,7 @@ def test_sql_cost_instance(odps):
     )
     odps.write_table(table, [[1], [2], [3]])
 
-    sql_cost = odps.execute_sql_cost("select * from %s" % test_table)
+    sql_cost = odps.execute_sql_cost(f"select * from {test_table}")
     assert isinstance(sql_cost, Instance.SQLCost)
     assert sql_cost.udf_num == 0
     assert sql_cost.complexity == 1.0
@@ -876,7 +860,7 @@ def test_instance_progress_log(odps):
         options.verbose_log = logs.append
         options.progress_time_interval = 0.1
 
-        inst = odps.run_sql("select * from %s where size > 0" % test_table)
+        inst = odps.run_sql(f"select * from {test_table} where size > 0")
         inst.wait_for_success(interval=0.1, blocking=False)
         assert any("instance" in log.lower() for log in logs)
         assert any("_job_" in log.lower() for log in logs)
@@ -905,7 +889,7 @@ def _make_rd(schema_types=None, status="FULL"):
         rd.schema = None
     elif schema_types is not None:
         rd.schema = TableSchema.from_lists(
-            ["col%d" % i for i in range(len(schema_types))],
+            [f"col{i}" for i in range(len(schema_types))],
             schema_types,
         )
     else:
@@ -954,9 +938,10 @@ def test_result_status(status, limit, legacy, should_raise, should_warn):
     [
         (False, False, False),
         (False, True, False),
-        (["array<bigint>"], False, True),
+        (["array<bigint>"], False, False),
         (["array<bigint>"], True, False),
         (["bigint", "string"], False, False),
+        (["binary"], False, True),
     ],
 )
 def test_open_reader_schema(schema_types, legacy, should_raise):

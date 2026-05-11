@@ -20,9 +20,8 @@ Modified by onesuperclark@gmail.com(onesuper).
 """
 
 import struct
+import time
 
-from ... import compat
-from ...lib.monotonic import monotonic
 from . import errors, wire_format
 
 NANO_SEC_PER_SEC = 1000000000
@@ -57,20 +56,20 @@ class InputStream(object):
         as a string.
         """
         if size < 0:
-            raise errors.DecodeError("Negative size %d" % size)
+            raise errors.DecodeError(f"Negative size {size}")
 
         if self._record_network_time:
-            ts = monotonic()
+            ts = time.monotonic()
             s = self._input.read(size)
-            self._network_wall_time_ns += compat.long_type(
-                NANO_SEC_PER_SEC * (monotonic() - ts)
+            self._network_wall_time_ns += int(
+                NANO_SEC_PER_SEC * (time.monotonic() - ts)
             )
         else:
             s = self._input.read(size)
 
         if len(s) != size:
             raise errors.DecodeError(
-                "String claims to have %d bytes, but read %d" % (size, len(s))
+                f"String claims to have {size} bytes, but read {len(s)}"
             )
         self._pos += len(s)  # Only advance by the number of bytes actually read.
         return s
@@ -107,7 +106,7 @@ class InputStream(object):
         """
         i = self.read_varint64()
         if not wire_format.INT32_MIN <= i <= wire_format.INT32_MAX:
-            raise errors.DecodeError("Value out of range for int32: %d" % i)
+            raise errors.DecodeError(f"Value out of range for int32: {i}")
         return int(i)
 
     def read_var_uint32(self):
@@ -116,7 +115,7 @@ class InputStream(object):
         """
         i = self.read_var_uint64()
         if i > wire_format.UINT32_MAX:
-            raise errors.DecodeError("Value out of range for uint32: %d" % i)
+            raise errors.DecodeError(f"Value out of range for uint32: {i}")
         return i
 
     def read_varint64(self):
@@ -134,7 +133,7 @@ class InputStream(object):
         """
         i = self._read_varint_helper()
         if not 0 <= i <= wire_format.UINT64_MAX:
-            raise errors.DecodeError("Value out of range for uint64: %d" % i)
+            raise errors.DecodeError(f"Value out of range for uint64: {i}")
         return i
 
     def _read_varint_helper(self):
@@ -148,7 +147,7 @@ class InputStream(object):
         result = 0
         shift = 0
         if self._record_network_time:
-            ts = monotonic()
+            ts = time.monotonic()
         while 1:
             if shift >= 64:
                 raise errors.DecodeError("Too many bytes when decoding varint.")
@@ -162,8 +161,8 @@ class InputStream(object):
             if not (b & 0x80):
                 break
         if self._record_network_time:
-            self._network_wall_time_ns += compat.long_type(
-                NANO_SEC_PER_SEC * (monotonic() - ts)
+            self._network_wall_time_ns += int(
+                NANO_SEC_PER_SEC * (time.monotonic() - ts)
             )
         return result
 

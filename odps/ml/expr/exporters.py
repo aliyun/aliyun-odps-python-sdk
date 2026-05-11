@@ -18,7 +18,6 @@ import json
 
 from ..utils import ML_ARG_PREFIX
 from ..enums import FieldRole, FieldContinuity
-from ...compat import six
 from ...df.expr.core import Node
 from ...df.backends.context import context
 from ...df.expr.collections import FilterPartitionCollectionExpr
@@ -182,7 +181,7 @@ def get_input_field_name(expr, param_name, input_name, field_role=None, field_fu
 def get_input_field_ids(expr, param_name, input_name, field_role=None, field_func=None):
     if expr._params.get(param_name, None):
         existing_values = expr._params[param_name]
-        if isinstance(existing_values, six.string_types):
+        if isinstance(existing_values, str):
             existing_values = set(v.strip() for v in existing_values.split(','))
     else:
         existing_values = set()
@@ -256,7 +255,7 @@ def get_unique_feature_field_property(expr, param_name, input_name, prop_fetcher
 
 def convert_json(expr, param_name):
     param_val = expr._params.get(param_name, None)
-    if isinstance(param_val, six.string_types):
+    if isinstance(param_val, str):
         return param_val
     elif param_val:
         return json.dumps(expr._params[param_name], separators=(',', ':'))

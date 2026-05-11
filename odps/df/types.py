@@ -19,7 +19,6 @@ from collections import OrderedDict
 from datetime import datetime as _datetime, date as _date
 from decimal import Decimal as _Decimal
 
-from ..compat import six
 from ..lib.xnamedtuple import xnamedtuple
 from ..models import TableSchema, Column
 from ..config import options
@@ -43,7 +42,7 @@ class Integer(Primitive):
     __slots__ = ()
 
     def can_implicit_cast(self, other):
-        if isinstance(other, six.string_types):
+        if isinstance(other, str):
             other = validate_data_type(other)
 
         if isinstance(other, Integer) and other._n_bytes <= self._n_bytes:
@@ -60,7 +59,7 @@ class Float(Primitive):
     __slots__ = ()
 
     def can_implicit_cast(self, other):
-        if isinstance(other, six.string_types):
+        if isinstance(other, str):
             other = validate_data_type(other)
 
         if isinstance(other, (Integer, Float)):
@@ -117,7 +116,7 @@ class Datetime(Primitive):
     __slots__ = ()
 
     def can_implicit_cast(self, other):
-        if isinstance(other, six.string_types):
+        if isinstance(other, str):
             other = validate_data_type(other)
 
         if isinstance(other, (Datetime, String, Integer)):
@@ -129,7 +128,7 @@ class Date(Primitive):
     __slots__ = ()
 
     def can_implicit_cast(self, other):
-        if isinstance(other, six.string_types):
+        if isinstance(other, str):
             other = validate_data_type(other)
 
         if isinstance(other, (Timestamp, Datetime, String)):
@@ -141,7 +140,7 @@ class Timestamp(Primitive):
     __slots__ = ()
 
     def can_implicit_cast(self, other):
-        if isinstance(other, six.string_types):
+        if isinstance(other, str):
             other = validate_data_type(other)
 
         if isinstance(other, (Timestamp, Datetime, String)):
@@ -183,14 +182,14 @@ class List(Array):
         self.value_type = validate_data_type(value_type)
 
     def _equals(self, other):
-        if isinstance(other, six.string_types):
+        if isinstance(other, str):
             other = validate_data_type(other)
 
         return DataType._equals(self, other) and \
             self.value_type == other.value_type
 
     def can_implicit_cast(self, other):
-        if isinstance(other, six.string_types):
+        if isinstance(other, str):
             other = validate_data_type(other)
 
         return isinstance(other, List) and \
@@ -208,7 +207,7 @@ class Dict(Map):
         self.value_type = validate_data_type(value_type)
 
     def _equals(self, other):
-        if isinstance(other, six.string_types):
+        if isinstance(other, str):
             other = validate_data_type(other)
 
         return DataType._equals(self, other) and \
@@ -216,7 +215,7 @@ class Dict(Map):
             self.value_type == other.value_type
 
     def can_implicit_cast(self, other):
-        if isinstance(other, six.string_types):
+        if isinstance(other, str):
             other = validate_data_type(other)
 
         return isinstance(other, Dict) and \
@@ -233,7 +232,7 @@ class Struct(_Struct):
         DataType.__init__(self, nullable=nullable)
         self.field_types = OrderedDict()
         if isinstance(field_types, dict):
-            field_types = six.iteritems(field_types)
+            field_types = field_types.items()
         for k, v in field_types:
             self.field_types[k] = validate_data_type(v)
         self.namedtuple_type = xnamedtuple(
@@ -243,20 +242,20 @@ class Struct(_Struct):
         if self._struct_as_dict:
             self._use_ordered_dict = options.struct_as_ordered_dict
             if self._use_ordered_dict is None:
-                self._use_ordered_dict = sys.version_info[:2] <= (3, 6)
+                self._use_ordered_dict = False
         else:
             self._use_ordered_dict = False
 
     def _equals(self, other):
-        if isinstance(other, six.string_types):
+        if isinstance(other, str):
             other = validate_data_type(other)
 
         return isinstance(other, Struct) and \
             len(self.field_types) == len(other.field_types) and \
-            all(self.field_types[k] == other.field_types[k] for k in six.iterkeys(self.field_types))
+            all(self.field_types[k] == other.field_types[k] for k in self.field_types.keys())
 
     def can_implicit_cast(self, other):
-        if isinstance(other, six.string_types):
+        if isinstance(other, str):
             other = validate_data_type(other)
 
         return isinstance(other, Struct) and self == other and \
@@ -301,7 +300,7 @@ def validate_data_type(data_type):
     if isinstance(data_type, type):
         data_type = data_type.__name__
 
-    if isinstance(data_type, six.string_types):
+    if isinstance(data_type, str):
         data_type = data_type.lower()
         if data_type == 'int':
             data_type = 'int64'
@@ -333,7 +332,7 @@ def validate_value_type(value, data_type=None):
 
     if isinstance(value, bool):
         inferred_value_type = boolean
-    elif isinstance(value, six.integer_types):
+    elif isinstance(value, int):
         for t in (int8, int16, int32, int64):
             if t.validate_value(value):
                 inferred_value_type = t
@@ -342,7 +341,7 @@ def validate_value_type(value, data_type=None):
             raise ValueError('Integer value too large: %s' % value)
     elif isinstance(value, float):
         inferred_value_type = float64
-    elif isinstance(value, six.string_types):
+    elif isinstance(value, str):
         inferred_value_type = string
     elif isinstance(value, _Decimal):
         inferred_value_type = decimal
@@ -408,7 +407,7 @@ class DynamicSchema(TableSchema):
         return False
 
     def __getitem__(self, item):
-        if isinstance(item, six.string_types):
+        if isinstance(item, str):
             try:
                 return super(DynamicSchema, self).__getitem__(item)
             except ValueError:

@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 import itertools
 
 from .core import Backend
@@ -114,7 +113,7 @@ class BaseRewriter(Backend):
         if not windows_rewrite:
             return
 
-        get = lambda x: x.name if not isinstance(x, six.string_types) else x
+        get = lambda x: x.name if not isinstance(x, str) else x
         projected = collection[sorted(sink_selects, key=get)]
         projected.optimize_banned = True  # TO prevent from optimizing
         expr.substitute(collection, projected, dag=self._dag)
@@ -168,7 +167,7 @@ class BaseRewriter(Backend):
         if not windows_rewrite:
             return
 
-        get = lambda x: x.name if not isinstance(x, six.string_types) else x
+        get = lambda x: x.name if not isinstance(x, str) else x
         projected = collection[sorted(sink_selects, key=get)]
         projected.optimize_banned = True  # TO prevent from optimizing
         expr.substitute(collection, projected, dag=self._dag)

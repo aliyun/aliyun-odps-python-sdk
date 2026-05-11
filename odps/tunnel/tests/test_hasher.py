@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,7 +22,8 @@ try:
 except ImportError:
     pd = None
 
-from ...compat import Decimal
+from decimal import Decimal
+
 from ...models import Record
 from ...types import Column, OdpsSchema
 from .. import hasher as py_hasher
