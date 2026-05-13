@@ -29,7 +29,7 @@ except ImportError:
 
 from ... import options
 from ...models import TableSchema
-from ...tests.core import get_code_mode, py_and_c, tn
+from ...tests.core import get_code_mode, py_and_c, pyarrow_case, tn
 from .. import InstanceTunnel, TableTunnel
 
 
@@ -339,3 +339,30 @@ def test_instance_tunnel_with_quota(odps_with_tunnel_quota, config):
         assert list(reader)[0][0] == "data"
 
     tb.drop()
+
+
+@pyarrow_case
+def test_instance_tunnel_arrow_timestamp(config, instance_tunnel):
+    import pyarrow as pa
+
+    inst = config.odps.execute_sql(
+        "select cast('2026-05-11 12:34:53.123421123' as timestamp) as ts",
+        hints={"odps.sql.type.system.odps2": "true"},
+    )
+    download_ss = instance_tunnel.create_download_session(inst)
+    with download_ss.open_arrow_reader(0, download_ss.count) as reader:
+        batch = reader.read_next_batch()
+        assert batch is not None
+        col = batch.column(0)
+        assert isinstance(col.type, pa.TimestampType)
+
+        val = col[0].as_py()
+        # Verify the timestamp value round-trips correctly
+        assert val.year == 2026
+        assert val.month == 5
+        assert val.day == 11
+        assert val.hour == 12
+        assert val.minute == 34
+        assert val.second == 53
+        assert val.microsecond == 123421
+        assert val.nanosecond == 123

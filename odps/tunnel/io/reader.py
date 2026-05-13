@@ -54,7 +54,11 @@ from ..pb import wire_format
 from ..pb.decoder import Decoder
 from ..pb.errors import DecodeError
 from ..wireconstants import ProtoWireConstants
-from .types import odps_schema_to_arrow_schema
+from .types import (
+    TIMESTAMP_STRUCT_TYPE,
+    _is_timestamp_struct_type,
+    odps_schema_to_arrow_schema,
+)
 
 try:
     if not options.force_py:
@@ -768,12 +772,14 @@ class TunnelArrowReader(object):
         partition_spec=None,
         append_partitions=False,
         use_ipc_stream=False,
+        timestamp_as_struct=False,
         on_exception=None,
     ):
         if pa is None:
             raise ValueError("To use arrow reader you need to install pyarrow")
 
         self._raw_schema = schema
+        self._timestamp_as_struct = timestamp_as_struct
 
         raw_arrow_schema = odps_schema_to_arrow_schema(schema)
         if columns is None:
@@ -825,11 +831,58 @@ class TunnelArrowReader(object):
         self._arrow_stream = None
         if self._use_ipc_stream:
             self._reader = input_stream
+        elif self._timestamp_as_struct:
+            wire_schema = self._build_wire_schema(self._raw_arrow_schema)
+            self._reader = ArrowStreamReader(input_stream, wire_schema)
         else:
             self._reader = ArrowStreamReader(input_stream, self._raw_arrow_schema)
 
     def _inject_error(self, cursor, exc):
         self._injected_error = (cursor, exc)
+
+    @staticmethod
+    def _build_wire_schema(arrow_schema):
+        """Build a wire-compatible schema by replacing pa.timestamp("ns") with
+        pa.struct([("sec", pa.int64()), ("nano", pa.int32())]) to match the
+        server's Arrow IPC wire format for timestamp columns. Only timestamp[ns]
+        columns (ODPS timestamp/timestamp_ntz) use struct wire format;
+        timestamp[ms] (ODPS datetime) are left unchanged."""
+        fields = []
+        for field in arrow_schema:
+            if isinstance(field.type, pa.TimestampType) and field.type.unit == "ns":
+                field = pa.field(
+                    field.name, TIMESTAMP_STRUCT_TYPE, field.nullable, field.metadata
+                )
+            fields.append(field)
+        return pa.schema(fields)
+
+    def _convert_struct_timestamps(self, batch, target_schema):
+        """Convert struct-based timestamp columns in a batch to pa.timestamp("ns").
+        Servers that transmit timestamps as struct([("sec", int64), ("nano", int32)])
+        need this conversion. Only columns whose ODPS type is Timestamp or
+        TimestampNTZ are converted; IntervalDayTime columns sharing the same
+        struct layout are left unchanged."""
+        convert_indices = set()
+        for idx in range(batch.num_columns):
+            if _is_timestamp_struct_type(batch.schema.types[idx]):
+                col_name = batch.schema.names[idx]
+                col_type = self._schema.get_column(col_name).type
+                if isinstance(col_type, (types.Timestamp, types.TimestampNTZ)):
+                    convert_indices.add(idx)
+
+        if not convert_indices:
+            return batch
+
+        cols = []
+        for idx in range(batch.num_columns):
+            col = batch.column(idx)
+            if idx in convert_indices:
+                sec = col.field("sec")
+                nano = col.field("nano")
+                ns = pac.add(pac.multiply(sec, 1_000_000_000), nano)
+                col = ns.cast(pa.timestamp("ns"))
+            cols.append(col)
+        return pa.RecordBatch.from_arrays(cols, names=target_schema.names)
 
     @property
     def schema(self):
@@ -948,6 +1001,8 @@ class TunnelArrowReader(object):
                 col_to_array[name] = arr
             arrays = [col_to_array[name] for name in self._columns]
             batch = pa.RecordBatch.from_arrays(arrays, names=self._columns)
+        if self._timestamp_as_struct:
+            batch = self._convert_struct_timestamps(batch, self._arrow_schema)
         batch = self._convert_timezone(batch)
         return batch
 
@@ -1107,33 +1162,33 @@ class ArrowRecordFieldConverter(object):
         mills = self._mills_converter.to_milliseconds(value)
         return self._mills_converter.from_milliseconds(mills)
 
+    def _localize_timestamp(self, total_ns, ntz=False):
+        """Construct a pd.Timestamp from UTC nanoseconds and localize
+        according to the converter's timezone settings."""
+        if not ntz:
+            converter = self._mills_converter
+        else:
+            converter = self._mills_converter_utc
+
+        ts = pd.Timestamp(total_ns, tz="UTC")
+        if not converter._use_default_tz and converter._tz is not None:
+            ts = ts.tz_convert(converter._tz)
+        elif ntz or converter._use_default_tz:
+            ts = ts.tz_localize(None)
+        return ts
+
     def _convert_ts_timestamp(self, value, ntz=False):
         if value is None:
             return None
 
-        if not ntz:
-            converter = self._mills_converter
-        else:  # TimestampNtz
-            converter = self._mills_converter_utc
-
-        microsec = value.microsecond
-        nanosec = value.nanosecond
-        secs = int(converter.to_milliseconds(value.to_pydatetime()) / 1000)
-        value = pd.Timestamp(converter.from_milliseconds(secs * 1000))
-        return value.replace(microsecond=microsec, nanosecond=nanosec)
+        return self._localize_timestamp(value.value, ntz=ntz)
 
     def _convert_struct_timestamp(self, value, ntz=False):
         if value is None:
             return None
 
-        if not ntz:
-            converter = self._mills_converter
-        else:  # TimestampNtz
-            converter = self._mills_converter_utc
-
-        ts = pd.Timestamp(converter.from_milliseconds(value["sec"] * 1000))
-        nanos = value["nano"]
-        return ts.replace(microsecond=nanos // 1000, nanosecond=nanos % 1000)
+        total_ns = value["sec"] * 1_000_000_000 + value["nano"]
+        return self._localize_timestamp(total_ns, ntz=ntz)
 
     @staticmethod
     def _convert_struct_timedelta(value):

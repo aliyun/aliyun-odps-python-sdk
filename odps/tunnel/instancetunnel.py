@@ -382,6 +382,7 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
             arrow=True,
             on_exception=on_exception,
             reader_cls=TunnelArrowReader,
+            timestamp_as_struct=True,
         )
 
 

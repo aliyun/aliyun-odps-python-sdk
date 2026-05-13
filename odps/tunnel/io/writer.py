@@ -53,7 +53,7 @@ from ..pb.wire_format import (
 )
 from ..wireconstants import ProtoWireConstants
 from .stream import RequestsIO, get_compress_stream
-from .types import odps_schema_to_arrow_schema
+from .types import _is_timestamp_struct_type, odps_schema_to_arrow_schema
 
 try:
     if not options.force_py:
@@ -806,6 +806,14 @@ class BaseArrowWriter(object):
         dec_col = col.to_pandas().map(Decimal)
         return pa.Array.from_pandas(dec_col, type=dec_type)
 
+    @staticmethod
+    def _convert_struct_to_timestamp(col):
+        """Convert a struct-based timestamp column (sec + nano) to pa.timestamp("ns")."""
+        sec = col.field("sec")
+        nano = col.field("nano")
+        ns = pac.add(pac.multiply(sec, 1_000_000_000), nano)
+        return ns.cast(pa.timestamp("ns"))
+
     def _build_pd_mappers(self):
         pa_dec_types = (pa.Decimal128Type,)
         if hasattr(pa, "Decimal256Type"):
@@ -913,7 +921,8 @@ class BaseArrowWriter(object):
         assert isinstance(arrow_data, (pa.RecordBatch, pa.Table))
 
         if arrow_data.schema != self._arrow_schema or any(
-            isinstance(tp, pa.TimestampType) for tp in arrow_data.schema.types
+            isinstance(tp, pa.TimestampType) or _is_timestamp_struct_type(tp)
+            for tp in arrow_data.schema.types
         ):
             lower_names = [n.lower() for n in arrow_data.schema.names]
             type_dict = dict(zip(lower_names, arrow_data.schema.types))
@@ -928,7 +937,9 @@ class BaseArrowWriter(object):
 
                 if isinstance(tp, pa.TimestampType):
                     col = column_dict[lower_name]
-                    if not isinstance(col.type, pa.TimestampType):
+                    if _is_timestamp_struct_type(col.type):
+                        col = self._convert_struct_to_timestamp(col)
+                    elif not isinstance(col.type, pa.TimestampType):
                         col = col.cast(pa.timestamp(tp.unit))
 
                     if self._schema[lower_name].type == types.timestamp_ntz:

@@ -1694,7 +1694,11 @@ class TableTunnel(BaseTunnel):
             return input_stream
 
         reader = TunnelArrowReader(
-            table.table_schema, stream_creator, columns=columns, use_ipc_stream=True
+            table.table_schema,
+            stream_creator,
+            columns=columns,
+            use_ipc_stream=True,
+            timestamp_as_struct=True,
         )
         if not arrow:
             reader = ArrowRecordReader(
