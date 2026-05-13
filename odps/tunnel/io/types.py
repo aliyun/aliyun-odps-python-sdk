@@ -23,6 +23,8 @@ except (AttributeError, ImportError):
 
 
 if pa is not None:
+    TIMESTAMP_STRUCT_TYPE = pa.struct([("sec", pa.int64()), ("nano", pa.int32())])
+
     _ARROW_TO_ODPS_TYPE = {
         pa.string(): odps_types.string,
         pa.binary(): odps_types.binary,
@@ -36,6 +38,7 @@ if pa is not None:
         pa.date32(): odps_types.date,
         pa.timestamp("ms"): odps_types.datetime,
         pa.timestamp("ns"): odps_types.timestamp,
+        TIMESTAMP_STRUCT_TYPE: odps_types.timestamp,
     }
     _ODPS_TO_ARROW_TYPE = {
         odps_types.string: pa.string(),
@@ -55,6 +58,12 @@ if pa is not None:
 else:
     _ARROW_TO_ODPS_TYPE = {}
     _ODPS_TO_ARROW_TYPE = {}
+    TIMESTAMP_STRUCT_TYPE = None
+
+if hasattr(pa, "large_string"):
+    _ARROW_TO_ODPS_TYPE[pa.large_string()] = odps_types.string
+if hasattr(pa, "large_binary"):
+    _ARROW_TO_ODPS_TYPE[pa.large_binary()] = odps_types.binary
 
 
 def odps_type_to_arrow_type(odps_type):
@@ -101,6 +110,20 @@ def odps_schema_to_arrow_schema(odps_schema):
     return pa.schema(arrow_schema)
 
 
+def _is_timestamp_struct_type(arrow_type):
+    if not isinstance(arrow_type, pa.StructType):
+        return False
+    if arrow_type.num_fields != 2:
+        return False
+    f0, f1 = arrow_type[0], arrow_type[1]
+    return (
+        f0.name == "sec"
+        and f0.type == pa.int64()
+        and f1.name == "nano"
+        and f1.type == pa.int32()
+    )
+
+
 def arrow_type_to_odps_type(arrow_type):
     arrow_decimal_types = (pa.Decimal128Type,)
     if hasattr(pa, "Decimal256Type"):
@@ -108,6 +131,8 @@ def arrow_type_to_odps_type(arrow_type):
 
     if arrow_type in _ARROW_TO_ODPS_TYPE:
         col_type = _ARROW_TO_ODPS_TYPE[arrow_type]
+    elif _is_timestamp_struct_type(arrow_type):
+        col_type = odps_types.timestamp
     else:
         if isinstance(arrow_type, pa.ListType):
             col_type = odps_types.Array(arrow_type_to_odps_type(arrow_type.value_type))
