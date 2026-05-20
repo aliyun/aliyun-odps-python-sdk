@@ -234,7 +234,7 @@ class SQLAlchemyEngine(Engine):
         else:
             assert isinstance(expr, Scalar)  # sequence is not cache-able
 
-            class ValueHolder(object):
+            class ValueHolder:
                 pass
 
             sub = Scalar(_value_type=expr.dtype)

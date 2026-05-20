@@ -17,7 +17,7 @@
 import inspect
 
 
-class FunctionWrapper(object):
+class FunctionWrapper:
     def __init__(self, func):
         self._func = func
         self.output_names = None

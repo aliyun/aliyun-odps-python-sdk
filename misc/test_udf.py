@@ -17,7 +17,7 @@ from odps.udf import annotate, BaseUDAF, BaseUDTF
 
 
 @annotate(' bigint, bigint -> bigint ')
-class Plus(object):
+class Plus:
 
     def evaluate(self, a, b):
         return a + b

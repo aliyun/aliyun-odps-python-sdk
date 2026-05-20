@@ -23,7 +23,7 @@ from .utils import build_model_table_name, TABLE_MODEL_PREFIX, TABLE_MODEL_SEPAR
     TEMP_TABLE_PREFIX, TEMP_TABLE_MODEL_PREFIX
 
 
-class TablesModelObject(object):
+class TablesModelObject:
     __slots__ = '_odps', 'name', '_parent', '_tables', '_params'
 
     def __init__(self, **kwargs):

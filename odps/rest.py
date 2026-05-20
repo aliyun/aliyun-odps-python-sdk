@@ -128,7 +128,7 @@ def default_user_agent():
         return _default_user_agent
 
 
-class RestClient(object):
+class RestClient:
     _session_local = threading.local()
     _endpoints_without_v4_sign = set()
     _endpoint_sign_lock = threading.RLock()

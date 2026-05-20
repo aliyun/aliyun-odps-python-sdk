@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.12.3\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-03-10 09:44+0800\n"
+"POT-Creation-Date: 2025-04-19 21:33+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: en\n"
@@ -51,7 +51,8 @@ msgstr ""
 
 #: ../../source/api-entry.rst odps.core.ODPS.execute_sql_cost
 #: odps.core.ODPS.list_volume_files odps.core.ODPS.open_resource
-#: odps.core.ODPS.open_volume_reader odps.core.ODPS.open_volume_writer of
+#: odps.core.ODPS.open_volume_reader odps.core.ODPS.open_volume_writer
+#: odps.internal.core.InternalODPSMixin.execute_kube_task of
 msgid "Parameters"
 msgstr ""
 
@@ -89,6 +90,7 @@ msgstr ""
 #: odps.core.ODPS.execute_sql odps.core.ODPS.execute_sql_cost
 #: odps.core.ODPS.list_volume_files odps.core.ODPS.open_resource
 #: odps.core.ODPS.open_volume_reader odps.core.ODPS.open_volume_writer
+#: odps.internal.core.InternalODPSMixin.execute_kube_task
 #: odps.models.tableio.TableIOMethods.read_table
 #: odps.models.tableio.TableIOMethods.write_table of
 msgid "Example"
@@ -115,7 +117,8 @@ msgid "namespace of the new account to be created"
 msgstr ""
 
 #: ../../source/api-entry.rst odps.core.ODPS.execute_sql_cost
-#: odps.core.ODPS.list_volume_files odps.core.ODPS.open_resource of
+#: odps.core.ODPS.list_volume_files odps.core.ODPS.open_resource
+#: odps.internal.core.InternalODPSMixin.execute_kube_task of
 msgid "Returns"
 msgstr ""
 
@@ -190,9 +193,18 @@ msgstr ""
 #: odps.core.ODPS.run_security_query:6 odps.core.ODPS.run_sql:4
 #: odps.core.ODPS.run_xflow:9 odps.core.ODPS.set_project_policy:4
 #: odps.core.ODPS.set_role_policy:5 odps.core.ODPS.stop_instance:4
+#: odps.internal.core.InternalODPSMixin.execute_kube_task:4
+#: odps.internal.core.InternalODPSMixin.execute_ps:7
+#: odps.internal.core.InternalODPSMixin.execute_ps_extract_model:11
+#: odps.internal.core.InternalODPSMixin.execute_ps_train:20
+#: odps.internal.core.InternalODPSMixin.run_kube_task:4
+#: odps.internal.core.InternalODPSMixin.run_ps:7
+#: odps.internal.core.InternalODPSMixin.run_ps_extract_model:11
+#: odps.internal.core.InternalODPSMixin.run_ps_train:20
 #: odps.models.tableio.TableIOMethods.read_table:8
-#: odps.models.tableio.TableIOMethods.write_sql_result_to_table:20
+#: odps.models.tableio.TableIOMethods.write_sql_result_to_table:19
 #: odps.models.tableio.TableIOMethods.write_table:7
+#: odps.models.tasks.maxframe.MaxFrameTask.run_pythonpack:41
 #: odps.models.tasks.merge.MergeTask.run_archive_table:5
 #: odps.models.tasks.merge.MergeTask.run_freeze_command:6
 #: odps.models.tasks.merge.MergeTask.run_merge_files:5 of
@@ -220,8 +232,9 @@ msgstr ""
 #: odps.core.ODPS.open_resource:24 odps.core.ODPS.open_volume_reader:8
 #: odps.core.ODPS.open_volume_writer:12 odps.core.ODPS.run_security_query:7
 #: odps.models.tableio.TableIOMethods.read_table:9
-#: odps.models.tableio.TableIOMethods.write_sql_result_to_table:21
+#: odps.models.tableio.TableIOMethods.write_sql_result_to_table:20
 #: odps.models.tableio.TableIOMethods.write_table:8
+#: odps.models.tasks.maxframe.MaxFrameTask.run_pythonpack:42
 #: odps.models.tasks.merge.MergeTask.run_merge_files:6 of
 msgid "schema name, if not provided, will be the default schema"
 msgstr ""
@@ -248,7 +261,8 @@ msgid "volume"
 msgstr ""
 
 #: ../../source/api-entry.rst odps.core.ODPS.execute_sql_cost
-#: odps.core.ODPS.list_volume_files of
+#: odps.core.ODPS.list_volume_files
+#: odps.internal.core.InternalODPSMixin.execute_kube_task of
 msgid "Return type"
 msgstr ""
 
@@ -373,7 +387,7 @@ msgstr ""
 msgid "schema name"
 msgstr ""
 
-#: odps.core.ODPS.create_schema:5 odps.core.ODPS.create_table:17
+#: odps.core.ODPS.create_schema:5 odps.core.ODPS.create_table:18
 #: odps.core.ODPS.delete_materialized_view:9 odps.core.ODPS.delete_schema:5
 #: odps.core.ODPS.delete_table:8 odps.core.ODPS.delete_view:8 of
 msgid "if True, will run asynchronously"
@@ -435,15 +449,19 @@ msgstr ""
 msgid "storage tier of the table"
 msgstr ""
 
-#: odps.core.ODPS.create_table:18 of
-msgid "the created Table if not async else odps instance"
+#: odps.core.ODPS.create_table:17 of
+msgid "properties for table creation"
 msgstr ""
 
 #: odps.core.ODPS.create_table:19 of
+msgid "the created Table if not async else odps instance"
+msgstr ""
+
+#: odps.core.ODPS.create_table:20 of
 msgid ":class:`odps.models.Table` or :class:`odps.models.Instance`"
 msgstr ""
 
-#: odps.core.ODPS.create_table:21 of
+#: odps.core.ODPS.create_table:22 of
 msgid ":class:`odps.models.Table`, :class:`odps.models.TableSchema`"
 msgstr ""
 
@@ -492,7 +510,7 @@ msgstr ""
 #: odps.core.ODPS.delete_function:7 odps.core.ODPS.delete_offline_model:6
 #: odps.core.ODPS.delete_resource:7 odps.core.ODPS.delete_volume:8
 #: odps.core.ODPS.delete_xflow:5 odps.core.ODPS.stop_instance:5
-#: odps.models.tableio.TableIOMethods.write_table:20 of
+#: odps.models.tableio.TableIOMethods.write_table:29 of
 msgid "None"
 msgstr ""
 
@@ -629,6 +647,15 @@ msgstr ""
 
 #: odps.core.ODPS.execute_sql:5 odps.core.ODPS.execute_xflow:12
 #: odps.core.ODPS.run_sql:5 odps.core.ODPS.run_xflow:12
+#: odps.internal.core.InternalODPSMixin.execute_kube_task:6
+#: odps.internal.core.InternalODPSMixin.execute_ps:9
+#: odps.internal.core.InternalODPSMixin.execute_ps_extract_model:13
+#: odps.internal.core.InternalODPSMixin.execute_ps_train:22
+#: odps.internal.core.InternalODPSMixin.run_kube_task:6
+#: odps.internal.core.InternalODPSMixin.run_ps:9
+#: odps.internal.core.InternalODPSMixin.run_ps_extract_model:13
+#: odps.internal.core.InternalODPSMixin.run_ps_train:22
+#: odps.models.tasks.maxframe.MaxFrameTask.run_pythonpack:48
 #: odps.models.tasks.merge.MergeTask.run_archive_table:7
 #: odps.models.tasks.merge.MergeTask.run_freeze_command:8
 #: odps.models.tasks.merge.MergeTask.run_merge_files:8 of
@@ -644,6 +671,14 @@ msgstr ""
 
 #: odps.core.ODPS.execute_sql:10 odps.core.ODPS.execute_xflow:14
 #: odps.core.ODPS.run_sql:11 odps.core.ODPS.run_xflow:14
+#: odps.internal.core.InternalODPSMixin.execute_kube_task:8
+#: odps.internal.core.InternalODPSMixin.execute_ps:10
+#: odps.internal.core.InternalODPSMixin.execute_ps_extract_model:14
+#: odps.internal.core.InternalODPSMixin.execute_ps_train:24
+#: odps.internal.core.InternalODPSMixin.run_kube_task:8
+#: odps.internal.core.InternalODPSMixin.run_ps:10
+#: odps.internal.core.InternalODPSMixin.run_ps_extract_model:14
+#: odps.internal.core.InternalODPSMixin.run_ps_train:24
 #: odps.models.tasks.merge.MergeTask.run_archive_table:9
 #: odps.models.tasks.merge.MergeTask.run_freeze_command:10
 #: odps.models.tasks.merge.MergeTask.run_merge_files:12 of
@@ -655,6 +690,14 @@ msgstr ""
 #: odps.core.ODPS.get_instance:6 odps.core.ODPS.get_instance:9
 #: odps.core.ODPS.run_sql:12 odps.core.ODPS.run_sql:14
 #: odps.core.ODPS.run_xflow:15 odps.core.ODPS.run_xflow:17
+#: odps.internal.core.InternalODPSMixin.execute_kube_task:9
+#: odps.internal.core.InternalODPSMixin.execute_ps:11
+#: odps.internal.core.InternalODPSMixin.execute_ps_extract_model:15
+#: odps.internal.core.InternalODPSMixin.execute_ps_train:25
+#: odps.internal.core.InternalODPSMixin.run_kube_task:9
+#: odps.internal.core.InternalODPSMixin.run_ps:11
+#: odps.internal.core.InternalODPSMixin.run_ps_extract_model:15
+#: odps.internal.core.InternalODPSMixin.run_ps_train:25
 #: odps.models.tasks.merge.MergeTask.run_archive_table:10
 #: odps.models.tasks.merge.MergeTask.run_freeze_command:11
 #: odps.models.tasks.merge.MergeTask.run_merge_files:13 of
@@ -663,6 +706,26 @@ msgstr ""
 
 #: odps.models.tasks.merge.MergeTask.run_freeze_command:5 of
 msgid "freeze command to execute, can be freeze or restore"
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_kube_task:1 of
+msgid "Submit the kube task contains yaml file to odps cluster."
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_kube_task:3 of
+msgid "yaml string or json object."
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_kube_task:5
+#: odps.internal.core.InternalODPSMixin.run_kube_task:5
+#: odps.models.tasks.maxframe.MaxFrameTask.run_pythonpack:47
+#: odps.models.tasks.merge.MergeTask.run_merge_files:7 of
+msgid "settings for merge task."
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_kube_task:7
+#: odps.internal.core.InternalODPSMixin.run_kube_task:7 of
+msgid "task name."
 msgstr ""
 
 #: odps.models.tasks.merge.MergeTask.run_merge_files:1 of
@@ -677,17 +740,269 @@ msgstr ""
 msgid "partition to optimize"
 msgstr ""
 
-#: odps.models.tasks.merge.MergeTask.run_merge_files:7 of
-msgid "settings for merge task."
-msgstr ""
-
 #: odps.core.ODPS.execute_sql:6 odps.core.ODPS.run_sql:6
+#: odps.models.tasks.maxframe.MaxFrameTask.run_pythonpack:49
 #: odps.models.tasks.merge.MergeTask.run_merge_files:9 of
 msgid "cluster to run this instance"
 msgstr ""
 
 #: odps.models.tasks.merge.MergeTask.run_merge_files:10 of
 msgid "compact option for transactional table, can be major or minor."
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_ps:1 of
+msgid "Execute an parameter server (PS) task and wait for termination."
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_ps:3
+#: odps.internal.core.InternalODPSMixin.execute_ps_extract_model:3
+#: odps.internal.core.InternalODPSMixin.execute_ps_train:3
+#: odps.internal.core.InternalODPSMixin.run_ps:3
+#: odps.internal.core.InternalODPSMixin.run_ps_extract_model:3
+#: odps.internal.core.InternalODPSMixin.run_ps_train:3 of
+msgid ""
+"Note that this function is EXPERIMENTAL and we provide neither examples "
+"nor support on this function."
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_ps:6
+#: odps.internal.core.InternalODPSMixin.run_ps:6 of
+msgid "PS task configuration, should be a dict or serialized json string"
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_ps:8
+#: odps.internal.core.InternalODPSMixin.execute_ps_extract_model:12
+#: odps.internal.core.InternalODPSMixin.execute_ps_train:21
+#: odps.internal.core.InternalODPSMixin.run_ps:8
+#: odps.internal.core.InternalODPSMixin.run_ps_extract_model:12
+#: odps.internal.core.InternalODPSMixin.run_ps_train:21 of
+msgid "settings for ps task."
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_ps_extract_model:1 of
+msgid ""
+"Execute an parameter server (PS) model extraction task and return "
+"instance object."
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_ps_extract_model:6
+#: odps.internal.core.InternalODPSMixin.run_ps_extract_model:6 of
+msgid "the input checkpoint path (not including step subdir)."
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_ps_extract_model:7
+#: odps.internal.core.InternalODPSMixin.run_ps_extract_model:7 of
+msgid "the output table for model (table should exist)."
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_ps_extract_model:8
+#: odps.internal.core.InternalODPSMixin.run_ps_extract_model:8 of
+msgid "checkpoint step to extract (step should exist under checkpoint path)."
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_ps_extract_model:9
+#: odps.internal.core.InternalODPSMixin.run_ps_extract_model:9 of
+msgid "vector name to extract, i.e. param."
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_ps_extract_model:10
+#: odps.internal.core.InternalODPSMixin.run_ps_extract_model:10 of
+msgid "worker number, default 20. (optional)"
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_ps_train:1 of
+msgid "Execute an parameter server (PS) training task and wait for termination."
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_ps_train:6
+#: odps.internal.core.InternalODPSMixin.run_ps_train:6 of
+msgid "the training algorithm"
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_ps_train:7
+#: odps.internal.core.InternalODPSMixin.run_ps_train:7 of
+msgid "the input table for features and labels"
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_ps_train:8
+#: odps.internal.core.InternalODPSMixin.run_ps_train:8 of
+msgid "the output table for model"
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_ps_train:9
+#: odps.internal.core.InternalODPSMixin.run_ps_train:9 of
+msgid "feature size (optinal, must be positive integer)"
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_ps_train:10
+#: odps.internal.core.InternalODPSMixin.run_ps_train:10 of
+msgid "whether to perform serialized train (optional, default False)"
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_ps_train:11
+#: odps.internal.core.InternalODPSMixin.run_ps_train:11 of
+msgid ""
+"the termination algorithm, currently only DeltaTermination and "
+"IterationTermination"
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_ps_train:12
+#: odps.internal.core.InternalODPSMixin.run_ps_train:12 of
+msgid ""
+"the tolerance used in algorithm, must be a float number (optional, "
+"default 1.0E-6)"
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_ps_train:13
+#: odps.internal.core.InternalODPSMixin.run_ps_train:13 of
+msgid ""
+"the iteration number used in IterationTermination, must be a positive "
+"integer. (required when using IterateTermination)"
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_ps_train:14
+#: odps.internal.core.InternalODPSMixin.run_ps_train:14 of
+msgid ""
+"the history steps used in OWL_QN, must be a positive integer. (optional, "
+"default 10)"
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_ps_train:15
+#: odps.internal.core.InternalODPSMixin.run_ps_train:15 of
+msgid "package name (optional)"
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_ps_train:16
+#: odps.internal.core.InternalODPSMixin.run_ps_train:16 of
+msgid ""
+"vector names in server, split by comma, e.g. \"grad, param, hessian\". "
+"(optional)"
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_ps_train:17
+#: odps.internal.core.InternalODPSMixin.run_ps_train:17 of
+msgid ""
+"the validation table for model evaluation during training process "
+"(optional)"
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_ps_train:18
+#: odps.internal.core.InternalODPSMixin.run_ps_train:18 of
+msgid "checkpoint directory name, used in job recovery (optional)"
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_ps_train:19
+#: odps.internal.core.InternalODPSMixin.run_ps_train:19 of
+msgid ""
+"extra configurations from a dictionary, can be applied to keys which "
+"cannot be represented as Python kwargs. (optional)"
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_ps_train:23
+#: odps.internal.core.InternalODPSMixin.run_ps_train:23 of
+msgid "extra configurations to be passed into the parameter server"
+msgstr ""
+
+#: odps.models.tasks.maxframe.MaxFrameTask.run_pythonpack:1 of
+msgid "Execute PythonPack to create an archive with specified Python requirements"
+msgstr ""
+
+#: odps.models.tasks.maxframe.MaxFrameTask.run_pythonpack:2 of
+msgid "and returns an Instance object after job execution is finished."
+msgstr ""
+
+#: odps.models.tasks.maxframe.MaxFrameTask.run_pythonpack:4 of
+msgid ""
+"requirements need to be packed. Every item of the array follows the "
+"definition of requirements.txt of PEP 508."
+msgstr ""
+
+#: odps.models.tasks.maxframe.MaxFrameTask.run_pythonpack:6 of
+msgid ""
+"requirements to be installed before creating package. Note that these "
+"items are not necessarily been included in the resulting package. Every "
+"item of the array follows the definition of requirements.txt of PEP 508."
+msgstr ""
+
+#: odps.models.tasks.maxframe.MaxFrameTask.run_pythonpack:10 of
+msgid ""
+"requirements to be excluded in the package. Must be names of the packages"
+" without version requirements."
+msgstr ""
+
+#: odps.models.tasks.maxframe.MaxFrameTask.run_pythonpack:12 of
+msgid ""
+"name of the resource to be built. If absent, the submitted job will "
+"create a package name itself given ``is_production``. and "
+"``schedule_id``."
+msgstr ""
+
+#: odps.models.tasks.maxframe.MaxFrameTask.run_pythonpack:15 of
+msgid ""
+"if True, will generate a package name with ``pythonpack-prod-`` prefix if"
+" ``resource_name`` is absent. Otherwise ``pythonpack-dev-`` will be used."
+msgstr ""
+
+#: odps.models.tasks.maxframe.MaxFrameTask.run_pythonpack:18 of
+msgid ""
+"ID of the schedule node to be added as part of the resource name if "
+"``is_production`` is True and ``resource_name`` is absent."
+msgstr ""
+
+#: odps.models.tasks.maxframe.MaxFrameTask.run_pythonpack:21 of
+msgid ""
+"if True, rebuild the resource if the resource already exists. Otherwise "
+"return directly."
+msgstr ""
+
+#: odps.models.tasks.maxframe.MaxFrameTask.run_pythonpack:23 of
+msgid ""
+"tag of Python version, for example, ``cp37``. If absent, PyODPS will "
+"choose a supported Python version of MaxCompute if "
+"``align_python_version`` is False, otherwise version of the current "
+"Python interpreter will be used."
+msgstr ""
+
+#: odps.models.tasks.maxframe.MaxFrameTask.run_pythonpack:27 of
+msgid ""
+"take effect when ``python_tag`` is absent. If True, PyODPS will choose a "
+"supported Python version of MaxCompute, otherwise version of the current "
+"Python interpreter will be used. Set it to False when you are creating "
+"packages for other environments like DataWorks."
+msgstr ""
+
+#: odps.models.tasks.maxframe.MaxFrameTask.run_pythonpack:32 of
+msgid ""
+"if True, prefer package versions with wheels other than source archives. "
+"See ``--prefer-binary`` argument of ``pip install`` for more details."
+msgstr ""
+
+#: odps.models.tasks.maxframe.MaxFrameTask.run_pythonpack:35 of
+msgid ""
+"if True, will not include dependencies of requirements. See ``--no-deps``"
+" argument of ``pip install`` for more details."
+msgstr ""
+
+#: odps.models.tasks.maxframe.MaxFrameTask.run_pythonpack:37 of
+msgid "if True, will not collect dependent binary packages. False by default."
+msgstr ""
+
+#: odps.models.tasks.maxframe.MaxFrameTask.run_pythonpack:39 of
+msgid ""
+"if True, will include pre-released versions of packages. See ``--pre`` "
+"argument of ``pip install`` for more details."
+msgstr ""
+
+#: odps.models.tasks.maxframe.MaxFrameTask.run_pythonpack:43 of
+msgid ""
+"project name of the target archive resource. If not provided, will be the"
+" default project"
+msgstr ""
+
+#: odps.models.tasks.maxframe.MaxFrameTask.run_pythonpack:45 of
+msgid ""
+"schema name of the target archive resource. If not provided, will be the "
+"default schema"
 msgstr ""
 
 #: odps.core.ODPS.execute_security_query:1 of
@@ -1087,8 +1402,7 @@ msgstr ""
 msgid "The result iterates the sub instance of xflow"
 msgstr ""
 
-#: odps.core.ODPS.get_xflow_sub_instances:6
-#: odps.core.ODPS.iter_xflow_sub_instances:8 of
+#: odps.core.ODPS.get_xflow_sub_instances:6 of
 msgid "sub instances dictionary"
 msgstr ""
 
@@ -1104,6 +1418,10 @@ msgstr ""
 
 #: odps.core.ODPS.iter_xflow_sub_instances:7 of
 msgid "check if the instance is successful"
+msgstr ""
+
+#: odps.core.ODPS.iter_xflow_sub_instances:8 of
+msgid "generator of sub-instances"
 msgstr ""
 
 #: odps.core.ODPS.list_functions:1 of
@@ -1462,7 +1780,7 @@ msgstr ""
 
 #: odps.core.ODPS.open_volume_reader:11 odps.core.ODPS.open_volume_writer:13
 #: odps.models.tableio.TableIOMethods.read_table:13
-#: odps.models.tableio.TableIOMethods.write_table:15 of
+#: odps.models.tableio.TableIOMethods.write_table:24 of
 msgid "the compression algorithm, level and strategy"
 msgstr ""
 
@@ -1518,7 +1836,7 @@ msgid "if True, the data will be compressed during downloading"
 msgstr ""
 
 #: odps.models.tableio.TableIOMethods.read_table:15
-#: odps.models.tableio.TableIOMethods.write_table:17 of
+#: odps.models.tableio.TableIOMethods.write_table:26 of
 msgid "tunnel service URL"
 msgstr ""
 
@@ -1533,7 +1851,7 @@ msgid "records"
 msgstr ""
 
 #: odps.models.tableio.TableIOMethods.read_table:28
-#: odps.models.tableio.TableIOMethods.write_table:58 of
+#: odps.models.tableio.TableIOMethods.write_table:88 of
 msgid ":class:`odps.models.Record`"
 msgstr ""
 
@@ -1545,8 +1863,38 @@ msgstr ""
 msgid "Start running a task to freeze or restore tables."
 msgstr ""
 
+#: odps.internal.core.InternalODPSMixin.run_kube_task:1 of
+msgid "Start running the kube_task based on the yaml file."
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.run_kube_task:3 of
+msgid "specs of kubernetes objects"
+msgstr ""
+
 #: odps.models.tasks.merge.MergeTask.run_merge_files:1 of
 msgid "Start running a task to merge multiple files in tables."
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.run_ps:1 of
+msgid "Start running an parameter server (PS) task and return instance object."
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.run_ps_extract_model:1 of
+msgid ""
+"Start running an parameter server (PS) model extraction task and return "
+"instance object."
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.run_ps_train:1 of
+msgid ""
+"Start running an parameter server (PS) training task and return instance "
+"object."
+msgstr ""
+
+#: odps.models.tasks.maxframe.MaxFrameTask.run_pythonpack:1 of
+msgid ""
+"Run PythonPack to create an archive with specified Python requirements "
+"and returns an Instance object after job submission."
 msgstr ""
 
 #: odps.core.ODPS.run_security_query:1 of
@@ -1612,72 +1960,88 @@ msgstr ""
 msgid ""
 "Write SQL query results into a specified table and partition. If the "
 "target table does not exist, you may specify the argument "
-"create_table=True. Columns are inserted into the target table in the "
-"order of the SQL query result. If you need to customize order of output "
-"columns, you can specify the argument target_columns=[col1, col2, ...]."
+"create_table=True. Columns are inserted into the target table aligned by "
+"column names. Note that column order in the target table will NOT be "
+"changed."
 msgstr ""
 
-#: odps.models.tableio.TableIOMethods.write_sql_result_to_table:7 of
+#: odps.models.tableio.TableIOMethods.write_sql_result_to_table:6 of
 msgid "The target table name"
 msgstr ""
 
-#: odps.models.tableio.TableIOMethods.write_sql_result_to_table:8 of
+#: odps.models.tableio.TableIOMethods.write_sql_result_to_table:7 of
 msgid "The SQL query to execute"
 msgstr ""
 
-#: odps.models.tableio.TableIOMethods.write_sql_result_to_table:9 of
+#: odps.models.tableio.TableIOMethods.write_sql_result_to_table:8 of
 msgid ""
 "Target partition in the format \"part=value\" or "
 "\"part1=value1,part2=value2\""
 msgstr ""
 
-#: odps.models.tableio.TableIOMethods.write_sql_result_to_table:11 of
+#: odps.models.tableio.TableIOMethods.write_sql_result_to_table:10 of
 msgid ""
 "List of dynamic partition fields. If not provided, all partition fields "
 "of the target table are used."
 msgstr ""
 
-#: odps.models.tableio.TableIOMethods.write_sql_result_to_table:13 of
+#: odps.models.tableio.TableIOMethods.write_sql_result_to_table:12 of
 msgid "Whether to create the target table if it does not exist. False by default."
 msgstr ""
 
-#: odps.models.tableio.TableIOMethods.write_sql_result_to_table:15 of
+#: odps.models.tableio.TableIOMethods.write_sql_result_to_table:14 of
 msgid "Whether to create partitions if they do not exist. False by default."
 msgstr ""
 
-#: odps.models.tableio.TableIOMethods.write_sql_result_to_table:17 of
-msgid ""
-"List of target columns. If not provided, data will be written into the "
-"target table in the order of the SQL query result."
+#: odps.models.tableio.TableIOMethods.write_sql_result_to_table:16
+#: odps.models.tableio.TableIOMethods.write_table:11 of
+msgid "Whether to append missing columns to the target table. False by default."
 msgstr ""
 
-#: odps.models.tableio.TableIOMethods.write_sql_result_to_table:19 of
+#: odps.models.tableio.TableIOMethods.write_sql_result_to_table:18 of
 msgid "Whether to overwrite existing data. False by default."
 msgstr ""
 
-#: odps.models.tableio.TableIOMethods.write_sql_result_to_table:22
-#: odps.models.tableio.TableIOMethods.write_table:13 of
+#: odps.models.tableio.TableIOMethods.write_sql_result_to_table:21
+#: odps.models.tableio.TableIOMethods.write_table:22 of
 msgid "specify table lifecycle when creating tables"
 msgstr ""
 
-#: odps.models.tableio.TableIOMethods.write_sql_result_to_table:23 of
-msgid "specify other kwargs for :method:~odps.core.ODPS.create_table"
+#: odps.models.tableio.TableIOMethods.write_sql_result_to_table:22
+#: odps.models.tableio.TableIOMethods.write_table:16 of
+msgid ""
+"specify type mapping for columns when creating tables, can be dicts like "
+"``{\"column\": \"bigint\"}``. If column does not exist in data, it will "
+"be added as an empty column."
 msgstr ""
 
-#: odps.models.tableio.TableIOMethods.write_sql_result_to_table:24 of
+#: odps.models.tableio.TableIOMethods.write_sql_result_to_table:25
+#: odps.models.tableio.TableIOMethods.write_table:19 of
+msgid ""
+"a function to accept table schema resolved from data and return a new "
+"schema for table to create. Only works when target table does not exist "
+"and ``create_table`` is True."
+msgstr ""
+
+#: odps.models.tableio.TableIOMethods.write_sql_result_to_table:28
+#: odps.models.tableio.TableIOMethods.write_table:15 of
+msgid "specify other kwargs for :meth:`~odps.ODPS.create_table`"
+msgstr ""
+
+#: odps.models.tableio.TableIOMethods.write_sql_result_to_table:29 of
 msgid ""
 "specify hints for SQL statements, will be passed through to execute_sql "
 "method"
 msgstr ""
 
-#: odps.models.tableio.TableIOMethods.write_sql_result_to_table:26 of
+#: odps.models.tableio.TableIOMethods.write_sql_result_to_table:31 of
 msgid ""
 "specify running cluster for SQL statements, will be passed through to "
 "execute_sql method"
 msgstr ""
 
 #: odps.models.tableio.TableIOMethods.write_table:1 of
-msgid "Write records into given table."
+msgid "Write records or pandas DataFrame into given table."
 msgstr ""
 
 #: odps.models.tableio.TableIOMethods.write_table:5 of
@@ -1694,41 +2058,58 @@ msgstr ""
 msgid "columns representing dynamic partitions"
 msgstr ""
 
-#: odps.models.tableio.TableIOMethods.write_table:11 of
+#: odps.models.tableio.TableIOMethods.write_table:13 of
 msgid "if True, will overwrite existing data"
 msgstr ""
 
-#: odps.models.tableio.TableIOMethods.write_table:12 of
+#: odps.models.tableio.TableIOMethods.write_table:14 of
 msgid "if true, the table will be created if not exist"
 msgstr ""
 
-#: odps.models.tableio.TableIOMethods.write_table:14 of
+#: odps.models.tableio.TableIOMethods.write_table:23 of
 msgid "if true, the partition will be created if not exist"
 msgstr ""
 
-#: odps.models.tableio.TableIOMethods.write_table:18 of
+#: odps.models.tableio.TableIOMethods.write_table:27 of
 msgid ""
 "writing the table will reuse the session which opened last time, if set "
 "to True will open a new upload session, default as False"
 msgstr ""
 
-#: odps.models.tableio.TableIOMethods.write_table:24 of
+#: odps.models.tableio.TableIOMethods.write_table:33 of
 msgid "Write records into a specified table."
 msgstr ""
 
-#: odps.models.tableio.TableIOMethods.write_table:28 of
+#: odps.models.tableio.TableIOMethods.write_table:37 of
 msgid "Write records into multiple blocks."
 msgstr ""
 
-#: odps.models.tableio.TableIOMethods.write_table:32 of
+#: odps.models.tableio.TableIOMethods.write_table:41 of
 msgid "Write into a given partition."
 msgstr ""
 
-#: odps.models.tableio.TableIOMethods.write_table:36 of
-msgid "Write a pandas DataFrame."
+#: odps.models.tableio.TableIOMethods.write_table:45 of
+msgid "Write a pandas DataFrame. Create the table if it does not exist."
 msgstr ""
 
-#: odps.models.tableio.TableIOMethods.write_table:47 of
+#: odps.models.tableio.TableIOMethods.write_table:56 of
+msgid "Passing more arguments when creating table."
+msgstr ""
+
+#: odps.models.tableio.TableIOMethods.write_table:70 of
 msgid "Write with dynamic partitioning."
+msgstr ""
+
+#: odps.models.tableio.TableIOMethods.write_table of
+msgid "Note"
+msgstr ""
+
+#: odps.models.tableio.TableIOMethods.write_table:83 of
+msgid ""
+"``write_table`` treats object type of Pandas data as strings as it is "
+"often hard to determine their types when creating a new table for your "
+"data. To make sure the column type meet your need, you can specify "
+"`type_mapping` argument to specify the column types, for instance, "
+"``type_mapping={\"col1\": \"array<struct<id:string>>\"}``."
 msgstr ""
 

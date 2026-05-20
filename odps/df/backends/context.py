@@ -15,7 +15,7 @@
 # limitations under the License.
 
 
-class ExecuteContext(object):
+class ExecuteContext:
     def __init__(self):
         self._expr_id_cached_data = dict()
 

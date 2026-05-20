@@ -134,7 +134,7 @@ class Project(XMLLazyLoad):
             "Status", parse_callback=lambda s: Project.AuthQueryStatus(s.upper())
         )
 
-    class AuthQueryInstance(object):
+    class AuthQueryInstance:
         def __init__(self, project, instance_id, output_json=True):
             self.project = project
             self.instance_id = instance_id

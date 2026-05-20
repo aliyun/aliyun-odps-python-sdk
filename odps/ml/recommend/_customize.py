@@ -28,7 +28,7 @@ class RecommendFieldRole(enum.Enum):
 
 
 @ml_collection_mixin
-class RecommendMLMixIn(object):
+class RecommendMLMixIn:
     __slots__ = ()
 
     field_role_enum = RecommendFieldRole

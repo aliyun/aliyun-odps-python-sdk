@@ -15,7 +15,7 @@
 from ....models import Table
 
 
-class MockProject(object):
+class MockProject:
     def __init__(self):
         self.name = 'mocked_project'
 

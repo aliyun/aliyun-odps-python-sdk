@@ -356,7 +356,7 @@ class TablesModel(ODPSModelExpr):
         return super(TablesModel, self).predict(*args, **kwargs)
 
 
-class TablesModelResult(object):
+class TablesModelResult:
     def __init__(self, params, results):
         self._params = params
         self._results = results

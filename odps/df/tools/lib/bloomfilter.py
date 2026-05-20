@@ -22,7 +22,7 @@ import hashlib
 default_hashbits = 96
 
 
-class HashType(object):
+class HashType:
     def __init__(self, value='', hashbits=default_hashbits, hash_=None):
         "Relies on create_hash() provided by subclass"
         self.hashbits = hashbits

@@ -37,7 +37,7 @@ from typing import Callable, Iterator, List, Optional, SupportsInt, Tuple, Union
 __all__ = ["parse", "Version", "LegacyVersion", "InvalidVersion", "VERSION_PATTERN"]
 
 
-class InfinityType(object):
+class InfinityType:
     def __repr__(self):
         # type: () -> str
         return "Infinity"
@@ -78,7 +78,7 @@ class InfinityType(object):
 Infinity = InfinityType()
 
 
-class NegativeInfinityType(object):
+class NegativeInfinityType:
     def __repr__(self):
         # type: () -> str
         return "-Infinity"

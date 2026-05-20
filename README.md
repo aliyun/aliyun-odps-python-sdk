@@ -114,7 +114,7 @@ Out[3]:
 from odps.udf import annotate
 
 @annotate('bigint,bigint->bigint')
-class Plus(object):
+class Plus:
     def evaluate(self, a, b):
         return a + b
 ```

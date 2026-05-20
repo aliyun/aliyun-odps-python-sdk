@@ -290,7 +290,7 @@ class VolumePartition(XMLLazyLoad):
         self._upload_id = upload_session.id
         file_dict = dict()
 
-        class FilesWriter(object):
+        class FilesWriter:
             @property
             def status(self):
                 return upload_session.status

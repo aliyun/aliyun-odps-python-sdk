@@ -219,7 +219,7 @@ class TableBatchScanResponse(serializers.JSONSerializableModel):
         self.request_id = ""
 
 
-class SessionRequest(object):
+class SessionRequest:
     def __init__(self, session_id, refresh=False):
         self.session_id = session_id
         self.refresh = refresh
@@ -275,7 +275,7 @@ class TableBatchWriteResponse(serializers.JSONSerializableModel):
         self.request_id = ""
 
 
-class ReadRowsRequest(object):
+class ReadRowsRequest:
     def __init__(
         self,
         session_id,
@@ -295,13 +295,13 @@ class ReadRowsRequest(object):
         self.data_format = data_format
 
 
-class ReadRowsResponse(object):
+class ReadRowsResponse:
     def __init__(self):
         self.status = Status.INIT
         self.request_id = ""
 
 
-class WriteRowsRequest(object):
+class WriteRowsRequest:
     def __init__(
         self,
         session_id,
@@ -319,7 +319,7 @@ class WriteRowsRequest(object):
         self.data_format = data_format
 
 
-class WriteRowsResponse(object):
+class WriteRowsResponse:
     def __init__(self):
         self.status = Status.INIT
         self.request_id = ""
@@ -499,7 +499,7 @@ class StreamWriter(IOBase):
             return None
 
 
-class ArrowReader(object):
+class ArrowReader:
     """Arrow batch reader."""
 
     def __init__(self, stream_reader):
@@ -552,7 +552,7 @@ class ArrowReader(object):
         return self._reader.get_request_id()
 
 
-class ArrowWriter(object):
+class ArrowWriter:
     """Arrow batch writer."""
 
     def __init__(self, stream_writer, compression):
@@ -618,7 +618,7 @@ class ArrowWriter(object):
         return self._sink.get_request_id()
 
 
-class StorageApiClient(object):
+class StorageApiClient:
     """Client to bundle configuration needed for API requests."""
 
     def __init__(

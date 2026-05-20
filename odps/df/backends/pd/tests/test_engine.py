@@ -91,7 +91,7 @@ def setup(odps):
     engine = PandasEngine(odps)
     odps_engine = ODPSSQLEngine(odps)
 
-    class FakeBar(object):
+    class FakeBar:
         def update(self, *args, **kwargs):
             pass
 
@@ -591,7 +591,7 @@ def test_function(odps, setup):
 def test_function_resources(odps, setup):
     data = setup.gen_data(5)
 
-    class my_func(object):
+    class my_func:
         def __init__(self, resources):
             self.file_resource = resources[0]
             self.table_resource = resources[1]
@@ -776,7 +776,7 @@ def test_third_party_libraries(odps, setup):
 
                 assert result == [[int(r[0].split('-')[0])] for r in data]
 
-                class Agg(object):
+                class Agg:
                     def buffer(self):
                         return [0]
 
@@ -930,7 +930,7 @@ def test_map_reduce_by_apply_distribute_sort(odps, setup):
         for word in row[0].split():
             yield word, 1
 
-    class reducer(object):
+    class reducer:
         def __init__(self):
             self._curr = None
             self._cnt = 0
@@ -959,7 +959,7 @@ def test_map_reduce_by_apply_distribute_sort(odps, setup):
     expected = [['key', 3], ['name', 4]]
     assert sorted(result) == sorted(expected)
 
-    class reducer(object):
+    class reducer:
         def __init__(self):
             self._curr = None
             self._cnt = 0
@@ -1025,7 +1025,7 @@ def test_map_reduce(odps, setup):
     assert sorted(result) == sorted(expected)
 
     @output(['word', 'cnt'], ['string', 'int'])
-    class reducer2(object):
+    class reducer2:
         def __init__(self, keys):
             self.cnt = 0
 
@@ -1204,7 +1204,7 @@ def test_distribute_sort(odps, setup):
 
     @output_names('name', 'id')
     @output_types('string', 'int')
-    class reducer(object):
+    class reducer:
         def __init__(self):
             self._curr = None
             self._cnt = 0
@@ -1345,7 +1345,7 @@ def test_pivot_table(odps, setup):
     assert res.schema.names == ['id', 'name1_fid_mean', 'name2_fid_mean']
     assert result == expected
 
-    class Agg(object):
+    class Agg:
         def buffer(self):
             return [0]
 
@@ -1438,7 +1438,7 @@ def test_groupby_aggregation(odps, setup):
     ]
     setup.gen_data(data=data)
 
-    class Agg(object):
+    class Agg:
         def buffer(self):
             return [0]
 
@@ -1895,7 +1895,7 @@ def test_reduction(odps, setup):
     import pandas as pd
     df = pd.DataFrame(data, columns=setup.schema.names)
 
-    class Agg(object):
+    class Agg:
         def buffer(self):
             return [0.0, 0]
 
@@ -2013,7 +2013,7 @@ def test_user_defined_aggregators(odps, setup):
     setup.gen_data(data=data)
 
     @output_types('float')
-    class Aggregator(object):
+    class Aggregator:
         def buffer(self):
             return [0.0, 0]
 
@@ -2097,7 +2097,7 @@ def test_user_defined_aggregators(odps, setup):
     assert expected == result
 
     @output_types('float')
-    class Aggregator(object):
+    class Aggregator:
         def buffer(self):
             return [0.0, 0]
 
@@ -3296,7 +3296,7 @@ def test_df_reference_warnings(setup):
         setup.engine.execute(expr)
     assert any(info for info in warn_info if "df_ref_func" in str(info.message))
 
-    class NestedCls(object):
+    class NestedCls:
         def nested_fun(self, x):
             return x + ".abcd"
 

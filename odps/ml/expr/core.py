@@ -29,7 +29,7 @@ expr_output_registry = dict()
 shared_props_registry = dict()
 
 
-class AlgoExprProxy(object):
+class AlgoExprProxy:
     def __init__(self, expr):
         def _finalizer(_):
             if self._exec_id not in expr_output_registry:

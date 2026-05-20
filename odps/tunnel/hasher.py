@@ -28,7 +28,7 @@ _double_struct = struct.Struct("<d")
 _ord_code = lambda x: x
 
 
-class AbstractHasher(object):
+class AbstractHasher:
     def hash_bigint(self, val):
         raise NotImplementedError
 
@@ -223,7 +223,7 @@ def _get_hash_func(typ):
         raise TypeError(f"Hash for type {typ} not supported")
 
 
-class RecordHasher(object):
+class RecordHasher:
     def __init__(self, schema, hasher_type, hash_keys):
         self._schema = schema
         self._hasher = get_hasher(hasher_type)

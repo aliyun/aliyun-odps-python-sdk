@@ -161,7 +161,7 @@ def _validate_values(values, types):
     return ret_vals
 
 
-class ArgParser(object):
+class ArgParser:
     NULL_INDICATOR = "NULL"
 
     def __init__(self, types, fileobj, delim=",", null_indicator="NULL"):
@@ -216,7 +216,7 @@ def table_feed(odps_entry, table_desc, in_types, record_limit):
             yield _validate_values(row.values, in_types)
 
 
-class ArgFormatter(object):
+class ArgFormatter:
     DELIM = "\t"
     NULL_INDICATOR = "NULL"
 
@@ -228,7 +228,7 @@ class ArgFormatter(object):
         return ret
 
 
-class BaseCollector(object):
+class BaseCollector:
     """Basic common logic of collector."""
 
     def __init__(self, schema):
@@ -267,7 +267,7 @@ class DirectCollector(BaseCollector):
             self.results.append(args)
 
 
-class BaseRunner(object):
+class BaseRunner:
     def __init__(self, udf_class, feed, collector):
         self.udf_class = udf_class
         self.feed = feed

@@ -367,7 +367,7 @@ def test_rest_none_header_check(odps):
         assert "x-pyodps-fake-header" in str(ex_info.value)
 
 
-class MockCredentials(object):
+class MockCredentials:
     def __init__(self, odps):
         self._odps = odps
 
@@ -381,7 +381,7 @@ class MockCredentials(object):
         return None  # kept empty to skip sts token check
 
 
-class MockCredentialProvider(object):
+class MockCredentialProvider:
     def __init__(self, odps):
         self._odps = odps
 
@@ -389,7 +389,7 @@ class MockCredentialProvider(object):
         return MockCredentials(self._odps)
 
 
-class MockCredentialProvider2(object):
+class MockCredentialProvider2:
     def __init__(self, odps):
         self._odps = odps
 

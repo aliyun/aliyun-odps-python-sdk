@@ -34,7 +34,7 @@ from ...utils import TEMP_TABLE_PREFIX, to_binary, to_lower_str, deprecated, sur
 from ...models import TableSchema
 
 
-class ReprWrapper(object):
+class ReprWrapper:
     def __init__(self, func, repr):
         self._func = func
         self._repr = repr

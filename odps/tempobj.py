@@ -82,7 +82,7 @@ cleanup_timeout = 0
 host_pid = os.getpid()
 
 
-class ExecutionEnv(object):
+class ExecutionEnv:
     def __init__(self, **kwargs):
         self.cleaned = False
         self.os = os
@@ -114,7 +114,7 @@ class ExecutionEnv(object):
             setattr(self, k, v)
 
 
-class TempObject(object):
+class TempObject:
     __slots__ = ()
     _type = ""
     _priority = 0
@@ -219,7 +219,7 @@ class TempVolumePartition(TempObject):
             pass
 
 
-class ObjectRepository(object):
+class ObjectRepository:
     def __init__(self, file_name):
         self._container = set()
         self._file_name = file_name

@@ -30,7 +30,7 @@ except ImportError:
     # import fallback for tests only
     sql_parse = None
 
-    class BaseEngineSpec(object):
+    class BaseEngineSpec:
         allows_sql_comments = True
         arraysize = 0
 

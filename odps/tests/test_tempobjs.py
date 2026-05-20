@@ -126,7 +126,7 @@ tempobj.register_temp_function(odps, function_name)
 res_text = \"\"\"
 from odps.udf import annotate
 @annotate("bigint->bigint")
-class TempFun(object):
+class TempFun:
    def evaluate(self, arg0):
        return arg0
 \"\"\"

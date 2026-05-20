@@ -476,7 +476,7 @@ def apply(expr, func, axis=0, names=None, types=None, reduce=False,
 
     Apply a function to a column:
 
-    >>> class Agg(object):
+    >>> class Agg:
     >>>
     >>>     def buffer(self):
     >>>         return [0.0, 0]
@@ -677,7 +677,7 @@ def map_reduce(expr, mapper=None, reducer=None, group=None, sort=None, ascending
         return 'pyodps_field_%s' % str(uuid.uuid4()).replace('-', '_')
 
     def _gen_actual_reducer(reducer, group):
-        class ActualReducer(object):
+        class ActualReducer:
             def __init__(self, resources=None):
                 self._func = reducer
                 self._curr = None
@@ -736,7 +736,7 @@ def map_reduce(expr, mapper=None, reducer=None, group=None, sort=None, ascending
         if isinstance(ascending, bool):
             ascending = [ascending] * len(sort)
 
-        class CombinedMapper(object):
+        class CombinedMapper:
             def __init__(self, resources=None):
                 if mapper_resources:
                     self.f = mapper(resources)
@@ -753,7 +753,7 @@ def map_reduce(expr, mapper=None, reducer=None, group=None, sort=None, ascending
             def _cmp_to_key(self, cmp):
                 """Convert a cmp= function into a key= function"""
 
-                class K(object):
+                class K:
                     def __init__(self, obj):
                         self.obj = obj
 

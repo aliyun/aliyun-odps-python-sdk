@@ -25,7 +25,7 @@ from ..utils import call_with_retry
 pickling_support.install()
 
 
-class TunnelReaderMixin(object):
+class TunnelReaderMixin:
     @property
     def count(self):
         raise NotImplementedError

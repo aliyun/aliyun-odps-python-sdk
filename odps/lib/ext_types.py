@@ -30,7 +30,7 @@ _MD_PATTERNS = [
 ]
 
 
-class Monthdelta(object):
+class Monthdelta:
     __slots__ = '_total_months',
 
     def __init__(self, years=None, months=None):

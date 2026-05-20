@@ -65,7 +65,7 @@ def setup(odps):
     table = odps.create_table(name=table_name, table_schema=schema)
     expr = CollectionExpr(_source_data=table, _schema=pd_schema)
 
-    class FakeBar(object):
+    class FakeBar:
         def update(self, *args, **kwargs):
             pass
 

@@ -15,7 +15,7 @@
 # limitations under the License.
 
 
-class MemCacheReference(object):
+class MemCacheReference:
     __slots__ = 'expr_id', 'ref_name'
 
     def __init__(self, expr_id, ref_name):

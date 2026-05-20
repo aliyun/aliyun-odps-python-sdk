@@ -24,13 +24,13 @@ from ..expr.mixin import merge_data
 from ..utils import FieldRole
 
 
-class PipelineBit(object):
+class PipelineBit:
     def __init__(self, step, output):
         self._step = step
         self._output = output
 
 
-class PipelineStep(object):
+class PipelineStep:
     def __init__(self, step_name, param_names=None, output_names=None):
         self._step_name = step_name
         self._ml_uplink = []

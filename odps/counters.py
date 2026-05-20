@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@ import json
 __all__ = ["Counter", "CounterGroup", "Counters"]
 
 
-class Counter(object):
+class Counter:
     def __init__(self, name, value=0):
         self.name = name
         self.value = value
@@ -40,7 +40,7 @@ class Counter(object):
         return data
 
 
-class CounterGroup(object):
+class CounterGroup:
     def __init__(self, name):
         self.name = name
         self.counters = dict()
@@ -66,7 +66,7 @@ class CounterGroup(object):
         return data
 
 
-class Counters(object):
+class Counters:
     def __init__(self):
         self.groups = dict()
 

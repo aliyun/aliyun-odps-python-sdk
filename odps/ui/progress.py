@@ -272,7 +272,7 @@ else:
         InstancesProgress = None
 
 
-class ProgressGroupUI(object):
+class ProgressGroupUI:
     def __init__(self, ipython_widget=False):
         self._ipython_widget = ipython_widget
         if ipython_widget and InstancesProgress is None:

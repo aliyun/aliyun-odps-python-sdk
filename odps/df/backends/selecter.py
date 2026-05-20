@@ -59,7 +59,7 @@ def available_engines(sources):
     return engines
 
 
-class EngineSelecter(object):
+class EngineSelecter:
     def __init__(self):
         self._node_engines = ExprDictionary()
         self.force_odps = False

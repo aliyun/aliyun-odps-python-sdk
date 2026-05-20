@@ -136,7 +136,7 @@ def test_list_instances_in_page(odps):
     import time
 
     @annotate("bigint->bigint")
-    class Delayer(object):
+    class Delayer:
        def evaluate(self, arg0):
            print('Start Logging')
            sys.stdout.flush()
@@ -660,7 +660,7 @@ def test_sql_alias_instance(odps):
     from odps.distcache import get_cache_file
 
     @annotate('bigint->bigint')
-    class Example(object):
+    class Example:
         def __init__(self):
             self.n = int(get_cache_file('{res_name1}').read())
 

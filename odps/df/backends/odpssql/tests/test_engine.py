@@ -79,7 +79,7 @@ class ODPSEngine(ODPSSQLEngine):
         return self._analyze(expr.to_dag(), src_expr)
 
 
-class FakeBar(object):
+class FakeBar:
     def update(self, *args, **kwargs):
         pass
 
@@ -895,7 +895,7 @@ def test_string(odps, setup):
 def test_function_resources(odps, setup):
     data = setup.gen_data(5)
 
-    class my_func(object):
+    class my_func:
         def __init__(self, resources):
             self.file_resource = resources[0]
             self.table_resource = resources[1]
@@ -911,7 +911,7 @@ def test_function_resources(odps, setup):
                 if arg in self.valid_ids:
                     return arg
 
-    class my_func3(object):
+    class my_func3:
         def __init__(self, resources):
             self.file_resource = resources[0]
             self.table_resource = resources[1]
@@ -1184,7 +1184,7 @@ def test_third_party_libraries(odps, setup):
             odps.delete_table(table_name, if_exists=True)
 
     def subtest4(resource, dateutil_resource):
-        class Agg(object):
+        class Agg:
             def buffer(self):
                 return [0]
 
@@ -1706,7 +1706,7 @@ def test_pivot_table(odps, setup):
         assert result == expected
 
     def subtest5():
-        class Agg(object):
+        class Agg:
             def buffer(self):
                 return [0]
 
@@ -1825,7 +1825,7 @@ def test_groupby_aggregation(odps, setup):
     ]
     setup.gen_data(data=data)
 
-    class Agg(object):
+    class Agg:
         def buffer(self):
             return [0]
 
@@ -2278,7 +2278,7 @@ def test_reduction(odps, setup):
     nunique = lambda v: len(set(v))
     cat = lambda v: len([it for it in v if it is not None])
 
-    class Agg(object):
+    class Agg:
         def buffer(self):
             return [0.0, 0]
 
@@ -2376,7 +2376,7 @@ def test_user_defined_aggregators(odps, setup):
     setup.gen_data(data=data)
 
     @output_types('float')
-    class Aggregator(object):
+    class Aggregator:
         def buffer(self):
             return [0.0, 0]
 
@@ -2394,7 +2394,7 @@ def test_user_defined_aggregators(odps, setup):
             return buffer[0] / buffer[1]
 
     @output_types('float')
-    class Aggregator2(object):
+    class Aggregator2:
         def buffer(self):
             return [0.0, 0]
 
@@ -2510,7 +2510,7 @@ def test_map_reduce_by_apply_distribute_sort(odps, setup):
         for word in row[0].split():
             yield word, 1
 
-    class reducer(object):
+    class reducer:
         def __init__(self):
             self._curr = None
             self._cnt = 0
@@ -2587,7 +2587,7 @@ def test_map_reduce(odps, setup):
     assert sorted(result) == sorted(expected)
 
     @output(['word', 'cnt'], ['string', 'int'])
-    class reducer2(object):
+    class reducer2:
         def __init__(self, keys):
             self.cnt = 0
 
@@ -2719,7 +2719,7 @@ def test_distribute_sort(odps, setup):
 
     @output_names('name', 'id')
     @output_types('string', 'int')
-    class reducer(object):
+    class reducer:
         def __init__(self):
             self._curr = None
             self._cnt = 0

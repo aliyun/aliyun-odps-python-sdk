@@ -91,7 +91,7 @@ length_delim_tag_types = (
 
 if BaseRecordWriter is None:
 
-    class ProtobufWriter(object):
+    class ProtobufWriter:
         """
         ProtobufWriter is a stream-interface wrapper around encoder_c.Encoder(c)
         and encoder.Encoder(py)
@@ -735,7 +735,7 @@ class StreamRecordWriter(BufferedRecordWriter):
                 )
 
 
-class BaseArrowWriter(object):
+class BaseArrowWriter:
     def __init__(self, schema, out=None, chunk_size=None):
         if pa is None:
             raise ValueError("To use arrow writer you need to install pyarrow")
@@ -1166,7 +1166,7 @@ class BufferedArrowWriter(BaseArrowWriter):
         return self._blocks_written
 
 
-class Upsert(object):
+class Upsert:
     """
     Object to insert or update data into an ODPS upsert table with records. Should be
     created with :meth:`TableUpsertSession.open_upsert_stream`.

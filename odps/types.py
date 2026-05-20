@@ -46,7 +46,7 @@ force_c = options.force_c
 _date_allow_int_conversion = False
 
 
-class Column(object):
+class Column:
     """
     Represents a column in a table schema.
 
@@ -200,7 +200,7 @@ class _CallableList(list):
         return self
 
 
-class PartitionSpec(object):
+class PartitionSpec:
     def __init__(self, spec=None):
         self.kv = OrderedDict()
 
@@ -275,7 +275,7 @@ class PartitionSpec(object):
         return str(self) == str(other)
 
 
-class Schema(object):
+class Schema:
     def __init__(self, names, types):
         self._init(names, types)
 
@@ -652,7 +652,7 @@ def is_record(obj):
     return type(obj) in RecordMeta.record_types
 
 
-class BaseRecord(object):
+class BaseRecord:
     # set __slots__ to save memory in the situation that records' size may be quite large
     __slots__ = "_values", "_columns", "_name_indexes", "_max_field_size"
 
@@ -760,7 +760,7 @@ class BaseRecord(object):
         return self.n_columns
 
 
-class RecordReprMixin(object):
+class RecordReprMixin:
     def __repr__(self):
         buf = io.StringIO()
 
@@ -823,7 +823,7 @@ class Record(RecordReprMixin, BaseRecord, metaclass=RecordMeta):
     """
 
 
-class DataType(object):
+class DataType:
     """
     Base class of all data types in MaxCompute.
     """

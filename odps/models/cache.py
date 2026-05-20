@@ -22,7 +22,7 @@ import threading
 import weakref
 
 
-class ObjectCache(object):
+class ObjectCache:
     def __init__(self):
         self._caches = weakref.WeakValueDictionary()
         self._caches_lock = threading.RLock()

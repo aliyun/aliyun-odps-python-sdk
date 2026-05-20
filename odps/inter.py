@@ -34,7 +34,7 @@ INFO_FILE_NAME = "__INFO__"
 OBJECT_FILE_NAME = "__OBJ__"
 
 
-class Room(object):
+class Room:
     def __init__(self, room_name):
         self._room_name = room_name
         self._room_dir = _get_room_dir(self._room_name)

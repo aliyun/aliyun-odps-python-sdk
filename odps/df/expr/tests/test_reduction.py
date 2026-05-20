@@ -189,7 +189,7 @@ def test_cat(src_expr):
 
 
 def test_agg(src_expr):
-    class Agg(object):
+    class Agg:
         def buffer(self):
             return [0]
 
@@ -207,7 +207,7 @@ def test_agg(src_expr):
     assert isinstance(expr, Aggregation)
     assert expr.dtype == types.int64
 
-    class Agg(object):
+    class Agg:
         def buffer(self):
             return [0]
 

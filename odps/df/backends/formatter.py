@@ -279,7 +279,7 @@ def _binify(cols, line_width):
     return bins
 
 
-class TextAdjustment(object):
+class TextAdjustment:
 
     def __init__(self):
         self.encoding = options.display.encoding
@@ -329,7 +329,7 @@ def _get_adjustment():
         return TextAdjustment()
 
 
-class TableFormatter(object):
+class TableFormatter:
     is_truncated = False
     show_dimensions = None
 
@@ -1103,7 +1103,7 @@ def format_array(values, dtype, formatter, float_format=None, na_rep='NaN',
     return fmt_obj.get_result()
 
 
-class GenericArrayFormatter(object):
+class GenericArrayFormatter:
 
     def __init__(self, values, digits=7, formatter=None, na_rep='NaN',
                  space=12, float_format=None, justify='right'):
@@ -1244,7 +1244,7 @@ def _put_lines(buf, lines):
 
 def sentinel_factory():
 
-    class Sentinel(object):
+    class Sentinel:
         pass
 
     return Sentinel()
@@ -1297,7 +1297,7 @@ def _trim_zeros(str_floats, na_rep='NaN'):
 
 
 
-class ExprExecutionGraphFormatter(object):
+class ExprExecutionGraphFormatter:
     def __init__(self, dag):
         self._dag = dag
 

@@ -41,7 +41,7 @@ from ..models import Partition, TableSchema
 from ..ui import fetch_instance_group, reload_instance_status
 
 
-class OdpsAlgoContext(object):
+class OdpsAlgoContext:
     def __init__(self, odps):
         self._odps = odps
         self._node_caches = dict()
@@ -191,7 +191,7 @@ class OdpsAlgoEngine(Engine):
         else:
             assert isinstance(expr, Scalar)  # sequence is not cache-able
 
-            class ValueHolder(object): pass
+            class ValueHolder: pass
             sub = Scalar(_value_type=expr.dtype)
             sub._value = ValueHolder()
 

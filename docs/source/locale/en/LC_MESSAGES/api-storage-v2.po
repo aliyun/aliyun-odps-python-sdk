@@ -1,0 +1,2717 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2014-2018, The Alibaba Group Holding Ltd.
+# This file is distributed under the same license as the PyODPS package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyODPS 0.12.7\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-05-14 17:41+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: en\n"
+"Language-Team: en <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../../source/api-storage-v2.rst:4
+msgid "Storage API V2"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient:1 of
+msgid "Client for the MaxCompute Storage API V2."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_blobs:1 of
+msgid "Download binary blobs by their blob references."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_blobs:3 of
+msgid ""
+"This method retrieves blob data uploaded via write_blob_stream or "
+"write_blob_batch by providing the blob references returned during upload."
+" The data is returned as an iterator that yields tuples of (data_bytes, "
+"mime_type), handling protocol framing and CRC stripping automatically."
+msgstr ""
+
+#: ../../source/api-storage-v2.rst
+#: odps.apis.storage_api_v2.client.StorageApiClient.abort_write_session
+#: odps.apis.storage_api_v2.client.StorageApiClient.close_write_stream
+#: odps.apis.storage_api_v2.client.StorageApiClient.commit_write_session
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_read_session
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_write_session
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_write_stream
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_read_session
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_write_session
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_write_stream
+#: odps.apis.storage_api_v2.client.StorageApiClient.preview_table
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_blobs
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_rows_stream
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_batch
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_stream
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_rows_stream of
+msgid "Parameters"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_blobs:9 of
+msgid ""
+"List of blob references obtained from previous upload operations "
+"(write_blob_stream or write_blob_batch). References may be UTF-8 strings "
+"or raw bytes and will be decoded automatically if needed."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_blobs:14 of
+msgid ""
+"Compression algorithm for the response data. None means "
+"Compression.UNCOMPRESSED."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_blobs:17 of
+msgid ""
+"If True, return a :class:`BlobStreamReader` instead of "
+":class:`BlobDataIterator`. The reader provides file-like ``read()`` "
+"access per blob, a ``mime_type`` property, and a ``next()`` method to "
+"advance to the next blob. Default is False."
+msgstr ""
+
+#: ../../source/api-storage-v2.rst
+#: odps.apis.storage_api_v2.client.StorageApiClient.abort_write_session
+#: odps.apis.storage_api_v2.client.StorageApiClient.close_write_stream
+#: odps.apis.storage_api_v2.client.StorageApiClient.commit_write_session
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_read_session
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_write_session
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_write_stream
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_read_session
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_write_session
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_write_stream
+#: odps.apis.storage_api_v2.client.StorageApiClient.preview_table
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_blobs
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_rows_stream
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_batch
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_stream
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_rows_stream of
+msgid "Returns"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_blobs:24 of
+msgid ""
+"When *stream* is False (default), returns an iterator yielding "
+"``(data_bytes, mime_type)`` tuples per blob. When *stream* is True, "
+"returns a :class:`BlobStreamReader` for incremental, file-like reading of"
+" each blob."
+msgstr ""
+
+#: ../../source/api-storage-v2.rst
+#: odps.apis.storage_api_v2.client.StorageApiClient.abort_write_session
+#: odps.apis.storage_api_v2.client.StorageApiClient.close_write_stream
+#: odps.apis.storage_api_v2.client.StorageApiClient.commit_write_session
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_read_session
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_write_session
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_write_stream
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_read_session
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_write_session
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_write_stream
+#: odps.apis.storage_api_v2.client.StorageApiClient.preview_table
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_blobs
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_rows_stream
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_batch
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_stream
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_rows_stream of
+msgid "Return type"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_blobs:32
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_stream:36
+#: of
+msgid ":py:obj:`write_blob_batch`"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_blobs:33 of
+msgid "Upload blobs and get references."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_blobs:35
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_batch:33 of
+msgid ":py:obj:`write_blob_stream`"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_blobs:36 of
+msgid "Upload single blob and get reference."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_blobs:38
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_batch:39
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_stream:42
+#: of
+msgid ":py:obj:`BlobWriteItem`"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_blobs:39 of
+msgid "Helper for batch uploads."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.abort_write_session:31
+#: odps.apis.storage_api_v2.client.StorageApiClient.close_write_stream:37
+#: odps.apis.storage_api_v2.client.StorageApiClient.commit_write_session:45
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_write_session:35
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_write_stream:39
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_write_session:30
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_write_stream:33
+#: odps.apis.storage_api_v2.client.StorageApiClient.preview_table:33
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_blobs:42
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_batch:43
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_stream:46
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_rows_stream:39
+#: of
+msgid "Notes"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_blobs:43 of
+msgid ""
+"The download stream uses a multi-layer protocol: 1. CRC32C checksums are "
+"embedded every 4096 bytes (stripped automatically) 2. Protocol framing "
+"wraps each blob (parsed automatically)"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.BlobDataIterator:16
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_blobs:47 of
+msgid ""
+"For single blob downloads, the server may omit framing and send raw "
+"decompressed data directly. The iterator automatically detects this case "
+"and returns the entire payload as one blob."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.BlobStreamReader:19
+#: odps.apis.storage_api_v2.client.StorageApiArrowClient:26
+#: odps.apis.storage_api_v2.client.StorageApiClient.abort_write_session:38
+#: odps.apis.storage_api_v2.client.StorageApiClient.close_write_stream:45
+#: odps.apis.storage_api_v2.client.StorageApiClient.commit_write_session:55
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_read_session:48
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_write_session:42
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_write_stream:46
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_read_session:32
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_write_session:36
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_write_stream:39
+#: odps.apis.storage_api_v2.client.StorageApiClient.preview_table:40
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_blobs:52
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_rows_stream:49
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_batch:51
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_stream:57
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_rows_stream:46
+#: of
+msgid "Examples"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_blobs:64 of
+msgid ""
+"Read blobs using references obtained from previous uploads. First upload "
+"blobs, then read them back using the references:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_blobs:81 of
+msgid ""
+"Download a single blob by passing a single-element reference list. The "
+"iterator yields one (data, mime_type) tuple:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_blobs:95 of
+msgid ""
+"Download all blobs from a batch upload by storing references during "
+"upload and using them to read later:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_blobs:113 of
+msgid ""
+"Process blobs incrementally without loading all into memory by iterating "
+"and processing one at a time:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_blobs:125 of
+msgid ""
+"Check MIME type to determine how to handle blob content when the type was"
+" set during upload:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_blobs:144 of
+msgid ""
+"Convert blob iterator to list for multiple iterations or indexing, though"
+" this loads all data into memory:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_blobs:158 of
+msgid ""
+"Handle empty blob reference list by checking iterator length or "
+"attempting to iterate:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_blobs:169 of
+msgid ""
+"Use blob references from a table query to download specific blobs "
+"referenced in table rows:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_blobs:182 of
+msgid ""
+"Stream blobs incrementally using file-like read interface with "
+"``stream=True``:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.abort_write_session:1
+#: of
+msgid "Abort a write session to discard all uploaded data."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.abort_write_session:3
+#: of
+msgid ""
+"This method cancels an active write session and discards all data "
+"uploaded through its streams. Use abort when you encounter errors during "
+"the upload process or when you want to cancel the operation without "
+"making the data visible in the table. Aborting releases all resources "
+"associated with the session."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.abort_write_session:9
+#: of
+msgid ""
+"The unique identifier of the write session to abort. This can be any "
+"active or expired session."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.abort_write_session:13
+#: of
+msgid ""
+"Method returns None after aborting the session. All uploaded data is "
+"discarded and session resources are released."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.abort_write_session
+#: odps.apis.storage_api_v2.client.StorageApiClient.close_write_stream
+#: odps.apis.storage_api_v2.client.StorageApiClient.commit_write_session
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_read_session
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_write_session
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_write_stream
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_read_session
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_write_session
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_write_stream
+#: odps.apis.storage_api_v2.client.StorageApiClient.preview_table
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_rows_stream
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_batch
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_stream
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_rows_stream of
+msgid "Raises"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.abort_write_session:17
+#: odps.apis.storage_api_v2.client.StorageApiClient.commit_write_session:27
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_write_session:16
+#: of
+msgid ""
+"If session_id is None or empty, or if called on an     instance-based "
+"client."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.abort_write_session:21
+#: odps.apis.storage_api_v2.client.StorageApiClient.commit_write_session:32
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_write_stream:26
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_write_session:20
+#: of
+msgid ":py:obj:`create_write_session`"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.abort_write_session:22
+#: odps.apis.storage_api_v2.client.StorageApiClient.commit_write_session:33
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_write_session:21
+#: of
+msgid "Create a write session."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.abort_write_session:24
+#: odps.apis.storage_api_v2.client.StorageApiClient.close_write_stream:30
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_write_session:28
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_write_session:23
+#: of
+msgid ":py:obj:`commit_write_session`"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.abort_write_session:25
+#: of
+msgid "Commit the session instead of aborting."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.abort_write_session:27
+#: odps.apis.storage_api_v2.client.StorageApiClient.commit_write_session:41
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_write_stream:29 of
+msgid ":py:obj:`get_write_session`"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.abort_write_session:28
+#: of
+msgid "Check session status before aborting."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.abort_write_session:32
+#: of
+msgid ""
+"After aborting, the session cannot be committed. All data uploaded is "
+"permanently discarded. Call abort as soon as you detect errors to release"
+" resources quickly. It's safe to abort a session multiple times if the "
+"first abort attempt fails."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.abort_write_session:50
+#: of
+msgid ""
+"Abort a session when an error occurs during data upload to prevent "
+"partial data from being committed:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.abort_write_session:70
+#: of
+msgid ""
+"Use abort in cleanup code to ensure resources are released even if commit"
+" never happens:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.abort_write_session:90
+#: of
+msgid ""
+"Abort a session after detecting validation errors in the data before "
+"attempting to commit:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.close_write_stream:1
+#: of
+msgid "Close a write stream to finalize the data upload for that stream."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.close_write_stream:3
+#: of
+msgid ""
+"After finishing the write operation via the stream writer, call this "
+"method to formally close the stream. This signals to the server that no "
+"more data will be uploaded to this stream and marks the stream as ready "
+"for the session commit. All streams must be closed before the session can"
+" be committed."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CloseWriteStreamRequest:5
+#: odps.apis.storage_api_v2.client.StorageApiArrowClient.write_rows_arrow:8
+#: odps.apis.storage_api_v2.client.StorageApiClient.close_write_stream:9
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_rows_stream:8
+#: odps.apis.storage_api_v2.client.WriteStreamRequest:5 of
+msgid "The write session identifier."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CloseWriteStreamRequest:11
+#: odps.apis.storage_api_v2.client.StorageApiClient.close_write_stream:11
+#: of
+msgid "The stream identifier to close."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiArrowClient.write_rows_arrow:12
+#: odps.apis.storage_api_v2.client.StorageApiClient.close_write_stream:13
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_rows_stream:12
+#: of
+msgid "Version of the stream (should match create_write_stream)."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.close_write_stream:16
+#: of
+msgid ""
+"Response with warning_message and request_id. See "
+":class:`CloseWriteStreamResponse`."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.close_write_stream:20
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_write_stream:22
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_batch:29
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_stream:30
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_rows_stream:25
+#: of
+msgid "If called on an instance-based client."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.close_write_stream:24
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_write_stream:29
+#: of
+msgid ":py:obj:`write_rows_stream`"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.close_write_stream:25
+#: of
+msgid "Finish writing before closing the stream."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.close_write_stream:27
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_write_session:25
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_write_session:26
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_write_stream:23
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_rows_stream:29
+#: of
+msgid ":py:obj:`create_write_stream`"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.close_write_stream:28
+#: of
+msgid "Create the stream before writing."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.close_write_stream:31
+#: of
+msgid "Commit session after all streams closed."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.close_write_stream:33
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_write_stream:35
+#: of
+msgid ":py:obj:`get_write_stream`"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.close_write_stream:34
+#: of
+msgid "Verify stream is closed."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.close_write_stream:38
+#: of
+msgid ""
+"The stream writer's finish() method and close_write_stream serve "
+"different purposes: finish() completes the data upload, while "
+"close_write_stream formally closes the stream on the server side. Both "
+"must be called in sequence: finish the writer, then close the stream. "
+"After closing, the stream cannot accept more data."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.close_write_stream:60
+#: of
+msgid ""
+"Complete workflow showing the relationship between writer finish() and "
+"stream close. First finish the writer, then close the stream:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.close_write_stream:83
+#: of
+msgid ""
+"Close multiple parallel streams after each finishes uploading. All "
+"streams must be closed before committing the session:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.close_write_stream:108
+#: of
+msgid ""
+"Check for warnings when closing streams to detect potential issues that "
+"may affect the commit:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.close_write_stream:123
+#: of
+msgid ""
+"Use get_write_stream to verify a stream is properly closed before "
+"attempting to commit the session:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.close_write_stream:137
+#: of
+msgid ""
+"Handle the case where close fails due to stream errors by checking the "
+"warning message and potentially aborting:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.commit_write_session:1
+#: of
+msgid "Commit a write session to finalize all uploaded data."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.commit_write_session:3
+#: of
+msgid ""
+"This is the final step in the write workflow. Calling commit atomically "
+"makes all data uploaded through the session's write streams visible in "
+"the table. The commit operation ensures that either all writes succeed "
+"(transaction committed) or none of them appear in the table (transaction "
+"aborted)."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.commit_write_session:9
+#: of
+msgid ""
+"The unique identifier of the write session to commit. All write streams "
+"in this session must be closed before committing."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.commit_write_session:13
+#: of
+msgid ""
+"List of stream identifiers to commit. Used for transactional/delta tables"
+" to specify which streams to include in the commit. When provided, "
+"stream_versions must also be provided with matching length."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.commit_write_session:18
+#: of
+msgid ""
+"List of stream version numbers corresponding to stream_ids. Must be "
+"provided together with stream_ids and must have the same length."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.commit_write_session:23
+#: of
+msgid ""
+"Method returns None on successful commit. The commit operation makes all "
+"uploaded data visible in the table atomically."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.commit_write_session:28
+#: of
+msgid "If any write streams are still open or if the session     has expired."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.commit_write_session:35
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_write_stream:32
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_write_stream:26
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_rows_stream:35
+#: of
+msgid ":py:obj:`close_write_stream`"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.commit_write_session:36
+#: of
+msgid "Close all streams before committing."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.commit_write_session:38
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_write_session:31
+#: of
+msgid ":py:obj:`abort_write_session`"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.commit_write_session:39
+#: of
+msgid "Abort instead of commit to discard writes."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.commit_write_session:42
+#: of
+msgid "Verify all streams are closed."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.commit_write_session:46
+#: of
+msgid ""
+"Before committing, ensure all write streams are closed. Use "
+"get_write_session to verify stream states. If commit fails, call "
+"abort_write_session to clean up resources."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.commit_write_session:50
+#: of
+msgid ""
+"Commit is a synchronous operation. Once it returns successfully, the data"
+" is immediately visible in the table and cannot be rolled back."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.commit_write_session:70
+#: of
+msgid ""
+"Complete write workflow: create session, create stream, write Arrow data,"
+" close stream, and commit:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.commit_write_session:104
+#: of
+msgid ""
+"For transactional/delta tables, specify stream_ids and stream_versions "
+"when committing:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.commit_write_session:113
+#: of
+msgid ""
+"For multi-stream uploads, ensure all streams are closed before "
+"committing. Use get_write_session to verify:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.commit_write_session:134
+#: of
+msgid "If commit fails due to errors, abort the session to clean up:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_read_session:1
+#: of
+msgid "Create a read session for table or instance data retrieval."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_read_session:3
+#: of
+msgid ""
+"A read session is a prerequisite for reading data from a MaxCompute table"
+" or SQL instance result. The session determines how data will be split "
+"into readable chunks and what data schema will be returned. Sessions have"
+" an expiration time and must be refreshed if they expire during long-"
+"running read operations."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateReadSessionRequest:5
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_read_session:9
+#: of
+msgid "List of column names to read. If empty, all columns are returned."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateReadSessionRequest:11
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_read_session:11
+#: of
+msgid "Partition columns to include in the result."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateReadSessionRequest:17
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_read_session:13
+#: of
+msgid "Specific partition values to read (e.g., ['pt=20230101'])."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateReadSessionRequest:23
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_read_session:15
+#: of
+msgid "Bucket IDs to read for bucket-based tables."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateReadSessionRequest:29
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_read_session:17
+#: of
+msgid ""
+"Controls how data is split into chunks. Defaults to size-based splitting "
+"with 256MB chunks."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateReadSessionRequest:36
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_read_session:20
+#: of
+msgid "Arrow format settings like timestamp precision."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateReadSessionRequest:42
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_read_session:22
+#: of
+msgid "SQL-like filter condition to apply during reading."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateReadSessionRequest:48
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_read_session:24
+#: of
+msgid "Whether to fallback to server-side filtering if predicate pushdown fails."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateReadSessionRequest:54
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_read_session:26
+#: of
+msgid "Maximum number of files per split for file-based splitting."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateReadSessionRequest:60
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_read_session:28
+#: of
+msgid "Enable incremental reading mode for capturing table changes."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateReadSessionRequest:66
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_read_session:30
+#: of
+msgid "Options for incremental read mode (version range, timestamp range)."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_read_session:33
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_read_session:17 of
+msgid ""
+"Response with session_id, session_status, splits_count, record_count, "
+"data_schema, and expiration_time. See :class:`CreateReadSessionResponse`."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_read_session:37
+#: of
+msgid "If the table or instance is not properly configured."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_read_session:41
+#: of
+msgid ":py:obj:`get_read_session`"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_read_session:42
+#: of
+msgid "Get current read session status."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_read_session:44
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_read_session:28
+#: odps.apis.storage_api_v2.client.StorageApiClient.preview_table:26 of
+msgid ":py:obj:`read_rows_stream`"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_read_session:45
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_read_session:29 of
+msgid "Read data from a specific split."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_read_session:62
+#: of
+msgid "Create a basic read session that reads all columns with default splitting:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_read_session:70
+#: of
+msgid ""
+"Specify which columns to read and how to split the data. Use "
+"``split_options`` to control parallelism by setting the split number "
+"instead of split size:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_read_session:84
+#: of
+msgid ""
+"Read from a specific partition by providing partition values in the "
+"``required_partitions`` parameter:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_read_session:93
+#: of
+msgid ""
+"For incremental data capture, enable ``incremental_read`` to read changes"
+" since a specific version or timestamp:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_write_session:1
+#: of
+msgid "Create a write session for uploading data to a table."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_write_session:3
+#: of
+msgid ""
+"A write session is the first step in the data upload workflow. It "
+"establishes a transactional context for writing data to a MaxCompute "
+"table, ensuring atomicity and consistency. After creating a session, you "
+"must create one or more write streams within it, upload data to those "
+"streams, close the streams, and finally commit the session."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateWriteSessionRequest:5
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_write_session:9
+#: of
+msgid ""
+"Partition specification for writing to a specific partition. Format: "
+"'pt=20230101' or 'pt=20230101,region=us-west'. If empty, writes to the "
+"table's default location."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateWriteSessionRequest:13
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_write_session:13
+#: of
+msgid ""
+"Additional flags for session configuration. Common flags include "
+"'overwrite' to replace existing partition data."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_write_session:17
+#: of
+msgid ""
+"Response with session_id, warning_message, and request_id. See "
+":class:`CreateWriteSessionResponse`."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_write_session:21
+#: of
+msgid "If called on an instance-based client (writes only support tables)."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_write_session:26
+#: of
+msgid "Create a stream within the session."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_write_session:29
+#: of
+msgid "Commit the session to finalize writes."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_write_session:32
+#: of
+msgid "Abort the session to discard all writes."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_write_session:36
+#: of
+msgid ""
+"Write sessions are transactional. All writes within a session are "
+"committed atomically when commit_write_session is called. If the session "
+"is aborted, all uploaded data is discarded. Sessions have a limited "
+"lifetime and must be committed before expiration."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_write_session:54
+#: of
+msgid ""
+"Create a basic write session for uploading data to the table's default "
+"location:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_write_session:62
+#: of
+msgid ""
+"Write to a specific partition by specifying the partition spec. This is "
+"required for partitioned tables unless writing to the default partition:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_write_session:72
+#: of
+msgid ""
+"Use the 'overwrite' flag to replace existing data in a partition instead "
+"of appending:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_write_session:82
+#: of
+msgid ""
+"Complete write workflow: create session, create stream, write data, close"
+" stream, and commit:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_write_session:93
+#: of
+msgid ""
+"If an error occurs during the write process, abort the session to discard"
+" all uploaded data and release resources:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_write_stream:1
+#: of
+msgid "Create a write stream within an active write session."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_write_stream:3
+#: of
+msgid ""
+"A write stream is a data upload channel within a write session. You can "
+"create multiple streams in parallel to upload data concurrently, "
+"improving throughput for large datasets. Each stream must be closed "
+"individually after writing data, and the session must be committed after "
+"all streams are closed."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateWriteStreamRequest:5
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_write_stream:9
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_batch:13
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_stream:9
+#: odps.apis.storage_api_v2.client.WriteBlobRequest:5 of
+msgid "The write session identifier from create_write_session."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateWriteStreamRequest:11
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_write_stream:11
+#: of
+msgid ""
+"Unique identifier for this stream within the session. Typically an "
+"integer (0, 1, 2, ...) for parallel streams."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_write_stream:14
+#: of
+msgid ""
+"Version number for the stream. Increment if retrying after a failed "
+"upload to the same stream_id."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_write_stream:18
+#: of
+msgid ""
+"Response with data_schema, table_id, schema_version, and route_token. See"
+" :class:`CreateWriteStreamResponse`."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_write_stream:27
+#: of
+msgid "Create the parent write session first."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_write_stream:30
+#: of
+msgid "Write data to the created stream."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_write_stream:33
+#: of
+msgid "Close the stream after writing."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_write_stream:36
+#: of
+msgid "Get stream status."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_write_stream:40
+#: of
+msgid ""
+"Each stream can be written to independently, enabling parallel uploads "
+"from multiple workers. The stream_version allows retrying failed uploads "
+"without creating a new session. After a stream is closed, it cannot be "
+"reopened with the same stream_id and version."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_write_stream:58
+#: of
+msgid ""
+"First create a write session, then create a single stream for sequential "
+"data upload:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_write_stream:67
+#: of
+msgid ""
+"For parallel upload from multiple workers, create multiple streams with "
+"different stream_ids. Each worker processes one stream:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_write_stream:80
+#: of
+msgid ""
+"Use stream_version to retry failed uploads. If a stream fails, increment "
+"the version to create a new stream with the same ID:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.create_write_stream:98
+#: of
+msgid ""
+"Check the data_schema before writing to ensure your data matches the "
+"expected table schema:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_read_session:1 of
+msgid "Get current status and metadata of an existing read session."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_read_session:3 of
+msgid ""
+"This method retrieves the current state of a read session, including its "
+"status, split count, schema, and expiration time. Use this to check if a "
+"session is still valid before attempting to read data, or to refresh a "
+"session that is approaching expiration."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_read_session:8 of
+msgid ""
+"The unique identifier of the read session to retrieve. This is obtained "
+"from create_read_session response."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_read_session:11 of
+msgid ""
+"Whether to refresh the session expiration time. Set to True if the "
+"session is about to expire or has expired. When True, the server extends "
+"the session lifetime, allowing continued reading operations."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_read_session:21 of
+msgid "If session_id is None or empty."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_read_session:25
+#: odps.apis.storage_api_v2.client.StorageApiClient.preview_table:29
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_rows_stream:42 of
+msgid ":py:obj:`create_read_session`"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_read_session:26 of
+msgid "Create a new read session."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_read_session:44 of
+msgid "First create a read session, then check its status:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_read_session:54 of
+msgid ""
+"When a session expires during a long-running read operation, use the "
+"``refresh`` parameter to extend its lifetime:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_read_session:65 of
+msgid ""
+"Monitor session status during a parallel read operation to ensure all "
+"splits are processed before expiration:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_write_session:1 of
+msgid "Get the current status and stream information of a write session."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_write_session:3 of
+msgid ""
+"This method retrieves metadata about a write session, including the list "
+"of active write streams and their states. Use this to monitor the "
+"progress of a multi-stream upload operation or to verify that all streams"
+" have been properly closed before committing the session."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_write_session:8 of
+msgid ""
+"The unique identifier of the write session to query. This is obtained "
+"from create_write_session response."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_write_session:12
+#: of
+msgid ""
+"Response with streams (list of stream info dicts), warning_message, and "
+"request_id. See :class:`GetWriteSessionResponse`."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_write_session:24
+#: of
+msgid "Commit the session after all streams closed."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_write_session:27
+#: of
+msgid "Create a new stream in the session."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_write_session:31
+#: of
+msgid ""
+"Before calling commit_write_session, ensure all write streams are closed."
+" Use get_write_session to verify that no streams are still in the RUNNING"
+" or OPEN state."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_write_session:50
+#: of
+msgid "Create a write session and check its status before creating streams:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_write_session:58
+#: of
+msgid ""
+"After creating multiple write streams for parallel upload, use "
+"get_write_session to track which streams are active:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_write_session:68
+#: of
+msgid ""
+"Before committing the session, verify all streams are closed to ensure "
+"data upload is complete:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_write_session:87
+#: of
+msgid ""
+"Monitor the progress of a long-running parallel upload by periodically "
+"checking stream status:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_write_stream:1 of
+msgid "Get the current status and metadata of a write stream."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_write_stream:3 of
+msgid ""
+"This method retrieves information about a specific write stream, "
+"including its current state, statistics, and any error information. Use "
+"this to monitor stream health during uploads or to verify stream state "
+"before closing."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_write_stream:8 of
+msgid "The unique identifier of the write session."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_write_stream:10 of
+msgid "The identifier of the stream to query (typically 0, 1, 2, ...)."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_write_stream:12 of
+msgid "The version number of the stream."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_write_stream:15 of
+msgid ""
+"Response with status, record_count, byte_size, error_code, and "
+"error_message. See :class:`GetWriteStreamResponse`."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_write_stream:19 of
+msgid ""
+"If any parameter is None or empty, or if called on an     instance-based "
+"client."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_write_stream:24 of
+msgid "Create a stream before getting its status."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_write_stream:27 of
+msgid "Close the stream after verifying status."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_write_stream:30 of
+msgid "Get all streams in a session."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_write_stream:34 of
+msgid ""
+"Use get_write_stream to check if a stream has encountered errors before "
+"attempting to close it. If a stream is in ERROR state, it may need to be "
+"recreated with an incremented stream_version."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_write_stream:53 of
+msgid "Create a write stream and check its status before writing data:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_write_stream:62 of
+msgid ""
+"After writing data, check the stream statistics to verify upload progress"
+" before closing:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_write_stream:76 of
+msgid ""
+"Monitor multiple parallel streams during upload to identify which streams"
+" have encountered errors:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.get_write_stream:95 of
+msgid ""
+"If a stream shows ERROR status, use get_write_stream to get detailed "
+"error information before deciding to retry:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.preview_table:1 of
+msgid "Preview table data without creating a session."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.preview_table:3 of
+msgid ""
+"This method provides a lightweight way to sample table data without the "
+"overhead of creating a read session. Unlike read_rows_stream, "
+"preview_table directly returns an Arrow IPC stream, making it ideal for "
+"quick data exploration, schema inspection, or testing table connectivity."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.PreviewTableRequest:5
+#: odps.apis.storage_api_v2.client.StorageApiArrowClient.preview_table_arrow:7
+#: odps.apis.storage_api_v2.client.StorageApiClient.preview_table:9 of
+msgid ""
+"Maximum number of rows to preview. If None, returns a small default "
+"sample (typically 100-1000 rows)."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.PreviewTableRequest:12
+#: odps.apis.storage_api_v2.client.StorageApiArrowClient.preview_table_arrow:10
+#: odps.apis.storage_api_v2.client.StorageApiClient.preview_table:12 of
+msgid ""
+"Partition specification to preview specific partition data. Format: "
+"'pt=20230101' or 'pt=20230101,region=us-west'."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.PreviewTableRequest:19
+#: odps.apis.storage_api_v2.client.StorageApiArrowClient.preview_table_arrow:13
+#: odps.apis.storage_api_v2.client.StorageApiClient.preview_table:15 of
+msgid "Specific columns to preview. If empty, all columns are returned."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.preview_table:18
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_rows_stream:34 of
+msgid ""
+"Stream reader with read(), get_status(), get_request_id(), and close() "
+"methods. See :class:`StreamReader`."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.preview_table:22 of
+msgid "If called on an instance-based client (preview only works on tables)."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.preview_table:27 of
+msgid "Read full table data with session management."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.preview_table:30 of
+msgid "Create a session for large-scale reading."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.preview_table:34 of
+msgid ""
+"Preview is optimized for quick sampling and may not return exact row "
+"counts specified in limit. For production data reading with guaranteed "
+"row counts and retry support, use create_read_session and "
+"read_rows_stream instead."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.preview_table:55 of
+msgid "Preview the first few rows of a table to quickly explore its data:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.preview_table:68 of
+msgid ""
+"Preview specific columns to check their data types and values without "
+"downloading all columns:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.preview_table:80 of
+msgid ""
+"Preview data from a specific partition to test partition filtering before"
+" running a full query:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.preview_table:91 of
+msgid ""
+"Use preview to inspect table schema by requesting a small sample. This is"
+" useful for understanding column names and types before creating a read "
+"session:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_rows_stream:1 of
+msgid "Read data from a specific split in a read session."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_rows_stream:3 of
+msgid ""
+"This method reads a chunk of data from a table or instance result by "
+"specifying which split to read. The data is returned as a stream that can"
+" be processed incrementally, supporting efficient handling of large "
+"datasets. Each split can be read independently, enabling parallel "
+"processing of the same session across multiple workers."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.ReadStreamRequest:5
+#: odps.apis.storage_api_v2.client.StorageApiArrowClient.read_rows_arrow:7
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_rows_stream:9 of
+msgid "The read session identifier from create_read_session."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.ReadStreamRequest:11
+#: odps.apis.storage_api_v2.client.StorageApiArrowClient.read_rows_arrow:9
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_rows_stream:11 of
+msgid ""
+"Which split to read (0 to splits_count-1). If None, reads all data in the"
+" session."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.ReadStreamRequest:18
+#: odps.apis.storage_api_v2.client.StorageApiArrowClient.read_rows_arrow:12
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_rows_stream:14 of
+msgid "Starting row offset within the split. Defaults to 0."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.ReadStreamRequest:24
+#: odps.apis.storage_api_v2.client.StorageApiArrowClient.read_rows_arrow:14
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_rows_stream:16 of
+msgid "Maximum number of rows to read. If None, reads all rows in the split."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiArrowClient.read_rows_arrow:17
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_rows_stream:19 of
+msgid ""
+"Maximum rows per Arrow batch in the stream. Controls memory usage during "
+"reading."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiArrowClient.read_rows_arrow:20
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_rows_stream:22 of
+msgid "Number of rows to skip before reading."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiArrowClient.read_rows_arrow:22
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_rows_stream:24 of
+msgid "Maximum raw byte size per batch. 0 means no limit."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.ReadStreamRequest:50
+#: odps.apis.storage_api_v2.client.StorageApiArrowClient.read_rows_arrow:24
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_rows_stream:26 of
+msgid "Format of returned data (Arrow V5 is default)."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.ReadStreamRequest:56
+#: odps.apis.storage_api_v2.client.StorageApiArrowClient.read_rows_arrow:26
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_rows_stream:28 of
+msgid "Specific columns to read. Must match session schema."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.ReadStreamRequest:62
+#: odps.apis.storage_api_v2.client.StorageApiArrowClient.read_rows_arrow:28
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_rows_stream:30 of
+msgid ""
+"Compression algorithm for the stream data. None means "
+"Compression.UNCOMPRESSED."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_rows_stream:38 of
+msgid "If the session or split parameters are invalid."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_rows_stream:43 of
+msgid "Create a read session first."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_rows_stream:45 of
+msgid ":py:obj:`ArrowReader`"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_rows_stream:46 of
+msgid "Wrap StreamReader to read Arrow batches."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_rows_stream:63 of
+msgid ""
+"Read data from a specific split using ArrowReader for convenient batch "
+"processing:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_rows_stream:76 of
+msgid ""
+"For parallel processing, distribute splits across multiple workers. Each "
+"worker reads a different split index from the same session:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_rows_stream:84 of
+msgid ""
+"Control memory usage by limiting batch size with ``max_batch_rows``. "
+"Smaller batches reduce memory footprint but may have lower throughput:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.read_rows_stream:97 of
+msgid ""
+"Read a specific range of rows within a split by using ``row_offset`` and "
+"``row_count`` parameters:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.StorageApiArrowClient.route_token:1
+#: odps.apis.storage_api_v2.StorageApiClient.route_token:1 of
+msgid "The stored route token for session affinity."
+msgstr ""
+
+#: odps.apis.storage_api_v2.StorageApiArrowClient.route_token:3
+#: odps.apis.storage_api_v2.StorageApiClient.route_token:3 of
+msgid ""
+"This is automatically updated from response headers. Pass "
+"``route_token=...`` to individual methods to override, or rely on this "
+"stored value when not specified."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_batch:1 of
+msgid "Upload multiple blobs in a single batch request for efficiency."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_batch:3 of
+msgid ""
+"This method uploads multiple binary blobs (such as images, videos, or "
+"files) in one consolidated request, reducing network overhead compared to"
+" individual uploads. Each blob is packaged with metadata (partition "
+"location, column index, MIME type) and optional checksum verification."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_batch:8 of
+msgid ""
+"List of blob items to upload. Each item contains data (bytes), "
+"partition_values (list of str), column_index (int), distribution_key "
+"(str), mime_type (str), and checksum_type (ChecksumType). See "
+":class:`BlobWriteItem`."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_batch:15 of
+msgid "Stream identifier for this batch upload."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_batch:17
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_stream:13
+#: of
+msgid "Version number for the stream."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_batch:19 of
+msgid ""
+"Default partition values for blobs (can be overridden per item). Format: "
+"['pt=20230101', 'region=us-west']."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_batch:22 of
+msgid "Default column index for blobs (can be overridden per item)."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_batch:25 of
+msgid ""
+"Response with blob_reference, blob_references, warning_message, and size."
+" See :class:`WriteBlobResponse`."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_batch:34 of
+msgid "Upload single blob via streaming."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_batch:36
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_stream:39
+#: of
+msgid ":py:obj:`read_blobs`"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_batch:37 of
+msgid "Read uploaded blobs using the references."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_batch:40 of
+msgid "Class to construct blob items."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_batch:44 of
+msgid ""
+"Batch upload is more efficient than individual uploads when uploading "
+"many small blobs. The method uses a custom wire format with header, data,"
+" and footer sections for each blob. Checksums (CRC32 or MD5) are computed"
+" and included in the footer for server-side verification. The order of "
+"blob_references matches the input items order."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_batch:65 of
+msgid ""
+"Upload multiple image blobs in a single batch request for efficient "
+"network usage:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_batch:97 of
+msgid ""
+"Upload blobs to different partitions and columns by customizing each "
+"BlobWriteItem's metadata:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_batch:120
+#: of
+msgid ""
+"Use MD5 checksum for stronger integrity verification on critical data "
+"uploads. The checksum is computed and sent with the blob:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_batch:132
+#: of
+msgid ""
+"Add MIME type metadata to help applications understand blob content type "
+"without examining the binary data:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_batch:150
+#: of
+msgid ""
+"Use distribution_key for hash-based storage to ensure blobs are "
+"distributed across storage locations based on the key:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_batch:163
+#: of
+msgid ""
+"Upload a large number of small files efficiently by batching them instead"
+" of uploading individually:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_batch:177
+#: of
+msgid ""
+"Check for warnings in the response to detect partial upload failures or "
+"other issues:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_batch:190
+#: of
+msgid ""
+"Use the returned blob_references to read the blobs later by calling "
+"read_blobs with the reference list:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_stream:1 of
+msgid "Upload a single blob via streaming upload."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_stream:3 of
+msgid ""
+"This method creates a streaming writer for uploading a single binary blob"
+" (such as an image, video, or large binary file) to a specific column in "
+"a MaxCompute table. The data is optionally compressed using the specified"
+" compression algorithm and verified with MD5 checksum to ensure upload "
+"integrity."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_stream:11
+#: odps.apis.storage_api_v2.client.WriteBlobRequest:11 of
+msgid "Stream identifier for this upload."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_stream:15
+#: odps.apis.storage_api_v2.client.WriteBlobRequest:23 of
+msgid ""
+"Partition values for the blob location. Format: ['pt=20230101', 'region"
+"=us-west']."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_stream:18
+#: of
+msgid "Column index in the table schema where the blob will be stored."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_stream:20
+#: of
+msgid ""
+"Compression algorithm to use. None means Compression.UNCOMPRESSED. See "
+":class:`Compression`. Supported values: Compression.ZSTD, "
+"Compression.LZ4_FRAME, Compression.UNCOMPRESSED."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_stream:26
+#: of
+msgid ""
+"Blob stream writer with write(), finish(), get_status(), "
+"get_request_id(), and writable() methods. See :class:`BlobStreamWriter`."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_stream:31
+#: of
+msgid "If zstandard library is not installed (required for ZSTD compression)."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_stream:32
+#: of
+msgid "If MD5 checksum verification fails after finish()."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_stream:37
+#: of
+msgid "Upload multiple blobs in one request."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_stream:40
+#: of
+msgid "Read uploaded blobs by reference."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_stream:43
+#: of
+msgid "Helper class for batch blob uploads."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_stream:47
+#: of
+msgid ""
+"Blob uploads default to no compression (Compression.UNCOMPRESSED). "
+"Compression algorithms like ZSTD or LZ4_FRAME can be enabled for "
+"efficient transfer. Set compression=Compression.ZSTD for zstd compression"
+" or compression=Compression.LZ4_FRAME for lz4. The writer computes MD5 "
+"checksum incrementally during write and verifies against server response "
+"when finished. If the checksum doesn't match, a ChecksumError is raised, "
+"indicating data corruption during upload."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_stream:71
+#: of
+msgid ""
+"Complete workflow for uploading a single image blob to a table with a "
+"binary column:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_stream:102
+#: of
+msgid ""
+"Upload blob data directly from memory without reading from a file, useful"
+" for dynamically generated binary data:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_stream:113
+#: of
+msgid ""
+"Upload a blob to a specific partition by providing partition values. The "
+"blob is stored in the specified partition's location:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_stream:125
+#: of
+msgid ""
+"Handle checksum errors when the upload integrity check fails, indicating "
+"data corruption during transfer:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_stream:140
+#: of
+msgid ""
+"Upload large blobs incrementally by reading and writing in chunks to "
+"avoid loading the entire blob into memory:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_stream:159
+#: of
+msgid ""
+"Upload text data by converting strings to bytes. The writer automatically"
+" handles the conversion:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_blob_stream:167
+#: of
+msgid "Monitor writer status during long uploads to detect early failures:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_rows_stream:1 of
+msgid "Write row data to a write stream via streaming upload."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_rows_stream:3 of
+msgid ""
+"This method creates a streaming writer for uploading row data to a write "
+"stream. The writer accepts Arrow record batches or raw binary data and "
+"uploads it incrementally, enabling efficient handling of large datasets "
+"without loading all data into memory at once."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiArrowClient.write_rows_arrow:10
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_rows_stream:10
+#: odps.apis.storage_api_v2.client.WriteStreamRequest:11 of
+msgid "The stream identifier from create_write_stream."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiArrowClient.write_rows_arrow:14
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_rows_stream:14
+#: of
+msgid ""
+"Total number of records to be written. Set this to the expected count for"
+" validation, or 0 if unknown."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiArrowClient.write_rows_arrow:17
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_rows_stream:17
+#: odps.apis.storage_api_v2.client.WriteStreamRequest:30 of
+msgid ""
+"Compression algorithm for the uploaded data stream. None means "
+"Compression.UNCOMPRESSED."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_rows_stream:21
+#: of
+msgid ""
+"Stream writer with write(), finish(), get_status(), get_request_id(), and"
+" writable() methods. See :class:`StreamWriter`."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_rows_stream:30
+#: of
+msgid "Create a stream before writing."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_rows_stream:32
+#: of
+msgid ":py:obj:`ArrowWriter`"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_rows_stream:33
+#: of
+msgid "Convert Arrow batches to stream format."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_rows_stream:36
+#: of
+msgid "Close the stream after finishing write."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_rows_stream:40
+#: of
+msgid ""
+"The returned StreamWriter accepts binary data directly. For Arrow "
+"workflows, wrap it with ArrowWriter which converts record batches to "
+"Arrow IPC format. The writer must be finished before closing the stream. "
+"Call finish() after writing all batches."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiClient.write_rows_stream:61
+#: of
+msgid "Complete workflow using ArrowWriter to upload Arrow record batches:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiArrowClient:1 of
+msgid "Arrow batch client for the Storage API V2."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiArrowClient:3 of
+msgid ""
+"Extends :class:`StorageApiClient` with convenience methods that wrap raw "
+"stream I/O with :class:`ArrowReader` and :class:`ArrowWriter`, so you can"
+" work directly with PyArrow ``RecordBatch`` objects instead of raw bytes."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiArrowClient:8 of
+msgid "ODPS entry object."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiArrowClient:10 of
+msgid ""
+"MaxCompute table or SQL instance to operate on. If an Instance is "
+"provided, only read operations are available."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiArrowClient:13 of
+msgid "Custom REST endpoint for the storage API."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiArrowClient:15 of
+msgid "Quota name for resource management."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiArrowClient:17 of
+msgid "Tags for request tracking."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiArrowClient:22 of
+msgid ":py:obj:`StorageApiClient`"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiArrowClient:23 of
+msgid "Base client with raw stream I/O."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiArrowClient:38 of
+msgid "Read data using ArrowReader:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiArrowClient:48 of
+msgid "Write data using ArrowWriter:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiArrowClient.preview_table_arrow:1
+#: of
+msgid "Preview table data as Arrow batches."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiArrowClient.preview_table_arrow:3
+#: of
+msgid ""
+"This is the Arrow convenience wrapper for :meth:`preview_table`. It reads"
+" a small sample of rows and returns them via an :class:`ArrowReader` that"
+" yields ``pyarrow.RecordBatch`` objects."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiArrowClient.preview_table_arrow:16
+#: odps.apis.storage_api_v2.client.StorageApiArrowClient.read_rows_arrow:32
+#: of
+msgid ""
+"Arrow batch reader with read() method yielding RecordBatch objects. See "
+":class:`ArrowReader`."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiArrowClient.read_rows_arrow:1
+#: of
+msgid "Read one split of the read session as Arrow batches."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiArrowClient.read_rows_arrow:3
+#: of
+msgid ""
+"This is the Arrow convenience wrapper for :meth:`read_rows_stream`. It "
+"reads raw bytes from the server and wraps them in an :class:`ArrowReader`"
+" that yields ``pyarrow.RecordBatch`` objects."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiArrowClient.write_rows_arrow:1
+#: of
+msgid "Write Arrow batches to a write stream."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiArrowClient.write_rows_arrow:3
+#: of
+msgid ""
+"This is the Arrow convenience wrapper for :meth:`write_rows_stream`. It "
+"creates an :class:`ArrowWriter` that serializes ``pyarrow.RecordBatch`` "
+"objects into Arrow IPC format and writes them to the underlying stream."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StorageApiArrowClient.write_rows_arrow:21
+#: of
+msgid ""
+"Arrow batch writer with write() and finish() methods. See "
+":class:`ArrowWriter`."
+msgstr ""
+
+#: ../../source/api-storage-v2.rst:20
+msgid "Read / Write Sessions"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateReadSessionRequest:1 of
+msgid "Request for creating a read session."
+msgstr ""
+
+#: odps.apis.storage_api_v2.BlobStreamReader.mime_type
+#: odps.apis.storage_api_v2.client.CloseWriteStreamRequest
+#: odps.apis.storage_api_v2.client.CloseWriteStreamResponse
+#: odps.apis.storage_api_v2.client.CreateReadSessionRequest
+#: odps.apis.storage_api_v2.client.CreateReadSessionResponse
+#: odps.apis.storage_api_v2.client.CreateWriteSessionRequest
+#: odps.apis.storage_api_v2.client.CreateWriteSessionResponse
+#: odps.apis.storage_api_v2.client.CreateWriteStreamRequest
+#: odps.apis.storage_api_v2.client.CreateWriteStreamResponse
+#: odps.apis.storage_api_v2.client.GetWriteSessionResponse
+#: odps.apis.storage_api_v2.client.GetWriteStreamResponse
+#: odps.apis.storage_api_v2.client.PreviewTableRequest
+#: odps.apis.storage_api_v2.client.ReadBlobRequest
+#: odps.apis.storage_api_v2.client.ReadStreamRequest
+#: odps.apis.storage_api_v2.client.WriteBlobRequest
+#: odps.apis.storage_api_v2.client.WriteBlobResponse
+#: odps.apis.storage_api_v2.client.WriteStreamRequest of
+msgid "type"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateReadSessionRequest:7
+#: odps.apis.storage_api_v2.client.CreateReadSessionRequest:13
+#: odps.apis.storage_api_v2.client.CreateReadSessionRequest:19
+#: odps.apis.storage_api_v2.client.CreateReadSessionRequest:25
+#: odps.apis.storage_api_v2.client.PreviewTableRequest:21
+#: odps.apis.storage_api_v2.client.ReadBlobRequest:10
+#: odps.apis.storage_api_v2.client.ReadStreamRequest:58
+#: odps.apis.storage_api_v2.client.WriteBlobRequest:26
+#: odps.apis.storage_api_v2.client.WriteBlobResponse:14 of
+msgid "list of str"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateReadSessionRequest:32 of
+msgid "SplitOptions"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateReadSessionRequest:38 of
+msgid "ArrowOptions"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CloseWriteStreamRequest:7
+#: odps.apis.storage_api_v2.client.CloseWriteStreamResponse:8
+#: odps.apis.storage_api_v2.client.CloseWriteStreamResponse:14
+#: odps.apis.storage_api_v2.client.CreateReadSessionRequest:44
+#: odps.apis.storage_api_v2.client.CreateReadSessionResponse:8
+#: odps.apis.storage_api_v2.client.CreateReadSessionResponse:38
+#: odps.apis.storage_api_v2.client.CreateReadSessionResponse:44
+#: odps.apis.storage_api_v2.client.CreateReadSessionResponse:56
+#: odps.apis.storage_api_v2.client.CreateReadSessionResponse:68
+#: odps.apis.storage_api_v2.client.CreateReadSessionResponse:74
+#: odps.apis.storage_api_v2.client.CreateReadSessionResponse:92
+#: odps.apis.storage_api_v2.client.CreateReadSessionResponse:110
+#: odps.apis.storage_api_v2.client.CreateWriteSessionRequest:9
+#: odps.apis.storage_api_v2.client.CreateWriteSessionResponse:8
+#: odps.apis.storage_api_v2.client.CreateWriteSessionResponse:14
+#: odps.apis.storage_api_v2.client.CreateWriteSessionResponse:22
+#: odps.apis.storage_api_v2.client.CreateWriteSessionResponse:28
+#: odps.apis.storage_api_v2.client.CreateWriteStreamRequest:7
+#: odps.apis.storage_api_v2.client.CreateWriteStreamResponse:14
+#: odps.apis.storage_api_v2.client.CreateWriteStreamResponse:20
+#: odps.apis.storage_api_v2.client.CreateWriteStreamResponse:26
+#: odps.apis.storage_api_v2.client.CreateWriteStreamResponse:32
+#: odps.apis.storage_api_v2.client.GetWriteSessionResponse:15
+#: odps.apis.storage_api_v2.client.GetWriteSessionResponse:22
+#: odps.apis.storage_api_v2.client.GetWriteSessionResponse:28
+#: odps.apis.storage_api_v2.client.GetWriteStreamResponse:7
+#: odps.apis.storage_api_v2.client.GetWriteStreamResponse:25
+#: odps.apis.storage_api_v2.client.GetWriteStreamResponse:31
+#: odps.apis.storage_api_v2.client.GetWriteStreamResponse:37
+#: odps.apis.storage_api_v2.client.ReadStreamRequest:7
+#: odps.apis.storage_api_v2.client.WriteBlobRequest:7
+#: odps.apis.storage_api_v2.client.WriteBlobResponse:7
+#: odps.apis.storage_api_v2.client.WriteBlobResponse:20
+#: odps.apis.storage_api_v2.client.WriteBlobResponse:32
+#: odps.apis.storage_api_v2.client.WriteStreamRequest:7 of
+msgid "str"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateReadSessionRequest:50
+#: odps.apis.storage_api_v2.client.CreateReadSessionRequest:62
+#: odps.apis.storage_api_v2.client.CreateReadSessionResponse:98 of
+msgid "bool"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CloseWriteStreamRequest:19
+#: odps.apis.storage_api_v2.client.CreateReadSessionRequest:56
+#: odps.apis.storage_api_v2.client.CreateReadSessionResponse:20
+#: odps.apis.storage_api_v2.client.CreateReadSessionResponse:26
+#: odps.apis.storage_api_v2.client.CreateReadSessionResponse:86
+#: odps.apis.storage_api_v2.client.CreateWriteStreamRequest:21
+#: odps.apis.storage_api_v2.client.GetWriteStreamResponse:13
+#: odps.apis.storage_api_v2.client.GetWriteStreamResponse:19
+#: odps.apis.storage_api_v2.client.ReadStreamRequest:34
+#: odps.apis.storage_api_v2.client.ReadStreamRequest:40
+#: odps.apis.storage_api_v2.client.ReadStreamRequest:46
+#: odps.apis.storage_api_v2.client.WriteBlobRequest:19
+#: odps.apis.storage_api_v2.client.WriteBlobRequest:32
+#: odps.apis.storage_api_v2.client.WriteBlobResponse:26
+#: odps.apis.storage_api_v2.client.WriteStreamRequest:19
+#: odps.apis.storage_api_v2.client.WriteStreamRequest:26 of
+msgid "int"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateReadSessionRequest:68
+#: odps.apis.storage_api_v2.client.CreateReadSessionResponse:104 of
+msgid "IncrementalReadOptions"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateReadSessionResponse:1 of
+msgid "Response from creating a read session."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateReadSessionResponse:5 of
+msgid ""
+"Unique identifier for this read session. Required for all subsequent read"
+" operations."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateReadSessionResponse:12 of
+msgid "Current status (INIT, NORMAL, EXPIRED, etc)."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateReadSessionResponse:14
+#: odps.apis.storage_api_v2.client.CreateReadSessionResponse:50 of
+msgid "SessionStatus"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateReadSessionResponse:18 of
+msgid "Number of data splits available for parallel reading."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateReadSessionResponse:24 of
+msgid "Total number of records across all splits."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateReadSessionResponse:30 of
+msgid "Schema information for data and partition columns."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateReadSessionResponse:32 of
+msgid "DataSchema"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateReadSessionResponse:36 of
+msgid "When the session expires and needs refresh."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateReadSessionResponse:42 of
+msgid "Download ID (used for instance-based reads, mapped to session_id)."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateReadSessionResponse:48 of
+msgid "Status field for instance-based reads (mapped to session_status)."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateReadSessionResponse:54 of
+msgid "Type of the read session."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateReadSessionResponse:60 of
+msgid "List of data formats supported by the server."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateReadSessionResponse:62 of
+msgid "list of DataFormat"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateReadSessionResponse:66 of
+msgid "Mode used for splitting the data."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateReadSessionResponse:72 of
+msgid "Bucket ID used for bucket-based splitting."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateReadSessionResponse:78 of
+msgid "Statistics about the session (estimated size, row count)."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateReadSessionResponse:80 of
+msgid "SessionStats"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateReadSessionResponse:84 of
+msgid "Latest data version for incremental reads."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateReadSessionResponse:90 of
+msgid "Server message, if any."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateReadSessionResponse:96 of
+msgid "Whether large string support is enabled."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateReadSessionResponse:102 of
+msgid "Options for incremental read from the server response."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CloseWriteStreamResponse:12
+#: odps.apis.storage_api_v2.client.CreateReadSessionResponse:108
+#: odps.apis.storage_api_v2.client.CreateWriteSessionResponse:26
+#: odps.apis.storage_api_v2.client.CreateWriteStreamResponse:30
+#: odps.apis.storage_api_v2.client.GetWriteSessionResponse:26
+#: odps.apis.storage_api_v2.client.GetWriteStreamResponse:35
+#: odps.apis.storage_api_v2.client.WriteBlobResponse:30 of
+msgid "Request ID for debugging (set from response headers)."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateWriteSessionRequest:1 of
+msgid "Request for creating a write session."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateWriteSessionRequest:16
+#: odps.apis.storage_api_v2.client.CreateWriteStreamResponse:8 of
+msgid "dict"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateWriteSessionResponse:1 of
+msgid "Response from creating a write session."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateWriteSessionResponse:5 of
+msgid ""
+"Unique identifier for this write session. Required for creating write "
+"streams and committing the session."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateWriteSessionResponse:12 of
+msgid "Warning message if the session has any issues."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateWriteSessionResponse:18 of
+msgid ""
+"Routing token for load balancing, extracted from response headers. Pass "
+"this token to subsequent operations (create_write_stream, "
+"commit_write_session, etc.) to ensure session affinity."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.GetWriteSessionResponse:1 of
+msgid "Response from getting write session status."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.GetWriteSessionResponse:5 of
+msgid ""
+"Information about all write streams created in this session. Each stream "
+"dict contains stream_id, stream_version, and stream status."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.GetWriteSessionResponse:9 of
+msgid "list of dict"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.GetWriteSessionResponse:13 of
+msgid "Warning message if any streams have issues."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.GetWriteSessionResponse:19 of
+msgid ""
+"Routing token for load balancing, extracted from response headers. Pass "
+"this token to subsequent operations to ensure session affinity."
+msgstr ""
+
+#: ../../source/api-storage-v2.rst:44
+msgid "Read / Write Streams"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateWriteStreamRequest:1 of
+msgid "Request for creating a write stream within an active write session."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CloseWriteStreamRequest:13
+#: odps.apis.storage_api_v2.client.CreateWriteStreamRequest:14
+#: odps.apis.storage_api_v2.client.WriteBlobRequest:13
+#: odps.apis.storage_api_v2.client.WriteStreamRequest:13 of
+msgid "str or int"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateWriteStreamRequest:18 of
+msgid ""
+"Version number for the stream. Increment if retrying after a failed "
+"upload to the same stream_id. Default 0."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateWriteStreamResponse:1 of
+msgid "Response from creating a write stream."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateWriteStreamResponse:5 of
+msgid ""
+"The table schema for this stream, including column names and types. Use "
+"this to validate data before writing."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateWriteStreamResponse:12 of
+msgid "Internal table identifier."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateWriteStreamResponse:18 of
+msgid "Schema version number."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CreateWriteStreamResponse:24 of
+msgid "Routing token for load balancing, extracted from response headers."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.GetWriteStreamResponse:1 of
+msgid "Response from getting write stream status."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.GetWriteStreamResponse:5 of
+msgid "Current stream state (OPEN, CLOSED, ERROR)."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.GetWriteStreamResponse:11 of
+msgid "Number of records written to this stream."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.GetWriteStreamResponse:17 of
+msgid "Total bytes uploaded through this stream."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.GetWriteStreamResponse:23 of
+msgid "Error code if stream is in ERROR state."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.GetWriteStreamResponse:29 of
+msgid "Detailed error message if stream failed."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.ReadStreamRequest:1 of
+msgid "Request for reading data from a specific split in a read session."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.PreviewTableRequest:8
+#: odps.apis.storage_api_v2.client.ReadStreamRequest:14
+#: odps.apis.storage_api_v2.client.ReadStreamRequest:20
+#: odps.apis.storage_api_v2.client.ReadStreamRequest:27 of
+msgid "int, optional"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.ReadStreamRequest:31 of
+msgid ""
+"Maximum rows per Arrow batch in the stream. Controls memory usage during "
+"reading. Default 4096."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.ReadStreamRequest:38 of
+msgid "Number of rows to skip before reading. Default 0."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.ReadStreamRequest:44 of
+msgid "Maximum raw byte size per batch. 0 means no limit. Default 0."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.ReadStreamRequest:52 of
+msgid "DataFormat, optional"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.ReadStreamRequest:65
+#: odps.apis.storage_api_v2.client.WriteStreamRequest:33 of
+msgid "Compression, default None"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.WriteStreamRequest:1 of
+msgid "Request for writing row data to a write stream via streaming upload."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CloseWriteStreamRequest:17
+#: odps.apis.storage_api_v2.client.WriteStreamRequest:17 of
+msgid "Version of the stream (should match create_write_stream). Default 0."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.WriteStreamRequest:23 of
+msgid ""
+"Total number of records to be written. Set this to the expected count for"
+" validation, or 0 if unknown. Default 0."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CloseWriteStreamRequest:1 of
+msgid "Request for closing a write stream to finalize the data upload."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CloseWriteStreamResponse:1 of
+msgid "Response from closing a write stream."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.CloseWriteStreamResponse:5 of
+msgid ""
+"Warning message if the stream closure has any issues. Check this for "
+"potential problems even if close succeeds."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StreamReader:1 of
+msgid "Stream reader for reading Arrow IPC formatted data from the server."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StreamReader:5 of
+msgid "Read data from the stream. Returns bytes."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StreamReader:9 of
+msgid "Check reading status (RUNNING or OK)."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StreamReader:13 of
+msgid "Get request ID after completion."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StreamReader:17 of
+msgid "Close the stream."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StreamReader:21 of
+msgid "Check if the stream can still be read."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StreamReader.close:1 of
+msgid "Flush and close the IO object."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StreamReader.close:3 of
+msgid "This method has no effect if the file is already closed."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StreamReader.readable:1 of
+msgid "Return whether object was opened for reading."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StreamReader.readable:3 of
+msgid "If False, read() will raise OSError."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StreamWriter:1 of
+msgid "Stream writer for uploading binary data to the server."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StreamWriter:3 of
+msgid ""
+"Expects Arrow IPC formatted binary data. Use :class:`ArrowWriter` to "
+"convert Arrow record batches to this format."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StreamWriter:8 of
+msgid ""
+"Write binary data to the stream. Returns True on success, False if writer"
+" is closed or error occurred."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.ArrowWriter:13
+#: odps.apis.storage_api_v2.client.StreamWriter:13 of
+msgid ""
+"Finish writing and close the upload. Returns (commit_message, "
+"success_bool)."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StreamWriter:18 of
+msgid "Check writer status (RUNNING during write, OK after finish)."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StreamWriter:22 of
+msgid "Get request ID after finish() for debugging."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StreamWriter:26 of
+msgid ""
+"Get route token from write response headers for session affinity. Call "
+"after finish(). Returns None if not available."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.StreamWriter:31 of
+msgid "Check if the writer can still accept data."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.BlobStreamWriter.writable:1
+#: odps.apis.storage_api_v2.client.StreamWriter.writable:1 of
+msgid "Return whether object was opened for writing."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.BlobStreamWriter.writable:3
+#: odps.apis.storage_api_v2.client.StreamWriter.writable:3 of
+msgid "If False, write() will raise OSError."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.ArrowReader:1 of
+msgid "Arrow batch reader that wraps a :class:`StreamReader`."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.ArrowReader:5 of
+msgid ""
+"Read the next Arrow record batch from the stream. Returns None when all "
+"batches have been read."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.ArrowWriter:1 of
+msgid "Arrow batch writer that wraps a :class:`StreamWriter`."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.ArrowWriter:3 of
+msgid ""
+"Converts Arrow record batches to Arrow IPC format and writes them to the "
+"underlying stream."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.ArrowWriter:8 of
+msgid ""
+"Write an Arrow RecordBatch to the stream. Returns True on success, False "
+"if writer is closed or error occurred."
+msgstr ""
+
+#: ../../source/api-storage-v2.rst:80
+msgid "Blob I/O"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.BlobDataIterator:1 of
+msgid "Iterator that parses the framed blob download protocol."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.BlobDataIterator:3 of
+msgid "The download stream is processed through the following layers:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.BlobDataIterator:4 of
+msgid "CrcStrippedInputStream -- strips CRC32C per-block checksums"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.BlobDataIterator:5 of
+msgid "Decompression (if the response is compressed, e.g. LZ4 frame)"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.BlobDataIterator:6 of
+msgid ""
+"This iterator parses "
+"[HeaderLen][Header][DataLen][Data][FooterLen][Footer] frames"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.BlobDataIterator:8 of
+msgid "Yields (data_bytes, mime_type) tuples for each blob, where:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.BlobDataIterator:10 of
+msgid "data_bytes"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.BlobDataIterator:-1 of
+msgid "bytes"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.BlobDataIterator:11 of
+msgid "The raw binary data of the blob."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.BlobDataIterator:12 of
+msgid "mime_type"
+msgstr ""
+
+#: odps.apis.storage_api_v2.BlobStreamReader.mime_type:3
+#: odps.apis.storage_api_v2.client.BlobDataIterator:-1 of
+msgid "str or None"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.BlobDataIterator:13 of
+msgid "MIME type metadata if it was provided during upload, otherwise None."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.BlobDataIterator.read_data:1 of
+msgid "Read up to *size* bytes of the current blob's data from the stream."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.BlobDataIterator.read_data:3 of
+msgid ""
+"This is used by BlobStreamReader for chunked reads. The stream position "
+"must be within the current blob's data region."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.BlobDataIterator.read_data:6 of
+msgid ""
+"Maximum bytes to read. ``-1`` reads all remaining data of the current "
+"blob."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.BlobDataIterator.skip_remaining_data_and_footer:1
+#: of
+msgid "Skip *remaining_bytes* of unread data and the trailing footer."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.BlobDataIterator.skip_remaining_data_and_footer:3
+#: of
+msgid "Number of data bytes still unread in the current frame."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.BlobStreamReader:1 of
+msgid "File-like reader for streaming blob data from a :class:`BlobDataIterator`."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.BlobStreamReader:3 of
+msgid ""
+"Provides ``read(size)`` for incremental reads of the current blob, a "
+"``mime_type`` property, and a ``next()`` method to advance to the next "
+"blob."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.BlobStreamReader:7 of
+msgid ""
+"Unlike iterating over :class:`BlobDataIterator` which materializes each "
+"blob entirely in memory, this reader reads data from the underlying "
+"stream in chunks, avoiding buffering the entire blob."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.BlobStreamReader:11 of
+msgid ""
+"Calling ``next()`` before the current blob is fully exhausted raises an "
+":class:`IOError`. When all blobs have been read, ``next()`` returns "
+"``None``."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.BlobStreamReader:15 of
+msgid "The underlying blob data iterator."
+msgstr ""
+
+#: odps.apis.storage_api_v2.BlobStreamReader.mime_type:1 of
+msgid "MIME type of the current blob."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.BlobStreamReader.next:1 of
+msgid "Advance to the next blob and return a new :class:`BlobStreamReader`."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.BlobStreamReader.next:3 of
+msgid ""
+"Raises ``IOError`` if the current blob has not been fully read. Returns "
+"``None`` when there are no more blobs."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.BlobStreamReader.read:1 of
+msgid "Read up to *size* bytes from the current blob."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.BlobStreamReader.read:3 of
+msgid ""
+"Maximum number of bytes to read. ``-1`` (default) reads all remaining "
+"bytes of the current blob."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.BlobStreamReader.read:7 of
+msgid "Data read. Empty bytes ``b\"\"`` when the current blob is exhausted."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.BlobStreamWriter:1 of
+msgid "Stream writer for single blob upload with MD5 checksum verification."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.BlobStreamWriter:3 of
+msgid ""
+"Automatically computes MD5 checksum and verifies it against the server "
+"response. Data can be compressed during upload using the Compression "
+"enum."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.BlobStreamWriter:8 of
+msgid ""
+"Write binary data chunks to the blob stream. Accepts bytes or string "
+"(converted to bytes). Returns True on success."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.BlobStreamWriter:13 of
+msgid ""
+"Finish writing and get server response with MD5 verification. Returns "
+":class:`WriteBlobResponse`. Raises ChecksumError if MD5 mismatch "
+"detected."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.BlobStreamWriter:19 of
+msgid "Check writer status (RUNNING or OK)."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.BlobStreamWriter:23 of
+msgid "Get request ID after finish."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.BlobStreamWriter:27 of
+msgid "Check if writer can accept more data."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.BlobStreamWriter.finish:1 of
+msgid "Finish writing and verify MD5 checksum against server response."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.BlobStreamWriter.finish:3 of
+msgid "WriteBlobResponse on success, None on failure."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.BlobWriteItem:1 of
+msgid "A single blob item for batch upload."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.BlobWriteItem:3 of
+msgid "Wire format when serialized:"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.BlobWriteItem:4 of
+msgid ""
+"[8-byte LE header_len][header JSON][8-byte LE data_len][data "
+"bytes][8-byte LE footer_len][footer JSON]"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.BlobWriteItem.serialize:1 of
+msgid "Serialize this item into the binary frame format."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.BlobWriteItem.write_blobs:1 of
+msgid "Serialize a list of BlobWriteItems into a single byte array."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.ReadBlobRequest:1 of
+msgid "Request for downloading binary blobs by their references."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.ReadBlobRequest:5 of
+msgid ""
+"List of blob reference strings obtained from previous upload operations "
+"(write_blob_stream or write_blob_batch). These references uniquely "
+"identify the blobs to download. Bytes references are automatically "
+"decoded to UTF-8 strings."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.WriteBlobRequest:1 of
+msgid "Request for uploading blob data (streaming or batch)."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.WriteBlobRequest:17 of
+msgid "Version number for the stream. Default 0."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.WriteBlobRequest:30 of
+msgid "Column index in the table schema where the blob will be stored. Default 0."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.WriteBlobResponse:1 of
+msgid "Response from a blob write operation (stream or batch)."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.WriteBlobResponse:5 of
+msgid "Single blob reference if one blob was uploaded."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.WriteBlobResponse:11 of
+msgid ""
+"List of blob references matching the input items order. Use these "
+"references to read the blobs later."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.WriteBlobResponse:18 of
+msgid "Warning message if any blob uploads had issues."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.WriteBlobResponse:24 of
+msgid "Total bytes uploaded."
+msgstr ""
+
+#: ../../source/api-storage-v2.rst:107
+msgid "Preview"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.PreviewTableRequest:1 of
+msgid "Request for previewing table data without creating a session."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.PreviewTableRequest:15 of
+msgid "str, optional"
+msgstr ""
+
+#: ../../source/api-storage-v2.rst:113
+msgid "Schema and Options"
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.Compression:1 of
+msgid "Compression algorithm for Storage API V2 data streams."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.Compression:5 of
+msgid "No compression. Default for all operations."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.Compression:9 of
+msgid "Zstandard compression. Requires the ``zstandard`` library."
+msgstr ""
+
+#: odps.apis.storage_api_v2.client.Compression:13 of
+msgid "LZ4 frame compression. Requires the ``lz4`` library."
+msgstr ""
+
+#~ msgid ""
+#~ "This method retrieves blob data uploaded"
+#~ " via write_blob_stream or write_blob_batch "
+#~ "by providing the blob references "
+#~ "returned during upload. The data is "
+#~ "returned as an iterator that yields "
+#~ "tuples of (data_bytes, mime_type), handling"
+#~ " protocol framing, CRC stripping, and "
+#~ "LZ4 decompression automatically."
+#~ msgstr ""
+
+#~ msgid ""
+#~ "The download stream uses a multi-"
+#~ "layer protocol: 1. CRC32C checksums are"
+#~ " embedded every 4096 bytes (stripped "
+#~ "automatically) 2. Data is LZ4 frame "
+#~ "compressed (decompressed automatically if lz4"
+#~ " installed) 3. Protocol framing wraps "
+#~ "each blob (parsed automatically)"
+#~ msgstr ""
+
+#~ msgid "Compression algorithm for the stream data."
+#~ msgstr ""
+
+#~ msgid "Upload a single blob via streaming upload with automatic compression."
+#~ msgstr ""
+
+#~ msgid ""
+#~ "This method creates a streaming writer"
+#~ " for uploading a single binary blob"
+#~ " (such as an image, video, or "
+#~ "large binary file) to a specific "
+#~ "column in a MaxCompute table. The "
+#~ "data is automatically compressed using "
+#~ "zstd compression and verified with MD5"
+#~ " checksum to ensure upload integrity."
+#~ msgstr ""
+
+#~ msgid "If zstandard library is not installed (required for compression)."
+#~ msgstr ""
+
+#~ msgid ""
+#~ "Blob uploads use zstd compression by "
+#~ "default for efficient transfer. The "
+#~ "writer computes MD5 checksum incrementally "
+#~ "during write and verifies against server"
+#~ " response when finished. If the "
+#~ "checksum doesn't match, a ChecksumError "
+#~ "is raised, indicating data corruption "
+#~ "during upload."
+#~ msgstr ""
+
+#~ msgid "Compression algorithm for the uploaded data stream."
+#~ msgstr ""
+
+#~ msgid "Compression algorithm for the stream data. Default LZ4_FRAME."
+#~ msgstr ""
+
+#~ msgid "Compression"
+#~ msgstr ""
+
+#~ msgid "Compression algorithm for the uploaded data stream. Default LZ4_FRAME."
+#~ msgstr ""
+
+#~ msgid "The download stream is processed through 3 layers:"
+#~ msgstr ""
+
+#~ msgid "LZ4 frame decompression"
+#~ msgstr ""
+
+#~ msgid ""
+#~ "Automatically computes MD5 checksum and "
+#~ "verifies it against the server response."
+#~ " Data is zstd compressed during "
+#~ "upload."
+#~ msgstr ""
+

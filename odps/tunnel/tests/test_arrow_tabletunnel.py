@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -491,3 +491,54 @@ def test_download_with_none_values(odps, setup, pd_cast_mode):
     finally:
         odps.delete_table(test_table_name, if_exists=True)
         options.tunnel.pd_cast_mode = None
+
+
+def test_upload_and_download_vector(odps, tunnel):
+    test_table_name = tn("pyodps_test_arrow_tunnel_vector")
+    odps.delete_table(test_table_name, if_exists=True)
+
+    old_use_odps2_ext = options.sql.use_odps2_extension
+    old_settings = options.sql.settings
+    options.sql.use_odps2_extension = True
+    options.sql.settings = old_settings or {}
+    options.sql.settings.update({"odps.sql.type.vector.enable": "true"})
+
+    try:
+        table = odps.create_table(
+            test_table_name, "id bigint, fvec vector(float,128)", lifecycle=1
+        )
+
+        # Generate vector data as Arrow
+        ids = pa.array([1, 2, 3], type=pa.int64())
+        vec1 = [0.1] * 128
+        vec2 = [i * 0.5 for i in range(128)]
+        vec3 = None
+        fvecs = pa.array([vec1, vec2, vec3], type=pa.list_(pa.float32()))
+        batch = pa.RecordBatch.from_arrays([ids, fvecs], names=["id", "fvec"])
+
+        # Upload via arrow writer
+        upload_ss = tunnel.create_upload_session(table)
+        writer = upload_ss.open_arrow_writer(0)
+        writer.write(batch)
+        writer.close()
+        upload_ss.commit([0])
+
+        # Download via arrow reader
+        download_ss = tunnel.create_download_session(table)
+        count = download_ss.count
+        with download_ss.open_arrow_reader(0, count) as reader:
+            result = reader.read()
+
+        assert result.column("id").to_pylist() == ids.to_pylist()
+
+        # Check vector values
+        assert result.column("fvec")[0].as_py() == pytest.approx(vec1, abs=1e-5)
+        assert result.column("fvec")[1].as_py() == pytest.approx(vec2, abs=1e-4)
+
+        # Check null vector
+        assert result.column("fvec")[2].as_py() is None
+
+        table.drop()
+    finally:
+        options.sql.use_odps2_extension = old_use_odps2_ext
+        options.sql.settings = old_settings

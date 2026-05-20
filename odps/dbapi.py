@@ -41,7 +41,7 @@ class State(Enum):
     FINISHED = 2
 
 
-class Binary(object):
+class Binary:
     def __init__(self, value):
         self.value = value
 
@@ -71,7 +71,7 @@ FALLBACK_POLICY_ALIASES = {
 }
 
 
-class Connection(object):
+class Connection:
     def __init__(
         self,
         access_id=None,
@@ -165,7 +165,7 @@ class Connection(object):
 default_arraysize = 1000
 
 
-class Cursor(object):
+class Cursor:
     def __init__(
         self,
         connection,

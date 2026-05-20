@@ -32,7 +32,7 @@ def _redirect_v1(func):
     return wrapped
 
 
-class SessionMethods(object):
+class SessionMethods:
     @classmethod
     @utils.deprecated(
         "You no longer have to manipulate session instances to use MaxCompute QueryAcceleration. "

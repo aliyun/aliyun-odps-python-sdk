@@ -14,3 +14,4 @@ Here we give automatically generated API documentation of PyODPS.
     api-models
     api-tunnel
     api-df
+    api-storage-v2

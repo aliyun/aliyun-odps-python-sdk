@@ -28,7 +28,7 @@ from ..utils import build_pyodps_dir, load_static_text_file
 USER_DATA_REPO = build_pyodps_dir("data")
 
 
-class TestDataMixIn(object):
+class TestDataMixIn:
     def after_create_test_data(self, table_name):
         pass
 

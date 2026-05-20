@@ -43,7 +43,7 @@ ML_ARG_PREFIX = '_mlattr_'
 logger = logging.getLogger(__name__)
 
 
-class KVConfig(object):
+class KVConfig:
     def __init__(self, kv=':', item=','):
         self.kv_delimiter = kv
         self.item_delimiter = item
@@ -74,7 +74,7 @@ class MLFields(list):
         return html
 
 
-class MLField(object):
+class MLField:
     """
     Represent table field definition
 

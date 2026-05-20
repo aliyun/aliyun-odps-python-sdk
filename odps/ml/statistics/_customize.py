@@ -63,7 +63,7 @@ def get_pearson_result(expr, odps):
     return DataFrame(odps.get_table(expr.tables[0])).execute()[0][-1]
 
 
-class TTestResult(object):
+class TTestResult:
     def __init__(self, result):
         convs = dict(level='ConfidenceLevel', alpha='alpha', df='df', mean='mean', alternative='alternative', mu='mu',
                      p='p', t='t', stddev='stdDeviation', diff_mean='mean of the differences', x_mean='mean of x',
@@ -108,7 +108,7 @@ def get_t_test_result(expr, odps):
     return TTestResult(json.loads(DataFrame(odps.get_table(expr.tables[0])).execute()[0][0]))
 
 
-class ChiSquareTestResult(object):
+class ChiSquareTestResult:
     def __init__(self, result, correct_result, details):
         self.result = result
         self.correct_result = correct_result

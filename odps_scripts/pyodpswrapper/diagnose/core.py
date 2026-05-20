@@ -20,7 +20,7 @@ from collections import OrderedDict
 from ..envs import REGION_ENV
 
 
-class I18NMessage(object):
+class I18NMessage:
     _region_maps = {
         "cn-": "cn",
         "d2": "all",

@@ -708,7 +708,7 @@ class PandasCompiler(Backend):
     def _get_pivot_table_handler(self, expr):
         from ...expr.query import ExprVisitor
 
-        class WrappedNumpyFunction(object):
+        class WrappedNumpyFunction:
             def __init__(self, fun):
                 self._fun = fun
 

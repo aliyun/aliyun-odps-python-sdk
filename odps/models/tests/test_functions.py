@@ -24,7 +24,7 @@ FUNCTION_CONTENT = """\
 from odps.udf import annotate
 
 @annotate("bigint,bigint->bigint")
-class MyPlus(object):
+class MyPlus:
 
    def evaluate(self, arg0, arg1):
        if None in (arg0, arg1):

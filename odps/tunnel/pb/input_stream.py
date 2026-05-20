@@ -27,7 +27,7 @@ from . import errors, wire_format
 NANO_SEC_PER_SEC = 1000000000
 
 
-class InputStream(object):
+class InputStream:
     """Contains all logic for reading bits, and dealing with stream position.
 
     If an InputStream method ever raises an exception, the stream is left

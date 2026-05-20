@@ -54,7 +54,7 @@ LOGGING_CONFIG = {
 }
 
 
-class Config(object):
+class Config:
     config = None
     odps = None
     oss = None

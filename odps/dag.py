@@ -24,7 +24,7 @@ class DAGValidationError(Exception):
     pass
 
 
-class DAG(object):
+class DAG:
     """Directed acyclic graph implementation."""
 
     _graph_dict_type = dict

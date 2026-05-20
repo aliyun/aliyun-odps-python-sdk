@@ -35,7 +35,7 @@ expr_deps = dict()
 expr_ref_name = dict()
 
 
-class ODPSContext(object):
+class ODPSContext:
     def __init__(self, odps, indent_size=2):
         self._odps = odps
 

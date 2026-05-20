@@ -24,7 +24,7 @@ import struct
 from . import errors, output_stream, wire_format
 
 
-class Encoder(object):
+class Encoder:
     """Encodes logical protocol buffer fields to the wire format."""
 
     def __init__(self):

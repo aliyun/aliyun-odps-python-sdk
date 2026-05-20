@@ -29,7 +29,7 @@ from ....utils import to_text
 from ..frame import ResultFrame
 
 
-class NumGenerators(object):
+class NumGenerators:
     @staticmethod
     def gen_random_bigint(value_range=None):
         return random.randint(*(value_range or types.bigint._bounds))

@@ -24,7 +24,7 @@ from .resource import FileResource
 RESOURCE_SIZE_MAX = 512 * 1024 * 1024  # a single resource's size must be at most 512M
 
 
-class ResourceFile(object):
+class ResourceFile:
     __slots__ = (
         "resource",
         "mode",

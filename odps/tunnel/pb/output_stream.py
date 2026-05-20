@@ -25,7 +25,7 @@ import struct
 from . import errors, wire_format
 
 
-class OutputStream(object):
+class OutputStream:
     """Contains all logic for writing bits, and ToString() to get the result."""
 
     def __init__(self):

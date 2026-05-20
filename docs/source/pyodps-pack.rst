@@ -473,7 +473,7 @@ Docker Desktop / Rancher Desktop 已经安装了跨平台打包所需的 ``binfm
 
 
     @annotate("double->double")
-    class MyPsi(object):
+    class MyPsi:
         def __init__(self):
             # 如果依赖中包含 protobuf，需要添加下面这行语句，否则不需要
             sys.setdlopenflags(10)

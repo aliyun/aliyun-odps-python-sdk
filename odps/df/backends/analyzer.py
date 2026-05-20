@@ -285,7 +285,7 @@ class BaseAnalyzer(Backend):
                         else:
                             func = agg_func()
 
-                            class ActualAgg(object):
+                            class ActualAgg:
                                 def buffer(self):
                                     return func.buffer()
 

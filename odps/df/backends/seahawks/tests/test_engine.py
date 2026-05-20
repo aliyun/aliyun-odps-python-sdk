@@ -84,7 +84,7 @@ def setup(odps):
 
     engine = SeahawksEngine(odps)
 
-    class FakeBar(object):
+    class FakeBar:
         def update(self, *args, **kwargs):
             pass
 
