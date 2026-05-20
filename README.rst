@@ -122,7 +122,7 @@ Python UDF Debugging Tool
    from odps.udf import annotate
 
    @annotate('bigint,bigint->bigint')
-   class Plus(object):
+   class Plus:
        def evaluate(self, a, b):
            return a + b
 

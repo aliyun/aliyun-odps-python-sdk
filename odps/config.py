@@ -44,7 +44,7 @@ class OptionError(AttributeError):
     pass
 
 
-class Redirection(object):
+class Redirection:
     def __init__(self, item, warn=None, getter=None, setter=None):
         self._items = item.split(".")
         self._warn = warn
@@ -235,7 +235,7 @@ class AttributeDict(dict):
         return result_dict
 
 
-class Config(object):
+class Config:
     def __init__(self, config=None):
         self._config = config or AttributeDict()
 
@@ -800,7 +800,7 @@ def option_context(config=None):
         set_global_options(global_options)
 
 
-class OptionsProxy(object):
+class OptionsProxy:
     def __dir__(self):
         return dir(get_global_options())
 

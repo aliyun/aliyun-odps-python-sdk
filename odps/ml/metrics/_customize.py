@@ -136,7 +136,7 @@ def get_multi_class_eval_result(expr, odps):
     return MultiClassEvaluationResult.parse(rec[0])
 
 
-class BinaryClassEvaluationResult(object):
+class BinaryClassEvaluationResult:
     def __init__(self):
         self.records = []
         self.positive = 0

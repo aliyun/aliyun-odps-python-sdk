@@ -95,6 +95,9 @@ def odps_type_to_arrow_type(odps_type):
             col_type = pa.struct([("sec", pa.int64()), ("nano", pa.int32())])
         elif isinstance(odps_type, (odps_types.Char, odps_types.Varchar)):
             col_type = pa.string()
+        elif isinstance(odps_type, odps_types.Vector):
+            element_arrow_type = odps_type_to_arrow_type(odps_type.element_type)
+            col_type = pa.list_(element_arrow_type)
         else:
             raise TypeError(f"Unsupported type: {odps_type}")
     return col_type

@@ -28,7 +28,7 @@ PMML_VOLUME = 'pyodps_volume'
 logger = logging.getLogger(__name__)
 
 
-class PmmlRepr(object):
+class PmmlRepr:
     def _repr(self):
         return None
 
@@ -481,7 +481,7 @@ class PmmlTree(PmmlSegment):
         return Source(self._repr_gv_(), encoding='utf-8')._repr_svg_()
 
 
-class PmmlResult(object):
+class PmmlResult:
     _result_types = []
 
     def __new__(cls, pmml):

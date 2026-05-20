@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,18 +13,12 @@
 # limitations under the License.
 
 import os
-import sys
 
 import pytest
 
 from ...config import options
 from ...tests.core import tn
-
-if sys.version_info[0] >= 3:
-    from .storage_api import StorageApiArrowClient
-else:
-    StorageApiArrowClient = None
-
+from .storage_api import StorageApiArrowClient
 
 _test_table_id = 0
 
@@ -35,7 +29,7 @@ def storage_api_client(odps):
 
     options.enable_schema = True
 
-    test_table_name = tn("test_halo_common_table_" + str(_test_table_id))
+    test_table_name = tn(f"test_halo_common_table_{_test_table_id}")
     _test_table_id += 1
     odps.delete_table(test_table_name, if_exists=True)
     table = odps.create_table(

@@ -84,7 +84,7 @@ else:
         from pyreadyline.console import Console as PyreadlineConsole
     except ImportError:
         # Just define a dummy class
-        class PyreadlineConsole(object):
+        class PyreadlineConsole:
             pass
 
     # import widgets and display
@@ -1049,7 +1049,7 @@ class ProgressBar(Iterator):
         return results
 
 
-class StatusLine(object):
+class StatusLine:
     def __init__(self, ipython_widget=False):
         if widgets is None:
             ipython_widget = False

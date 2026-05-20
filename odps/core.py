@@ -58,7 +58,7 @@ def _wrap_model_func(func):
 
 
 @utils.attach_internal
-class ODPS(object):
+class ODPS:
     """
     Main entrance to ODPS.
 

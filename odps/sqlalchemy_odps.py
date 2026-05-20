@@ -85,7 +85,7 @@ _sqlalchemy_global_reusable_odps = {}
 _sqlalchemy_obj_list_cache = {}
 
 
-class ObjectCache(object):
+class ObjectCache:
     def __init__(self, expire=24 * 3600):
         self._expire_time = expire
         self._items = dict()

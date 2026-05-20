@@ -22,7 +22,7 @@ from .core import XMLIterable
 from .partition import Partition
 
 
-class PartitionSpecCondition(object):
+class PartitionSpecCondition:
     _predicates = OrderedDict(
         [
             ("==", lambda a, b: a == b),

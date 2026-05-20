@@ -744,7 +744,7 @@ class ArrowStreamReader(IOBase):
             self._reader.close()
 
 
-class TunnelArrowReader(object):
+class TunnelArrowReader:
     """
     Reader object to read data from ODPS in Arrow format. Should be created
     with :meth:`TableDownloadSession.open_arrow_reader`.
@@ -1139,7 +1139,7 @@ if convert_legacy_decimal_bytes is None:
         return Decimal(sio.getvalue())
 
 
-class ArrowRecordFieldConverter(object):
+class ArrowRecordFieldConverter:
     _sensitive_types = (
         types.Datetime,
         types.Timestamp,

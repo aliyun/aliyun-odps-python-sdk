@@ -50,7 +50,7 @@ def get_index(binstr, end_index=160):
     return res
 
 
-class HyperLogLog(object):
+class HyperLogLog:
     """
     Implements a HyperLogLog
     """

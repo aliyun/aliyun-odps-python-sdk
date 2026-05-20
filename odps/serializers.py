@@ -122,7 +122,7 @@ _serialize_types["int"] = (none_or(int), none_or(str))
 _serialize_types["float"] = (none_or(float), none_or(str))
 
 
-class SerializeField(object):
+class SerializeField:
     def __init__(self, *keys, **kwargs):
         self._path_keys = keys
 

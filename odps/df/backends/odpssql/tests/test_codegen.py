@@ -225,7 +225,7 @@ def test_apply_generator_function(setup):
 
 
 def test_agg_function(setup):
-    class Agg(object):
+    class Agg:
         def buffer(self):
             return ['']
 
@@ -256,7 +256,7 @@ def test_agg_function(setup):
 def test_agg_numpy_function(setup):
     import numpy as np
 
-    class Agg(object):
+    class Agg:
         def buffer(self):
             return [np.int32(1)]
 

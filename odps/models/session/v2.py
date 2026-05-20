@@ -57,7 +57,7 @@ class MCQAConnectionInfo(serializers.JSONSerializableModel):
     )
 
 
-class McqaV2Methods(object):
+class McqaV2Methods:
     @classmethod
     def _patch_odps(cls, odps):
         odps._quota_to_mcqa_odps = getattr(odps, "_quota_to_mcqa_odps", {})

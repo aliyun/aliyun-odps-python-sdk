@@ -24,7 +24,7 @@ from ..utils import with_wait_argument
 from .backends.core import Engine
 
 
-class Delay(object):
+class Delay:
     def __init__(self):
         self._idx = 0
         self._lock = threading.RLock()

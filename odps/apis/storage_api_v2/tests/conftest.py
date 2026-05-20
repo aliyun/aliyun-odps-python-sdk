@@ -1,0 +1,65 @@
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import os
+
+import pytest
+
+from ....config import options
+from ....tests.core import get_test_unique_name, tn
+from ..client import StorageApiArrowClient
+
+
+@pytest.fixture
+def storage_api_client(odps):
+    options.enable_schema = True
+
+    test_table_name = tn(f"test_common_table_{get_test_unique_name(5)}")
+    odps.delete_table(test_table_name, if_exists=True)
+    table = odps.create_table(
+        test_table_name,
+        ("a BIGINT, b BIGINT, c BIGINT, d BIGINT", "pt string"),
+        if_not_exists=True,
+    )
+    api_endpoint = os.getenv("ODPS_STORAGE_API_ENDPOINT")
+    try:
+        yield StorageApiArrowClient(odps, table, rest_endpoint=api_endpoint)
+    finally:
+        table.drop(async_=True)
+        options.enable_schema = False
+
+
+@pytest.fixture
+def storage_api_blob_client(odps):
+    options.enable_schema = True
+
+    test_table_name = tn(f"test_blob_{get_test_unique_name(5)}")
+
+    odps.delete_table(test_table_name, if_exists=True)
+    table = odps.create_table(
+        test_table_name,
+        ("a BIGINT, b BLOB", "pt string"),
+        hints={
+            "odps.sql.type.system.odps2": "true",
+            "odps.table.append2.enable": "true",
+        },
+        table_properties={"table.format.version": "2", "transactional": "true"},
+        if_not_exists=True,
+    )
+    api_endpoint = os.getenv("ODPS_STORAGE_API_ENDPOINT")
+    try:
+        yield StorageApiArrowClient(odps, table, rest_endpoint=api_endpoint)
+    finally:
+        table.drop(async_=True)
+        options.enable_schema = False

@@ -49,7 +49,7 @@ else:
     def _rv_table(tb):
         return [_rv_list(r) for r in tb]
 
-    class DFViewMixin(object):
+    class DFViewMixin:
         @property
         def mock_ui(self):
             cls = type(self)

@@ -294,7 +294,7 @@ def test_time_convert_with_tz(force_py, zone_func):
 
 
 def test_thread_local_attribute():
-    class TestClass(object):
+    class TestClass:
         _no_defaults = utils.thread_local_attribute("test_thread_local")
         _defaults = utils.thread_local_attribute(
             "test_thread_local", lambda: "TestValue"

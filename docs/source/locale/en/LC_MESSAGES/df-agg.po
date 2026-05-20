@@ -387,7 +387,7 @@ msgstr "Calculate a mean in the following example:"
 
 #: ../../source/df-agg.rst:162
 msgid ""
-"class Agg(object):\n"
+"class Agg:\n"
 "\n"
 "    def buffer(self):\n"
 "        return [0.0, 0]\n"
@@ -441,7 +441,7 @@ msgstr "You can use the agg method in your aggregation for multiple columns."
 
 #: ../../source/df-agg.rst:206
 msgid ""
-"class Agg(object):\n"
+"class Agg:\n"
 "\n"
 "    def buffer(self):\n"
 "        return [0.0, 0.0]\n"

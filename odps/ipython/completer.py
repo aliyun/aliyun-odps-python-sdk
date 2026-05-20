@@ -31,7 +31,7 @@ TEMP_TABLE_PREFIXES = [
 ]
 
 
-class RoomCompleter(object):
+class RoomCompleter:
     def __init__(self, ipython=None):
         self._ipython = ipython
         self._regex_str = r"^%(enter|setup|teardown|stores) +"
@@ -47,7 +47,7 @@ class RoomCompleter(object):
         return rooms[: options.completion_size]
 
 
-class BaseCompleter(object):
+class BaseCompleter:
     def __init__(self, ipython=None):
         self._ipython = ipython
         self._regex_str = self.build_regex()

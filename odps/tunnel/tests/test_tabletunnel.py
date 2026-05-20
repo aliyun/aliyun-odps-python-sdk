@@ -88,7 +88,7 @@ def check_malicious_requests(odps):
         yield
 
 
-class TunnelTestUtil(object):
+class TunnelTestUtil:
     def __init__(self, odps, tunnel):
         self.odps = odps
         self.last_table = None

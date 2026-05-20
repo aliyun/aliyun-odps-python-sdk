@@ -20,7 +20,7 @@ from .. import utils
 from ..crc import Crc32, Crc32c
 
 
-class Checksum(object):
+class Checksum:
     TRUE = bytearray([1])
     FALSE = bytearray([0])
 

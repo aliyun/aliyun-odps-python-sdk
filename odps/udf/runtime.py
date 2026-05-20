@@ -28,7 +28,7 @@ __all__ = [
 ]
 
 
-class ExecutionContext(object):
+class ExecutionContext:
     counters = Counters()
 
     def get_counters(self):
@@ -38,11 +38,11 @@ class ExecutionContext(object):
         return self.counters.to_json_string()
 
 
-class BaseUDAF(object):
+class BaseUDAF:
     pass
 
 
-class BaseUDTF(object):
+class BaseUDTF:
     def forward(self, *args):
         pass
 

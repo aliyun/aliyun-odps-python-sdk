@@ -43,7 +43,7 @@ def _open_reader(t, **kwargs):
     yield reader
 
 
-class TunnelEngine(object):
+class TunnelEngine:
     def __init__(self, odps):
         self._odps = odps
 

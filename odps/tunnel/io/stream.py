@@ -43,7 +43,7 @@ def cast_memoryview(v):
     return v.cast("B")
 
 
-class RequestsIO(object):
+class RequestsIO:
     CHUNK_SIZE = 256 * 1024
 
     def __new__(cls, *args, **kwargs):
@@ -229,7 +229,7 @@ except ImportError:
     GreenletRequestsIO = None
 
 
-class CompressOption(object):
+class CompressOption:
     class CompressAlgorithm(enum.Enum):
         ODPS_RAW = "RAW"
         ODPS_ZLIB = "ZLIB"
@@ -338,7 +338,7 @@ def get_decompress_stream(resp, compress_option=None, requests=True):
     return stream_cls(resp)
 
 
-class CompressOutputStream(object):
+class CompressOutputStream:
     def __init__(self, output, level=1):
         self._compressor = self._get_compressor(level=level)
         self._output = output
@@ -408,7 +408,7 @@ class LZ4OutputStream(CompressOutputStream):
         super(LZ4OutputStream, self).write(data)
 
 
-class SimpleInputStream(object):
+class SimpleInputStream:
     READ_BLOCK_SIZE = 1024 * 64
 
     def __init__(self, input):
@@ -589,7 +589,7 @@ class LZ4InputStream(DecompressInputStream):
         return lz4.frame.LZ4FrameDecompressor()
 
 
-class RawRequestsStreamMixin(object):
+class RawRequestsStreamMixin:
     _decode_content = False
 
     @classmethod

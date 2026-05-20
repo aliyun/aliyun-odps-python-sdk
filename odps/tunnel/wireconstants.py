@@ -15,7 +15,7 @@
 # limitations under the License.
 
 
-class ProtoWireConstants(object):
+class ProtoWireConstants:
     TUNNEL_META_COUNT = 33554430
     TUNNEL_META_CHECKSUM = 33554431
     TUNNEL_END_RECORD = 33553408

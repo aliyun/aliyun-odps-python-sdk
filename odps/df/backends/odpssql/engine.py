@@ -307,7 +307,7 @@ class ODPSSQLEngine(Engine):
         else:
             assert isinstance(expr, Scalar)  # sequence is not cache-able
 
-            class ValueHolder(object): pass
+            class ValueHolder: pass
             sub = Scalar(_value_type=expr.dtype)
             sub._value = ValueHolder()
             root = expr_dag.root

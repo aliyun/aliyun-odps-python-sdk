@@ -105,7 +105,7 @@ def setup(odps):
     table = t
     expr = CollectionExpr(_source_data=table, _schema=df_schema)
 
-    class FakeBar(object):
+    class FakeBar:
         def update(self, *args, **kwargs):
             pass
     faked_bar = FakeBar()

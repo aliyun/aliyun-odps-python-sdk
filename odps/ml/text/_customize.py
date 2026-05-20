@@ -29,7 +29,7 @@ class TextFieldRole(enum.Enum):
 
 
 @ml_collection_mixin
-class TextDFMixIn(object):
+class TextDFMixIn:
     __slots__ = ()
 
     field_role_enum = TextFieldRole

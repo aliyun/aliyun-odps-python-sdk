@@ -1,4 +1,4 @@
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@ from odps.udf import BaseUDAF, BaseUDTF, annotate
 
 
 @annotate(" bigint, bigint -> bigint ")
-class Plus(object):
+class Plus:
     def evaluate(self, a, b):
         if None in (a, b):
             return None
@@ -24,7 +24,7 @@ class Plus(object):
 
 
 @annotate(" * -> string ")
-class CatStrings(object):
+class CatStrings:
     def evaluate(self, *args):
         if None in args:
             return None
@@ -32,7 +32,7 @@ class CatStrings(object):
 
 
 @annotate(" array<string>, array<bigint> -> map<string, bigint> ")
-class ZipArray(object):
+class ZipArray:
     def evaluate(self, a, b):
         if None in (a, b):
             return None

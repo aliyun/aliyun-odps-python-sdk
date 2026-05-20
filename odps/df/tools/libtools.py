@@ -96,7 +96,7 @@ def bloomfilter(collection, on, column, capacity=3000, error_rate=0.01):
         collection = collection[collection, on_col]
 
         @output(src_collection.schema.names, src_collection.schema.types)
-        class Filter(object):
+        class Filter:
             def __init__(self, resources):
                 table = resources[0]
 

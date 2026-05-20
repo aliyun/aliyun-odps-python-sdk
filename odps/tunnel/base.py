@@ -29,7 +29,7 @@ _endpoint_cache_lock = threading.RLock()
 _endpoint_cache = dict()
 
 
-class TunnelMetrics(object):
+class TunnelMetrics:
     def __init__(
         self,
         owner,
@@ -106,7 +106,7 @@ class TunnelMetrics(object):
         )
 
 
-class BaseTunnel(object):
+class BaseTunnel:
     def __init__(
         self,
         odps=None,

@@ -89,7 +89,7 @@ def to_dynamic(func):
     return inner
 
 
-class DynamicMixin(object):
+class DynamicMixin:
     __slots__ = ()
 
     def __getattribute__(self, item):

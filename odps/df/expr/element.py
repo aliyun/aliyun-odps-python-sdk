@@ -357,7 +357,7 @@ class Func(AnyOp):
         visitor.visit_function(self)
 
 
-class FuncFactory(object):
+class FuncFactory:
     def __getattr__(self, item):
         if not isinstance(item, str):
             raise TypeError('Function name should be provided, expect str, got %s' % type(item))

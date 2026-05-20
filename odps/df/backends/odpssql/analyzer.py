@@ -165,7 +165,7 @@ class Analyzer(BaseAnalyzer):
         item_delimiter = expr._item_delimiter.value
         default = expr._default.value if expr._default else None
 
-        class KeyAgg(object):
+        class KeyAgg:
             def buffer(self):
                 return set()
 

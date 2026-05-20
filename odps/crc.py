@@ -19,7 +19,7 @@ import zlib
 from .config import options
 
 
-class Crc32(object):
+class Crc32:
     def __init__(self):
         self.crc = None
 
@@ -125,7 +125,7 @@ if Crc32c is None:
 
     _CRC_INIT = 0xFFFFFFFF
 
-    class Crc32c(object):
+    class Crc32c:
         _method = "py"
 
         def __init__(self):

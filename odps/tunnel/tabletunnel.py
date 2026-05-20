@@ -790,7 +790,7 @@ class TableUploadSession(BaseTableTunnelSession):
         self.parse(resp, obj=self)
 
 
-class Slot(object):
+class Slot:
     def __init__(self, slot, server):
         self._slot = slot
         self._ip = None
@@ -849,7 +849,7 @@ class TableStreamUploadSession(BaseTableTunnelSession):
         "_dynamic_partition",
     )
 
-    class Slots(object):
+    class Slots:
         def __init__(self, slot_elements):
             self._slots = []
             for value in slot_elements:
@@ -1114,7 +1114,7 @@ class TableUpsertSession(BaseTableTunnelSession):
         Critical = "CRITICAL"
         Aborted = "ABORTED"
 
-    class Slots(object):
+    class Slots:
         def __init__(self, slot_elements):
             self._slots = []
             self._buckets = {}

@@ -247,7 +247,7 @@ pandas。如果 Arrow 格式不被支持，将会回退到 Record 接口。
     from odps.distcache import get_cache_file
 
     @annotate('bigint->bigint')
-    class Example(object):
+    class Example:
         def __init__(self):
             self.n = int(get_cache_file('test_alias_res1').read())
 

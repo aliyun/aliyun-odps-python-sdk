@@ -410,7 +410,7 @@ class VolumeDownloadSession(BaseVolumeTunnelSession):
         return VolumeReader(self._client, resp, option)
 
 
-class VolumeReader(object):
+class VolumeReader:
     def __init__(self, client, response, compress_option):
         self._client = client
         self._response = io.RequestsInputStream(response)
@@ -787,7 +787,7 @@ class VolumeUploadSession(BaseVolumeTunnelSession):
             raise e
 
 
-class VolumeWriter(object):
+class VolumeWriter:
     CHUNK_SIZE = 512 * 1024
 
     def __init__(self, client, uploader, compress_option, tags=None):

@@ -25,7 +25,7 @@ Base Operation
 """
 
 
-class DFOperation(object):
+class DFOperation:
     def execute(self, sources, target):
         """
         :type sources: list[DFAdapter]

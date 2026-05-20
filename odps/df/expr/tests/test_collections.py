@@ -213,7 +213,7 @@ def test_pivot_table(exprs):
                                          types.int16, types.int32]
 
     @output(['my_mean'], ['float'])
-    class Aggregator(object):
+    class Aggregator:
         def buffer(self):
             return [0.0, 0]
 

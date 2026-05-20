@@ -31,7 +31,7 @@ _func_registry_lock = threading.RLock()
 _name_to_funcs = {}
 
 
-class ExprFunction(object):
+class ExprFunction:
     arg_count = None
 
     @classmethod

@@ -26,7 +26,7 @@ from .window import Window
 from .merge import JoinCollectionExpr, UnionCollectionExpr
 
 
-class ExprFormatter(object):
+class ExprFormatter:
     def __init__(self, expr, indent_size=2):
         self._expr = expr
 

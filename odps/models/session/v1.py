@@ -314,7 +314,7 @@ class SessionInstance(Instance):
             self._status = Instance.Status.SUSPENDED
 
 
-class InSessionTunnelReaderMixin(object):
+class InSessionTunnelReaderMixin:
     @property
     def schema(self):
         # is not available before open_reader().
@@ -619,7 +619,7 @@ class InSessionInstance(Instance):
         )
 
 
-class McqaV1Methods(object):
+class McqaV1Methods:
     @classmethod
     @utils.deprecated(
         "You no longer have to manipulate session instances to use MaxCompute QueryAcceleration. "

@@ -378,7 +378,7 @@ def to_timestamp(dt, local_tz=None, is_dst=False):
     return int(to_milliseconds(dt, local_tz=local_tz, is_dst=is_dst) / 1000.0)
 
 
-class MillisecondsConverter(object):
+class MillisecondsConverter:
     _inst_cache = dict()
     _inst_cache_lock = threading.RLock()
 
@@ -740,7 +740,7 @@ def init_progress_ui(val=1, lock=False, use_console=True, mock=False):
 
         return inner
 
-    class ProgressUI(object):
+    class ProgressUI:
         @ui_method
         def update(self, value=None):
             if bar:

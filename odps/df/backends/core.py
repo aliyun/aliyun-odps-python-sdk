@@ -47,7 +47,7 @@ class EngineTypes(enum.Enum):
     ALGO = 'ALGO'
 
 
-class Backend(object):
+class Backend:
 
     def visit_source_collection(self, expr):
         raise NotImplementedError
@@ -173,7 +173,7 @@ class Backend(object):
         raise NotImplementedError
 
 
-class ExecuteNode(object):
+class ExecuteNode:
     def __init__(self, expr_dag, result_index=None, callback=None):
         self.expr_dag = expr_dag
         self.result_index = result_index
@@ -368,7 +368,7 @@ class ExecuteDAG(DAG):
         return ExprExecutionGraphFormatter(self)._to_html()
 
 
-class Engine(object):
+class Engine:
     def stop(self):
         pass
 

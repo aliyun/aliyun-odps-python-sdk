@@ -24,7 +24,7 @@ import struct
 from . import input_stream, wire_format
 
 
-class Decoder(object):
+class Decoder:
     """Decodes logical protocol buffer fields from the wire."""
 
     def __init__(self, input, record_network_time=False):

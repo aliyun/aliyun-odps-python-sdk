@@ -390,7 +390,7 @@ def _extract_df_inputs(o):
         yield None
 
 
-class ExprProxy(object):
+class ExprProxy:
     def __init__(self, expr, d=None, compare=False):
         if d is not None:
             def callback(_):

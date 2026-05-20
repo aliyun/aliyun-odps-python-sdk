@@ -48,7 +48,7 @@ def _get_v4_signature_prefix():
     return DEFAULT_SIGNATURE_PREFIX
 
 
-class BaseAccount(object):
+class BaseAccount:
     def _build_canonical_str(self, url_components, req):
         # Build signing string
         lines = [req.method]
@@ -212,7 +212,7 @@ class AppAccount(BaseAccount):
         logger.debug("headers after app signing: %r", req.headers)
 
 
-class SignServer(object):
+class SignServer:
     class SignServerHandler(http.server.BaseHTTPRequestHandler):
         def do_GET(self):
             self.send_response(200)
@@ -412,7 +412,7 @@ class SignServerAccount(BaseAccount):
             )
 
 
-class TempAccountMixin(object):
+class TempAccountMixin:
     def __init__(self, expired_hours=DEFAULT_TEMP_ACCOUNT_HOURS):
         self._refresh_lock = threading.RLock()
         self._last_refresh_time = time.time()

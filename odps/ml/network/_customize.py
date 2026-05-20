@@ -33,7 +33,7 @@ class NetworkFieldRole(enum.Enum):
 
 
 @ml_collection_mixin
-class NetworkDFMixIn(object):
+class NetworkDFMixIn:
     __slots__ = ()
 
     field_role_enum = NetworkFieldRole

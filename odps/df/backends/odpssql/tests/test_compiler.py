@@ -1634,7 +1634,7 @@ def test_reduction_compilation(odps, exprs):
 
     is_decimal = False
 
-    class Aggregator(object):
+    class Aggregator:
         def buffer(self):
             return [0, ]
 

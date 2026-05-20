@@ -60,7 +60,7 @@ def _with_status_api_lock(func):
     return wrapped
 
 
-class SpawnedInstanceReaderMixin(object):
+class SpawnedInstanceReaderMixin:
     @property
     def schema(self):
         return self._schema
@@ -376,7 +376,7 @@ class Instance(XMLLazyLoad):
         key = serializers.XMLNodeField("Key")
         value = serializers.XMLNodeField("Value")
 
-    class TaskCost(object):
+    class TaskCost:
         __slots__ = "cpu_cost", "memory_cost", "input_size"
 
         def __init__(self, cpu_cost=None, memory_cost=None, input_size=None):
@@ -384,7 +384,7 @@ class Instance(XMLLazyLoad):
             self.memory_cost = memory_cost
             self.input_size = input_size
 
-    class SQLCost(object):
+    class SQLCost:
         __slots__ = "udf_num", "complexity", "input_size"
 
         def __init__(self, udf_num=None, complexity=None, input_size=None):

@@ -48,7 +48,7 @@ def create_node_runner(engine, algo_name, params, metas, engine_kw, ui, **kw):
     return runner(engine, algo_name, params, metas, engine_kw, ui, **kw)
 
 
-class BaseNodeRunner(object):
+class BaseNodeRunner:
     def __init__(self, engine, algo_name, params, metas, engine_kw, ui, progress_proportion=1,
                  priority=None, group=None, **kw):
         self._engine = engine

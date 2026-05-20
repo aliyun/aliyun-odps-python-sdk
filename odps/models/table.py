@@ -269,6 +269,7 @@ class Table(XMLLazyLoad):
         OBJECT_TABLE = "OBJECT_TABLE"
         VIRTUAL_VIEW = "VIRTUAL_VIEW"
         MATERIALIZED_VIEW = "MATERIALIZED_VIEW"
+        SNAPSHOT = "SNAPSHOT"
         UNKNOWN = "UNKNOWN"
 
         @classmethod

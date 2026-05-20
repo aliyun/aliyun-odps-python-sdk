@@ -66,7 +66,7 @@ def _wrap_classmethod(x):
     return x
 
 
-class SpawnedTableReaderMixin(object):
+class SpawnedTableReaderMixin:
     @property
     def schema(self):
         return self._parent.table_schema
@@ -203,7 +203,7 @@ class TableArrowReader(SpawnedTableReaderMixin, TunnelArrowReader):
         self._partition_spec = partition_spec
 
 
-class MPBlockServer(object):
+class MPBlockServer:
     def __init__(self, writer):
         self._writer = writer
         self._sock = None
@@ -276,7 +276,7 @@ class MPBlockServer(object):
         self._serve_thread_obj.join()
 
 
-class MPBlockClient(object):
+class MPBlockClient:
     _MAX_BLOCK_COUNT = 256
 
     def __init__(self, address, authkey):
@@ -333,7 +333,7 @@ class MPBlockClient(object):
             assert self._addr == server_addr
 
 
-class AbstractTableWriter(object):
+class AbstractTableWriter:
     def __init__(
         self, table, upload_session, blocks=None, commit=True, on_close=None, **kwargs
     ):
@@ -592,7 +592,7 @@ class AbstractTableWriter(object):
         self.close()
 
 
-class ToRecordsMixin(object):
+class ToRecordsMixin:
     def _new_record(self, arg):
         raise NotImplementedError
 
@@ -734,7 +734,7 @@ class TableUpsertWriter(ToRecordsMixin):
         self.close()
 
 
-class TableIOMethods(object):
+class TableIOMethods:
     @classmethod
     def _get_table_obj(cls, odps, name, project=None, schema=None):
         if isinstance(name, str) and "." in name:

@@ -199,7 +199,7 @@ def _parse_struct(value_str, data_type, keep_strings=False):
     return data_type.namedtuple_type(*values)
 
 
-class AbstractRecordReader(object):
+class AbstractRecordReader:
     def __iter__(self):
         return self
 

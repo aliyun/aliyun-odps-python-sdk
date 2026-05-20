@@ -33,7 +33,7 @@ except ImportError:
     requests_unixsocket = None
 
 
-class UnixEndpointProxy(object):
+class UnixEndpointProxy:
     def __init__(self, sock_file, endpoint):
         self._sock_file = sock_file
         self._remote_endpoint = endpoint

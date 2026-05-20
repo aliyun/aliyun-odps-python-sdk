@@ -636,7 +636,7 @@ def test_simple_arrow_read_write_table(odps):
 
 
 def test_mp_block_server():
-    class MockWriter(object):
+    class MockWriter:
         def __init__(self):
             self.idx = 0
             self._used_block_id_queue = queue.Queue()

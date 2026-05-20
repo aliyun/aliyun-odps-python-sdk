@@ -595,7 +595,7 @@ def merge_data(*data_frames, **kwargs):
 class MLSchema(TableSchema):
     __slots__ = '_collection',
 
-    class MLAttrCollection(object):
+    class MLAttrCollection:
         def __init__(self, collection=None):
             if collection is not None:
                 self._ml_fields = dict((f.name, f) for f in collection._ml_fields)

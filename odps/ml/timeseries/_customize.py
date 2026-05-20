@@ -27,7 +27,7 @@ class TimeSeriesFieldRole(enum.Enum):
 
 
 @ml_collection_mixin
-class TimeSeriesMLMixIn(object):
+class TimeSeriesMLMixIn:
     __slots__ = ()
 
     field_role_enum = TimeSeriesFieldRole

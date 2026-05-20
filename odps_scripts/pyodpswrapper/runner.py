@@ -461,7 +461,7 @@ def run_code(odps, args, uid=None, conn=None):
     tailored_env.pop(PICKLE_ACCOUNT, None)
     os.environ = tailored_env
 
-    class Empty(object):
+    class Empty:
         pass
 
     sys.modules["resource"] = Empty
