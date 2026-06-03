@@ -8,3 +8,6 @@ include odps/src/crc32.c
 include odps/src/utils.h
 include misc/stdint.h
 global-exclude *_c.c*
+global-include LICENSE
+include pyproject.toml
+include README.rst

@@ -957,3 +957,67 @@ def test_open_reader_schema(schema_types, legacy, should_raise):
         else:
             inst.open_reader(tunnel=False)
             inst._open_result_reader.assert_called_once()
+
+
+def test_task_summary_finalized_header():
+    instance = Instance(client=mock.MagicMock())
+    instance._status_api_lock = mock.MagicMock()
+    instance._status_api_lock.__enter__ = mock.MagicMock(return_value=None)
+    instance._status_api_lock.__exit__ = mock.MagicMock(return_value=False)
+
+    # Test: summary with finalized=true header and valid JSON body
+    resp = mock.MagicMock()
+    resp.headers = {"x-odps-task-finalized": "true"}
+    resp.json.return_value = {
+        "Instance": {
+            "JsonSummary": '{"outputs":1,"inputs":2}',
+            "Summary": "text summary",
+        }
+    }
+    instance._client.get.return_value = resp
+    instance._is_sync = True
+    instance._task_results = {"AnonymousSQLTask": mock.MagicMock()}
+
+    summary = instance.get_task_summary("AnonymousSQLTask")
+    assert summary is not None
+    assert summary.finalized is True
+    assert summary.summary_text == "text summary"
+    assert summary["outputs"] == 1
+
+    # Test: summary with finalized=false header and valid JSON body
+    resp.headers = {"x-odps-task-finalized": "false"}
+    summary = instance.get_task_summary("AnonymousSQLTask")
+    assert summary is not None
+    assert summary.finalized is False
+
+    # Test: no finalized header (backward compatibility) with valid JSON body
+    resp.headers = {}
+    summary = instance.get_task_summary("AnonymousSQLTask")
+    assert summary is not None
+    assert summary.finalized is None
+    assert summary["outputs"] == 1
+
+    # Test: finalized=true but empty JSON body (DDL task) - should still return summary
+    resp.headers = {"x-odps-task-finalized": "true"}
+    resp.json.return_value = {"Instance": {}}
+    summary = instance.get_task_summary("AnonymousSQLTask")
+    assert summary is not None
+    assert summary.finalized is True
+    assert summary.summary_text is None
+    assert summary.json_summary is None
+
+    # Test: finalized=true but body parsing fails - should still return summary
+    resp.headers = {"x-odps-task-finalized": "true"}
+    resp.json.side_effect = ValueError("bad json")
+    summary = instance.get_task_summary("AnonymousSQLTask")
+    assert summary is not None
+    assert summary.finalized is True
+    assert len(summary) == 0
+    # reset side_effect
+    resp.json.side_effect = None
+
+    # Test: no finalized header and empty JSON body - returns None
+    resp.headers = {}
+    resp.json.return_value = {"Instance": {}}
+    summary = instance.get_task_summary("AnonymousSQLTask")
+    assert summary is None

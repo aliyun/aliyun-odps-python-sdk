@@ -4,5 +4,6 @@
 #  with pypa build tool
 
 sed -i.bak "s/platform_system!='Windows' and //g" pyproject.toml
+sed -i.bak "s/ and platform_system!='Windows'//g" pyproject.toml
 sed -i.bak "s/platform_system!='Windows'//g" pyproject.toml
 rm -f pyproject.toml.bak

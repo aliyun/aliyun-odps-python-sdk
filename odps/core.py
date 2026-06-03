@@ -452,7 +452,11 @@ class ODPS:
         with self._catalog_lock:
             if self._catalog_endpoint is not None:
                 return self._catalog_endpoint
-            self._catalog_endpoint = self.get_catalog_host()
+            catalog_ep = self.get_catalog_host()
+            if catalog_ep is not None and not urlparse(catalog_ep).scheme:
+                scheme = options.catalog.url_scheme or urlparse(self.endpoint).scheme
+                catalog_ep = f"{scheme}://{catalog_ep}"
+            self._catalog_endpoint = catalog_ep
             return self._catalog_endpoint
 
     @property
