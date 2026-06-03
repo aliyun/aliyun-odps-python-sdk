@@ -970,6 +970,9 @@ class StorageApiArrowClient(StorageApiClient):
 
 try:
     from ...internal.apis.storage_api.storage_api import (  # noqa: F401
+        BatchBlobStreamReader,
+        BatchReadBlobDataIterator,
+        BatchReadBlobRequest,
         CloseBlobWriterRequest,
         CreateBlobWriterRequest,
         ReadBlobRequest,

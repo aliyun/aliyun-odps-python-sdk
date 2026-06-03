@@ -399,6 +399,7 @@ class Instance(XMLLazyLoad):
         def __init__(self, *args, **kwargs):
             super(Instance.TaskSummary, self).__init__(*args, **kwargs)
             self.summary_text, self.json_summary = None, None
+            self.finalized = None
 
     class AnonymousSubmitInstance(XMLRemoteModel):
         _root = "Instance"
@@ -573,8 +574,15 @@ class Instance(XMLLazyLoad):
         Get a task's summary, mostly used for MapReduce.
 
         :param task_name: task name
-        :return: summary as a dict parsed from JSON
-        :rtype: dict
+        :return: summary dict with extra attributes:
+            * summary_text: plain text summary
+            * json_summary: raw JSON string
+            * finalized: True if task is finalized (summary won't change),
+              False if not yet finalized, None if server did not return
+              the x-odps-task-finalized header (old version compatibility).
+              Returns None when no summary body exists and no finalized
+              header is present.
+        :rtype: Instance.TaskSummary or None
         """
         task_name = task_name or self._get_default_task_name()
         params = {"taskname": task_name}
@@ -582,15 +590,29 @@ class Instance(XMLLazyLoad):
             self.resource(), action="instancesummary", params=params
         )
 
-        map_reduce = resp.json().get("Instance")
-        if map_reduce:
-            json_summary = map_reduce.get("JsonSummary")
-            if json_summary:
-                summary = Instance.TaskSummary(json.loads(json_summary))
-                summary.summary_text = map_reduce.get("Summary")
-                summary.json_summary = json_summary
+        finalized = None
+        finalized_header = resp.headers.get("x-odps-task-finalized")
+        if finalized_header is not None:
+            finalized = finalized_header.lower() == "true"
 
-                return summary
+        summary = None
+        try:
+            map_reduce = resp.json().get("Instance")
+            if map_reduce:
+                json_summary = map_reduce.get("JsonSummary")
+                if json_summary:
+                    summary = Instance.TaskSummary(json.loads(json_summary))
+                    summary.summary_text = map_reduce.get("Summary")
+                    summary.json_summary = json_summary
+        except (AttributeError, ValueError):
+            logger.debug("Failed to parse task summary body", exc_info=True)
+
+        if summary is None and finalized is not None:
+            summary = Instance.TaskSummary()
+        if summary is not None:
+            summary.finalized = finalized
+
+        return summary
 
     def _get_task_statuses_from_results(self):
         """Build Task objects from cached _task_results.

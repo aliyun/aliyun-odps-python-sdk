@@ -59,7 +59,7 @@ pyodpswrapper = "odps_scripts.pyodpswrapper.__main__:main"
 
 [build-system]
 requires = [
-    "setuptools>=64,<70",
+    "setuptools>=64",
     "wheel",
     # oldest-supported-numpy is deprecated and only applied for older Python versions
     "oldest-supported-numpy==2023.10.25; platform_machine=='aarch64' and python_version<'3.9'",

@@ -634,6 +634,9 @@ default_options.register_option(
 default_options.register_option(
     "catalog.url_prefix", "/api/catalog/v1alpha", validator=is_string
 )
+default_options.register_option(
+    "catalog.url_scheme", None, validator=any_validator(is_string, is_null)
+)
 
 # sqlalchemy
 default_options.register_option(

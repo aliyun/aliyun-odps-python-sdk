@@ -21,7 +21,6 @@ import codecs
 import copy
 import functools
 import glob
-import hmac
 import inspect
 import io
 import keyword
@@ -41,12 +40,10 @@ import traceback
 import types
 import uuid
 import warnings
-import xml.dom.minidom
-from base64 import b64encode
 from collections.abc import Hashable, Iterable, Mapping
 from datetime import date, datetime, timedelta
 from email.utils import formatdate, parsedate_tz
-from hashlib import md5, sha1
+from hashlib import md5
 from urllib.parse import urlparse
 
 from . import compat, options
@@ -160,79 +157,10 @@ def experimental(msg, cond=None):
     return _decorator
 
 
-def fixed_writexml(self, writer, indent="", addindent="", newl=""):
-    # indent = current indentation
-    # addindent = indentation to add to higher levels
-    # newl = newline string
-    writer.write(indent + "<" + self.tagName)
-
-    attrs = self._get_attributes()
-    a_names = list(attrs.keys())
-    a_names.sort()
-
-    for a_name in a_names:
-        writer.write(' %s="' % a_name)
-        xml.dom.minidom._write_data(writer, attrs[a_name].value)
-        writer.write('"')
-    if self.childNodes:
-        if (
-            len(self.childNodes) == 1
-            and self.childNodes[0].nodeType == xml.dom.minidom.Node.TEXT_NODE
-        ):
-            writer.write(">")
-            self.childNodes[0].writexml(writer, "", "", "")
-            writer.write(f"</{self.tagName}>{newl}")
-            return
-        writer.write(f">{newl}")
-        for node in self.childNodes:
-            node.writexml(writer, indent + addindent, addindent, newl)
-        writer.write(f"{indent}</{self.tagName}>{newl}")
-    else:
-        writer.write(f"/>{newl}")
-
-
-# replace minidom's function with ours
-xml.dom.minidom.Element.writexml = fixed_writexml
-xml_fixed = lambda: None
-
-
-def hmac_sha1(secret, data):
-    return b64encode(hmac.new(secret, data, sha1).digest())
-
-
 def md5_hexdigest(data):
     if data is None:
         return None
     return md5(to_binary(data)).hexdigest()
-
-
-def rshift(val, n):
-    return val >> n if val >= 0 else (val + 0x100000000) >> n
-
-
-def long_bits_to_double(bits):
-    """
-    @type  bits: long
-    @param bits: the bit pattern in IEEE 754 layout
-
-    @rtype:  float
-    @return: the double-precision floating-point value corresponding
-             to the given bit pattern C{bits}.
-    """
-    return struct.unpack("d", struct.pack("Q", bits))[0]
-
-
-def double_to_raw_long_bits(value):
-    """
-    @type  value: float
-    @param value: a Python (double-precision) float value
-
-    @rtype: long
-    @return: the IEEE 754 bit representation (64 bits as a long integer)
-             of the given double-precision floating-point value.
-    """
-    # pack double into 64 bits, then unpack as long int
-    return struct.unpack("Q", struct.pack("d", float(value)))[0]
 
 
 def camel_to_underline(name):
@@ -591,11 +519,6 @@ if sys.platform == "win32":
     to_binary = _replace_default_encoding(to_binary)
     to_text = _replace_default_encoding(to_text)
     to_str = _replace_default_encoding(to_str)
-
-
-def is_lambda(f):
-    lam = lambda: 0
-    return isinstance(f, type(lam)) and f.__name__ == lam.__name__
 
 
 def str_to_kv(string, typ=None):

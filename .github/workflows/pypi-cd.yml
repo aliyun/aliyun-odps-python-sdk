@@ -28,22 +28,12 @@ jobs:
         if: ${{ matrix.arch == 'aarch64' }}
         uses: docker/setup-qemu-action@v1
 
-      - name: Build wheels
-        uses: pypa/cibuildwheel@v1.11.1
-        if: ${{ matrix.os != 'macos-latest' }}
-        env:
-          CIBW_BEFORE_BUILD: git reset --hard && pip install -r requirements-wheel.txt && rm -rf pyproject.toml
-          CIBW_ARCHS: ${{ matrix.arch }}
-          CIBW_SKIP: pp* *-musllinux* *i686 cp35-manylinux_aarch64 cp36-manylinux_aarch64 cp39-*
-          CIBW_MANYLINUX_X86_64_IMAGE: manylinux1
-          CIBW_MANYLINUX_AARCH64_IMAGE: manylinux2014
-
-      - name: "Build wheels (Python >= 3.9, <3.13)"
+      - name: "Build wheels (Python >= 3.7, <3.13)"
         uses: pypa/cibuildwheel@v2.16.5
         env:
-          CIBW_BEFORE_BUILD: git reset --hard && pip install --prefer-binary -r requirements-wheel.txt && rm -rf pyproject.toml
+          CIBW_BEFORE_BUILD: git reset --hard && bash .github/workflows/allow-cython-in-windows.sh
           CIBW_ARCHS: ${{ matrix.arch }}
-          CIBW_SKIP: pp* *-musllinux* *i686 cp36-* cp37-* cp38-*
+          CIBW_SKIP: pp* *-musllinux* *i686 cp36-*
           CIBW_MANYLINUX_X86_64_IMAGE: manylinux2014
           CIBW_MANYLINUX_AARCH64_IMAGE: manylinux2014
 
@@ -53,7 +43,7 @@ jobs:
           # allow building with cython on Windows
           CIBW_BEFORE_BUILD: git reset --hard && bash .github/workflows/allow-cython-in-windows.sh
           CIBW_ARCHS: ${{ matrix.arch }}
-          CIBW_SKIP: "*-musllinux* *i686 cp38-* cp39-* cp310-* cp311-* cp312-* cp313t-* cp314t-*"
+          CIBW_SKIP: "*-musllinux* *i686 cp38-* cp39-* cp310-* cp311-* cp312-*"
           CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
           CIBW_MANYLINUX_AARCH64_IMAGE: manylinux_2_28
 

@@ -55,7 +55,7 @@ repos:
   # Check that the copyright is configured
   - id: copyright-check
     name: copyright-check
-    entry: python bin/copyright.py --required
+    entry: python bin/copyright.py --required --fill-empty-line
     language: python
     files: 'odps/.*'
     exclude: '^odps/lib/.*|^odps/tunnel/pb/.*\.py$'
@@ -81,7 +81,10 @@ repos:
     language: python
     require_serial: true
     types_or: [python, pyi]
-    additional_dependencies: [flake8==5.0.4]
+    additional_dependencies: [
+      'flake8==5.0.4; python_version<"3.8"',
+      'flake8==6.1.0; python_version>="3.8"',
+    ]
 - repo: local
   hooks:
   # NOTE: we make `black` a local hook because if it's installed from
