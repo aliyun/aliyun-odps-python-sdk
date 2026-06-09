@@ -192,3 +192,29 @@ def test_legacy_hasher(hasher_mod, pd):
     assert (
         hasher_mod.hash_value("legacy", "decimal(38,18)", Decimal("6.4")) == 978411031
     )
+
+
+@pytest.mark.parametrize("hasher_mod", hasher_mods)
+def test_record_hasher_pk_not_at_beginning(hasher_mod):
+    """Test RecordHasher when PK columns are not at the beginning of the schema."""
+    columns = [
+        Column("col1", "string"),
+        Column("col2", "string"),
+        Column("col3", "string"),
+    ]
+    schema = OdpsSchema(columns)
+    # Hash keys are at positions 1 and 2, not at the beginning
+    rec_hasher = hasher_mod.RecordHasher(schema, "default", ["col2", "col3"])
+
+    record = Record(schema=schema, values=["non_pk_val", "pk_val_1", "pk_val_2"])
+    hash_result = rec_hasher.hash_record(record)
+
+    # Verify hash_list with need_index=True also works
+    hash_list_result = rec_hasher.hash_list(list(record.values), need_index=True)
+    assert hash_result == hash_list_result
+
+    # Verify hash_list with need_index=False works (only PK values passed)
+    hash_no_idx_result = rec_hasher.hash_list(
+        ["pk_val_1", "pk_val_2"], need_index=False
+    )
+    assert hash_result == hash_no_idx_result

@@ -314,7 +314,7 @@ def _hash_timedelta(hasher, x):
 
 cdef class RecordHasher:
     def __init__(self, schema, hasher_type, hash_keys):
-        cdef int type_id, i
+        cdef int type_id, i, key_idx
         cdef int precision, scale
         cdef int key_count = len(hash_keys)
         cdef set hash_keys_set = set(hash_keys)
@@ -325,6 +325,7 @@ cdef class RecordHasher:
 
         self._col_ids.reserve(key_count)
         self._idx_to_hash_fun = [None] * key_count
+        key_idx = 0
         for i in range(self._schema_snapshot._col_count):
             if self._schema_snapshot._columns[i].name not in hash_keys_set:
                 continue
@@ -332,27 +333,27 @@ cdef class RecordHasher:
             self._col_ids.push_back(i)
             type_id = self._schema_snapshot._col_type_ids[i]
             if type_id == BIGINT_TYPE_ID:
-                self._idx_to_hash_fun[i] = BigintFieldHasher(self._hasher)
+                self._idx_to_hash_fun[key_idx] = BigintFieldHasher(self._hasher)
             elif type_id == FLOAT_TYPE_ID:
-                self._idx_to_hash_fun[i] = FloatFieldHasher(self._hasher)
+                self._idx_to_hash_fun[key_idx] = FloatFieldHasher(self._hasher)
             elif type_id == DOUBLE_TYPE_ID:
-                self._idx_to_hash_fun[i] = DoubleFieldHasher(self._hasher)
+                self._idx_to_hash_fun[key_idx] = DoubleFieldHasher(self._hasher)
             elif type_id == STRING_TYPE_ID or type_id == BINARY_TYPE_ID:
-                self._idx_to_hash_fun[i] = StringFieldHasher(self._hasher)
+                self._idx_to_hash_fun[key_idx] = StringFieldHasher(self._hasher)
             elif type_id == BOOL_TYPE_ID:
-                self._idx_to_hash_fun[i] = BoolFieldHasher(self._hasher)
+                self._idx_to_hash_fun[key_idx] = BoolFieldHasher(self._hasher)
             elif type_id == DATE_TYPE_ID:
-                self._idx_to_hash_fun[i] = DateFieldHasher(self._hasher)
+                self._idx_to_hash_fun[key_idx] = DateFieldHasher(self._hasher)
             elif type_id == DATETIME_TYPE_ID:
-                self._idx_to_hash_fun[i] = DatetimeFieldHasher(
+                self._idx_to_hash_fun[key_idx] = DatetimeFieldHasher(
                     self._hasher, self._mills_converter
                 )
             elif type_id == TIMESTAMP_TYPE_ID:
-                self._idx_to_hash_fun[i] = TimestampFieldHasher(
+                self._idx_to_hash_fun[key_idx] = TimestampFieldHasher(
                     self._hasher, self._mills_converter
                 )
             elif type_id == INTERVAL_DAY_TIME_TYPE_ID:
-                self._idx_to_hash_fun[i] = TimedeltaFieldHasher(
+                self._idx_to_hash_fun[key_idx] = TimedeltaFieldHasher(
                     self._hasher, self._mills_converter
                 )
             elif type_id == DECIMAL_TYPE_ID:
@@ -364,7 +365,7 @@ cdef class RecordHasher:
                     self._schema_snapshot._col_types[i].scale
                     or types.Decimal._default_scale
                 )
-                self._idx_to_hash_fun[i] = DecimalFieldHasher(
+                self._idx_to_hash_fun[key_idx] = DecimalFieldHasher(
                     self._hasher, precision, scale
                 )
             else:
@@ -372,6 +373,7 @@ cdef class RecordHasher:
                     "Hash for type %s not supported"
                     % self._schema_snapshot._col_types[i]
                 )
+            key_idx += 1
 
     cpdef int32_t hash_record(self, BaseRecord record):
         return self.hash_list(record._c_values, need_index=True)
