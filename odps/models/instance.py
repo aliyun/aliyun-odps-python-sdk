@@ -569,19 +569,20 @@ class Instance(XMLLazyLoad):
         return self.get_task_results(timeout=timeout, retry=retry).get(task_name)
 
     @_with_status_api_lock
-    def get_task_summary(self, task_name=None):
+    def get_task_summary(self, task_name=None, with_finalized=False):
         """
         Get a task's summary, mostly used for MapReduce.
 
         :param task_name: task name
+        :param with_finalized: if True, return an empty TaskSummary with
+            the finalized attribute when no summary body is available but
+            the task ends.
         :return: summary dict with extra attributes:
             * summary_text: plain text summary
             * json_summary: raw JSON string
-            * finalized: True if task is finalized (summary won't change),
-              False if not yet finalized, None if server did not return
-              the x-odps-task-finalized header (old version compatibility).
-              Returns None when no summary body exists and no finalized
-              header is present.
+            * finalized: (only when with_finalized=True) True if task is
+              finalized (summary won't change), False if not yet finalized,
+              None if server did not return the x-odps-task-finalized header.
         :rtype: Instance.TaskSummary or None
         """
         task_name = task_name or self._get_default_task_name()
@@ -591,9 +592,10 @@ class Instance(XMLLazyLoad):
         )
 
         finalized = None
-        finalized_header = resp.headers.get("x-odps-task-finalized")
-        if finalized_header is not None:
-            finalized = finalized_header.lower() == "true"
+        if with_finalized:
+            finalized_header = resp.headers.get("x-odps-task-finalized")
+            if finalized_header is not None:
+                finalized = finalized_header.lower() == "true"
 
         summary = None
         try:
@@ -605,12 +607,15 @@ class Instance(XMLLazyLoad):
                     summary.summary_text = map_reduce.get("Summary")
                     summary.json_summary = json_summary
         except (AttributeError, ValueError):
+            if not with_finalized:
+                raise
             logger.debug("Failed to parse task summary body", exc_info=True)
 
-        if summary is None and finalized is not None:
-            summary = Instance.TaskSummary()
-        if summary is not None:
-            summary.finalized = finalized
+        if with_finalized:
+            if summary is None and finalized is not None:
+                summary = Instance.TaskSummary()
+            if summary is not None:
+                summary.finalized = finalized
 
         return summary
 

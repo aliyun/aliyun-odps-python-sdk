@@ -1558,9 +1558,9 @@ def test_upsert_table(odps):
     odps.delete_table(table_name, if_exists=True)
     table = odps.create_table(
         table_name,
-        "key string not null, value string",
+        "value string, key1 string not null, key2 string not null",
         transactional=True,
-        primary_key="key",
+        primary_key=["key1", "key2"],
         lifecycle=1,
     )
 
@@ -1569,15 +1569,13 @@ def test_upsert_table(odps):
     try:
         upsert_session = tunnel.create_upsert_session(table)
         stream = upsert_session.open_upsert_stream(compress=True)
-        rec = upsert_session.new_record(["0", "v1"])
+        rec = upsert_session.new_record(["v1", "k1", "k2"])
         stream.upsert(rec)
-        rec = upsert_session.new_record(["0", "v2"])
+        rec = upsert_session.new_record(["v2", "k1", "k2"])
         stream.upsert(rec)
-        rec = upsert_session.new_record(["0", "v3"])
+        rec = upsert_session.new_record(["v3", "k3", "k4"])
         stream.upsert(rec)
-        rec = upsert_session.new_record(["1", "v1"])
-        stream.upsert(rec)
-        rec = upsert_session.new_record(["2", "v1"])
+        rec = upsert_session.new_record(["v4", "k5", "k6"])
         stream.upsert(rec)
         stream.delete(rec)
         stream.flush()
@@ -1588,7 +1586,7 @@ def test_upsert_table(odps):
         inst = odps.execute_sql(f"SELECT * FROM {table_name}")
         with inst.open_reader() as reader:
             records = [list(rec.values) for rec in reader]
-        assert sorted(records) == [["0", "v3"], ["1", "v1"]]
+        assert sorted(records) == [["v2", "k1", "k2"], ["v3", "k3", "k4"]]
     finally:
         table.drop()
 

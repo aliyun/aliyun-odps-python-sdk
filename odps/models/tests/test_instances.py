@@ -965,7 +965,7 @@ def test_task_summary_finalized_header():
     instance._status_api_lock.__enter__ = mock.MagicMock(return_value=None)
     instance._status_api_lock.__exit__ = mock.MagicMock(return_value=False)
 
-    # Test: summary with finalized=true header and valid JSON body
+    # Test: summary with finalized=true header and valid JSON body (with_finalized=True)
     resp = mock.MagicMock()
     resp.headers = {"x-odps-task-finalized": "true"}
     resp.json.return_value = {
@@ -978,46 +978,64 @@ def test_task_summary_finalized_header():
     instance._is_sync = True
     instance._task_results = {"AnonymousSQLTask": mock.MagicMock()}
 
-    summary = instance.get_task_summary("AnonymousSQLTask")
+    summary = instance.get_task_summary("AnonymousSQLTask", with_finalized=True)
     assert summary is not None
     assert summary.finalized is True
     assert summary.summary_text == "text summary"
     assert summary["outputs"] == 1
 
-    # Test: summary with finalized=false header and valid JSON body
-    resp.headers = {"x-odps-task-finalized": "false"}
-    summary = instance.get_task_summary("AnonymousSQLTask")
-    assert summary is not None
-    assert summary.finalized is False
-
-    # Test: no finalized header (backward compatibility) with valid JSON body
-    resp.headers = {}
+    # Test: with_finalized=False (default), finalized stays None
     summary = instance.get_task_summary("AnonymousSQLTask")
     assert summary is not None
     assert summary.finalized is None
     assert summary["outputs"] == 1
 
-    # Test: finalized=true but empty JSON body (DDL task) - should still return summary
+    # Test: summary with finalized=false header and valid JSON body
+    resp.headers = {"x-odps-task-finalized": "false"}
+    summary = instance.get_task_summary("AnonymousSQLTask", with_finalized=True)
+    assert summary is not None
+    assert summary.finalized is False
+
+    # Test: no finalized header (backward compatibility) with valid JSON body
+    resp.headers = {}
+    summary = instance.get_task_summary("AnonymousSQLTask", with_finalized=True)
+    assert summary is not None
+    assert summary.finalized is None
+    assert summary["outputs"] == 1
+
+    # Test: finalized=true but empty JSON body (DDL task) - with_finalized returns summary
     resp.headers = {"x-odps-task-finalized": "true"}
     resp.json.return_value = {"Instance": {}}
-    summary = instance.get_task_summary("AnonymousSQLTask")
+    summary = instance.get_task_summary("AnonymousSQLTask", with_finalized=True)
     assert summary is not None
     assert summary.finalized is True
     assert summary.summary_text is None
     assert summary.json_summary is None
 
-    # Test: finalized=true but body parsing fails - should still return summary
+    # Test: finalized=true but empty JSON body - without with_finalized returns None
+    summary = instance.get_task_summary("AnonymousSQLTask")
+    assert summary is None
+
+    # Test: finalized=true but body parsing fails - with_finalized returns empty summary
     resp.headers = {"x-odps-task-finalized": "true"}
     resp.json.side_effect = ValueError("bad json")
-    summary = instance.get_task_summary("AnonymousSQLTask")
+    summary = instance.get_task_summary("AnonymousSQLTask", with_finalized=True)
     assert summary is not None
     assert summary.finalized is True
     assert len(summary) == 0
+    assert not summary  # bool(summary) is False when no json_summary
     # reset side_effect
     resp.json.side_effect = None
 
-    # Test: no finalized header and empty JSON body - returns None
+    # Test: body parsing fails without with_finalized - exception propagates
+    resp.headers = {"x-odps-task-finalized": "true"}
+    resp.json.side_effect = ValueError("bad json")
+    with pytest.raises(ValueError):
+        instance.get_task_summary("AnonymousSQLTask")
+    resp.json.side_effect = None
+
+    # Test: no finalized header and empty JSON body - returns None regardless
     resp.headers = {}
     resp.json.return_value = {"Instance": {}}
-    summary = instance.get_task_summary("AnonymousSQLTask")
+    summary = instance.get_task_summary("AnonymousSQLTask", with_finalized=True)
     assert summary is None
