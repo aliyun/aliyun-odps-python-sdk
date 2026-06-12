@@ -15,7 +15,7 @@ MaxCompute (ODPS) 上进行数据分析。
 .. rubric:: 安装
     :class: rubric-h2
 
-PyODPS 支持 Python 2.7 以上的 Python 版本，包括 Python 3。系统安装了 pip 后，只需运行：
+PyODPS 支持 Python 3.7 及以上的 Python 版本。系统安装了 pip 后，只需运行：
 
 .. code-block:: bash
 

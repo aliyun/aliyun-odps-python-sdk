@@ -8,14 +8,14 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2024-03-18 16:19+0800\n"
+"POT-Creation-Date: 2026-06-11 21:23+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.12.1\n"
+"Generated-By: Babel 2.18.0\n"
 
 #: ../../source/index.rst:7
 msgid "PyODPS: ODPS Python SDK and data analysis framework"
@@ -37,12 +37,10 @@ msgid "安装"
 msgstr "Installation"
 
 #: ../../source/index.rst:18
-msgid ""
-"PyODPS 支持 Python 2.7 以上的 Python 版本，包括 Python 3。系统安装了 pip "
-"后，只需运行："
+msgid "PyODPS 支持 Python 3.7 及以上的 Python 版本。系统安装了 pip 后，只需运行："
 msgstr ""
-"PyODPS supports Python 2.7 and later versions (including Python 3). After"
-" installing PIP in the system, you only need to run"
+"PyODPS supports Python 3.7 and later versions. After installing PIP in "
+"the system, you only need to run"
 
 #: ../../source/index.rst:20
 msgid "pip install pyodps"

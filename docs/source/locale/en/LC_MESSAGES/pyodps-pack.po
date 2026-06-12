@@ -15,7 +15,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.16.0\n"
+"Generated-By: Babel 2.18.0\n"
 
 #: ../../source/pyodps-pack.rst:4
 msgid "制作和使用三方包"
@@ -1291,6 +1291,7 @@ msgid "计算 psi(col1) 的值，可以编写下面的代码："
 msgstr "Write code below to compute value of psi(col1)."
 
 #: ../../source/pyodps-pack.rst:568
+#, python-brace-format
 msgid ""
 "import os\n"
 "from odps import ODPS, options\n"
@@ -1573,6 +1574,7 @@ msgstr ""
 "special functions in scipy:"
 
 #: ../../source/pyodps-pack.rst:691
+#, python-brace-format
 msgid ""
 "# 对于含有二进制代码的包，必须使用 Archive 方式上传资源，whl 后缀需要改为"
 " zip\n"
