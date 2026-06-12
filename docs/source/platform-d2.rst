@@ -8,10 +8,17 @@ DataWorks 用户使用指南
 新建工作流节点
 ===============
 
-在工作流节点中会包含PYODPS节点。新建即可。
+在工作流节点中会包含PYODPS3节点。新建即可。
 
 
 .. image:: _static/d2-node-zh.png
+
+.. note::
+
+    从 PyODPS 0.13.0 开始，PyODPS 不再提供 Python 2.7 支持。尽管 DataWorks 中的
+    PYODPS 节点中仍能使用 PyODPS 0.12.6，请使用 PYODPS3 节点以使用更新版本的 PyODPS。
+
+    下文中所述“PyODPS节点”如无说明，默认指 PYODPS3 节点。
 
 
 ODPS入口

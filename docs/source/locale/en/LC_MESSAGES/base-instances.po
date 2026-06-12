@@ -15,7 +15,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.16.0\n"
+"Generated-By: Babel 2.18.0\n"
 
 #: ../../source/base-instances.rst:4
 msgid "任务实例"
@@ -116,7 +116,7 @@ msgstr ""
 "<models>`."
 
 #: ../../source/base-instances.rst:53
-#, python-format
+#, python-brace-format, python-format
 msgid ""
 ">>> instance = o.run_xflow('AppendID', 'algo_public',\n"
 "                           {'inputTableName': 'input_table', "

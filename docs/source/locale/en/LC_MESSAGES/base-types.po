@@ -17,7 +17,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.16.0\n"
+"Generated-By: Babel 2.18.0\n"
 
 #: ../../source/base-types.rst:4
 msgid "基本类型"
@@ -281,6 +281,7 @@ msgstr ""
 "Struct type instance."
 
 #: ../../source/base-types.rst:127
+#, python-brace-format
 msgid ""
 ">>> import odps.types as odps_types\n"
 ">>>\n"
@@ -368,6 +369,7 @@ msgstr ""
 "columns and partitions columns to initialize the table."
 
 #: ../../source/base-types.rst:176
+#, python-brace-format
 msgid ""
 ">>> from odps.models import TableSchema, Column, Partition\n"
 ">>>\n"
@@ -417,6 +419,7 @@ msgstr ""
 " and the partitions."
 
 #: ../../source/base-types.rst:200
+#, python-brace-format
 msgid ""
 ">>> from odps.models import TableSchema, Column, Partition\n"
 ">>>\n"
@@ -582,6 +585,7 @@ msgid "下面的例子中，假定表结构为"
 msgstr "Assuming that the table schema for the example below is"
 
 #: ../../source/base-types.rst:285
+#, python-brace-format
 msgid ""
 "odps.Schema {\n"
 "  c_int_a                 bigint\n"
@@ -599,6 +603,7 @@ msgid "该表对应 record 的修改和读取示例为"
 msgstr "Reading or writing operations on the record of the table are as follows:"
 
 #: ../../source/base-types.rst:299
+#, python-brace-format
 msgid ""
 ">>> import datetime\n"
 ">>> t = o.get_table('mytable')\n"
