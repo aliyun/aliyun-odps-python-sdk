@@ -20,4 +20,3 @@ sphinx:
 python:
   install:
   - requirements: docs/requirements-doc.txt
-

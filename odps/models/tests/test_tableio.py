@@ -1688,3 +1688,28 @@ def test_write_sql_to_auto_parted_table(odps_daily):
     assert dest_table.exist_partition(pt_spec)
     with dest_table.open_reader(pt_spec) as reader:
         assert reader.count == 3
+
+
+def test_write_sparse_block_id(odps):
+    # Regression: opening a writer with sparse / non-sequential block IDs
+    # (e.g. [3]) raised IndexError because _open_writer stored the sub-writer
+    # indexed by the block-id *value* while everything else indexes by
+    # *position*. The v0.9 RecordWriter always used the positional index.
+    test_table_name = tn("pyodps_t_tmp_write_sparse_block_id")
+    schema = TableSchema.from_lists(["id", "name"], ["bigint", "string"])
+    odps.delete_table(test_table_name, if_exists=True)
+    table = odps.create_table(test_table_name, schema)
+
+    try:
+        # Sparse, non-sequential block IDs: block 3 and block 7. The list of
+        # block writers has length 2, so indexing by the value 3 or 7 is out
+        # of range; only positional indexing is valid.
+        with table.open_writer(blocks=[3, 7]) as writer:
+            writer.write(3, [[3, "row3"]])
+            writer.write(7, [[7, "row7"]])
+
+        records = list(odps.read_table(table, 2))
+        result = sorted(r.values for r in records)
+        assert result == [[3, to_text("row3")], [7, to_text("row7")]]
+    finally:
+        odps.delete_table(test_table_name, if_exists=True)

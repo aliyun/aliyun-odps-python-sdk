@@ -424,12 +424,12 @@ RELOAD_SYS_WARN_MSG = I18NMessage(
 )
 PYTHON2_DEPRECATE_MSG = I18NMessage(
     """
-    Support of Python 2.7 is discontinued since January 1, 2020. Though the package PyODPS
-    still supports it for now, supports for new functionalities might be dropped at some time.
-    Please consider migrating to Python 3 instead.
+    Support of Python 2.7 is discontinued since January 1, 2020 and PyODPS supports for
+    Python 2.7 ends since 0.13.0. Although you can still work with PyODPS legacy versions
+    in DataWorks, Please consider migrating to Python 3 instead.
     """,
     cn="""
-    Python 2.7 已经于2020年1月1日停止后续支持。尽管目前 PyODPS 仍然支持在 Python 2.7 上运行，
-    未来某一时刻我们可能会停止支持为 Python 2 增加新功能。请考虑将你的代码迁移到 Python 3。
+    Python 2.7 已经于2020年1月1日停止后续支持。自 0.13.0 版本起，PyODPS 不再支持 Python 2.7。
+    尽管您仍然可以在 DataWorks 中使用旧版本的 PyODPS，但建议您迁移到 Python 3。
     """,
 )

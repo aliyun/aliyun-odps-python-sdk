@@ -181,7 +181,11 @@ def wrapper_main(args, args_loader=None):
     if args.access_key is None and CONFIG_FILE not in os.environ:
         raise RuntimeError("Either access id and key or config file should be provided")
 
-    if os.getenv(REGION_ENV) and os.getenv(REGION_ENV, "").lower() != "d2":
+    if os.getenv(REGION_ENV) and os.getenv(REGION_ENV, "").lower() not in (
+        "cn",
+        "d2",
+        "nvl",
+    ):
         os.environ["ODPS_REGION_NAME"] = os.getenv(REGION_ENV)
 
     if args.access_key is not None:
