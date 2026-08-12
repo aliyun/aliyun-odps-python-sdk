@@ -54,13 +54,14 @@ class BaseAccount(object):
         canonical_resource = url_components.path
         params = dict()
         if url_components.query:
-            params_list = sorted(
-                parse_qsl(url_components.query, True), key=lambda it: it[0]
-            )
-            assert len(params_list) == len(set(it[0] for it in params_list))
-            params = dict(params_list)
+            params = dict(parse_qsl(url_components.query, True))
             convert = lambda kv: kv if kv[1] != "" else (kv[0],)
-            params_str = "&".join(["=".join(convert(kv)) for kv in params_list])
+            params_str = "&".join(
+                [
+                    "=".join(convert(kv))
+                    for kv in sorted(params.items(), key=lambda it: it[0])
+                ]
+            )
 
             canonical_resource = "%s?%s" % (canonical_resource, params_str)
 
@@ -68,7 +69,7 @@ class BaseAccount(object):
         logger.debug("headers before signing: %s", headers)
         for k, v in six.iteritems(headers):
             k = k.lower()
-            if k in ("content-type", "content-md5") or k.startswith("x-odps"):
+            if k in ("content-type", "content-md5") or k.startswith("x-odps-"):
                 headers_to_sign[k] = v
         for k in ("content-type", "content-md5"):
             if k not in headers_to_sign:
@@ -108,27 +109,42 @@ class CloudAccount(BaseAccount):
     def __init__(self, access_id, secret_access_key):
         self.access_id = access_id
         self.secret_access_key = secret_access_key
+        self._signature_lock = threading.RLock()
         self._last_signature_date = None
         self._last_signature_key = None
 
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        state["_signature_lock"] = None
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self._signature_lock = threading.RLock()
+
     def _get_v4_signature_key(self, date_str, region_name):
-        if date_str == self._last_signature_date:
+        with self._signature_lock:
+            if date_str == self._last_signature_date:
+                return self._last_signature_key
+
+            sig_prefix = _get_v4_signature_prefix()
+
+            k_secret = utils.to_binary(
+                sig_prefix + utils.to_str(self.secret_access_key)
+            )
+            k_date = hmac.new(
+                k_secret, utils.to_binary(date_str), hashlib.sha256
+            ).digest()
+            k_region = hmac.new(
+                k_date, utils.to_binary(region_name), hashlib.sha256
+            ).digest()
+            k_service = hmac.new(k_region, b"odps", hashlib.sha256).digest()
+
+            self._last_signature_date = date_str
+            self._last_signature_key = hmac.new(
+                k_service, utils.to_binary(sig_prefix + "_request"), hashlib.sha256
+            ).digest()
             return self._last_signature_key
-
-        sig_prefix = _get_v4_signature_prefix()
-
-        k_secret = utils.to_binary(sig_prefix + utils.to_str(self.secret_access_key))
-        k_date = hmac.new(k_secret, utils.to_binary(date_str), hashlib.sha256).digest()
-        k_region = hmac.new(
-            k_date, utils.to_binary(region_name), hashlib.sha256
-        ).digest()
-        k_service = hmac.new(k_region, b"odps", hashlib.sha256).digest()
-
-        self._last_signature_date = date_str
-        self._last_signature_key = hmac.new(
-            k_service, utils.to_binary(sig_prefix + "_request"), hashlib.sha256
-        ).digest()
-        return self._last_signature_key
 
     def calc_auth_str(self, canonical_str, region_name=None):
         if region_name is None:

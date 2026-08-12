@@ -497,7 +497,7 @@ class AbstractTableWriter(object):
     def status(self):
         return self._upload_session.status
 
-    def _open_writer(self, block_id, compress):
+    def _open_writer(self, block_id, idx, compress):
         raise NotImplementedError
 
     def _write_contents(self, writer, *args):
@@ -552,7 +552,7 @@ class AbstractTableWriter(object):
             writer = self._blocks_writers[idx]
 
         if writer is None:
-            writer = self._open_writer(block_id, compress)
+            writer = self._open_writer(block_id, idx, compress)
 
         self._write_contents(writer, *args)
         if not use_buffered_writer:
@@ -650,7 +650,7 @@ class ToRecordsMixin(object):
 
 
 class TableRecordWriter(ToRecordsMixin, AbstractTableWriter):
-    def _open_writer(self, block_id, compress):
+    def _open_writer(self, block_id, idx, compress):
         if self._use_buffered_writer:
             writer = self._upload_session.open_record_writer(
                 compress=compress,
@@ -661,10 +661,11 @@ class TableRecordWriter(ToRecordsMixin, AbstractTableWriter):
             thread_ident = threading.current_thread().ident
             self._thread_to_buffered_writers[thread_ident] = writer
         else:
+            assert self._blocks[idx] == block_id
             writer = self._upload_session.open_record_writer(
                 block_id, compress=compress, on_exception=self._on_exception
             )
-            self._blocks_writers[block_id] = writer
+            self._blocks_writers[idx] = writer
         return writer
 
     def _new_record(self, arg):
@@ -676,7 +677,7 @@ class TableRecordWriter(ToRecordsMixin, AbstractTableWriter):
 
 
 class TableArrowWriter(AbstractTableWriter):
-    def _open_writer(self, block_id, compress):
+    def _open_writer(self, block_id, idx, compress):
         if self._use_buffered_writer:
             writer = self._upload_session.open_arrow_writer(
                 compress=compress,
@@ -687,10 +688,11 @@ class TableArrowWriter(AbstractTableWriter):
             thread_ident = threading.current_thread().ident
             self._thread_to_buffered_writers[thread_ident] = writer
         else:
+            assert self._blocks[idx] == block_id
             writer = self._upload_session.open_arrow_writer(
                 block_id, compress=compress, on_exception=self._on_exception
             )
-            self._blocks_writers[block_id] = writer
+            self._blocks_writers[idx] = writer
         return writer
 
     def _write_contents(self, writer, *args):

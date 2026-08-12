@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,8 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import base64
 import copy
 import datetime
+import hashlib
+import hmac
 import json
 import os
 import pickle
@@ -28,7 +31,7 @@ import mock
 import pytest
 import requests
 
-from .. import ODPS, errors, options
+from .. import ODPS, errors, options, utils
 from ..accounts import (
     BearerTokenAccount,
     CloudAccount,
@@ -37,8 +40,11 @@ from ..accounts import (
     SignServerAccount,
     SignServerError,
     StsAccount,
+    _get_v4_signature_prefix,
     from_environments,
 )
+from ..compat import datetime_utcnow as _real_datetime_utcnow
+from ..compat import unquote, urlparse
 from ..rest import RestClient
 from .core import tn
 
@@ -269,16 +275,19 @@ def test_bearer_token_load_and_update(odps, use_legacy_logview):
 
 
 def test_v4_signature_fallback(odps):
-    odps.delete_table(tn("test_sign_account_table"), if_exists=True)
-    assert odps.endpoint not in RestClient._endpoints_without_v4_sign
+    # Exercise the V4-signature fallback in RestClient.request() directly via
+    # rest.get(), avoiding dependence on tenant/project/instance state that
+    # varies with test ordering under pytest-randomly.
+    endpoint = odps.rest.endpoint
+    assert endpoint not in RestClient._endpoints_without_v4_sign
 
     def _new_is_ok(self, resp):
-        if odps.endpoint not in self._endpoints_without_v4_sign:
+        if endpoint not in self._endpoints_without_v4_sign:
             raise errors.InvalidParameter("ODPS-0410051: Invalid credentials")
         return resp.ok
 
     def _new_is_ok2(self, resp):
-        if odps.endpoint not in self._endpoints_without_v4_sign:
+        if endpoint not in self._endpoints_without_v4_sign:
             raise errors.InternalServerError(
                 "ODPS-0010000:System internal error - Error occurred while getting access key for "
                 "'%s', CloudV4 request need ak v3 support" % odps.account.access_id
@@ -286,33 +295,27 @@ def test_v4_signature_fallback(odps):
         return resp.ok
 
     def _new_is_ok3(self, resp):
-        if odps.endpoint not in self._endpoints_without_v4_sign:
+        if endpoint not in self._endpoints_without_v4_sign:
             raise errors.Unauthorized(
                 "The request authorization header is invalid or missing."
             )
         return resp.ok
 
+    url = endpoint + "/projects/" + odps.project
     old_enable_v4_sign = options.enable_v4_sign
+    old_region_name = odps.rest._region_name
     try:
-        odps.rest._region_name = "mock_region"
+        odps.rest._region_name = "mock-region"
         options.enable_v4_sign = True
-        RestClient._endpoints_without_v4_sign.clear()
-        with mock.patch("odps.rest.RestClient.is_ok", new=_new_is_ok):
-            odps.delete_table(tn("test_sign_account_table"), if_exists=True)
-            assert odps.endpoint in RestClient._endpoints_without_v4_sign
 
-        RestClient._endpoints_without_v4_sign.clear()
-        with mock.patch("odps.rest.RestClient.is_ok", new=_new_is_ok2):
-            odps.delete_table(tn("test_sign_account_table"), if_exists=True)
-            assert odps.endpoint in RestClient._endpoints_without_v4_sign
-
-        RestClient._endpoints_without_v4_sign.clear()
-        with mock.patch("odps.rest.RestClient.is_ok", new=_new_is_ok3):
-            odps.delete_table(tn("test_sign_account_table"), if_exists=True)
-            assert odps.endpoint in RestClient._endpoints_without_v4_sign
+        for mock_is_ok in (_new_is_ok, _new_is_ok2, _new_is_ok3):
+            RestClient._endpoints_without_v4_sign.clear()
+            with mock.patch("odps.rest.RestClient.is_ok", new=mock_is_ok):
+                odps.rest.get(url)
+                assert endpoint in RestClient._endpoints_without_v4_sign
     finally:
-        odps.rest._region_name = odps.region_name
-        RestClient._endpoints_without_v4_sign.difference_update([odps.endpoint])
+        odps.rest._region_name = old_region_name
+        RestClient._endpoints_without_v4_sign.discard(endpoint)
         options.enable_v4_sign = old_enable_v4_sign
 
 
@@ -419,3 +422,145 @@ def test_credential_provider_account(odps, provider_cls):
         records = [["val1"], ["val2"], ["val3"]]
         writer.write(records)
     cred_odps.delete_table(table_name)
+
+
+def _build_canonical(account, url, headers, method="GET"):
+    url_components = urlparse(unquote(url), allow_fragments=False)
+    req = mock.Mock()
+    req.method = method
+    req.headers = dict(headers)
+    return account._build_canonical_str(url_components, req)
+
+
+@pytest.mark.parametrize(
+    "url,headers,resource_line,extra_assertions",
+    [
+        # Duplicate query keys collapse to the last value, matching the Java SDK
+        # (which stores params in a Map). Previously pyodps raised AssertionError.
+        pytest.param(
+            "/projects/p?k=1&k=2",
+            {"Date": "Wed, 04 Aug 2026 06:00:00 GMT"},
+            "/projects/p?k=2",
+            {},
+            id="dedup-query-keys",
+        ),
+        # A parameter with an empty value renders as a bare key ("?empty"),
+        # matching the Java SDK's buildCanonicalizedResource.
+        pytest.param(
+            "/projects/p?empty=",
+            {"Date": "Wed, 04 Aug 2026 06:00:00 GMT"},
+            "/projects/p?empty",
+            {},
+            id="empty-param-value",
+        ),
+        # Only headers starting with "x-odps-" are signed; a bare "x-odps" prefix
+        # (no trailing dash) must be ignored, matching the Java SDK.
+        pytest.param(
+            "/projects/p",
+            {
+                "x-odpsfoo": "IGNORE",
+                "x-odps-x": "SIGN",
+                "Date": "Wed, 04 Aug 2026 06:00:00 GMT",
+            },
+            "/projects/p",
+            {"x-odpsfoo:IGNORE": False, "x-odps-x:SIGN": True},
+            id="header-prefix-dash",
+        ),
+    ],
+)
+def test_v4_canonical_string_java_parity(url, headers, resource_line, extra_assertions):
+    account = CloudAccount("test_aid", "test_sk")
+    canon = _build_canonical(account, url, headers)
+    assert canon.split("\n")[-1] == resource_line
+    for needle, expected in extra_assertions.items():
+        assert (needle in canon) is expected
+
+
+def test_v4_signature_computes():
+    # End-to-end v4 signature is well-formed and carries the credential scope.
+    account = CloudAccount("test_aid", "test_sk")
+    canon = _build_canonical(
+        account, "/projects/p?k=2", {"Date": "Wed, 04 Aug 2026 06:00:00 GMT"}
+    )
+    auth = account.calc_auth_str(canon, region_name="cn-hangzhou")
+    assert auth.startswith("ODPS ")
+    assert "aliyun_v4_request" in auth
+
+
+def test_v4_signature_key_midnight_rollover():
+    # The signing-key cache is keyed on the UTC date. It must roll over at UTC
+    # midnight and never at local midnight, and must never serve a stale key
+    # when the UTC date changes. Runs under a non-UTC TZ (UTC+8) so the date
+    # source is exercised against a divergent local clock.
+    account = CloudAccount("test_aid", "test_sk")
+    region = "cn-hangzhou"
+    sig_prefix = _get_v4_signature_prefix()
+    canonical = "GET\n\n\nWed, 05 Aug 2026 06:00:00 GMT\n/projects/p?k=2"
+
+    def ref_key(date_str):
+        k_secret = utils.to_binary(sig_prefix + "test_sk")
+        k_date = hmac.new(k_secret, utils.to_binary(date_str), hashlib.sha256).digest()
+        k_region = hmac.new(k_date, utils.to_binary(region), hashlib.sha256).digest()
+        k_service = hmac.new(k_region, b"odps", hashlib.sha256).digest()
+        return hmac.new(
+            k_service, utils.to_binary(sig_prefix + "_request"), hashlib.sha256
+        ).digest()
+
+    def parse_auth(auth):
+        scope, signature = auth[len("ODPS ") :].rsplit(":", 1)
+        return scope.split("/")[1], signature
+
+    # UTC boundary sequence. Under TZ=Asia/Shanghai (UTC+8), local midnight on
+    # Aug 6 falls at 16:00 UTC Aug 5 -- the same UTC date -- so the key must
+    # be reused there; it must only roll over at UTC midnight (00:00 UTC).
+    boundaries = [
+        (datetime.datetime(2026, 8, 5, 15, 59), "20260805", "before local midnight"),
+        (
+            datetime.datetime(2026, 8, 5, 16, 0),
+            "20260805",
+            "local midnight, UTC unchanged",
+        ),
+        (datetime.datetime(2026, 8, 5, 23, 59), "20260805", "before UTC midnight"),
+        (datetime.datetime(2026, 8, 6, 0, 0), "20260806", "UTC midnight (rollover)"),
+    ]
+
+    old_tz = os.environ.get("TZ")
+    try:
+        os.environ["TZ"] = "Asia/Shanghai"  # UTC+8
+        time.tzset()
+
+        # Guard: the real date source is UTC, not local, under this TZ.
+        offset = (datetime.datetime.now() - _real_datetime_utcnow()).total_seconds()
+        assert 7 * 3600 < offset < 9 * 3600
+
+        prev_date = None
+        cached_key = None
+        with mock.patch("odps.accounts.datetime_utcnow") as mocked:
+            for utc_dt, expected_date, desc in boundaries:
+                mocked.return_value = utc_dt
+                auth = account.calc_auth_str(canonical, region_name=region)
+                date_str, signature = parse_auth(auth)
+                assert date_str == expected_date, desc
+                # signature must match an independent computation for this UTC
+                # date; a stale cached key from the previous date would fail.
+                expected_sig = utils.to_str(
+                    base64.b64encode(
+                        hmac.new(
+                            ref_key(date_str), utils.to_binary(canonical), hashlib.sha1
+                        ).digest()
+                    )
+                )
+                assert signature == expected_sig, desc
+                if date_str == prev_date:
+                    # same UTC date -> key reused, cache untouched
+                    assert account._last_signature_key == cached_key, desc
+                else:
+                    assert account._last_signature_date == date_str, desc
+                prev_date = date_str
+                cached_key = account._last_signature_key
+    finally:
+        if old_tz is None:
+            os.environ.pop("TZ", None)
+        else:
+            os.environ["TZ"] = old_tz
+        time.tzset()

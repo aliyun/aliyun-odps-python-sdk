@@ -27,7 +27,7 @@ from .rest import RestClient
 from .tempobj import clean_stored_objects
 
 DEFAULT_ENDPOINT = "http://service.odps.aliyun.com/api"
-DEFAULT_REGION_NAME = "cn"
+DEFAULT_REGION_NAME = None
 LOGVIEW_HOST_DEFAULT = "http://logview.aliyun.com"
 CATALOG_API_ENDPOINT_DEFAULT = "https://catalogapi.{region}.maxcompute.aliyun.com"
 
@@ -164,7 +164,7 @@ class ODPS(object):
 
         if account is None:
             if access_id is not None:
-                self.account = self._build_account(access_id, secret_access_key)
+                self.account = self._build_account(access_id, secret_access_key, **kw)
             elif options.account is not None:
                 self.account = options.account
             else:
@@ -181,6 +181,8 @@ class ODPS(object):
             or os.getenv("ODPS_ENDPOINT")
             or DEFAULT_ENDPOINT
         )
+        if self.endpoint.endswith("/"):
+            self.endpoint = self.endpoint[:-1]
         self.project = (
             project or options.default_project or os.getenv("ODPS_PROJECT_NAME")
         )
@@ -269,7 +271,14 @@ class ODPS(object):
         match = _ENDPOINT_HOST_WITH_REGION_REGEX.search(parsed.hostname or "")
         if match is None:
             return DEFAULT_REGION_NAME
-        return match.group(1)
+        region_name = match.group(1)
+        for suffixes in ("-internal", "-vpc"):
+            if region_name.endswith(suffixes):
+                region_name = region_name[: -len(suffixes)]
+                break
+        if "-" not in region_name or utils.is_region_name_blacklisted(region_name):
+            return None
+        return region_name
 
     def __getstate__(self):
         params = dict(
@@ -2563,7 +2572,10 @@ class ODPS(object):
         return instance_or_result.wait_for_success()
 
     @classmethod
-    def _build_account(cls, access_id, secret_access_key):
+    def _build_account(cls, access_id, secret_access_key, **kw):
+        sts_token = utils.strip_if_str(kw.get("sts_token"))
+        if sts_token:
+            return accounts.StsAccount(access_id, secret_access_key, sts_token)
         return accounts.CloudAccount(access_id, secret_access_key)
 
     def to_global(self, overwritable=False):

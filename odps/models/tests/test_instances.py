@@ -775,7 +775,10 @@ def test_instance_job_insight(odps):
             new=_new_get_job_insight_from_request,
         ):
             new_odps = ODPS(
-                account=odps.account, project=odps.project, endpoint=odps.endpoint
+                account=odps.account,
+                project=odps.project,
+                endpoint=odps.endpoint,
+                region_name="mock-region",
             )
             instance = odps.run_sql("drop table if exists non_exist_table_name")
 

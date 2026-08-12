@@ -1407,6 +1407,15 @@ def is_job_insight_released(odps_endpoint):
         return True
 
 
+_blacklist_region_hash = {
+    "c5d35e2df0f61deff1dbc070dc5bc455",
+}
+
+
+def is_region_name_blacklisted(region_name):
+    return md5_hexdigest(to_binary(region_name)) in _blacklist_region_hash
+
+
 def _import_version_function():
     try:
         try:

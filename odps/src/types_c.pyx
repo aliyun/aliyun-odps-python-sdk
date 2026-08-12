@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ from libc.string cimport *
 from datetime import date, datetime
 
 from .. import options, types
-from ..compat import DECIMAL_TYPES
+from ..compat import DECIMAL_TYPES, six
 from ..compat import decimal as _decimal
 from ..lib.ext_types import Monthdelta
 from .utils_c cimport to_lower_str
@@ -55,6 +55,19 @@ cdef:
     int64_t ARRAY_TYPE_ID = types.Array._type_id
     int64_t MAP_TYPE_ID = types.Map._type_id
     int64_t STRUCT_TYPE_ID = types.Struct._type_id
+    int64_t VECTOR_TYPE_ID = types.Vector._type_id
+
+# Import numpy for NaN/Infinity checking at module level
+cdef object np_isnan = None
+cdef object np_isinf = None
+cdef object np_isscalar = None
+try:
+    import numpy as np
+    np_isnan = np.isnan
+    np_isinf = np.isinf
+    np_isscalar = np.isscalar
+except ImportError:
+    pass
 
 import_datetime()
 
@@ -577,6 +590,86 @@ cdef class StructValidator(TypeValidator):
         )
 
 
+cdef class VectorValidator(TypeValidator):
+    cdef:
+        object _element_type
+        TypeValidator _element_validator
+        int64_t _dimension
+
+    def __init__(self, object element_type, int64_t dimension, bint nullable=True):
+        super(VectorValidator, self).__init__(nullable=nullable)
+        self._element_type = element_type
+        self._element_validator = _build_type_validator(
+            element_type._type_id, element_type, True
+        )
+        self._dimension = dimension
+
+    cdef object validate(self, object val, int64_t max_field_size):
+        cdef:
+            size_t i, n
+            float f_val
+            object element
+
+        if self.nullable and val is None:
+            return val
+
+        # Check type
+        if not isinstance(val, (list, tuple)) and not hasattr(val, "__iter__"):
+            raise ValueError("Vector value must be a list, tuple, or array-like")
+
+        # Check dimension
+        n = len(val)
+        if n != self._dimension:
+            raise ValueError(
+                "Vector dimension mismatch: expected %d, got %d" % (self._dimension, n)
+            )
+
+        # Validate each element and check for NaN/Infinity
+        result = []
+
+        for i in range(n):
+            element = val[i]
+
+            # Check for NaN/Infinity using numpy if available
+            if np_isnan is not None:
+                try:
+                    # Check if value is scalar first
+                    if not np_isscalar(element):
+                        raise ValueError(
+                            "Vector value %s must be numeric, got: %s" % (element, type(element).__name__)
+                        )
+                    if np_isnan(element) or np_isinf(element):
+                        raise ValueError("Vector contains NaN or Infinity at index %d" % i)
+                except TypeError:
+                    # Not a numeric type that can be NaN/Inf
+                    six.raise_from(
+                        ValueError(
+                            "Vector value %s must be numeric, got: %s" % (element, type(element).__name__)
+                        ),
+                        None,
+                    )
+            else:
+                # Fallback for Python floats
+                if isinstance(element, float):
+                    f_val = <float>element
+                    if f_val != f_val:  # NaN check (NaN != NaN)
+                        raise ValueError("Vector contains NaN at index %d" % i)
+                    if f_val == float("inf") or f_val == float("-inf"):
+                        raise ValueError("Vector contains Infinity at index %d" % i)
+                elif not isinstance(element, (int, float)):
+                    raise ValueError(
+                        "Vector value %s must be numeric, got: %s" % (element, type(element).__name__)
+                    )
+
+            # Validate element type
+            if self._element_validator is not None:
+                result.append(self._element_validator.validate(element, max_field_size))
+            else:
+                result.append(types.validate_value(element, self._element_type, max_field_size=max_field_size))
+
+        return result
+
+
 cdef object _build_type_validator(int type_id, object data_type, bint nullable):
     if type_id == BIGINT_TYPE_ID:
         return BigintValidator(nullable=nullable)
@@ -615,6 +708,12 @@ cdef object _build_type_validator(int type_id, object data_type, bint nullable):
         return MapValidator(data_type, nullable=nullable)
     elif type_id == STRUCT_TYPE_ID:
         return StructValidator(data_type, nullable=nullable)
+    elif type_id == VECTOR_TYPE_ID:
+        return VectorValidator(
+            data_type.element_type,
+            data_type.dimension,
+            nullable=data_type.nullable
+        )
     return None
 
 
