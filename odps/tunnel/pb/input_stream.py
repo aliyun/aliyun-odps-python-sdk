@@ -155,6 +155,9 @@ class InputStream:
                 b = ord(self._input.read(1))
             except IndexError:
                 raise errors.DecodeError("Truncated varint.")
+            except TypeError:
+                # ord(b"") raises TypeError when stream is exhausted
+                raise errors.DecodeError("Truncated varint.")
             self._pos += 1
             result |= (b & 0x7F) << shift
             shift += 7

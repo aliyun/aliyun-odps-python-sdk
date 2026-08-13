@@ -35,7 +35,7 @@ class TunnelError(ODPSError):
             else:
                 request_id = resp.headers.get("x-odps-request-id")
             exc_type = globals().get(code, TunnelError)
-        except:
+        except Exception:
             request_id = resp.headers["x-odps-request-id"]
             obj = json.loads(resp.content)
             msg = obj["Message"]

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 1999-2025 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -46,6 +46,8 @@ cdef class BaseTunnelRecordReader:
 
     cdef int _n_injected_error_cursor
     cdef object _injected_error_exc
+    cdef bint _require_stream_footer
+    cdef bint _footer_seen
 
     cdef public int _set_record_list_value(
         self, list record, int i, object value

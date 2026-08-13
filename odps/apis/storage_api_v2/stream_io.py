@@ -19,7 +19,10 @@ import hashlib
 import json
 import logging
 import struct
+import warnings
+from dataclasses import dataclass
 from io import BytesIO, IOBase
+from typing import Callable, Optional, Tuple, Union
 
 from requests import codes
 
@@ -32,14 +35,14 @@ from ... import errors, options, utils
 from ...tunnel.io import RequestsIO
 from ...tunnel.io.stream import CompressOption, get_compress_stream
 from .models import (
+    ROUTE_TOKEN_HEADER,
     Compression,
     Status,
     WriteBlobResponse,
     WriteStreamResponse,
+    _str_version_ge,
     _update_request_id,
 )
-
-ROUTE_TOKEN_HEADER = "x-odps-max-storage-route-token"
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +69,7 @@ class StreamReader(IOBase):
         Check if the stream can still be read.
     """
 
-    def __init__(self, download):
+    def __init__(self, download: Callable):
         self._stopped = False
         raw_reader = download()
 
@@ -75,14 +78,14 @@ class StreamReader(IOBase):
         self._buffers = collections.deque()
         self._eof = False
 
-    def readable(self):
+    def readable(self) -> bool:
         return not self._stopped
 
-    def _read_chunk(self):
+    def _read_chunk(self) -> bytes:
         buf = self._raw_reader.raw.read(self._chunk_size)
         return buf
 
-    def _fill_next_buffer(self):
+    def _fill_next_buffer(self) -> None:
         if self._eof:
             return
         data = self._read_chunk()
@@ -92,7 +95,7 @@ class StreamReader(IOBase):
 
         self._buffers.append(BytesIO(data))
 
-    def read(self, nbytes=None):
+    def read(self, nbytes: Optional[int] = None) -> bytes:
         if self._stopped:
             return b""
 
@@ -115,13 +118,13 @@ class StreamReader(IOBase):
 
         return b"".join(bufs)
 
-    def get_status(self):
+    def get_status(self) -> Status:
         if not self._stopped:
             return Status.RUNNING
         else:
             return Status.OK
 
-    def get_request_id(self):
+    def get_request_id(self) -> Optional[str]:
         if not self._stopped:
             logger.error("The reader is not closed yet, please wait")
             return None
@@ -134,7 +137,7 @@ class StreamReader(IOBase):
         else:
             return None
 
-    def close(self):
+    def close(self) -> None:
         self._stopped = True
 
 
@@ -151,9 +154,7 @@ class StreamWriter(IOBase):
         False if writer is closed or error occurred.
     finish()
         Finish writing and close the upload. Returns
-        (commit_message, success_bool). In Exactly-Once mode,
-        the response body is also parsed into a WriteStreamResponse
-        accessible via get_write_stream_response().
+        (commit_message, success_bool).
     get_status()
         Check writer status (RUNNING during write, OK after finish).
     get_request_id()
@@ -163,42 +164,50 @@ class StreamWriter(IOBase):
         Call after finish(). Returns None if not available.
     get_write_stream_response()
         Get the parsed WriteStreamResponse after finish(). Returns None
-        if finish() has not been called or if the response did not
-        contain exactly-once data.
+        if finish() has not been called.
     writable()
         Check if the writer can still accept data.
     """
 
-    def __init__(self, upload, on_route_token=None):
+    def __init__(
+        self,
+        upload: Callable,
+        on_route_token: Optional[Callable[[str], None]] = None,
+        api_version: str = "2",
+    ):
         self._req_io = RequestsIO(upload, chunk_size=options.chunk_size)
         self._req_io.start()
         self._res = None
         self._stopped = False
         self._on_route_token = on_route_token
         self._write_stream_response = None
+        self._api_version = api_version
 
-    def writable(self):
+    def writable(self) -> bool:
         return not self._stopped
 
-    def write(self, data):
+    def write(self, data: bytes) -> bool:
         if self._stopped:
             return False
 
         self._req_io.write(data)
         return True
 
-    def finish(self):
+    def finish(self) -> Tuple[Optional[str], bool]:
         self._stopped = True
         self._res = self._req_io.finish()
 
         if self._res is not None and self._res.status_code == codes["ok"]:
+            # Extract route token from response headers for session affinity
             route_token = self._res.headers.get(ROUTE_TOKEN_HEADER)
             if route_token and self._on_route_token:
                 self._on_route_token(route_token)
             resp_json = self._res.json()
             commit_message = resp_json.get("CommitMessage")
-            # Parse WriteStreamResponse for Exactly-Once mode
-            if resp_json.get("ExactlyOnceRowOffset") is not None:
+            # v3+: always parse to capture StagingId and ExactlyOnceRowOffset.
+            # v2: only parse when ExactlyOnceRowOffset is present.
+            _supports_v3 = _str_version_ge(self._api_version, 3)
+            if _supports_v3 or resp_json.get("ExactlyOnceRowOffset") is not None:
                 self._write_stream_response = WriteStreamResponse()
                 self._write_stream_response.parse(
                     self._res, obj=self._write_stream_response
@@ -207,23 +216,17 @@ class StreamWriter(IOBase):
         else:
             return None, False
 
-    def get_write_stream_response(self):
-        """Get the parsed WriteStreamResponse after finish().
-
-        In Exactly-Once mode, the server response contains
-        ExactlyOnceRowOffset which tracks the committed row position.
-        This method returns that parsed response, or None if not
-        available.
-        """
+    def get_write_stream_response(self) -> Optional[WriteStreamResponse]:
+        """Return the parsed WriteStreamResponse, or None if finish() was not called."""
         return self._write_stream_response
 
-    def get_status(self):
+    def get_status(self) -> Status:
         if not self._stopped:
             return Status.RUNNING
         else:
             return Status.OK
 
-    def get_request_id(self):
+    def get_request_id(self) -> Optional[str]:
         if not self._stopped:
             logger.error("The writer is not closed yet, please close first")
             return None
@@ -233,7 +236,7 @@ class StreamWriter(IOBase):
         else:
             return None
 
-    def get_route_token(self):
+    def get_route_token(self) -> Optional[str]:
         if not self._stopped:
             logger.error("The writer is not closed yet, please close first")
             return None
@@ -266,14 +269,17 @@ class BlobStreamWriter(IOBase):
         Check if writer can accept more data.
     """
 
-    def __init__(self, upload, compression=Compression.UNCOMPRESSED):
+    def __init__(
+        self,
+        upload: Callable,
+        compression: Compression = Compression.UNCOMPRESSED,
+    ):
         self._req_io = RequestsIO(upload, chunk_size=options.chunk_size)
         self._req_io.start()
         self._res = None
         self._stopped = False
         self._md5_digest = hashlib.md5()
 
-        # Map Compression enum to CompressOption.CompressAlgorithm
         compress_algo = None
         if compression == Compression.ZSTD:
             compress_algo = CompressOption.CompressAlgorithm.ODPS_ZSTD
@@ -291,10 +297,10 @@ class BlobStreamWriter(IOBase):
         compress_option = CompressOption(compress_algo=compress_algo)
         self._compressor = get_compress_stream(self._req_io, compress_option)
 
-    def writable(self):
+    def writable(self) -> bool:
         return not self._stopped
 
-    def write(self, data):
+    def write(self, data: Union[bytes, str]) -> bool:
         if self._stopped:
             return False
 
@@ -303,7 +309,7 @@ class BlobStreamWriter(IOBase):
         self._compressor.write(data)
         return True
 
-    def finish(self):
+    def finish(self) -> Optional[WriteBlobResponse]:
         """Finish writing and verify MD5 checksum against server response.
 
         Returns:
@@ -318,6 +324,7 @@ class BlobStreamWriter(IOBase):
             response.parse(self._res, obj=response)
             _update_request_id(response, self._res)
 
+            # Verify MD5 checksum: server returns the MD5 of uncompressed data
             resp_json = self._res.json()
             md5_value = resp_json.get("MD5Value")
             if md5_value and md5_value != self._md5_digest.hexdigest():
@@ -329,13 +336,13 @@ class BlobStreamWriter(IOBase):
         else:
             return None
 
-    def get_status(self):
+    def get_status(self) -> Status:
         if not self._stopped:
             return Status.RUNNING
         else:
             return Status.OK
 
-    def get_request_id(self):
+    def get_request_id(self) -> Optional[str]:
         if not self._stopped:
             logger.error("The writer is not closed yet, please close first")
             return None
@@ -351,7 +358,7 @@ class BlobStreamWriter(IOBase):
 # ---------------------------------------------------------------------------
 
 
-def _read_le_long(stream):
+def _read_le_long(stream: IOBase) -> Optional[int]:
     """Read an 8-byte little-endian signed integer from a stream."""
     data = stream.read(8)
     if len(data) < 8:
@@ -359,7 +366,7 @@ def _read_le_long(stream):
     return struct.unpack("<q", data)[0]
 
 
-def _read_exact(stream, n):
+def _read_exact(stream: IOBase, n: int) -> bytes:
     """Read exactly n bytes from a stream."""
     bio = BytesIO()
     while bio.tell() < n:
@@ -382,18 +389,22 @@ class _CRCStrippingStream:
     This wrapper reads blocks from the raw stream on demand, strips the
     trailing CRC bytes, and serves the clean data through the standard
     ``read()`` interface.  It avoids buffering the entire stream in memory.
+
+    LZ4-compressed streams from the server include per-block CRC32C checksums
+    that must be stripped before the data can be decompressed, since the
+    decompressor expects a clean LZ4 frame without interleaved checksums.
     """
 
     _CRC_BLOCK_SIZE = 4096
     _CRC_SIZE = 4
     _FULL_BLOCK_TOTAL = _CRC_BLOCK_SIZE + _CRC_SIZE  # 4100
 
-    def __init__(self, raw_stream):
+    def __init__(self, raw_stream: IOBase):
         self._raw_stream = raw_stream
         self._buffer = b""  # clean data ready to serve
         self._finished = False  # all raw blocks consumed
 
-    def _fill(self):
+    def _fill(self) -> None:
         """Read one block from the raw stream and strip its CRC."""
         if self._finished:
             return
@@ -410,7 +421,7 @@ class _CRCStrippingStream:
                 self._buffer += block[: -self._CRC_SIZE]
             self._finished = True
 
-    def peek(self, size):
+    def peek(self, size: int) -> bytes:
         """Peek at up to *size* bytes of CRC-stripped data without consuming.
 
         Fills from the raw stream as needed, but does not advance the
@@ -433,7 +444,7 @@ class _CRCStrippingStream:
             self._fill()
         return self._buffer[:size]
 
-    def read(self, size=-1):
+    def read(self, size: int = -1) -> bytes:
         """Read up to *size* bytes of CRC-stripped data.
 
         Parameters
@@ -464,6 +475,86 @@ class _CRCStrippingStream:
         return result
 
 
+@dataclass(eq=False)
+class BlobRecord:
+    """A single downloaded blob record yielded by :class:`BlobDataIterator`.
+
+    A dataclass exposing three named fields -- ``data``, ``mime_type`` and
+    ``custom_file_name`` -- that also behaves like a 2-tuple of
+    ``(data, mime_type)`` for backward compatibility. Tuple-style access
+    (unpacking, indexing, slicing, ``len()``, and comparison with bare
+    tuples) is deprecated and emits a :class:`DeprecationWarning`; prefer
+    attribute access (``record.data``, ``record.mime_type``,
+    ``record.custom_file_name``). ``custom_file_name`` is accessible only
+    by attribute.
+
+    Equality between two ``BlobRecord`` instances compares all three fields
+    and is not deprecated.
+
+    Attributes
+    ----------
+    data : bytes
+        The raw binary data of the blob.
+    mime_type : str or None
+        MIME type metadata if it was provided during upload, otherwise None.
+    custom_file_name : str or None
+        Custom file name metadata if it was provided during upload,
+        otherwise None.
+    """
+
+    data: bytes
+    mime_type: Optional[str]
+    custom_file_name: Optional[str] = None
+
+    _TUPLE_DEPRECATION_MSG = (
+        "Treating BlobRecord as a tuple is deprecated; use attribute access "
+        "(record.data, record.mime_type, record.custom_file_name) instead."
+    )
+
+    def _warn_tuple_deprecation(self):
+        warnings.warn(
+            self._TUPLE_DEPRECATION_MSG,
+            DeprecationWarning,
+            stacklevel=3,
+        )
+
+    def __iter__(self):
+        self._warn_tuple_deprecation()
+        return iter((self.data, self.mime_type))
+
+    def __len__(self):
+        self._warn_tuple_deprecation()
+        return 2
+
+    def __getitem__(self, item):
+        self._warn_tuple_deprecation()
+        return (self.data, self.mime_type)[item]
+
+    def __eq__(self, other):
+        if isinstance(other, BlobRecord):
+            return (self.data, self.mime_type, self.custom_file_name) == (
+                other.data,
+                other.mime_type,
+                other.custom_file_name,
+            )
+        if isinstance(other, tuple):
+            self._warn_tuple_deprecation()
+            return (
+                self.data,
+                self.mime_type,
+            ) == other and self.custom_file_name is None
+        return NotImplemented
+
+    def __hash__(self):
+        return hash((type(self), self.data, self.mime_type, self.custom_file_name))
+
+    def __repr__(self):
+        return (
+            f"BlobRecord(data={self.data!r}, mime_type={self.mime_type!r}, "
+            f"custom_file_name={self.custom_file_name!r})"
+        )
+
+
 class BlobDataIterator:
     """Iterator that parses the framed blob download protocol.
 
@@ -473,28 +564,27 @@ class BlobDataIterator:
       2. CRC32C stripping -- strips per-block checksums
       3. This iterator parses [HeaderLen][Header][DataLen][Data][FooterLen][Footer] frames
 
-    Yields (data_bytes, mime_type) tuples for each blob, where:
-
-    - data_bytes : bytes
-        The raw binary data of the blob.
-    - mime_type : str or None
-        MIME type metadata if it was provided during upload,
-        otherwise None.
+    Yields :class:`BlobRecord` instances for each blob; access each record's
+    ``data``, ``mime_type`` and ``custom_file_name`` by attribute.
+    ``custom_file_name`` is only populated when the iterator is constructed
+    with *api_version* >= 3; it is always None on older versions.
 
     For single blob downloads, the server may omit framing and send raw
     decompressed data directly. The iterator automatically detects this
     case and returns the entire payload as one blob.
     """
 
-    def __init__(self, raw_stream):
+    def __init__(self, raw_stream: IOBase, api_version: str = "2"):
         self._raw_stream = raw_stream
         self._current_stream = None
         self._finished = False
         self._first = True
         self._framed = None  # detected on first read
+        self._api_version = api_version
+        self._supports_custom_file_name = _str_version_ge(api_version, 3)
 
     @staticmethod
-    def _is_framed(data):
+    def _is_framed(data: bytes) -> bool:
         """Heuristic: check if the decompressed data starts with a protocol-frame
         header-length prefix (a small LE int64).  Blob data itself rarely starts
         with 8 bytes that decode to a value in [0, 1024)."""
@@ -503,7 +593,7 @@ class BlobDataIterator:
         header_len = struct.unpack("<q", data[:8])[0]
         return 0 <= header_len < 1024
 
-    def _ensure_stream(self):
+    def _ensure_stream(self) -> None:
         """Lazily wrap the raw stream in a CRC-stripping stream."""
         if self._current_stream is not None:
             return
@@ -516,7 +606,7 @@ class BlobDataIterator:
         peek = self._current_stream.peek(8)
         self._framed = self._is_framed(peek)
 
-    def _consume_previous(self):
+    def _consume_previous(self) -> None:
         """Consume the footer of the previous blob if any data remains unread."""
         if self._current_stream is None:
             return
@@ -525,10 +615,10 @@ class BlobDataIterator:
         if footer_len is not None and footer_len > 0:
             _read_exact(self._current_stream, footer_len)
 
-    def __iter__(self):
+    def __iter__(self) -> "BlobDataIterator":
         return self
 
-    def __next__(self):
+    def __next__(self) -> BlobRecord:
         if self._finished:
             raise StopIteration
 
@@ -539,7 +629,7 @@ class BlobDataIterator:
         else:
             return self._next_raw()
 
-    def _next_raw(self):
+    def _next_raw(self) -> BlobRecord:
         """Yield the entire decompressed payload as a single blob.
 
         Used when the server omits protocol framing (e.g. single-blob responses).
@@ -551,82 +641,56 @@ class BlobDataIterator:
             self._finished = True
             if not data:
                 raise StopIteration
-            return data, None
+            return BlobRecord(data, None, None)
         self._finished = True
         raise StopIteration
 
-    def _next_framed(self):
-        """Parse one protocol-framed blob from the stream.
+    def _parse_frame_header(self) -> Tuple[Optional[str], int, Optional[str]]:
+        """Parse the next frame header and leave the stream positioned at data.
 
-        Wire format per blob:
-            [8-byte LE HeaderLen][Header JSON][8-byte LE DataLen][Data]
-            [8-byte LE FooterLen][Footer]
+        Returns ``(mime_type, data_len, custom_file_name)`` or raises
+        ``StopIteration`` when no more frames remain. The caller must have
+        already consumed the previous frame's footer.
         """
+        header_len = _read_le_long(self._current_stream)
+        if header_len is None:
+            self._finished = True
+            raise StopIteration
+
+        mime_type = custom_file_name = None
+        header_bytes = _read_exact(self._current_stream, header_len)
+        if header_bytes:
+            try:
+                header = json.loads(header_bytes.decode("utf-8"))
+                mime_type = header.get("ContentType") or None
+                if self._supports_custom_file_name:
+                    custom_file_name = header.get("CustomFileName") or None
+            except (ValueError, UnicodeDecodeError):
+                pass
+
+        data_len = _read_le_long(self._current_stream)
+        if data_len is None:
+            self._finished = True
+            raise StopIteration
+
+        return mime_type, data_len, custom_file_name
+
+    def _next_framed(self) -> BlobRecord:
+        """Parse one protocol-framed blob from the stream."""
         if not self._first:
             self._consume_previous()
         self._first = False
 
-        # Read header
-        header_len = _read_le_long(self._current_stream)
-        if header_len is None:
-            self._finished = True
-            raise StopIteration
-
-        header_bytes = _read_exact(self._current_stream, header_len)
-        mime_type = None
-        if header_bytes:
-            try:
-                header = json.loads(header_bytes.decode("utf-8"))
-                mime_type = header.get("ContentType")
-            except (ValueError, UnicodeDecodeError):
-                pass
-
-        # Read data length
-        data_len = _read_le_long(self._current_stream)
-        if data_len is None:
-            self._finished = True
-            raise StopIteration
-
-        # Read data
+        mime_type, data_len, custom_file_name = self._parse_frame_header()
         data = _read_exact(self._current_stream, data_len)
-        return data, mime_type
+        return BlobRecord(data, mime_type, custom_file_name)
 
-    def _parse_next_frame_header(self):
-        """Parse the next frame header, leaving the stream positioned at the data.
-
-        Returns (mime_type, data_len) or raises StopIteration if no more frames.
-        Advances past header + data_len prefix, so the stream is ready for
-        data reads.
-
-        The caller must ensure the previous frame's footer has already been
-        consumed before calling this method.
-        """
+    def _parse_next_frame_header(self) -> Tuple[Optional[str], int, Optional[str]]:
+        """Parse the next frame header, leaving the stream positioned at data."""
         self._first = False
+        return self._parse_frame_header()
 
-        # Read header
-        header_len = _read_le_long(self._current_stream)
-        if header_len is None:
-            self._finished = True
-            raise StopIteration
-
-        header_bytes = _read_exact(self._current_stream, header_len)
-        mime_type = None
-        if header_bytes:
-            try:
-                header = json.loads(header_bytes.decode("utf-8"))
-                mime_type = header.get("ContentType")
-            except (ValueError, UnicodeDecodeError):
-                pass
-
-        # Read data length
-        data_len = _read_le_long(self._current_stream)
-        if data_len is None:
-            self._finished = True
-            raise StopIteration
-
-        return mime_type, data_len
-
-    def read_data(self, size=-1):
+    def read_data(self, size: int = -1) -> bytes:
         """Read up to *size* bytes of the current blob's data from the stream.
 
         This is used by BlobStreamReader for chunked reads. The stream
@@ -640,7 +704,7 @@ class BlobDataIterator:
         """
         return self._current_stream.read(size)
 
-    def skip_remaining_data_and_footer(self, remaining_bytes):
+    def skip_remaining_data_and_footer(self, remaining_bytes: int) -> None:
         """Skip *remaining_bytes* of unread data and the trailing footer.
 
         Parameters
@@ -658,8 +722,8 @@ class BlobStreamReader:
     """File-like reader for streaming blob data from a :class:`BlobDataIterator`.
 
     Provides ``read(size)`` for incremental reads of the current blob,
-    a ``mime_type`` property, and a ``next()`` method to advance to the
-    next blob.
+    a ``mime_type`` property, a ``custom_file_name`` property, and a
+    ``next()`` method to advance to the next blob.
 
     Unlike iterating over :class:`BlobDataIterator` which materializes
     each blob entirely in memory, this reader reads data from the
@@ -686,15 +750,17 @@ class BlobStreamReader:
     ...     blob_reader = blob_reader.next()
     """
 
-    def __init__(self, iterator):
+    def __init__(self, iterator: BlobDataIterator):
         self._iterator = iterator
         self._mime_type = None
+        self._custom_file_name = None
         self._data_remaining = 0  # bytes still unread in current blob
         self._exhausted = False  # current blob fully read
         self._finished = False  # no more blobs available
+        # Lazy: header parsing is deferred until the first read/property access
         self._loaded = False
 
-    def _ensure_loaded(self):
+    def _ensure_loaded(self) -> None:
         """Parse the next blob header and prepare for chunked reads."""
         if self._loaded:
             return
@@ -707,8 +773,13 @@ class BlobStreamReader:
 
         if self._iterator._framed is True:
             try:
-                mime_type, data_len = self._iterator._parse_next_frame_header()
+                (
+                    mime_type,
+                    data_len,
+                    custom_file_name,
+                ) = self._iterator._parse_next_frame_header()
                 self._mime_type = mime_type
+                self._custom_file_name = custom_file_name
                 self._data_remaining = data_len
             except StopIteration:
                 self._finished = True
@@ -717,6 +788,7 @@ class BlobStreamReader:
             # Since the CRC-stripping stream is not seekable, we use a
             # sentinel value to indicate "read until the stream is exhausted".
             self._mime_type = None
+            self._custom_file_name = None
             self._data_remaining = -1  # unknown length; read until EOF
             self._iterator._finished = True  # raw mode has only one blob
 
@@ -724,12 +796,18 @@ class BlobStreamReader:
             self._exhausted = True
 
     @property
-    def mime_type(self):
+    def mime_type(self) -> Optional[str]:
         """str or None: MIME type of the current blob."""
         self._ensure_loaded()
         return self._mime_type
 
-    def read(self, size=-1):
+    @property
+    def custom_file_name(self) -> Optional[str]:
+        """str or None: custom file name of the current blob."""
+        self._ensure_loaded()
+        return self._custom_file_name
+
+    def read(self, size: int = -1) -> bytes:
         """Read up to *size* bytes from the current blob.
 
         Parameters
@@ -767,7 +845,7 @@ class BlobStreamReader:
             self._exhausted = True
         return data
 
-    def next(self):
+    def next(self) -> Optional["BlobStreamReader"]:
         """Advance to the next blob in-place and return ``self``.
 
         Raises ``IOError`` if the current blob has not been fully read.
@@ -792,8 +870,9 @@ class BlobStreamReader:
         # Skip any unread data and the footer of the current blob
         self._iterator.skip_remaining_data_and_footer(self._data_remaining)
 
-        # Reset state for the next blob
+        # Reset state for the next blob (lazy: _ensure_loaded will parse on next access)
         self._mime_type = None
+        self._custom_file_name = None
         self._data_remaining = 0
         self._exhausted = False
         self._loaded = False
@@ -819,15 +898,16 @@ class ArrowReader:
         Returns None when all batches have been read.
     """
 
-    def __init__(self, stream_reader):
+    def __init__(self, stream_reader: StreamReader):
         if pa is None:
             raise ValueError("To use arrow reader you need to install pyarrow")
 
         self._reader = stream_reader
         self._arrow_stream = None
 
-    def _read_next_batch(self):
+    def _read_next_batch(self) -> Optional["pa.RecordBatch"]:
         if self._arrow_stream is None:
+            # Open the raw stream as an Arrow IPC stream for record batch parsing
             self._arrow_stream = pa.ipc.open_stream(self._reader)
 
         try:
@@ -836,7 +916,7 @@ class ArrowReader:
         except StopIteration:
             return None
 
-    def read(self):
+    def read(self) -> Optional["pa.RecordBatch"]:
         if not self._reader.readable():
             logger.error("Reader has been closed")
             return None
@@ -847,10 +927,10 @@ class ArrowReader:
 
         return batch
 
-    def get_status(self):
+    def get_status(self) -> Status:
         return self._reader.get_status()
 
-    def get_request_id(self):
+    def get_request_id(self) -> Optional[str]:
         return self._reader.get_request_id()
 
 
@@ -870,17 +950,22 @@ class ArrowWriter:
         (commit_message, success_bool).
     """
 
-    def __init__(self, stream_writer, compression):
+    def __init__(
+        self,
+        stream_writer: StreamWriter,
+        compression: Compression,
+    ):
         self._arrow_writer = None
         self._compression = compression
         self._sink = stream_writer
 
-    def write(self, record_batch):
+    def write(self, record_batch: "pa.RecordBatch") -> bool:
         if not self._sink.writable():
             logger.error("Writer has been closed")
             return False
 
         if self._arrow_writer is None:
+            # Serialize record batches into Arrow IPC streaming format
             self._arrow_writer = pa.ipc.new_stream(
                 self._sink,
                 record_batch.schema,
@@ -897,22 +982,17 @@ class ArrowWriter:
 
         return True
 
-    def finish(self):
+    def finish(self) -> Tuple[Optional[str], bool]:
         if self._arrow_writer:
             self._arrow_writer.close()
         return self._sink.finish()
 
-    def get_status(self):
+    def get_status(self) -> Status:
         return self._sink.get_status()
 
-    def get_request_id(self):
+    def get_request_id(self) -> Optional[str]:
         return self._sink.get_request_id()
 
-    def get_write_stream_response(self):
-        """Get the parsed WriteStreamResponse after finish().
-
-        In Exactly-Once mode, the server response contains
-        ExactlyOnceRowOffset which tracks the committed row position.
-        Delegates to the underlying StreamWriter.
-        """
+    def get_write_stream_response(self) -> Optional[WriteStreamResponse]:
+        """Delegate to the underlying StreamWriter."""
         return self._sink.get_write_stream_response()

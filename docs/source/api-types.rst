@@ -125,6 +125,23 @@ Data types
 
         True if the column is nullable.
 
+.. autoclass:: odps.types.PartitionSpec
+    :members:
+
+    .. autoattribute:: is_empty
+
+        True if the partition spec has no keys.
+
+    .. autoattribute:: keys
+
+        Callable list of partition keys.
+
+    .. autoattribute:: values
+
+        Callable list of partition values.
+
+    .. automethod:: items
+
 .. autoclass:: odps.models.Record
     :members:
 

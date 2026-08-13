@@ -626,7 +626,7 @@ def test_function_resources(odps, setup):
 
     try:
         odps.delete_resource(TEMP_FILE_RESOURCE)
-    except:
+    except Exception:
         pass
     file_resource = odps.create_resource(TEMP_FILE_RESOURCE, 'file',
                                               file_obj='\n'.join(str(r[1]) for r in data[:3]))
@@ -636,7 +636,7 @@ def test_function_resources(odps, setup):
         writer.write([r[1: 2] for r in data[3: 4]])
     try:
         odps.delete_resource(TEMP_TABLE_RESOURCE)
-    except:
+    except Exception:
         pass
     table_resource = odps.create_resource(TEMP_TABLE_RESOURCE, 'table',
                                                table_name=t.name)
@@ -670,15 +670,15 @@ def test_function_resources(odps, setup):
     finally:
         try:
             file_resource.drop()
-        except:
+        except Exception:
             pass
         try:
             t.drop()
-        except:
+        except Exception:
             pass
         try:
             table_resource.drop()
-        except:
+        except Exception:
             pass
 
 

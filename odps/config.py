@@ -432,7 +432,7 @@ class VerboseLogHandler(logging.StreamHandler):
                 options.verbose_log(msg)
         except (KeyboardInterrupt, SystemExit):
             raise
-        except:
+        except Exception:
             self.handleError(record)
 
 
@@ -595,6 +595,9 @@ default_options.register_option(
     "tunnel.enable_client_metrics", False, validator=any_validator(is_null, is_bool)
 )
 default_options.register_option("tunnel.no_decimal_check", False, validator=is_bool)
+default_options.register_option(
+    "tunnel.require_stream_footer", False, validator=is_bool
+)
 default_options.register_option("tunnel.compress.enabled", False, validator=is_bool)
 default_options.register_option(
     "tunnel.compress.algo", None, validator=any_validator(is_null, is_string)
@@ -741,6 +744,14 @@ default_options.register_option(
 default_options.register_option(
     "mars.container_status_timeout", 120, validator=is_integer
 )
+
+# MaxStorage (Storage API v2)
+default_options.register_option(
+    "maxstorage.session_ready_timeout", 3600, validator=is_integer
+)
+default_options.register_option(
+    "maxstorage.blob_spill_threshold", 536870912, validator=is_integer
+)  # 512 MiB
 
 
 _options_local = threading.local()

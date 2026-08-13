@@ -164,7 +164,7 @@ else:
                     self._handle_fetch_table(content, buffers)
                 elif action == 'aggregate_graph':
                     self._handle_aggregate_graph(content, buffers)
-            except:
+            except Exception:
                 self.error_sign = (self.error_sign + 1) % 2
                 raise
 

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import hashlib
+import json
 import logging
 import os
 import struct
@@ -21,28 +22,80 @@ from io import BytesIO
 
 import mock
 import pytest
+import requests
 
 from ....core import ODPS
-from ....models import Instance
+from ....errors import ChecksumError
+from ....models import Instance, Table
 
 try:
     import pyarrow as pa
 except ImportError:
     pa = None
-
-if pa is not None:
-    from ..client import (
-        BlobDataIterator,
-        SessionStatus,
-        Status,
-        StorageApiArrowClient,
-        StorageApiClient,
-    )
-    from ..stream_io import BlobStreamWriter, StreamReader, _CRCStrippingStream
-else:
     pytestmark = pytest.mark.skip("Need pyarrow to run this test")
 
+from ..client import (
+    BlobDataIterator,
+    SessionStatus,
+    Status,
+    StorageApiArrowClient,
+    StorageApiClient,
+)
+from ..models import (
+    CreateWriteStreamResponse,
+    GetWriteSessionResponse,
+    WriteMode,
+    WriteStreamResponse,
+)
+from ..stream_io import (
+    BlobRecord,
+    BlobStreamWriter,
+    StreamReader,
+    StreamWriter,
+    _CRCStrippingStream,
+)
+
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# WriteStreamResponse / GetWriteSessionResponse field tests
+# ---------------------------------------------------------------------------
+
+
+def test_write_stream_response_has_staging_id():
+    """WriteStreamResponse has a staging_id field parsed from StagingId."""
+    resp = requests.Response()
+    resp._content = json.dumps(
+        {
+            "StagingId": "staging-123",
+            "ExactlyOnceRowOffset": 42,
+            "WarningMessage": None,
+        }
+    ).encode()
+    resp.headers = {}
+
+    obj = WriteStreamResponse()
+    obj.parse(resp, obj=obj)
+    assert obj.staging_id == "staging-123"
+    assert obj.exactly_once_row_offset == 42
+
+
+def test_get_write_session_response_has_min_uncommitted_staging_id():
+    """GetWriteSessionResponse has min_uncommitted_staging_id field."""
+    resp = requests.Response()
+    resp._content = json.dumps(
+        {
+            "MinUncommittedStagingId": "staging-abc",
+            "Streams": {},
+            "WarningMessage": None,
+        }
+    ).encode()
+    resp.headers = {}
+
+    obj = GetWriteSessionResponse()
+    obj.parse(resp, obj=obj)
+    assert obj.min_uncommitted_staging_id == "staging-abc"
 
 
 def test_storage_api(storage_api_client):
@@ -227,6 +280,192 @@ def test_instance_client_write_guard():
 
 
 # ---------------------------------------------------------------------------
+# WriteMode on StorageApiClient unit tests (mock, no server needed)
+# ---------------------------------------------------------------------------
+
+
+def _make_table_client():
+    """Build a StorageApiClient wired to a mock Table for write operations."""
+    odps = mock.MagicMock(spec=ODPS)
+    table = mock.MagicMock(spec=Table)
+    table.name = "test_table"
+    table.project.name = "test_project"
+    table._get_schema_name.return_value = "default"
+    return StorageApiClient(odps, table)
+
+
+def _mock_request_response(client, resp_json=None):
+    """Wire client._request to a mock returning a real requests.Response.
+
+    A real Response is needed so parse() deserializes properly and does
+    not set warning_message to a truthy MagicMock.
+    """
+    resp_json = resp_json if resp_json is not None else {"WarningMessage": None}
+    mock_raw_resp = requests.Response()
+    mock_raw_resp._content = json.dumps(resp_json).encode()
+    mock_raw_resp.headers = {}
+    client._request = mock.MagicMock(return_value=(resp_json, mock_raw_resp))
+    return mock_raw_resp
+
+
+def test_create_write_session_stores_write_mode():
+    """create_write_session stores the write_mode on the client."""
+    client = _make_table_client()
+    client._api_version = "3"
+    _mock_request_response(client, {"SessionId": "test-sid", "WarningMessage": None})
+
+    client.create_write_session(write_mode=WriteMode.STREAMING)
+
+    assert client.write_mode == WriteMode.STREAMING
+    # Verify WriteMode was sent as a query param
+    call_kwargs = client._request.call_args
+    extra_params = call_kwargs.kwargs.get("extra_params", {})
+    assert extra_params.get("WriteMode") == "Streaming"
+
+
+def test_get_write_session_passes_route_token():
+    """get_write_session passes the stored route token to prevent timeout."""
+    client = _make_table_client()
+    client._api_version = "3"
+    client._route_token = "stored-route-token"
+    _mock_request_response(client)
+
+    client.get_write_session("sid")
+
+    call_kwargs = client._request.call_args
+    route_token = call_kwargs.kwargs.get("route_token")
+    assert route_token == "stored-route-token"
+
+
+def test_write_mode_propagated_to_all_write_ops():
+    """After create_write_session(STREAMING), all write ops send WriteMode=Streaming."""
+    client = _make_table_client()
+    client._api_version = "3"
+    client._write_mode = WriteMode.STREAMING
+
+    _mock_request_response(client)
+
+    # Mock tunnel_rest for get_write_stream (uses GET directly, not _request)
+    client._tunnel_rest = mock.MagicMock()
+    mock_get_resp = requests.Response()
+    mock_get_resp._content = json.dumps({}).encode()
+    mock_get_resp.headers = {}
+    client._tunnel_rest.get.return_value = mock_get_resp
+
+    # --- get_write_session ---
+    client.get_write_session("sid")
+    call_kwargs = client._request.call_args
+    extra_params = call_kwargs.kwargs.get("extra_params", {})
+    assert (
+        extra_params.get("WriteMode") == "Streaming"
+    ), "get_write_session missing WriteMode"
+
+    # --- commit_write_session ---
+    client._request.reset_mock()
+    client.commit_write_session("sid")
+    call_kwargs = client._request.call_args
+    extra_params = call_kwargs.kwargs.get("extra_params", {})
+    assert (
+        extra_params.get("WriteMode") == "Streaming"
+    ), "commit_write_session missing WriteMode"
+
+    # --- abort_write_session ---
+    client._request.reset_mock()
+    client.abort_write_session("sid")
+    call_kwargs = client._request.call_args
+    extra_params = call_kwargs.kwargs.get("extra_params", {})
+    assert (
+        extra_params.get("WriteMode") == "Streaming"
+    ), "abort_write_session missing WriteMode"
+
+    # --- create_write_stream ---
+    client._request.reset_mock()
+    client.create_write_stream(session_id="sid", stream_id="0")
+    call_kwargs = client._request.call_args
+    extra_params = call_kwargs.kwargs.get("extra_params", {})
+    assert (
+        extra_params.get("WriteMode") == "Streaming"
+    ), "create_write_stream missing WriteMode"
+
+    # --- close_write_stream ---
+    client._request.reset_mock()
+    client.close_write_stream(session_id="sid", stream_id="0")
+    call_kwargs = client._request.call_args
+    extra_params = call_kwargs.kwargs.get("extra_params", {})
+    assert (
+        extra_params.get("WriteMode") == "Streaming"
+    ), "close_write_stream missing WriteMode"
+
+    # --- get_write_stream (uses tunnel_rest.get, not _request) ---
+    client.get_write_stream("sid", "0", 0)
+    call_kwargs = client._tunnel_rest.get.call_args
+    params = call_kwargs.kwargs.get("params", {})
+    assert params.get("WriteMode") == "Streaming", "get_write_stream missing WriteMode"
+
+    # --- write_rows_stream (uses tunnel_rest.post via upload closure in StreamWriter) ---
+    # write_rows_stream builds a params dict and wraps it in an upload closure
+    # inside StreamWriter. To verify the WriteMode param without running the
+    # full streaming upload, we patch StreamWriter to capture the upload callable.
+    with mock.patch("odps.apis.storage_api_v2.client.StreamWriter") as MockWriter:
+        mock_post_resp = mock.MagicMock()
+        mock_post_resp.headers = {}
+        client._tunnel_rest.post.return_value = mock_post_resp
+
+        client.write_rows_stream(session_id="sid", stream_id="0")
+
+        # StreamWriter was called with an upload closure as first arg.
+        # Invoke it to trigger tunnel_rest.post and inspect params.
+        upload_closure = MockWriter.call_args[0][0]
+        upload_closure(b"")
+        call_kwargs = client._tunnel_rest.post.call_args
+        params = call_kwargs.kwargs.get("params", {})
+        assert (
+            params.get("WriteMode") == "Streaming"
+        ), "write_rows_stream missing WriteMode"
+
+
+def test_v2_does_not_propagate_write_mode():
+    """With default api_version="2", write ops do NOT send WriteMode."""
+    client = _make_table_client()
+    client._write_mode = WriteMode.STREAMING
+
+    _mock_request_response(client)
+
+    # create_write_session should not include WriteMode in extra_params
+    client.create_write_session()
+    call_kwargs = client._request.call_args
+    extra_params = call_kwargs.kwargs.get("extra_params", {})
+    assert "WriteMode" not in extra_params, "v2 should not send WriteMode"
+
+    # commit_write_session should not include WriteMode
+    client._request.reset_mock()
+    client.commit_write_session("sid")
+    call_kwargs = client._request.call_args
+    extra_params = call_kwargs.kwargs.get("extra_params", {})
+    assert "WriteMode" not in extra_params, "v2 should not send WriteMode"
+
+
+def test_v2_get_write_session_omits_route_token():
+    """With api_version="2", get_write_session does not pass stored route_token."""
+    client = _make_table_client()
+    client._route_token = "stored-route-token"
+
+    _mock_request_response(client)
+
+    client.get_write_session("sid")
+    call_kwargs = client._request.call_args
+    route_token = call_kwargs.kwargs.get("route_token")
+    assert route_token is None, "v2 should not pass route_token on get_write_session"
+
+
+def test_v2_get_min_uncommitted_staging_id_raises():
+    """get_min_uncommitted_staging_id raises NotImplementedError on v2."""
+    client = _make_table_client()
+    with pytest.raises(NotImplementedError):
+        client.get_min_uncommitted_staging_id("sid")
+
+
+# ---------------------------------------------------------------------------
 # Instance-based client e2e test
 # ---------------------------------------------------------------------------
 
@@ -345,7 +584,6 @@ def test_preview_table(storage_api_client):
 
 def _make_crc_wire_payload(clean_data, block_size=4096, crc_size=4):
     """Build a wire-format payload by appending a dummy CRC after each block."""
-    # Allow overriding defaults for smaller test payloads
     block_size = block_size or _CRCStrippingStream._CRC_BLOCK_SIZE
     crc_size = crc_size or _CRCStrippingStream._CRC_SIZE
 
@@ -354,7 +592,7 @@ def _make_crc_wire_payload(clean_data, block_size=4096, crc_size=4):
     while offset < len(clean_data):
         chunk = clean_data[offset : offset + block_size]
         out.write(chunk)
-        out.write(b"\x00" * crc_size)  # dummy CRC
+        out.write(b"\x00" * crc_size)
         offset += block_size
     return out.getvalue()
 
@@ -482,7 +720,6 @@ def test_crc_stripping_stream_read_zero():
 
 def test_blob_data_iterator_framed():
     """BlobDataIterator correctly parses framed data with CRC stripping."""
-    # Build a framed payload: [HeaderLen][Header][DataLen][Data][FooterLen][Footer]
     header = b'{"ContentType": "text/plain"}'
     data = b"Hello, framed world!"
     footer = b'{"Checksum": {"Type": 0}}'
@@ -501,8 +738,7 @@ def test_blob_data_iterator_framed():
 
     it = BlobDataIterator(raw)
     results = list(it)
-    assert len(results) == 1
-    assert results[0] == (data, "text/plain")
+    assert results[0] == BlobRecord(data, "text/plain", None)
 
 
 def test_blob_data_iterator_raw():
@@ -515,8 +751,7 @@ def test_blob_data_iterator_raw():
 
     it = BlobDataIterator(raw)
     results = list(it)
-    assert len(results) == 1
-    assert results[0] == (clean, None)
+    assert results[0] == BlobRecord(clean, None, None)
 
 
 # ---------------------------------------------------------------------------
@@ -678,8 +913,6 @@ def test_blob_stream_writer_finish(
     md5_hex, status_code, expected_result, expect_checksum_error
 ):
     """finish() handles various server response scenarios."""
-    from ....errors import ChecksumError
-
     writer = _make_blob_stream_writer()
     writer.write(b"test data")
 
@@ -703,3 +936,150 @@ def test_blob_stream_writer_finish(
             assert writer.get_status() == Status.OK
         else:
             assert result is None
+
+
+# ---------------------------------------------------------------------------
+# StreamWriter unit tests (no server needed)
+# ---------------------------------------------------------------------------
+
+
+def _make_stream_writer(api_version, resp_json):
+    """Build a StreamWriter with mocked internals and a preset finish response."""
+    writer = StreamWriter.__new__(StreamWriter)
+    writer._stopped = False
+    writer._res = None
+    writer._on_route_token = None
+    writer._write_stream_response = None
+    writer._api_version = api_version
+    writer._req_io = mock.MagicMock()
+
+    resp = requests.Response()
+    resp.status_code = 200
+    resp._content = json.dumps(resp_json).encode()
+    resp.headers = {}
+    writer._req_io.finish.return_value = resp
+    return writer
+
+
+def test_stream_writer_finish_parses_staging_id_without_eo_mode():
+    """StreamWriter.finish() parses StagingId even without ExactlyOnceRowOffset."""
+    writer = _make_stream_writer(
+        "3", {"StagingId": "staging-xyz", "CommitMessage": "ok"}
+    )
+    commit_msg, success = writer.finish()
+
+    assert success is True
+    assert commit_msg == "ok"
+    assert writer._write_stream_response is not None
+    assert writer._write_stream_response.staging_id == "staging-xyz"
+
+
+def test_stream_writer_finish_v2_skips_parse_without_eo_mode():
+    """With api_version="2", finish() does not parse without EO mode."""
+    writer = _make_stream_writer(
+        "2", {"StagingId": "staging-xyz", "CommitMessage": "ok"}
+    )
+    commit_msg, success = writer.finish()
+
+    assert success is True
+    assert commit_msg == "ok"
+    # v2 does not parse the response when ExactlyOnceRowOffset is absent
+    assert writer._write_stream_response is None
+
+
+def test_stream_writer_finish_v2_parses_with_eo_mode():
+    """With api_version="2", finish() parses when EO mode is present."""
+    writer = _make_stream_writer(
+        "2", {"ExactlyOnceRowOffset": 42, "CommitMessage": "ok"}
+    )
+
+    commit_msg, success = writer.finish()
+
+    assert success is True
+    assert writer._write_stream_response is not None
+    assert writer._write_stream_response.exactly_once_row_offset == 42
+
+
+@pytest.mark.parametrize(
+    "field_value,expected",
+    [("staging-456", "staging-456"), (None, None)],
+    ids=["present", "absent"],
+)
+def test_get_min_uncommitted_staging_id(field_value, expected):
+    """get_min_uncommitted_staging_id returns the field from get_write_session."""
+    client = _make_table_client()
+    client._api_version = "3"
+
+    mock_response = mock.MagicMock()
+    mock_response.min_uncommitted_staging_id = field_value
+    client.get_write_session = mock.MagicMock(return_value=mock_response)
+
+    result = client.get_min_uncommitted_staging_id("sid")
+    assert result == expected
+    client.get_write_session.assert_called_once_with("sid")
+
+
+# get_write_schema / get_nested_blob_column_ids (nested blob, v3+)
+
+
+def _make_array_blob_table_schema():
+    return {
+        "DataColumns": [
+            {
+                "comment": "",
+                "label": "",
+                "columnType": {"MemberName": "c1", "ColumnId": 1, "Type": 0},
+            },
+            {
+                "comment": "",
+                "label": "",
+                "columnType": {
+                    "MemberName": "c2",
+                    "ColumnId": 2,
+                    "Type": 17,
+                    "SubTypes": [{"MemberName": "element", "ColumnId": 3, "Type": 22}],
+                },
+            },
+        ],
+    }
+
+
+def _make_v3_client_with_schema():
+    client = _make_table_client()
+    client._api_version = "3"
+    stream_resp = CreateWriteStreamResponse()
+    stream_resp.data_schema = _make_array_blob_table_schema()
+    return client, stream_resp
+
+
+def test_get_write_schema_v3():
+    client, stream_resp = _make_v3_client_with_schema()
+    schema = client.get_write_schema(stream_response=stream_resp)
+    assert schema is not None
+    assert schema.find_all_blob_column_ids() == {"c2.element": 3}
+    assert schema.get_nested_column_id("c2.element") == 3
+    assert client.get_nested_blob_column_ids(stream_response=stream_resp) == {
+        "c2.element": 3
+    }
+
+
+def test_get_nested_blob_column_ids_v3_fetches_stream_when_omitted():
+    client = _make_table_client()
+    client._api_version = "3"
+    stream_resp = CreateWriteStreamResponse()
+    stream_resp.data_schema = _make_array_blob_table_schema()
+    client.create_write_stream = mock.MagicMock(return_value=stream_resp)
+
+    ids = client.get_nested_blob_column_ids(
+        session_id="sid", stream_id="0", stream_version=0
+    )
+    assert ids == {"c2.element": 3}
+    client.create_write_stream.assert_called_once()
+
+
+@pytest.mark.parametrize("method", ["get_write_schema", "get_nested_blob_column_ids"])
+def test_nested_blob_helpers_v2_raises(method):
+    client = _make_table_client()
+    client._api_version = "2"
+    with pytest.raises(NotImplementedError, match="API version 3"):
+        getattr(client, method)(stream_response=CreateWriteStreamResponse())

@@ -57,13 +57,14 @@ class BaseAccount:
         canonical_resource = url_components.path
         params = dict()
         if url_components.query:
-            params_list = sorted(
-                parse_qsl(url_components.query, True), key=lambda it: it[0]
-            )
-            assert len(params_list) == len(set(it[0] for it in params_list))
-            params = dict(params_list)
+            params = dict(parse_qsl(url_components.query, True))
             convert = lambda kv: kv if kv[1] != "" else (kv[0],)
-            params_str = "&".join(["=".join(convert(kv)) for kv in params_list])
+            params_str = "&".join(
+                [
+                    "=".join(convert(kv))
+                    for kv in sorted(params.items(), key=lambda it: it[0])
+                ]
+            )
 
             canonical_resource = f"{canonical_resource}?{params_str}"
 
@@ -71,7 +72,7 @@ class BaseAccount:
         logger.debug("headers before signing: %s", headers)
         for k, v in headers.items():
             k = k.lower()
-            if k in ("content-type", "content-md5") or k.startswith("x-odps"):
+            if k in ("content-type", "content-md5") or k.startswith("x-odps-"):
                 headers_to_sign[k] = v
         for k in ("content-type", "content-md5"):
             if k not in headers_to_sign:
@@ -223,7 +224,7 @@ class SignServer:
         def do_POST(self):
             try:
                 self._do_POST()
-            except:
+            except Exception:
                 logger.exception("Failed to sign request on SignServer.")
                 self.send_response(500)
                 self.end_headers()
@@ -401,7 +402,7 @@ class SignServerAccount(BaseAccount):
         else:
             try:
                 err_msg = resp_err = resp.text
-            except:
+            except Exception:
                 resp_err = resp.content
                 err_msg = repr(resp_err)
 
@@ -513,7 +514,7 @@ class StsAccount(TempAccountMixin, CloudAccount):
             return None
         try:
             return calendar.timegm(time.strptime(exp_data, "%Y-%m-%dT%H:%M:%SZ"))
-        except:
+        except Exception:
             return None
 
     def _reload_account(self):
@@ -591,7 +592,7 @@ class BearerTokenAccount(TempAccountMixin, BaseAccount):
         try:
             resolved_token_parts = base64.b64decode(token).decode().split(",")
             return int(resolved_token_parts[2])
-        except:
+        except Exception:
             return None
 
     def sign_request(self, req, endpoint, region_name=None):
@@ -618,7 +619,7 @@ class CredentialProviderAccount(StsAccount):
     def _refresh_credential(self):
         try:
             credential = self.provider.get_credential()
-        except:
+        except Exception:
             credential = self.provider.get_credentials()
 
         access_id = credential.get_access_key_id()

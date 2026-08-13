@@ -389,7 +389,7 @@ class Project(XMLLazyLoad):
                 self._schema_namespace_enabled = (
                     odps_entry.is_schema_namespace_enabled()
                 )
-            except:
+            except Exception:
                 pass
         self._logview_host = (
             self._logview_host or options.logview_host or LOGVIEW_HOST_DEFAULT

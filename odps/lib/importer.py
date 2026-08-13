@@ -33,7 +33,7 @@ _SEARCH_ORDER = [
 try:
     os.path.exists('/tmp')
     ALLOW_BINARY = True
-except:
+except Exception:
     ALLOW_BINARY = False
 
 
@@ -197,7 +197,7 @@ class CompressImporter(BASE):
 
                 try:
                     self._load_dynlibs(path_patch)
-                except:
+                except Exception:
                     warnings.warn(
                         "Failed to call _load_dynlibs. Dynamic libraries might not be loaded properly."
                     )
@@ -257,7 +257,7 @@ class CompressImporter(BASE):
                 for so_file in glob.glob("*.so"):
                     try:
                         ctypes.cdll.LoadLibrary(so_file)
-                    except:
+                    except Exception:
                         warnings.warn(
                             "Failed to load dynamic library %s" % so_file, ImportWarning
                         )
@@ -389,7 +389,7 @@ class CompressImporter(BASE):
             if is_package:
                 mod.__path__ = [os.path.dirname(mod.__file__)]
             exec(code, mod.__dict__)
-        except:
+        except Exception:
             if fullmodname in sys.modules:
                 del sys.modules[fullmodname]
             raise

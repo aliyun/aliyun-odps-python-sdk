@@ -525,7 +525,7 @@ def test_arithmetic_formatter(exprs):
             except AssertionError:
                 try:
                     assert pytest.approx(float(l)) == float(r)
-                except:
+                except Exception:
                     raise e
 
 

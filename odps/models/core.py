@@ -252,7 +252,7 @@ class LazyLoadMixin:
     def __repr__(self):
         try:
             r = self._repr()
-        except:
+        except Exception:
             r = None
         if r:
             return r

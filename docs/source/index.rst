@@ -69,6 +69,24 @@ MaxCompute，可以使用下面的语句初始化 MaxCompute 入口对象：
         endpoint='**your-end-point**',
     )
 
+如果要使用 `阿里云访问凭据 <https://help.aliyun.com/zh/sdk/developer-reference/v2-manage-python-access-credentials>`_
+访问 MaxCompute，可以使用下面的语句初始化 MaxCompute 入口对象。你需要额外安装
+alibabacloud_credentials 包。
+
+.. code-block:: python
+
+    from odps import ODPS
+    from odps.accounts import CredentialProviderAccount
+    from alibabacloud_credentials.client import Client as CredClient
+    from alibabacloud_credentials.models import Config as CredConfig
+
+    # 参考 https://help.aliyun.com/zh/sdk/developer-reference/v2-manage-python-access-credentials
+    # 中的文档创建 CredClient 对象
+    cred_cfg = CredConfig(...)
+    cred_client = CredClient(cred_cfg)
+
+    o = ODPS(account=CredentialProviderAccount(cred_client), project="<project_name>", endpoint="<endpoint>")
+
 在主入口，我们对于主要的 MaxCompute 对象都提供了最基本的几个操作，包括 ``list``、``get``、\
 ``exist``、``create``、``delete``。
 

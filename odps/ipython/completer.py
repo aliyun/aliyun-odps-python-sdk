@@ -75,7 +75,7 @@ class BaseCompleter:
 
         try:
             list_gen = self._ipython.ev(code)
-        except:
+        except Exception:
             return None
 
         def _is_temp_table(tn):

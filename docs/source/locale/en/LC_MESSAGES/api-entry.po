@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.12.3\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-04-19 21:33+0800\n"
+"POT-Creation-Date: 2026-07-31 14:43+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: en\n"
@@ -17,7 +17,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.16.0\n"
+"Generated-By: Babel 2.18.0\n"
 
 #: ../../source/api-entry.rst:4
 msgid "MaxCompute entry"
@@ -28,20 +28,17 @@ msgid "Main entrance to ODPS."
 msgstr ""
 
 #: odps.core.ODPS:3 of
-msgid ""
-"Convenient operations on ODPS objects are provided. Please refer to `ODPS"
-" docs <https://help.aliyun.com/document_detail/27818.html>`_ for more "
-"details."
+msgid "Convenient operations on ODPS objects are provided."
 msgstr ""
 
-#: odps.core.ODPS:7 of
+#: odps.core.ODPS:5 of
 msgid ""
 "Generally, basic operations such as ``list``, ``get``, ``exist``, "
 "``create``, ``delete`` are provided for each ODPS object. Take the "
 "``Table`` as an example."
 msgstr ""
 
-#: odps.core.ODPS:11 of
+#: odps.core.ODPS:9 of
 msgid ""
 "To create an ODPS instance, access_id and access_key is required, and "
 "should ensure correctness, or ``SignatureNotMatch`` error will throw. If "
@@ -56,31 +53,31 @@ msgstr ""
 msgid "Parameters"
 msgstr ""
 
+#: odps.core.ODPS:13 of
+msgid "Cloud Access ID"
+msgstr ""
+
+#: odps.core.ODPS:14 of
+msgid "Cloud Access Key"
+msgstr ""
+
 #: odps.core.ODPS:15 of
-msgid "Aliyun Access ID"
-msgstr ""
-
-#: odps.core.ODPS:16 of
-msgid "Aliyun Access Key"
-msgstr ""
-
-#: odps.core.ODPS:17 of
 msgid "default project name"
 msgstr ""
 
-#: odps.core.ODPS:18 of
+#: odps.core.ODPS:16 of
 msgid "Rest service URL"
 msgstr ""
 
-#: odps.core.ODPS:19 of
+#: odps.core.ODPS:17 of
 msgid "Tunnel service URL"
 msgstr ""
 
-#: odps.core.ODPS:20 of
+#: odps.core.ODPS:18 of
 msgid "Logview host URL"
 msgstr ""
 
-#: odps.core.ODPS:21 odps.core.ODPS.as_account:6 of
+#: odps.core.ODPS:19 odps.core.ODPS.as_account:6 of
 msgid ""
 "Application account, instance of `odps.accounts.AppAccount` used for dual"
 " authentication"
@@ -101,11 +98,11 @@ msgid "Creates a new ODPS entry object with a new account information"
 msgstr ""
 
 #: odps.core.ODPS.as_account:3 of
-msgid "Aliyun Access ID of the new account"
+msgid "Cloud Access ID of the new account"
 msgstr ""
 
 #: odps.core.ODPS.as_account:4 of
-msgid "Aliyun Access Key of the new account"
+msgid "Cloud Access Key of the new account"
 msgstr ""
 
 #: odps.core.ODPS.as_account:5 of
@@ -167,12 +164,13 @@ msgstr ""
 #: odps.core.ODPS.execute_security_query:5 odps.core.ODPS.execute_sql:4
 #: odps.core.ODPS.execute_sql_cost:3 odps.core.ODPS.execute_xflow:9
 #: odps.core.ODPS.exist_function:4 odps.core.ODPS.exist_instance:4
-#: odps.core.ODPS.exist_offline_model:4 odps.core.ODPS.exist_resource:6
-#: odps.core.ODPS.exist_role:4 odps.core.ODPS.exist_schema:4
-#: odps.core.ODPS.exist_table:4 odps.core.ODPS.exist_user:4
-#: odps.core.ODPS.exist_volume:4 odps.core.ODPS.exist_volume_partition:5
-#: odps.core.ODPS.exist_xflow:4 odps.core.ODPS.get_function:4
-#: odps.core.ODPS.get_instance:4 odps.core.ODPS.get_logview_address:5
+#: odps.core.ODPS.exist_model:4 odps.core.ODPS.exist_offline_model:4
+#: odps.core.ODPS.exist_resource:6 odps.core.ODPS.exist_role:4
+#: odps.core.ODPS.exist_schema:4 odps.core.ODPS.exist_table:4
+#: odps.core.ODPS.exist_user:4 odps.core.ODPS.exist_volume:4
+#: odps.core.ODPS.exist_volume_partition:5 odps.core.ODPS.exist_xflow:4
+#: odps.core.ODPS.get_function:4 odps.core.ODPS.get_instance:4
+#: odps.core.ODPS.get_logview_address:5 odps.core.ODPS.get_model:4
 #: odps.core.ODPS.get_offline_model:4 odps.core.ODPS.get_project:3
 #: odps.core.ODPS.get_project_policy:3 odps.core.ODPS.get_resource:4
 #: odps.core.ODPS.get_role_policy:4 odps.core.ODPS.get_schema:4
@@ -182,17 +180,18 @@ msgstr ""
 #: odps.core.ODPS.get_xflow_results:5 odps.core.ODPS.get_xflow_sub_instances:5
 #: odps.core.ODPS.iter_xflow_sub_instances:6 odps.core.ODPS.list_functions:3
 #: odps.core.ODPS.list_instance_queueing_infos:3
-#: odps.core.ODPS.list_instances:4 odps.core.ODPS.list_offline_models:3
-#: odps.core.ODPS.list_resources:3 odps.core.ODPS.list_role_users:4
-#: odps.core.ODPS.list_roles:3 odps.core.ODPS.list_schemas:3
-#: odps.core.ODPS.list_tables:5 odps.core.ODPS.list_user_roles:4
-#: odps.core.ODPS.list_users:3 odps.core.ODPS.list_volume_files:6
-#: odps.core.ODPS.list_volume_partitions:4 odps.core.ODPS.list_volumes:3
-#: odps.core.ODPS.list_xflows:3 odps.core.ODPS.open_resource:23
-#: odps.core.ODPS.open_volume_reader:7 odps.core.ODPS.open_volume_writer:11
-#: odps.core.ODPS.run_security_query:6 odps.core.ODPS.run_sql:4
-#: odps.core.ODPS.run_xflow:9 odps.core.ODPS.set_project_policy:4
-#: odps.core.ODPS.set_role_policy:5 odps.core.ODPS.stop_instance:4
+#: odps.core.ODPS.list_instances:4 odps.core.ODPS.list_models:3
+#: odps.core.ODPS.list_offline_models:3 odps.core.ODPS.list_resources:3
+#: odps.core.ODPS.list_role_users:4 odps.core.ODPS.list_roles:3
+#: odps.core.ODPS.list_schemas:3 odps.core.ODPS.list_tables:5
+#: odps.core.ODPS.list_user_roles:4 odps.core.ODPS.list_users:3
+#: odps.core.ODPS.list_volume_files:6 odps.core.ODPS.list_volume_partitions:4
+#: odps.core.ODPS.list_volumes:3 odps.core.ODPS.list_xflows:3
+#: odps.core.ODPS.open_resource:23 odps.core.ODPS.open_volume_reader:7
+#: odps.core.ODPS.open_volume_writer:11 odps.core.ODPS.run_security_query:6
+#: odps.core.ODPS.run_sql:4 odps.core.ODPS.run_xflow:9
+#: odps.core.ODPS.set_project_policy:4 odps.core.ODPS.set_role_policy:5
+#: odps.core.ODPS.stop_instance:4
 #: odps.internal.core.InternalODPSMixin.execute_kube_task:4
 #: odps.internal.core.InternalODPSMixin.execute_ps:7
 #: odps.internal.core.InternalODPSMixin.execute_ps_extract_model:11
@@ -220,17 +219,19 @@ msgstr ""
 #: odps.core.ODPS.delete_volume:5 odps.core.ODPS.delete_volume_file:7
 #: odps.core.ODPS.delete_volume_partition:6
 #: odps.core.ODPS.execute_security_query:6 odps.core.ODPS.exist_function:5
-#: odps.core.ODPS.exist_resource:4 odps.core.ODPS.exist_table:5
-#: odps.core.ODPS.exist_volume:5 odps.core.ODPS.exist_volume_partition:6
-#: odps.core.ODPS.get_function:5 odps.core.ODPS.get_resource:5
+#: odps.core.ODPS.exist_model:5 odps.core.ODPS.exist_resource:4
+#: odps.core.ODPS.exist_table:5 odps.core.ODPS.exist_volume:5
+#: odps.core.ODPS.exist_volume_partition:6 odps.core.ODPS.get_function:5
+#: odps.core.ODPS.get_model:5 odps.core.ODPS.get_resource:5
 #: odps.core.ODPS.get_schema:3 odps.core.ODPS.get_table:5
 #: odps.core.ODPS.get_volume:5 odps.core.ODPS.get_volume_file:6
 #: odps.core.ODPS.get_volume_partition:6 odps.core.ODPS.list_functions:6
-#: odps.core.ODPS.list_resources:6 odps.core.ODPS.list_tables:8
-#: odps.core.ODPS.list_volume_files:7 odps.core.ODPS.list_volume_partitions:5
-#: odps.core.ODPS.list_volumes:4 odps.core.ODPS.move_volume_file:7
-#: odps.core.ODPS.open_resource:24 odps.core.ODPS.open_volume_reader:8
-#: odps.core.ODPS.open_volume_writer:12 odps.core.ODPS.run_security_query:7
+#: odps.core.ODPS.list_models:4 odps.core.ODPS.list_resources:6
+#: odps.core.ODPS.list_tables:8 odps.core.ODPS.list_volume_files:7
+#: odps.core.ODPS.list_volume_partitions:5 odps.core.ODPS.list_volumes:4
+#: odps.core.ODPS.move_volume_file:7 odps.core.ODPS.open_resource:24
+#: odps.core.ODPS.open_volume_reader:8 odps.core.ODPS.open_volume_writer:12
+#: odps.core.ODPS.run_security_query:7
 #: odps.models.tableio.TableIOMethods.read_table:9
 #: odps.models.tableio.TableIOMethods.write_sql_result_to_table:20
 #: odps.models.tableio.TableIOMethods.write_table:8
@@ -298,7 +299,7 @@ msgid "the created function"
 msgstr ""
 
 #: odps.core.ODPS.create_function:9 odps.core.ODPS.create_function:16
-#: odps.core.ODPS.get_function:9 of
+#: odps.core.ODPS.get_function:10 of
 msgid ":class:`odps.models.Function`"
 msgstr ""
 
@@ -510,7 +511,7 @@ msgstr ""
 #: odps.core.ODPS.delete_function:7 odps.core.ODPS.delete_offline_model:6
 #: odps.core.ODPS.delete_resource:7 odps.core.ODPS.delete_volume:8
 #: odps.core.ODPS.delete_xflow:5 odps.core.ODPS.stop_instance:5
-#: odps.models.tableio.TableIOMethods.write_table:29 of
+#: odps.models.tableio.TableIOMethods.write_table:31 of
 msgid "None"
 msgstr ""
 
@@ -687,7 +688,7 @@ msgstr ""
 
 #: odps.core.ODPS.execute_sql:11 odps.core.ODPS.execute_sql:24
 #: odps.core.ODPS.execute_xflow:15 odps.core.ODPS.execute_xflow:17
-#: odps.core.ODPS.get_instance:6 odps.core.ODPS.get_instance:9
+#: odps.core.ODPS.get_instance:6 odps.core.ODPS.get_instance:10
 #: odps.core.ODPS.run_sql:12 odps.core.ODPS.run_sql:14
 #: odps.core.ODPS.run_xflow:15 odps.core.ODPS.run_xflow:17
 #: odps.internal.core.InternalODPSMixin.execute_kube_task:9
@@ -1126,6 +1127,18 @@ msgstr ""
 msgid "True if exists or False"
 msgstr ""
 
+#: odps.core.ODPS.exist_model:1 of
+msgid "If the model with given name exists or not."
+msgstr ""
+
+#: odps.core.ODPS.exist_model:3 of
+msgid "model's name"
+msgstr ""
+
+#: odps.core.ODPS.exist_model:6 of
+msgid "True if model exists else False"
+msgstr ""
+
 #: odps.core.ODPS.exist_offline_model:1 of
 msgid "If the offline model with given name exists or not."
 msgstr ""
@@ -1199,18 +1212,10 @@ msgstr ""
 msgid "the right function"
 msgstr ""
 
-#: odps.core.ODPS.get_function odps.core.ODPS.get_instance
-#: odps.core.ODPS.get_offline_model odps.core.ODPS.get_project
-#: odps.core.ODPS.get_resource odps.core.ODPS.get_table
-#: odps.core.ODPS.get_xflow of
-msgid "raise"
-msgstr ""
-
-#: odps.core.ODPS.get_function:7 odps.core.ODPS.get_instance:7
-#: odps.core.ODPS.get_offline_model:7 odps.core.ODPS.get_project:8
-#: odps.core.ODPS.get_resource:8 odps.core.ODPS.get_table:8
-#: odps.core.ODPS.get_xflow:7 of
-msgid ":class:`odps.errors.NoSuchObject` if not exists"
+#: odps.core.ODPS.get_function:8 of
+msgid ""
+"if the function does not exist, no errors will be raised unless "
+"``reload`` method is called or some field of the object is accessed."
 msgstr ""
 
 #: odps.core.ODPS.get_instance:1 of
@@ -1219,6 +1224,12 @@ msgstr ""
 
 #: odps.core.ODPS.get_instance:5 of
 msgid "the right instance"
+msgstr ""
+
+#: odps.core.ODPS.get_instance:8 of
+msgid ""
+"if the instance does not exist, no errors will be raised unless "
+"``reload`` method is called or some field of the object is accessed."
 msgstr ""
 
 #: odps.core.ODPS.get_logview_address:1 of
@@ -1231,6 +1242,28 @@ msgstr ""
 
 #: odps.core.ODPS.get_logview_host:1 of
 msgid "Get logview host address. :return: logview host address"
+msgstr ""
+
+#: odps.core.ODPS.get_model:1 of
+msgid "Get model by given name"
+msgstr ""
+
+#: odps.core.ODPS.get_model:3 of
+msgid "model name"
+msgstr ""
+
+#: odps.core.ODPS.get_model:6 of
+msgid "model"
+msgstr ""
+
+#: odps.core.ODPS.get_model:7 of
+msgid ":class:`odps.models.ml.Model`"
+msgstr ""
+
+#: odps.core.ODPS.get_model:9 odps.core.ODPS.get_offline_model:8 of
+msgid ""
+"if the model does not exist, no errors will be raised unless ``reload`` "
+"method is called or some field of the object is accessed."
 msgstr ""
 
 #: odps.core.ODPS.get_offline_model:1 of
@@ -1263,8 +1296,14 @@ msgstr ""
 msgid "the right project"
 msgstr ""
 
-#: odps.core.ODPS.get_project:7 odps.core.ODPS.get_project:10 of
+#: odps.core.ODPS.get_project:7 odps.core.ODPS.get_project:11 of
 msgid ":class:`odps.models.Project`"
+msgstr ""
+
+#: odps.core.ODPS.get_project:9 of
+msgid ""
+"if the project does not exist, no errors will be raised unless ``reload``"
+" method is called or some field of the object is accessed."
 msgstr ""
 
 #: odps.core.ODPS.get_project_policy:1 of
@@ -1292,8 +1331,14 @@ msgstr ""
 msgid "the right resource"
 msgstr ""
 
-#: odps.core.ODPS.get_resource:7 odps.core.ODPS.get_resource:10 of
+#: odps.core.ODPS.get_resource:7 odps.core.ODPS.get_resource:11 of
 msgid ":class:`odps.models.Resource`"
+msgstr ""
+
+#: odps.core.ODPS.get_resource:9 of
+msgid ""
+"if the resource does not exist, no errors will be raised unless "
+"``reload`` method is called or some field of the object is accessed."
 msgstr ""
 
 #: odps.core.ODPS.get_role_policy:1 of
@@ -1338,8 +1383,14 @@ msgstr ""
 msgid "the right table"
 msgstr ""
 
-#: odps.core.ODPS.get_table:7 odps.core.ODPS.get_table:10 of
+#: odps.core.ODPS.get_table:7 odps.core.ODPS.get_table:11 of
 msgid ":class:`odps.models.Table`"
+msgstr ""
+
+#: odps.core.ODPS.get_table:9 of
+msgid ""
+"if the table does not exist, no errors will be raised unless ``reload`` "
+"method is called or some field of the object is accessed."
 msgstr ""
 
 #: odps.core.ODPS.get_volume:1 of
@@ -1381,8 +1432,14 @@ msgstr ""
 msgid "xflow"
 msgstr ""
 
-#: odps.core.ODPS.get_xflow:6 odps.core.ODPS.get_xflow:9 of
+#: odps.core.ODPS.get_xflow:6 odps.core.ODPS.get_xflow:10 of
 msgid ":class:`odps.models.XFlow`"
+msgstr ""
+
+#: odps.core.ODPS.get_xflow:8 of
+msgid ""
+"if the xflow does not exist, no errors will be raised unless ``reload`` "
+"method is called or some field of the object is accessed."
 msgstr ""
 
 #: odps.core.ODPS.get_xflow_results:1 of
@@ -1433,8 +1490,8 @@ msgid "the listed functions start with this **prefix**"
 msgstr ""
 
 #: odps.core.ODPS.list_functions:5 odps.core.ODPS.list_resources:5
-#: odps.core.ODPS.list_schemas:5 odps.core.ODPS.list_tables:7 of
-msgid "Aliyun account, the owner which listed tables belong to"
+#: odps.core.ODPS.list_tables:7 of
+msgid "Cloud account, the owner which listed tables belong to"
 msgstr ""
 
 #: odps.core.ODPS.list_functions:7 of
@@ -1477,6 +1534,16 @@ msgstr ""
 msgid "instances"
 msgstr ""
 
+#: odps.core.ODPS.list_models:1 of
+msgid ""
+"List models of project by optional filter conditions including prefix and"
+" owner."
+msgstr ""
+
+#: odps.core.ODPS.list_models:5 of
+msgid "models"
+msgstr ""
+
 #: odps.core.ODPS.list_offline_models:1 of
 msgid ""
 "List offline models of project by optional filter conditions including "
@@ -1489,7 +1556,7 @@ msgstr ""
 
 #: odps.core.ODPS.list_offline_models:5 odps.core.ODPS.list_volumes:5
 #: odps.core.ODPS.list_xflows:4 of
-msgid "Aliyun account"
+msgid "account ID"
 msgstr ""
 
 #: odps.core.ODPS.list_offline_models:6 of
@@ -1501,7 +1568,7 @@ msgid "List projects."
 msgstr ""
 
 #: odps.core.ODPS.list_projects:3 of
-msgid "Aliyun account, the owner which listed projects belong to"
+msgid "Cloud account, the owner which listed projects belong to"
 msgstr ""
 
 #: odps.core.ODPS.list_projects:4 of
@@ -1570,6 +1637,10 @@ msgstr ""
 
 #: odps.core.ODPS.list_schemas:4 of
 msgid "the listed schemas start with this **prefix**"
+msgstr ""
+
+#: odps.core.ODPS.list_schemas:5 of
+msgid "account ID, the owner which listed tables belong to"
 msgstr ""
 
 #: odps.core.ODPS.list_schemas:6 of
@@ -1780,7 +1851,7 @@ msgstr ""
 
 #: odps.core.ODPS.open_volume_reader:11 odps.core.ODPS.open_volume_writer:13
 #: odps.models.tableio.TableIOMethods.read_table:13
-#: odps.models.tableio.TableIOMethods.write_table:24 of
+#: odps.models.tableio.TableIOMethods.write_table:26 of
 msgid "the compression algorithm, level and strategy"
 msgstr ""
 
@@ -1836,7 +1907,7 @@ msgid "if True, the data will be compressed during downloading"
 msgstr ""
 
 #: odps.models.tableio.TableIOMethods.read_table:15
-#: odps.models.tableio.TableIOMethods.write_table:26 of
+#: odps.models.tableio.TableIOMethods.write_table:28 of
 msgid "tunnel service URL"
 msgstr ""
 
@@ -1851,7 +1922,7 @@ msgid "records"
 msgstr ""
 
 #: odps.models.tableio.TableIOMethods.read_table:28
-#: odps.models.tableio.TableIOMethods.write_table:88 of
+#: odps.models.tableio.TableIOMethods.write_table:90 of
 msgid ":class:`odps.models.Record`"
 msgstr ""
 
@@ -2003,12 +2074,13 @@ msgid "Whether to overwrite existing data. False by default."
 msgstr ""
 
 #: odps.models.tableio.TableIOMethods.write_sql_result_to_table:21
-#: odps.models.tableio.TableIOMethods.write_table:22 of
+#: odps.models.tableio.TableIOMethods.write_table:24 of
 msgid "specify table lifecycle when creating tables"
 msgstr ""
 
 #: odps.models.tableio.TableIOMethods.write_sql_result_to_table:22
 #: odps.models.tableio.TableIOMethods.write_table:16 of
+#, python-brace-format
 msgid ""
 "specify type mapping for columns when creating tables, can be dicts like "
 "``{\"column\": \"bigint\"}``. If column does not exist in data, it will "
@@ -2016,7 +2088,7 @@ msgid ""
 msgstr ""
 
 #: odps.models.tableio.TableIOMethods.write_sql_result_to_table:25
-#: odps.models.tableio.TableIOMethods.write_table:19 of
+#: odps.models.tableio.TableIOMethods.write_table:21 of
 msgid ""
 "a function to accept table schema resolved from data and return a new "
 "schema for table to create. Only works when target table does not exist "
@@ -2066,37 +2138,43 @@ msgstr ""
 msgid "if true, the table will be created if not exist"
 msgstr ""
 
-#: odps.models.tableio.TableIOMethods.write_table:23 of
+#: odps.models.tableio.TableIOMethods.write_table:19 of
+msgid ""
+"whether to infer column types of pandas objects with arrow when creating "
+"tables. Default as False."
+msgstr ""
+
+#: odps.models.tableio.TableIOMethods.write_table:25 of
 msgid "if true, the partition will be created if not exist"
 msgstr ""
 
-#: odps.models.tableio.TableIOMethods.write_table:27 of
+#: odps.models.tableio.TableIOMethods.write_table:29 of
 msgid ""
 "writing the table will reuse the session which opened last time, if set "
 "to True will open a new upload session, default as False"
 msgstr ""
 
-#: odps.models.tableio.TableIOMethods.write_table:33 of
+#: odps.models.tableio.TableIOMethods.write_table:35 of
 msgid "Write records into a specified table."
 msgstr ""
 
-#: odps.models.tableio.TableIOMethods.write_table:37 of
+#: odps.models.tableio.TableIOMethods.write_table:39 of
 msgid "Write records into multiple blocks."
 msgstr ""
 
-#: odps.models.tableio.TableIOMethods.write_table:41 of
+#: odps.models.tableio.TableIOMethods.write_table:43 of
 msgid "Write into a given partition."
 msgstr ""
 
-#: odps.models.tableio.TableIOMethods.write_table:45 of
+#: odps.models.tableio.TableIOMethods.write_table:47 of
 msgid "Write a pandas DataFrame. Create the table if it does not exist."
 msgstr ""
 
-#: odps.models.tableio.TableIOMethods.write_table:56 of
+#: odps.models.tableio.TableIOMethods.write_table:58 of
 msgid "Passing more arguments when creating table."
 msgstr ""
 
-#: odps.models.tableio.TableIOMethods.write_table:70 of
+#: odps.models.tableio.TableIOMethods.write_table:72 of
 msgid "Write with dynamic partitioning."
 msgstr ""
 
@@ -2104,7 +2182,8 @@ msgstr ""
 msgid "Note"
 msgstr ""
 
-#: odps.models.tableio.TableIOMethods.write_table:83 of
+#: odps.models.tableio.TableIOMethods.write_table:85 of
+#, python-brace-format
 msgid ""
 "``write_table`` treats object type of Pandas data as strings as it is "
 "often hard to determine their types when creating a new table for your "

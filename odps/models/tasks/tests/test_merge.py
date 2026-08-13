@@ -72,7 +72,7 @@ def test_run_merge(odps, test_table):
     assert isinstance(task, MergeTask)
     try:
         inst.stop()
-    except:
+    except Exception:
         pass
 
     inst = odps.run_sql(
@@ -83,7 +83,7 @@ def test_run_merge(odps, test_table):
     assert isinstance(task, MergeTask)
     try:
         inst.stop()
-    except:
+    except Exception:
         pass
 
 
@@ -100,7 +100,7 @@ def test_run_compact(odps, test_table):
     )
     try:
         inst.stop()
-    except:
+    except Exception:
         pass
 
     inst = odps.run_sql(
@@ -114,7 +114,7 @@ def test_run_compact(odps, test_table):
     assert settings_dict["odps.merge.txn.table.compact.txn.id"] == "5"
     try:
         inst.stop()
-    except:
+    except Exception:
         pass
 
 
@@ -128,7 +128,7 @@ def test_run_archive(odps, test_table):
     assert "archiveSettings" in task.properties
     try:
         inst.stop()
-    except:
+    except Exception:
         pass
 
 
@@ -141,5 +141,5 @@ def test_run_freeze(odps, test_table):
     assert settings_dict["odps.merge.cold.storage.mode"] == "backup"
     try:
         inst.stop()
-    except:
+    except Exception:
         pass

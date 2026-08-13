@@ -65,6 +65,10 @@ if hasattr(pa, "large_string"):
 if hasattr(pa, "large_binary"):
     _ARROW_TO_ODPS_TYPE[pa.large_binary()] = odps_types.binary
 
+_ARROW_ARRAY_TOO_LARGE_ERROR = (
+    "Failed casting from {source_type} to {target_type}: input array too large"
+)
+
 
 def odps_type_to_arrow_type(odps_type):
     if odps_type in _ODPS_TO_ARROW_TYPE:
@@ -166,3 +170,44 @@ def arrow_schema_to_odps_schema(arrow_schema):
         odps_cols.append(odps_types.Column(col_name, col_type))
 
     return odps_types.OdpsSchema(odps_cols)
+
+
+def _is_arrow_array_too_large_error(exc, source_type, target_type):
+    """Whether *exc* is the int32-offset overflow raised when casting a
+    large_string/large_binary array to its compact string/binary form."""
+    message = _ARROW_ARRAY_TOO_LARGE_ERROR.format(
+        source_type=source_type, target_type=target_type
+    )
+    return message in str(exc)
+
+
+def _array_chunks(arr):
+    """Return the underlying chunk list of an Array or ChunkedArray."""
+    if isinstance(arr, pa.ChunkedArray):
+        return arr.chunks
+    return [arr]
+
+
+def cast_large_offset_array(arr, target_type):
+    """Cast a large_string/large_binary array to string/binary.
+
+    PyArrow rejects the cast with "input array too large" when the compact
+    type's 32-bit offsets would overflow. Split the array in half and retry
+    recursively so each piece fits in int32 offsets, then reassemble the
+    converted chunks preserving row order. Payload and validity buffers are
+    shared with the input, so the conversion stays zero-copy for the data.
+    """
+    try:
+        return arr.cast(target_type)
+    except pa.ArrowInvalid as ex:
+        if len(arr) <= 1 or not _is_arrow_array_too_large_error(
+            ex, arr.type, target_type
+        ):
+            raise
+
+    split_pos = len(arr) // 2
+    left = cast_large_offset_array(arr.slice(0, split_pos), target_type)
+    right = cast_large_offset_array(arr.slice(split_pos), target_type)
+    return pa.chunked_array(
+        _array_chunks(left) + _array_chunks(right), type=target_type
+    )

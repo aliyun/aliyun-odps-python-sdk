@@ -37,6 +37,7 @@ from ...utils import to_text
 from .. import Column, Partition, Table, TableSchema
 from ..cluster_info import ClusterInfo, ClusterSortOrder, ClusterType
 from ..storage_tier import StorageTier
+from ..vector_index_info import VectorIndexInfo
 
 
 def test_tables(odps):
@@ -727,3 +728,74 @@ def test_alter_table_options(odps):
     test_table.set_owner(test_table.owner)
 
     odps.delete_table(table_name2, if_exists=True)
+
+
+def test_vector_index_info(odps):
+    test_table_name = tn("pyodps_t_tmp_vector_idx")
+
+    hints = {
+        "odps.sql.type.system.odps2": "true",
+        "odps.sql.type.vector.enable": "true",
+        "odps.sql.executionengine.enable.columnar.complex.type": "true",
+        "odps.optimizer.cbo.rule.filter.black": "vr,re",
+    }
+
+    try:
+        # create table with vector columns
+        create_sql = (
+            f"CREATE TABLE IF NOT EXISTS {test_table_name} "
+            "(c0 int, c1 vector(float, 2), c2 vector(float, 3)) "
+            "STORED AS aliorc "
+            "TBLPROPERTIES ('table.format.version'='2', "
+            "'acid.data.retain.hours'='24', "
+            "'columnar.nested.type'='true', "
+            "'transactional'='true')"
+        )
+        odps.execute_sql(create_sql, hints=hints).wait_for_success()
+
+        # insert data
+        insert_sql = (
+            f"insert overwrite {test_table_name} "
+            "SELECT 1, vector(1.1F,2.2F), vector(1.1F,2.2F,3.3F) union all "
+            "SELECT 2, vector(2.2F,3.3F), vector(2.2F,3.3F,4.4F) union all "
+            "SELECT 3, vector(3.3F,4.4F), vector(3.3F,4.4F,5.5F)"
+        )
+        odps.execute_sql(insert_sql, hints=hints).wait_for_success()
+
+        # create vector index
+        index_sql = (
+            f"CREATE VECTOR INDEX c2_vector_index ON {test_table_name} "
+            "(c2) IDXPROPERTIES ('algorithm' = 'hgraph', "
+            "'distance_type' = 'cosine', "
+            "'build_params' = '{\"max_degree\": 16, \"ef_construction\": 128}')"
+        )
+        odps.execute_sql(index_sql, hints=hints).wait_for_success()
+
+        # verify indexes on indexed table
+        table = odps.get_table(test_table_name)
+        table.reload()
+        indexes = table.vector_indexes
+        assert indexes is not None
+        assert len(indexes) >= 1
+
+        idx = indexes[0]
+        assert isinstance(idx, VectorIndexInfo)
+        assert idx.name == "c2_vector_index"
+        assert idx.type == "VECTOR"
+        assert idx.properties is not None
+        assert idx.properties.get("algorithm") == "hgraph"
+
+        # verify plain table without indexes returns None
+        plain_table_name = tn("pyodps_t_tmp_no_idx")
+        odps.delete_table(plain_table_name, if_exists=True)
+        odps.execute_sql(
+            f"CREATE TABLE IF NOT EXISTS {plain_table_name} (c0 int) lifecycle 1"
+        )
+        try:
+            plain = odps.get_table(plain_table_name)
+            plain.reload()
+            assert plain.vector_indexes is None
+        finally:
+            odps.delete_table(plain_table_name, if_exists=True)
+    finally:
+        odps.delete_table(test_table_name, if_exists=True)

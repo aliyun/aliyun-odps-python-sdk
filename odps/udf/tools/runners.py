@@ -156,7 +156,7 @@ def _validate_values(values, types):
             continue
         try:
             ret_vals[idx] = _convert_value(d, tp)
-        except:
+        except Exception:
             raise ValueError(f"Input type mismatch: expected {tp}, received {d!r}")
     return ret_vals
 

@@ -201,7 +201,7 @@ class ODPSEngineSpec(BaseEngineSpec):
         odps_entry = engine.dialect.get_odps_from_url(engine.url)
         try:
             return [proj.name for proj in odps_entry.list_projects()]
-        except:
+        except Exception:
             return [odps_entry.project]
 
     @classmethod

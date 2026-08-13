@@ -130,13 +130,18 @@ class SpawnedTableReaderMixin:
                 conn.send((idx, data, True))
             else:
                 return idx, data
-        except:
+        except BaseException as ex:
             if conn is None:
                 raise
             try:
                 conn.send((idx, sys.exc_info(), False))
             except:
+                # Log under all conditions
                 logger.exception("Failed to send exception back in process %d", idx)
+                raise
+            # Need to reraise non-Exception bases to avoid swallowing
+            #  exceptions like KeyboardInterrupt
+            if not isinstance(ex, Exception):
                 raise
 
     def _get_split_reader(self, columns=None, append_partitions=None):
@@ -248,15 +253,23 @@ class MPBlockServer:
                     break
                 else:  # pragma: no cover
                     raise AssertionError(f"Unrecognized command {cmd_code:x}")
-            except BaseException:
-                pk_exc_info = cloudpickle.dumps(sys.exc_info())
-                data = (
-                    struct.pack("<B", _SERVER_ERROR_CMD)
-                    + struct.pack("<I", len(pk_exc_info))
-                    + pk_exc_info
-                )
-                self._sock.sendto(data, addr)
-                logger.exception("Serve thread error.")
+            except BaseException as ex:
+                try:
+                    pk_exc_info = cloudpickle.dumps(sys.exc_info())
+                    data = (
+                        struct.pack("<B", _SERVER_ERROR_CMD)
+                        + struct.pack("<I", len(pk_exc_info))
+                        + pk_exc_info
+                    )
+                    self._sock.sendto(data, addr)
+                    logger.exception("Serve thread error.")
+                except:
+                    logger.exception("Failed to send error back to client.")
+                    raise
+                # Need to reraise non-Exception bases to avoid swallowing
+                #  exceptions like KeyboardInterrupt
+                if not isinstance(ex, Exception):
+                    raise
 
         self._sock.close()
         self._sock = None
@@ -475,7 +488,7 @@ class AbstractTableWriter:
     def status(self):
         return self._upload_session.status
 
-    def _open_writer(self, block_id, compress):
+    def _open_writer(self, block_id, idx, compress):
         raise NotImplementedError
 
     def _write_contents(self, writer, *args):
@@ -530,7 +543,7 @@ class AbstractTableWriter:
             writer = self._blocks_writers[idx]
 
         if writer is None:
-            writer = self._open_writer(block_id, compress)
+            writer = self._open_writer(block_id, idx, compress)
 
         self._write_contents(writer, *args)
         if not use_buffered_writer:
@@ -628,7 +641,7 @@ class ToRecordsMixin:
 
 
 class TableRecordWriter(ToRecordsMixin, AbstractTableWriter):
-    def _open_writer(self, block_id, compress):
+    def _open_writer(self, block_id, idx, compress):
         if self._use_buffered_writer:
             writer = self._upload_session.open_record_writer(
                 compress=compress,
@@ -639,10 +652,11 @@ class TableRecordWriter(ToRecordsMixin, AbstractTableWriter):
             thread_ident = threading.current_thread().ident
             self._thread_to_buffered_writers[thread_ident] = writer
         else:
+            assert self._blocks[idx] == block_id
             writer = self._upload_session.open_record_writer(
                 block_id, compress=compress, on_exception=self._on_exception
             )
-            self._blocks_writers[block_id] = writer
+            self._blocks_writers[idx] = writer
         return writer
 
     def _new_record(self, arg):
@@ -654,7 +668,7 @@ class TableRecordWriter(ToRecordsMixin, AbstractTableWriter):
 
 
 class TableArrowWriter(AbstractTableWriter):
-    def _open_writer(self, block_id, compress):
+    def _open_writer(self, block_id, idx, compress):
         if self._use_buffered_writer:
             writer = self._upload_session.open_arrow_writer(
                 compress=compress,
@@ -665,10 +679,11 @@ class TableArrowWriter(AbstractTableWriter):
             thread_ident = threading.current_thread().ident
             self._thread_to_buffered_writers[thread_ident] = writer
         else:
+            assert self._blocks[idx] == block_id
             writer = self._upload_session.open_arrow_writer(
                 block_id, compress=compress, on_exception=self._on_exception
             )
-            self._blocks_writers[block_id] = writer
+            self._blocks_writers[idx] = writer
         return writer
 
     def _write_contents(self, writer, *args):

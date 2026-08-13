@@ -643,7 +643,7 @@ class Analyzer(BaseAnalyzer):
                 def u_safe(s):
                     try:
                         return str(s, "unicode_escape")
-                    except:
+                    except Exception:
                         return s
 
                 if isinstance(expr, Isnumeric):

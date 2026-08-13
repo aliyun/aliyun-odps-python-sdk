@@ -25,11 +25,12 @@ from string import Template
 from urllib.parse import urlparse
 
 import requests
+from requests.exceptions import ConnectionError as RequestsConnectionError
+from requests.exceptions import ConnectTimeout
+from requests.exceptions import ProxyError as RequestsProxyError
+from requests.exceptions import ReadTimeout as RequestsReadTimeout
+from requests.exceptions import SSLError as RequestsSSLError
 
-try:
-    from requests import ConnectTimeout
-except ImportError:
-    from requests import Timeout as ConnectTimeout
 try:
     import requests_unixsocket
 except ImportError:
@@ -58,9 +59,58 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 _RETRY_BACKOFF_FACTOR = 0.1
-_RETRY_METHODS = ("GET", "HEAD", "DELETE")
+_RETRY_METHODS = frozenset(("GET", "HEAD", "PUT", "DELETE", "OPTIONS", "TRACE"))
 _RETRY_STATUS_FORCELIST = [502, 503, 504]
 _RETRY_BACKOFF_MAX = 120
+
+
+def _is_connection_error(exc):
+    """Check if a requests.ConnectionError originated from a pre-request failure.
+
+    Inspects the wrapped urllib3 exception chain to determine whether the
+    error occurred before any request data was sent to the server (safe to
+    retry unconditionally), matching urllib3's ``_is_connection_error``.
+
+    Pre-request errors include:
+    - ``NewConnectionError`` (ECONNREFUSED, etc.)
+    - ``ConnectTimeoutError`` (connection timeout)
+
+    Post-request errors (``ProtocolError``, raw ``socket.error``) return False
+    since the server may have already started processing the request.
+    """
+    try:
+        # Try standalone urllib3 first (requests >= 2.16.0), then fall back
+        # to vendored urllib3 (requests < 2.16.0).
+        try:
+            from urllib3.exceptions import (
+                ConnectTimeoutError,
+                MaxRetryError,
+                NewConnectionError,
+            )
+        except ImportError:
+            from requests.packages.urllib3.exceptions import (
+                ConnectTimeoutError,
+                MaxRetryError,
+                NewConnectionError,
+            )
+
+        # requests.ConnectionError wraps either:
+        # 1. A MaxRetryError (from adapters.py) with .reason
+        #    holding the original urllib3 error
+        # 2. A raw ProtocolError or socket.error (from adapters.py)
+        wrapped = exc.args[0] if exc.args else None
+        if isinstance(wrapped, MaxRetryError) and wrapped.reason is not None:
+            reason = wrapped.reason
+            if isinstance(reason, NewConnectionError):
+                return True
+            if isinstance(reason, ConnectTimeoutError):
+                # Should have been caught as RequestsConnectTimeout already,
+                # but handle defensively.
+                return True
+    except ImportError:
+        pass
+    return False
+
 
 _ua_lock = threading.RLock()
 _default_user_agent = None
@@ -104,26 +154,29 @@ def default_user_agent():
 
         try:
             from mars import __version__ as mars_version
-        except:
+        except Exception:
             mars_version = None
         if mars_version:
             substitutes["mars_version"] = f"mars/{mars_version}"
 
         try:
             maxframe_version = get_package_version("maxframe")
-        except:
+        except Exception:
             maxframe_version = None
         if maxframe_version:
             substitutes["maxframe_version"] = f"maxframe/{maxframe_version}"
 
         _default_user_agent = ua_template.safe_substitute(**substitutes)
+        platform_id = os.getenv("MC_PLATFORM_ID")
+        if platform_id:
+            _default_user_agent += " Platform:" + platform_id
         _default_user_agent = re.sub(" +", " ", _default_user_agent).strip()
 
         try:
             from .internal.rest import get_internal_user_agent_suffix
 
             _default_user_agent += " " + get_internal_user_agent_suffix()
-        except:
+        except Exception:
             pass
         return _default_user_agent
 
@@ -262,11 +315,39 @@ class RestClient:
 
     def _request_with_retry(self, url, method, stream=False, **kwargs):
         def exc_filter(ex):
-            if method.upper() not in _RETRY_METHODS or not isinstance(
-                ex, errors.ODPSError
-            ):
-                return False
-            return ex.status_code in _RETRY_STATUS_FORCELIST
+            # Connection errors: retry unconditionally regardless of method,
+            # matching urllib3's _is_connection_error behavior.
+            # errors.ConnectTimeout: converted from requests.ConnectTimeout
+            #   in _request (connect timeout, pre-request).
+            # requests.ConnectionError wrapping NewConnectionError:
+            #   ECONNREFUSED etc., pre-request (detected via
+            #   _is_connection_error which inspects the urllib3 reason).
+            if isinstance(ex, errors.ConnectTimeout):
+                return True
+            if isinstance(ex, RequestsConnectionError) and _is_connection_error(ex):
+                return True
+            # Read errors: retry only for retryable methods,
+            # matching urllib3's _is_read_error behavior.
+            # These occur after the request was sent, so the server may
+            # have started processing it.
+            # Note: RequestsSSLError and RequestsProxyError are subclasses
+            # of RequestsConnectionError, so they must be checked first.
+            if isinstance(ex, (RequestsSSLError, RequestsProxyError)):
+                return method.upper() in _RETRY_METHODS
+            if isinstance(ex, RequestsReadTimeout):
+                return method.upper() in _RETRY_METHODS
+            if isinstance(ex, RequestsConnectionError):
+                # Not a pre-request NewConnectionError (checked above),
+                # so this is a post-request ProtocolError wrapping socket
+                # errors like ConnectionResetError.
+                return method.upper() in _RETRY_METHODS
+            # Status-based errors: retry only for retryable methods
+            # with status codes in the forcelist, matching urllib3's is_retry behavior.
+            if isinstance(ex, errors.ODPSError):
+                if method.upper() not in _RETRY_METHODS:
+                    return False
+                return ex.status_code in _RETRY_STATUS_FORCELIST
+            return False
 
         return utils.call_with_retry(
             self._request,
@@ -295,6 +376,7 @@ class RestClient:
         headers.update(kwargs.get("headers", {}))
         headers = {k: str(v) for k, v in headers.items()}
         headers["User-Agent"] = self._user_agent
+        headers["x-odps-user-agent"] = self._user_agent
         if self.namespace:
             headers["x-odps-namespace-id"] = self.namespace
         kwargs["headers"] = headers
@@ -337,12 +419,18 @@ class RestClient:
             )
 
         try:
+            # Merge config from environment variables
+            proxies = dict(self._proxy) if self._proxy else {}
+            settings = self.session.merge_environment_settings(
+                prepared_req.url, proxies, stream, options.verify_ssl, None
+            )
             res = self.session.send(
                 prepared_req,
-                stream=stream,
+                stream=settings["stream"],
                 timeout=timeout or (options.connect_timeout, options.read_timeout),
-                verify=options.verify_ssl,
-                proxies=self._proxy,
+                verify=settings["verify"],
+                proxies=settings["proxies"],
+                cert=settings["cert"],
             )
         except ConnectTimeout:
             raise errors.ConnectTimeout(
@@ -391,7 +479,7 @@ class RestClient:
                 [self.endpoint, "projects", XMLRestModel._encode(self.project), "logs"]
             )
             self.put(url, json.dumps(survey))
-        except:
+        except Exception:
             pass
 
     # Misc helper methods

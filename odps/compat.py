@@ -51,7 +51,7 @@ UnsupportedOperation = io.UnsupportedOperation
 
 try:
     from .lib.version import Version
-except BaseException:
+except Exception:
     from distutils.version import LooseVersion as Version
 
 try:

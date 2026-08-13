@@ -251,7 +251,7 @@ else:
                     group_jsons = [group_jsons]
                 try:
                     self.send(json.dumps(dict(action="update", content=group_jsons)))
-                except:
+                except Exception:
                     pass
 
             def delete_group(self, group_keys):
@@ -259,13 +259,13 @@ else:
                     group_keys = [group_keys]
                 try:
                     self.send(json.dumps(dict(action="delete", content=group_keys)))
-                except:
+                except Exception:
                     pass
 
             def clear_groups(self):
                 try:
                     self.send(json.dumps(dict(action="clear")))
-                except:
+                except Exception:
                     pass
 
     else:

@@ -98,7 +98,10 @@ def _check_resource_limit(increment_size):
     global _total_resource_size
     with _total_resource_size_lock:
         if _total_resource_size + increment_size > RESOURCE_SIZE_LIMIT:
-            raise SystemError("Not allowed to load resource packages larger than 100MB")
+            raise SystemError(
+                "Not allowed to load resource packages larger than 100MB. "
+                "This regulation is mandated by DataWorks."
+            )
         _total_resource_size += increment_size
 
 

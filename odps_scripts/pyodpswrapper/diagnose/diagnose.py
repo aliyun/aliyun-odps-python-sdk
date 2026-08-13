@@ -48,7 +48,7 @@ def _is_pure_sql_execution_error_traceback(tb):
                     return True
                 break
             tb = next_tb
-    except:
+    except Exception:
         return False
     return False
 
@@ -86,7 +86,7 @@ def _judge_change_time(logger):
                 "<last_change_time>", change_time.isoformat()
             )
             logger.warning(msg)
-    except:
+    except Exception:
         pass
 
 

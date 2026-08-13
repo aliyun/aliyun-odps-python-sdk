@@ -135,6 +135,11 @@ class DataFormat(JSONRemoteModel):
     version = serializers.JSONNodeField("Version")
 
 
+class SessionStats(JSONRemoteModel):
+    estimated_size = serializers.JSONNodeField("EstimatedSize")
+    estimated_row_count = serializers.JSONNodeField("EstimatedRowCount")
+
+
 class DynamicPartitionOptions(JSONRemoteModel):
     invalid_strategy = serializers.JSONNodeField("InvalidStrategy")
     invalid_limit = serializers.JSONNodeField("InvalidLimit")
@@ -183,6 +188,7 @@ class TableBatchScanRequest(serializers.JSONSerializableModel):
     split_options = serializers.JSONNodeReferenceField(SplitOptions, "SplitOptions")
     arrow_options = serializers.JSONNodeReferenceField(ArrowOptions, "ArrowOptions")
     filter_predicate = serializers.JSONNodeField("FilterPredicate")
+    enable_estimate_stats = serializers.JSONNodeField("EnableEstimateStats")
 
     def __init__(self, **kwargs):
         super(TableBatchScanRequest, self).__init__(**kwargs)
@@ -194,6 +200,7 @@ class TableBatchScanRequest(serializers.JSONSerializableModel):
         self.split_options = self.split_options or SplitOptions()
         self.arrow_options = self.arrow_options or ArrowOptions()
         self.filter_predicate = self.filter_predicate or ""
+        self.enable_estimate_stats = self.enable_estimate_stats or False
 
 
 class TableBatchScanResponse(serializers.JSONSerializableModel):
@@ -211,6 +218,7 @@ class TableBatchScanResponse(serializers.JSONSerializableModel):
     supported_data_format = serializers.JSONNodesReferencesField(
         DataFormat, "SupportedDataFormat"
     )
+    session_stats = serializers.JSONNodeReferenceField(SessionStats, "SessionStats")
 
     def __init__(self):
         super(TableBatchScanResponse, self).__init__()
@@ -883,13 +891,19 @@ class StorageApiClient:
         return StreamWriter(upload)
 
     def commit_write_session(
-        self, request: SessionRequest, commit_msg: list
+        self,
+        request: SessionRequest,
+        commit_msg: list,
+        wait_flying_writers_timeout_seconds: int = None,
     ) -> TableBatchWriteResponse:
         """Commit the write session after write the last stream data.
 
         Args:
             request: Commit write session parameters sent to the server.
             commit_msg: Commit messages collected from the write_rows_stream().
+            wait_flying_writers_timeout_seconds: Optional timeout in seconds for
+                waiting for unfinished writers. The valid range is enforced by the
+                server.
 
         Returns:
             Write session response returned from the server.
@@ -900,8 +914,17 @@ class StorageApiClient:
             )
         if not isinstance(commit_msg, list):
             raise ValueError("Use list for commit message")
-
         commit_message_dict = {"CommitMessages": commit_msg}
+        if wait_flying_writers_timeout_seconds is not None:
+            if isinstance(wait_flying_writers_timeout_seconds, bool) or not isinstance(
+                wait_flying_writers_timeout_seconds, int
+            ):
+                raise ValueError(
+                    "wait_flying_writers_timeout_seconds must be an integer"
+                )
+            commit_message_dict[
+                "WaitFlyingWritersTimeoutSeconds"
+            ] = wait_flying_writers_timeout_seconds
         json_str = json.dumps(commit_message_dict)
 
         url = self._get_resource("commit")

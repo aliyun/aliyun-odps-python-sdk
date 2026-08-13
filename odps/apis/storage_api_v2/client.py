@@ -14,7 +14,9 @@
 
 """Client for interacting with the MaxCompute Storage API V2."""
 
-from typing import List, Union
+import json
+import logging
+import warnings
 
 try:
     import pyarrow as pa
@@ -26,7 +28,8 @@ from ...models import Instance, Table
 from ...tunnel.io.stream import CompressOption, RequestsIO, get_decompress_stream
 from ...tunnel.tabletunnel import TableTunnel
 from .models import *  # noqa: F401 F403
-from .models import (
+from .models import (  # noqa: F401
+    ROUTE_TOKEN_HEADER,
     BlobWriteItem,
     CloseWriteStreamRequest,
     CloseWriteStreamResponse,
@@ -45,10 +48,15 @@ from .models import (
     ReadStreamRequest,
     WriteBlobRequest,
     WriteBlobResponse,
+    WriteMode,
+    WriteSchema,
     WriteStreamRequest,
     _parse_json_response,
+    _str_version_ge,
     _update_request_id,
+    parse_write_schema,
 )
+from .stream_io import BlobRecord  # noqa: F401  (re-exported via __init__)
 from .stream_io import (
     ArrowReader,
     ArrowWriter,
@@ -59,10 +67,11 @@ from .stream_io import (
     StreamWriter,
 )
 
-STORAGE_V2_VERSION = "2"
-URL_PREFIX_V2 = "/api/storage/v" + STORAGE_V2_VERSION
-ROUTE_TOKEN_HEADER = "x-odps-max-storage-route-token"
+DEFAULT_STORAGE_V2_VERSION = "2"
+STORAGE_API_URL_PREFIX = "/api/storage/v"
 WRITE_ACCESS_TOKEN_HEADER = "x-odps-max-storage-write-access-token"
+
+logger = logging.getLogger(__name__)
 
 
 class StorageApiClient:
@@ -71,16 +80,27 @@ class StorageApiClient:
     def __init__(
         self,
         odps: ODPS,
-        table_or_instance=None,
-        rest_endpoint: str = None,
-        quota_name: str = None,
+        table_or_instance: Optional[Union[Table, Instance]] = None,
+        rest_endpoint: Optional[str] = None,
+        quota_name: Optional[str] = None,
         tags: Union[None, str, List[str]] = None,
+        api_version: str = DEFAULT_STORAGE_V2_VERSION,
     ):
+        warnings.warn(
+            "odps.apis.storage_api_v2 is deprecated and will be removed in a "
+            "future release. Please migrate to odps.maxstorage, which provides "
+            "the same Storage API v2/v3 functionality with improved streaming, "
+            "blob I/O, and nested-blob support.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
         if not isinstance(odps, ODPS):
             raise ValueError("Please input odps configuration")
         if table_or_instance is None:
             raise ValueError("Please input table or instance")
         if isinstance(table_or_instance, Instance):
+            # Instance-based clients are read-only (no write operations)
             instance, table = table_or_instance, None
         elif isinstance(table_or_instance, Table):
             instance, table = None, table_or_instance
@@ -94,6 +114,8 @@ class StorageApiClient:
         self._rest_endpoint = rest_endpoint
         self._tunnel_rest = None
         self._route_token = None
+        self._write_mode = WriteMode.BATCH
+        self._api_version = api_version
 
         self._tags = tags or options.tunnel.tags
         if isinstance(self._tags, str):
@@ -112,6 +134,35 @@ class StorageApiClient:
         rely on this stored value when not specified.
         """
         return self._route_token
+
+    @property
+    def write_mode(self):
+        """The write mode set by the most recent create_write_session call.
+
+        Defaults to WriteMode.BATCH. Updated when create_write_session is
+        called with a write_mode parameter.
+        """
+        return self._write_mode
+
+    @property
+    def api_version(self):
+        """The Storage API version this client targets (e.g. ``"2"`` or ``"3"``).
+
+        Version 3 adds streaming write modes (WriteMode), route-token
+        affinity on get_write_session, and staging-id tracking. These
+        features are disabled when targeting an older API version.
+        """
+        return self._api_version
+
+    def _supports_v3_features(self) -> bool:
+        """Return True when the negotiated API version supports v3 features.
+
+        v3 features include: WriteMode query-param propagation on write
+        operations, route-token on get_write_session, the
+        get_min_uncommitted_staging_id helper, and always parsing the
+        write-stream finish response to capture StagingId.
+        """
+        return _str_version_ge(self._api_version, 3)
 
     @property
     def tunnel_rest(self):
@@ -135,11 +186,50 @@ class StorageApiClient:
         if route_token:
             self._route_token = route_token
 
+    def _build_params(self, action: str, extra: Optional[Dict] = None) -> Dict:
+        """Build common query params (Action, Target, quotaName) plus extras."""
+        params = {"Action": action, "Target": self._build_target()}
+        if self._quota_name:
+            params["quotaName"] = self._quota_name
+        if extra:
+            params.update(extra)
+        return params
+
+    def _parse_response(self, resp, response_cls, set_route_token: bool = True):
+        """Parse a response into *response_cls*, set request_id/route_token, log warnings."""
+        response = response_cls()
+        response.parse(resp, obj=response)
+        _update_request_id(response, resp)
+        if set_route_token:
+            route_token = resp.headers.get(ROUTE_TOKEN_HEADER)
+            if route_token:
+                response.route_token = route_token
+                self._update_route_token(route_token)
+        warning = getattr(response, "warning_message", None)
+        if warning:
+            logger.warning(warning)
+        return response
+
+    def _normalize_instance_response(self, response):
+        """Map instance download_id/status onto session_id/session_status."""
+        if self._instance is not None:
+            if response.session_id is None and response.download_id is not None:
+                response.session_id = response.download_id
+            if response.session_status is None and response.status is not None:
+                response.session_status = response.status
+
     def _check_not_instance(self):
+        # Write operations require a table target; instances are read-only result sets
         if self._instance is not None:
             raise ValueError(
                 "Write operations are not supported for instance-based client"
             )
+
+    def _write_mode_params(self) -> Dict:
+        """Return WriteMode query params for v3+; empty dict for older versions."""
+        if self._supports_v3_features():
+            return {"WriteMode": self._write_mode.value}
+        return {}
 
     def _build_target(self) -> str:
         if self._instance is not None:
@@ -157,7 +247,9 @@ class StorageApiClient:
         return f"projects.{project}.schemas.{schema}.tables.{t.name}"
 
     def _get_v2_url(self) -> str:
-        endpoint = self.tunnel_rest.endpoint + URL_PREFIX_V2
+        endpoint = (
+            self.tunnel_rest.endpoint + STORAGE_API_URL_PREFIX + self._api_version
+        )
         return endpoint
 
     def _fill_common_headers(self, raw_headers=None, route_token=None):
@@ -191,11 +283,7 @@ class StorageApiClient:
     def _request(self, action, extra_params=None, body=None, route_token=None):
         """Issue a JSON POST to the V2 endpoint and return parsed JSON dict + raw response."""
         url = self._get_v2_url()
-        params = {"Action": action, "Target": self._build_target()}
-        if self._quota_name:
-            params["quotaName"] = self._quota_name
-        if extra_params:
-            params.update(extra_params)
+        params = self._build_params(action, extra_params)
         headers = self._fill_common_headers(route_token=route_token)
         data = body if body is not None else "{}"
 
@@ -207,17 +295,17 @@ class StorageApiClient:
 
     def create_read_session(
         self,
-        required_data_columns=None,
-        required_partition_columns=None,
-        required_partitions=None,
-        required_bucket_ids=None,
-        split_options=None,
-        arrow_options=None,
-        filter_predicate=None,
-        filter_predicate_fallback=None,
-        split_max_file_num=None,
-        incremental_read=None,
-        incremental_read_options=None,
+        required_data_columns: Optional[List[str]] = None,
+        required_partition_columns: Optional[List[str]] = None,
+        required_partitions: Optional[List[str]] = None,
+        required_bucket_ids: Optional[List[str]] = None,
+        split_options: Optional[SplitOptions] = None,
+        arrow_options: Optional[ArrowOptions] = None,
+        filter_predicate: Optional[str] = None,
+        filter_predicate_fallback: Optional[bool] = None,
+        split_max_file_num: Optional[int] = None,
+        incremental_read: Optional[bool] = None,
+        incremental_read_options: Optional[IncrementalReadOptions] = None,
     ) -> CreateReadSessionResponse:
         """
         Create a read session for table or instance data retrieval.
@@ -351,19 +439,8 @@ class StorageApiClient:
         json_str = request.serialize()
         resp_json, resp = self._request(action, body=json_str)
 
-        response = CreateReadSessionResponse()
-        response.parse(resp, obj=response)
-        _update_request_id(response, resp)
-        route_token = resp.headers.get(ROUTE_TOKEN_HEADER)
-        if route_token:
-            response.route_token = route_token
-            self._update_route_token(route_token)
-        if self._instance is not None:
-            if response.session_id is None and response.download_id is not None:
-                response.session_id = response.download_id
-            if response.session_status is None and response.status is not None:
-                response.session_status = response.status
-
+        response = self._parse_response(resp, CreateReadSessionResponse)
+        self._normalize_instance_response(response)
         return response
 
     def get_read_session(
@@ -461,36 +538,23 @@ class StorageApiClient:
 
         resp_json, resp = self._request(action, extra_params=extra_params, body="{}")
 
-        response = CreateReadSessionResponse()
-        response.parse(resp, obj=response)
-        _update_request_id(response, resp)
-        route_token = resp.headers.get(ROUTE_TOKEN_HEADER)
-        if route_token:
-            response.route_token = route_token
-            self._update_route_token(route_token)
-
-        # Normalize instance response fields
-        if self._instance is not None:
-            if response.session_id is None and response.download_id is not None:
-                response.session_id = response.download_id
-            if response.session_status is None and response.status is not None:
-                response.session_status = response.status
-
+        response = self._parse_response(resp, CreateReadSessionResponse)
+        self._normalize_instance_response(response)
         return response
 
     def read_rows_stream(
         self,
-        session_id=None,
-        split_index=None,
-        row_offset=None,
-        row_count=None,
-        max_batch_rows=4096,
-        skip_row_num=0,
-        max_batch_raw_size=0,
-        data_format=None,
-        data_columns=None,
-        compression=None,
-        route_token=None,
+        session_id: Optional[str] = None,
+        split_index: Optional[int] = None,
+        row_offset: Optional[int] = None,
+        row_count: Optional[int] = None,
+        max_batch_rows: int = 4096,
+        skip_row_num: int = 0,
+        max_batch_raw_size: int = 0,
+        data_format: Optional[DataFormat] = None,
+        data_columns: Optional[List[str]] = None,
+        compression: Optional[Compression] = None,
+        route_token: Optional[str] = None,
     ) -> StreamReader:
         """
         Read data from a specific split in a read session.
@@ -618,19 +682,13 @@ class StorageApiClient:
 
         action = "InstanceRead" if self._instance is not None else "TableRead"
         url = self._get_v2_url()
-        params = {
-            "Action": action,
-            "Target": self._build_target(),
-            "SessionId": request.session_id,
-        }
+        params = self._build_params(action, {"SessionId": request.session_id})
         if request.split_index is not None:
             params["Index"] = str(request.split_index)
         if request.row_offset is not None:
             params["Offset"] = str(request.row_offset)
         if request.row_count is not None and request.row_count > 0:
             params["Count"] = str(request.row_count)
-        if self._quota_name:
-            params["quotaName"] = self._quota_name
 
         data_format = request.data_format or DataFormat()
         body_dict = {
@@ -666,7 +724,12 @@ class StorageApiClient:
 
         return StreamReader(download)
 
-    def preview_table(self, limit=None, partition=None, columns=None) -> StreamReader:
+    def preview_table(
+        self,
+        limit: Optional[int] = None,
+        partition: Optional[str] = None,
+        columns: Optional[List[str]] = None,
+    ) -> StreamReader:
         """
         Preview table data without creating a session.
 
@@ -781,16 +844,11 @@ class StorageApiClient:
         self._check_not_instance()
 
         url = self._get_v2_url()
-        params = {
-            "Action": "TablePreview",
-            "Target": self._build_target(),
-        }
+        params = self._build_params("TablePreview")
         if request.limit is not None:
             params["Limit"] = str(request.limit)
         if request.partition is not None:
             params["Partition"] = request.partition
-        if self._quota_name:
-            params["quotaName"] = self._quota_name
 
         body_dict = {}
         if request.limit is not None:
@@ -813,7 +871,10 @@ class StorageApiClient:
     # ---- Write Session ----
 
     def create_write_session(
-        self, partial_partition_spec=None, flags=None
+        self,
+        partial_partition_spec: Optional[str] = None,
+        flags: Optional[Dict] = None,
+        write_mode: WriteMode = WriteMode.BATCH,
     ) -> CreateWriteSessionResponse:
         """
         Create a write session for uploading data to a table.
@@ -833,6 +894,9 @@ class StorageApiClient:
         flags : dict, optional
             Additional flags for session configuration. Common flags
             include 'overwrite' to replace existing partition data.
+        write_mode : WriteMode, optional
+            Write mode for the session. Defaults to WriteMode.BATCH.
+            Other options: BATCH_COMPATIBLE, STREAMING, STREAMING_REALTIME.
 
         Returns
         -------
@@ -923,26 +987,20 @@ class StorageApiClient:
         ...     raise
         """
         self._check_not_instance()
+        self._write_mode = write_mode
         request = CreateWriteSessionRequest(
             partial_partition_spec=partial_partition_spec,
             flags=flags,
         )
 
         json_str = request.serialize()
-        resp_json, resp = self._request("TableCreateWriteSession", body=json_str)
+        resp_json, resp = self._request(
+            "TableCreateWriteSession",
+            extra_params=self._write_mode_params(),
+            body=json_str,
+        )
 
-        response = CreateWriteSessionResponse()
-        response.parse(resp, obj=response)
-        _update_request_id(response, resp)
-        route_token = resp.headers.get(ROUTE_TOKEN_HEADER)
-        if route_token:
-            response.route_token = route_token
-            self._update_route_token(route_token)
-
-        if response.warning_message:
-            logger.warning(response.warning_message)
-
-        return response
+        return self._parse_response(resp, CreateWriteSessionResponse)
 
     def get_write_session(self, session_id: str) -> GetWriteSessionResponse:
         """
@@ -1055,26 +1113,57 @@ class StorageApiClient:
         """
         self._check_not_instance()
         extra_params = {"SessionId": session_id}
+        extra_params.update(self._write_mode_params())
+        # v3: pass stored route token to prevent timeout on session affinity
+        route_token = (
+            self._resolve_route_token() if self._supports_v3_features() else None
+        )
         resp_json, resp = self._request(
-            "TableGetWriteSession", extra_params=extra_params, body="{}"
+            "TableGetWriteSession",
+            extra_params=extra_params,
+            body="{}",
+            route_token=route_token,
         )
 
-        response = GetWriteSessionResponse()
-        response.parse(resp, obj=response)
-        _update_request_id(response, resp)
-        route_token = resp.headers.get(ROUTE_TOKEN_HEADER)
-        if route_token:
-            response.route_token = route_token
-            self._update_route_token(route_token)
+        return self._parse_response(resp, GetWriteSessionResponse)
 
-        if response.warning_message:
-            logger.warning(response.warning_message)
+    def get_min_uncommitted_staging_id(self, session_id: str) -> Optional[str]:
+        """
+        Query the minimum uncommitted staging id for a streaming write session.
 
-        return response
+        Returns the smallest staging id currently held by the streaming
+        auto-committer (i.e. the next staging batch to be committed).
+        Useful for reasoning about async visibility progress of streaming
+        writes. Returns None if the server has no staging batch pending.
+
+        Only meaningful for streaming write modes (STREAMING or
+        STREAMING_REALTIME). For BATCH mode, the server may not return
+        this field.
+
+        Parameters
+        ----------
+        session_id : str
+            The unique identifier of the write session to query.
+
+        Returns
+        -------
+        str or None
+            The minimum uncommitted staging id, or None if not available.
+        """
+        if not self._supports_v3_features():
+            raise NotImplementedError(
+                "get_min_uncommitted_staging_id requires API version 3 or later"
+            )
+        resp = self.get_write_session(session_id)
+        return resp.min_uncommitted_staging_id
 
     def commit_write_session(
-        self, session_id: str, stream_ids=None, stream_versions=None, route_token=None
-    ):
+        self,
+        session_id: str,
+        stream_ids: Optional[List[str]] = None,
+        stream_versions: Optional[List[int]] = None,
+        route_token: Optional[str] = None,
+    ) -> None:
         """
         Commit a write session to finalize all uploaded data.
 
@@ -1156,7 +1245,7 @@ class StorageApiClient:
         >>> session_id = session_resp.session_id
 
         >>> # 2. Create write stream
-        >>> stream_resp = client.create_write_stream(session_id, stream_id=0)
+        >>> stream_resp = client.create_write_stream(session_id, stream_id="0")
 
         >>> # 3. Write data using Arrow writer
         >>> schema = pa.schema([
@@ -1168,14 +1257,14 @@ class StorageApiClient:
         ...     pa.array(["Alice", "Bob", "Carol"]),
         ... ], schema=schema)
         >>> writer = ArrowWriter(
-        ...     client.write_rows_stream(session_id, stream_id=0, record_count=3),
+        ...     client.write_rows_stream(session_id, stream_id="0", record_count=3),
         ...     Compression.UNCOMPRESSED
         ... )
         >>> writer.write(batch)
         >>> commit_msg, success = writer.finish()
 
         >>> # 4. Close the write stream
-        >>> client.close_write_stream(session_id, stream_id=0)
+        >>> client.close_write_stream(session_id, stream_id="0")
 
         >>> # 5. Commit the session to finalize all writes
         >>> client.commit_write_session(session_id)
@@ -1227,6 +1316,7 @@ class StorageApiClient:
         """
         self._check_not_instance()
         extra_params = {"SessionId": session_id}
+        extra_params.update(self._write_mode_params())
         body_dict = {}
         if stream_ids is not None and stream_versions is not None:
             body_dict["StreamIds"] = stream_ids
@@ -1238,7 +1328,9 @@ class StorageApiClient:
             route_token=self._resolve_route_token(route_token),
         )
 
-    def abort_write_session(self, session_id: str, route_token=None):
+    def abort_write_session(
+        self, session_id: str, route_token: Optional[str] = None
+    ) -> None:
         """
         Abort a write session to discard all uploaded data.
 
@@ -1328,7 +1420,7 @@ class StorageApiClient:
         ...         status = client.get_write_session(session_id)
         ...         if status.streams is None or len(status.streams) == 0:
         ...             client.abort_write_session(session_id)
-        ...     except:
+        ...     except Exception:
         ...         # Session might already be committed or aborted
         ...         pass
 
@@ -1350,6 +1442,7 @@ class StorageApiClient:
         """
         self._check_not_instance()
         extra_params = {"SessionId": session_id}
+        extra_params.update(self._write_mode_params())
         self._request(
             "TableAbortWriteSession",
             extra_params=extra_params,
@@ -1361,10 +1454,10 @@ class StorageApiClient:
 
     def create_write_stream(
         self,
-        session_id=None,
-        stream_id=None,
-        stream_version=0,
-        route_token=None,
+        session_id: Optional[str] = None,
+        stream_id: Optional[str] = None,
+        stream_version: int = 0,
+        route_token: Optional[str] = None,
     ) -> CreateWriteStreamResponse:
         """
         Create a write stream within an active write session.
@@ -1379,7 +1472,7 @@ class StorageApiClient:
         ----------
         session_id : str
             The write session identifier from create_write_session.
-        stream_id : str or int
+        stream_id : str
             Unique identifier for this stream within the session.
             Typically an integer (0, 1, 2, ...) for parallel streams.
         stream_version : int, default 0
@@ -1429,7 +1522,7 @@ class StorageApiClient:
 
         >>> session_resp = client.create_write_session()
         >>> session_id = session_resp.session_id
-        >>> stream_resp = client.create_write_stream(session_id, stream_id=0)
+        >>> stream_resp = client.create_write_stream(session_id, stream_id="0")
         >>> print(f"Stream created, schema: {stream_resp.data_schema}")
         Stream created, schema: {'Columns': [...]}
 
@@ -1439,7 +1532,7 @@ class StorageApiClient:
         >>> session_resp = client.create_write_session()
         >>> session_id = session_resp.session_id
         >>> # Worker 1 creates stream 0
-        >>> stream_resp0 = client.create_write_stream(session_id, stream_id=0)
+        >>> stream_resp0 = client.create_write_stream(session_id, stream_id="0")
         >>> # Worker 2 creates stream 1
         >>> stream_resp1 = client.create_write_stream(session_id, stream_id=1)
         >>> # Worker 3 creates stream 2
@@ -1451,7 +1544,7 @@ class StorageApiClient:
 
         >>> session_resp = client.create_write_session()
         >>> session_id = session_resp.session_id
-        >>> stream_resp = client.create_write_stream(session_id, stream_id=0, stream_version=0)
+        >>> stream_resp = client.create_write_stream(session_id, stream_id="0", stream_version=0)
         >>> # Attempt to write data (fails)
         >>> try:
         ...     writer = client.write_rows_stream(...)
@@ -1459,7 +1552,7 @@ class StorageApiClient:
         ... except Exception:
         ...     # Retry with incremented version
         ...     retry_resp = client.create_write_stream(
-        ...         session_id, stream_id=0, stream_version=1
+        ...         session_id, stream_id="0", stream_version=1
         ...     )
         ...     writer = client.write_rows_stream(...)
         ...     writer.write(data)
@@ -1467,7 +1560,7 @@ class StorageApiClient:
         Check the data_schema before writing to ensure your data matches
         the expected table schema:
 
-        >>> stream_resp = client.create_write_stream(session_id, stream_id=0)
+        >>> stream_resp = client.create_write_stream(session_id, stream_id="0")
         >>> schema = stream_resp.data_schema
         >>> if schema:
         ...     columns = schema.get('Columns', [])
@@ -1490,6 +1583,7 @@ class StorageApiClient:
         if request.exactly_once_mode:
             body_dict["ExactlyOnceMode"] = True
         extra_params = {"SessionId": request.session_id}
+        extra_params.update(self._write_mode_params())
 
         resp_json, resp = self._request(
             "TableCreateWriteStream",
@@ -1498,23 +1592,62 @@ class StorageApiClient:
             route_token=self._resolve_route_token(route_token),
         )
 
-        response = CreateWriteStreamResponse()
-        response.parse(resp, obj=response)
-        route_token = resp.headers.get(ROUTE_TOKEN_HEADER)
-        if route_token:
-            response.route_token = route_token
-            self._update_route_token(route_token)
-        _update_request_id(response, resp)
+        return self._parse_response(resp, CreateWriteStreamResponse)
 
-        return response
+    def get_write_schema(
+        self,
+        stream_response: Optional[CreateWriteStreamResponse] = None,
+        session_id: Optional[str] = None,
+        stream_id: Optional[str] = None,
+        stream_version: int = 0,
+        route_token: Optional[str] = None,
+    ) -> Optional[WriteSchema]:
+        """Parse the write-stream schema into a :class:`WriteSchema`.
+
+        When *stream_response* is given its ``data_schema`` is parsed directly;
+        otherwise a fresh response is fetched via :meth:`create_write_stream`
+        using the remaining arguments. Raises ``NotImplementedError`` on API
+        versions older than 3.
+        """
+        if not self._supports_v3_features():
+            raise NotImplementedError(
+                "get_write_schema requires API version 3 or later"
+            )
+        if stream_response is None:
+            stream_response = self.create_write_stream(
+                session_id=session_id,
+                stream_id=stream_id,
+                stream_version=stream_version,
+                route_token=route_token,
+            )
+        return parse_write_schema(stream_response.data_schema)
+
+    def get_nested_blob_column_ids(
+        self,
+        stream_response: Optional[CreateWriteStreamResponse] = None,
+        session_id: Optional[str] = None,
+        stream_id: Optional[str] = None,
+        stream_version: int = 0,
+        route_token: Optional[str] = None,
+    ) -> dict:
+        """Return path -> column ID for every BLOB column (v3+). Wrapper over
+        :meth:`get_write_schema` + :meth:`WriteSchema.find_all_blob_column_ids`."""
+        schema = self.get_write_schema(
+            stream_response=stream_response,
+            session_id=session_id,
+            stream_id=stream_id,
+            stream_version=stream_version,
+            route_token=route_token,
+        )
+        return schema.find_all_blob_column_ids() if schema is not None else {}
 
     def get_write_stream(
         self,
         session_id: str,
         stream_id: str,
         stream_version: int,
-        route_token=None,
-        exactly_once_mode=False,
+        route_token: Optional[str] = None,
+        exactly_once_mode: bool = False,
     ) -> "GetWriteStreamResponse":
         """
         Get the current status and metadata of a write stream.
@@ -1576,7 +1709,7 @@ class StorageApiClient:
 
         >>> session_resp = client.create_write_session()
         >>> session_id = session_resp.session_id
-        >>> stream_resp = client.create_write_stream(session_id, stream_id=0)
+        >>> stream_resp = client.create_write_stream(session_id, stream_id="0")
         >>> status = client.get_write_stream(session_id, stream_id="0", stream_version=0)
         >>> print(f"Stream status: {status.status}")
         Stream status: OPEN
@@ -1623,50 +1756,42 @@ class StorageApiClient:
         ...     # Decide whether to retry with new version or abort session
         ...     if status.error_code == 'SCHEMA_MISMATCH':
         ...         # Retry with corrected data
-        ...         client.create_write_stream(session_id, stream_id=0, stream_version=1)
+        ...         client.create_write_stream(session_id, stream_id="0", stream_version=1)
         ...     else:
         ...         # Abort the entire session
         ...         client.abort_write_session(session_id)
         """
         self._check_not_instance()
         url = self._get_v2_url()
-        params = {
-            "Action": "TableGetWriteStream",
-            "Target": self._build_target(),
-            "SessionId": session_id,
-            "StreamId": stream_id,
-            "StreamVersion": str(stream_version),
-        }
+        params = self._build_params(
+            "TableGetWriteStream",
+            {
+                "SessionId": session_id,
+                "StreamId": stream_id,
+                "StreamVersion": str(stream_version),
+            },
+        )
+        params.update(self._write_mode_params())
         if exactly_once_mode:
             params["ExactlyOnceMode"] = "true"
-        if self._quota_name:
-            params["quotaName"] = self._quota_name
         headers = self._fill_common_headers(
             route_token=self._resolve_route_token(route_token)
         )
 
         resp = self.tunnel_rest.get(url, params=params, headers=headers)
 
-        response = GetWriteStreamResponse()
-        response.parse(resp, obj=response)
-        _update_request_id(response, resp)
-        route_token_val = resp.headers.get(ROUTE_TOKEN_HEADER)
-        if route_token_val:
-            response.route_token = route_token_val
-            self._update_route_token(route_token_val)
-
-        return response
+        return self._parse_response(resp, GetWriteStreamResponse)
 
     def write_rows_stream(
         self,
-        session_id,
-        stream_id,
-        stream_version=0,
-        record_count=0,
-        compression=None,
-        route_token=None,
-        row_offset=-1,
-        access_token=None,
+        session_id: Optional[str] = None,
+        stream_id: Optional[str] = None,
+        stream_version: int = 0,
+        record_count: int = 0,
+        compression: Optional[Compression] = None,
+        route_token: Optional[str] = None,
+        row_offset: int = -1,
+        access_token: Optional[str] = None,
     ) -> StreamWriter:
         """
         Write row data to a write stream via streaming upload.
@@ -1680,7 +1805,7 @@ class StorageApiClient:
         ----------
         session_id : str
             The write session identifier.
-        stream_id : str or int
+        stream_id : str
             The stream identifier from create_write_stream.
         stream_version : int, default 0
             Version of the stream (should match create_write_stream).
@@ -1737,7 +1862,7 @@ class StorageApiClient:
         >>> session_resp = client.create_write_session()
         >>> session_id = session_resp.session_id
         >>> # 2. Create write stream
-        >>> stream_resp = client.create_write_stream(session_id, stream_id=0)
+        >>> stream_resp = client.create_write_stream(session_id, stream_id="0")
         >>> # 3. Write Arrow data
         >>> schema = pa.schema([
         ...     pa.field("id", pa.int64()),
@@ -1749,14 +1874,14 @@ class StorageApiClient:
         ...     pa.array(["Alice", "Bob", "Carol"]),
         ...     pa.array([100.0, 200.0, 150.0]),
         ... ], schema=schema)
-        >>> stream_writer = client.write_rows_stream(session_id, stream_id=0, record_count=3)
+        >>> stream_writer = client.write_rows_stream(session_id, stream_id="0", record_count=3)
         >>> arrow_writer = ArrowWriter(stream_writer, Compression.UNCOMPRESSED)
         >>> arrow_writer.write(batch)
         >>> commit_msg, success = arrow_writer.finish()
         >>> print(f"Upload successful: {success}")
         Upload successful: True
         >>> # 4. Close stream and commit session
-        >>> client.close_write_stream(session_id, stream_id=0)
+        >>> client.close_write_stream(session_id, stream_id="0")
         >>> client.commit_write_session(session_id)
         """
         self._check_not_instance()
@@ -1771,18 +1896,18 @@ class StorageApiClient:
         )
 
         url = self._get_v2_url()
-        params = {
-            "Action": "TableWrite",
-            "Target": self._build_target(),
-            "SessionId": request.session_id,
-            "StreamId": request.stream_id,
-            "StreamVersion": str(request.stream_version),
-            "Count": str(request.record_count),
-        }
+        params = self._build_params(
+            "TableWrite",
+            {
+                "SessionId": request.session_id,
+                "StreamId": request.stream_id,
+                "StreamVersion": str(request.stream_version),
+                "Count": str(request.record_count),
+            },
+        )
+        params.update(self._write_mode_params())
         if request.row_offset >= 0:
             params["RowOffset"] = str(request.row_offset)
-        if self._quota_name:
-            params["quotaName"] = self._quota_name
 
         headers = self._fill_common_headers(
             {
@@ -1797,14 +1922,18 @@ class StorageApiClient:
         def upload(data):
             return self.tunnel_rest.post(url, data=data, params=params, headers=headers)
 
-        return StreamWriter(upload, on_route_token=self._update_route_token)
+        return StreamWriter(
+            upload,
+            on_route_token=self._update_route_token,
+            api_version=self._api_version,
+        )
 
     def close_write_stream(
         self,
-        session_id=None,
-        stream_id=None,
-        stream_version=0,
-        route_token=None,
+        session_id: Optional[str] = None,
+        stream_id: Optional[str] = None,
+        stream_version: int = 0,
+        route_token: Optional[str] = None,
     ) -> CloseWriteStreamResponse:
         """
         Close a write stream to finalize the data upload for that stream.
@@ -1819,7 +1948,7 @@ class StorageApiClient:
         ----------
         session_id : str
             The write session identifier.
-        stream_id : str or int
+        stream_id : str
             The stream identifier to close.
         stream_version : int, default 0
             Version of the stream (should match create_write_stream).
@@ -1872,10 +2001,10 @@ class StorageApiClient:
         >>> # 1. Create write session and stream
         >>> session_resp = client.create_write_session()
         >>> session_id = session_resp.session_id
-        >>> stream_resp = client.create_write_stream(session_id, stream_id=0)
+        >>> stream_resp = client.create_write_stream(session_id, stream_id="0")
         >>> # 2. Write Arrow data
         >>> batch = pa.record_batch([...], schema=schema)
-        >>> stream_writer = client.write_rows_stream(session_id, stream_id=0, record_count=3)
+        >>> stream_writer = client.write_rows_stream(session_id, stream_id="0", record_count=3)
         >>> arrow_writer = ArrowWriter(stream_writer, Compression.UNCOMPRESSED)
         >>> arrow_writer.write(batch)
         >>> # 3. Finish the writer to complete data upload
@@ -1883,7 +2012,7 @@ class StorageApiClient:
         >>> print(f"Writer finished: {success}")
         Writer finished: True
         >>> # 4. Close the stream to mark it ready for commit
-        >>> close_resp = client.close_write_stream(session_id, stream_id=0)
+        >>> close_resp = client.close_write_stream(session_id, stream_id="0")
         >>> if close_resp.warning_message:
         ...     print(f"Warning: {close_resp.warning_message}")
         >>> # 5. Commit the session to make data visible
@@ -1917,7 +2046,7 @@ class StorageApiClient:
         Check for warnings when closing streams to detect potential
         issues that may affect the commit:
 
-        >>> close_resp = client.close_write_stream(session_id, stream_id=0)
+        >>> close_resp = client.close_write_stream(session_id, stream_id="0")
         >>> if close_resp.warning_message:
         ...     print(f"Stream close warning: {close_resp.warning_message}")
         ...     # Decide whether to proceed with commit or abort
@@ -1933,7 +2062,7 @@ class StorageApiClient:
         before attempting to commit the session:
 
         >>> # Close stream
-        >>> client.close_write_stream(session_id, stream_id=0)
+        >>> client.close_write_stream(session_id, stream_id="0")
         >>> # Verify it's closed
         >>> status = client.get_write_stream(session_id, stream_id="0", stream_version=0)
         >>> if status.status == 'CLOSED':
@@ -1947,7 +2076,7 @@ class StorageApiClient:
         checking the warning message and potentially aborting:
 
         >>> try:
-        ...     close_resp = client.close_write_stream(session_id, stream_id=0)
+        ...     close_resp = client.close_write_stream(session_id, stream_id="0")
         ...     if close_resp.warning_message and "error" in close_resp.warning_message.lower():
         ...         print(f"Stream had errors: {close_resp.warning_message}")
         ...         # Abort session instead of committing incomplete data
@@ -1969,6 +2098,7 @@ class StorageApiClient:
             "StreamVersion": request.stream_version,
         }
         extra_params = {"SessionId": request.session_id}
+        extra_params.update(self._write_mode_params())
 
         resp_json, resp = self._request(
             "TableCloseWriteStream",
@@ -1977,25 +2107,20 @@ class StorageApiClient:
             route_token=self._resolve_route_token(route_token),
         )
 
-        response = CloseWriteStreamResponse()
-        response.parse(resp, obj=response)
-        _update_request_id(response, resp)
-
-        if response.warning_message:
-            logger.warning(response.warning_message)
-
-        return response
+        return self._parse_response(
+            resp, CloseWriteStreamResponse, set_route_token=False
+        )
 
     # ---- Blob ----
 
     def write_blob_stream(
         self,
-        session_id,
-        stream_id,
-        stream_version=0,
-        partition_values=None,
-        column_index=0,
-        compression=None,
+        session_id: Optional[str] = None,
+        stream_id: Optional[str] = None,
+        stream_version: int = 0,
+        partition_values: Optional[List[str]] = None,
+        column_index: int = 1,
+        compression: Optional[Compression] = None,
     ) -> BlobStreamWriter:
         """
         Upload a single blob via streaming upload.
@@ -2010,15 +2135,15 @@ class StorageApiClient:
         ----------
         session_id : str
             The write session identifier from create_write_session.
-        stream_id : str or int
+        stream_id : str
             Stream identifier for this upload.
         stream_version : int, default 0
             Version number for the stream.
         partition_values : list of str, optional
             Partition values for the blob location.
             Format: ['pt=20230101', 'region=us-west'].
-        column_index : int, default 0
-            Column index in the table schema where the blob will be stored.
+        column_index : int, default 1
+            1-based column index in the table schema where the blob will be stored.
         compression : Compression, default None
             Compression algorithm to use. None means Compression.UNCOMPRESSED.
             See :class:`Compression`.
@@ -2079,12 +2204,12 @@ class StorageApiClient:
         >>> session_resp = client.create_write_session()
         >>> session_id = session_resp.session_id
         >>> # 2. Create write stream
-        >>> stream_resp = client.create_write_stream(session_id, stream_id=0)
+        >>> stream_resp = client.create_write_stream(session_id, stream_id="0")
         >>> # 3. Upload blob data
         >>> blob_writer = client.write_blob_stream(
-        ...     session_id, stream_id=0,
+        ...     session_id, stream_id="0",
         ...     partition_values=['pt=20230101'],
-        ...     column_index=0  # First column is the blob column
+        ...     column_index=1  # First column is the blob column
         ... )
         >>> # Read image file and upload in chunks
         >>> with open('image.jpg', 'rb') as f:
@@ -2100,13 +2225,13 @@ class StorageApiClient:
         Blob reference: blob_ref_abc123
         Uploaded size: 524288 bytes
         >>> # 5. Close stream and commit session
-        >>> client.close_write_stream(session_id, stream_id=0)
+        >>> client.close_write_stream(session_id, stream_id="0")
         >>> client.commit_write_session(session_id)
 
         Upload blob data directly from memory without reading from a file,
         useful for dynamically generated binary data:
 
-        >>> blob_writer = client.write_blob_stream(session_id, stream_id=0, column_index=0)
+        >>> blob_writer = client.write_blob_stream(session_id, stream_id="0", column_index=1)
         >>> # Generate or prepare binary data
         >>> binary_data = b"generated binary content..."
         >>> blob_writer.write(binary_data)
@@ -2118,9 +2243,9 @@ class StorageApiClient:
         The blob is stored in the specified partition's location:
 
         >>> blob_writer = client.write_blob_stream(
-        ...     session_id, stream_id=0,
+        ...     session_id, stream_id="0",
         ...     partition_values=['pt=20230101', 'region=us-west'],
-        ...     column_index=0
+        ...     column_index=1
         ... )
         >>> blob_writer.write(image_data)
         >>> response = blob_writer.finish()
@@ -2129,7 +2254,7 @@ class StorageApiClient:
         Handle checksum errors when the upload integrity check fails,
         indicating data corruption during transfer:
 
-        >>> blob_writer = client.write_blob_stream(session_id, stream_id=0, column_index=0)
+        >>> blob_writer = client.write_blob_stream(session_id, stream_id="0", column_index=1)
         >>> blob_writer.write(data)
         >>> try:
         ...     response = blob_writer.finish()
@@ -2144,7 +2269,7 @@ class StorageApiClient:
         Upload large blobs incrementally by reading and writing in chunks
         to avoid loading the entire blob into memory:
 
-        >>> blob_writer = client.write_blob_stream(session_id, stream_id=0, column_index=0)
+        >>> blob_writer = client.write_blob_stream(session_id, stream_id="0", column_index=1)
         >>> # Upload a large video file in 64KB chunks
         >>> chunk_size = 65536
         >>> with open('large_video.mp4', 'rb') as f:
@@ -2163,14 +2288,14 @@ class StorageApiClient:
         Upload text data by converting strings to bytes. The writer
         automatically handles the conversion:
 
-        >>> blob_writer = client.write_blob_stream(session_id, stream_id=0, column_index=0)
+        >>> blob_writer = client.write_blob_stream(session_id, stream_id="0", column_index=1)
         >>> text_content = "This is text data to store as a blob"
         >>> blob_writer.write(text_content)  # Automatically converted to bytes
         >>> response = blob_writer.finish()
 
         Monitor writer status during long uploads to detect early failures:
 
-        >>> blob_writer = client.write_blob_stream(session_id, stream_id=0, column_index=0)
+        >>> blob_writer = client.write_blob_stream(session_id, stream_id="0", column_index=1)
         >>> for chunk in large_data_chunks:
         ...     success = blob_writer.write(chunk)
         ...     if not success or blob_writer.get_status() != Status.RUNNING:
@@ -2195,19 +2320,18 @@ class StorageApiClient:
         )
 
         url = self._get_v2_url()
-        params = {
-            "Action": "TableWriteBlob",
-            "Target": self._build_target(),
-            "SessionId": request.session_id,
-            "StreamId": request.stream_id,
-            "StreamVersion": str(request.stream_version),
-            "PartitionValues": ",".join(request.partition_values)
-            if request.partition_values
-            else "",
-            "ColumnIndex": str(request.column_index),
-        }
-        if self._quota_name:
-            params["quotaName"] = self._quota_name
+        params = self._build_params(
+            "TableWriteBlob",
+            {
+                "SessionId": request.session_id,
+                "StreamId": request.stream_id,
+                "StreamVersion": str(request.stream_version),
+                "PartitionValues": ",".join(request.partition_values)
+                if request.partition_values
+                else "",
+                "ColumnIndex": str(request.column_index),
+            },
+        )
 
         headers = self._fill_common_headers(
             {
@@ -2229,11 +2353,11 @@ class StorageApiClient:
     def write_blob_batch(
         self,
         items: List[BlobWriteItem],
-        session_id=None,
-        stream_id=None,
-        stream_version=0,
-        partition_values=None,
-        column_index=0,
+        session_id: Optional[str] = None,
+        stream_id: Optional[str] = None,
+        stream_version: int = 0,
+        partition_values: Optional[List[str]] = None,
+        column_index: int = 1,
     ) -> WriteBlobResponse:
         """
         Upload multiple blobs in a single batch request for efficiency.
@@ -2248,19 +2372,21 @@ class StorageApiClient:
         items : list of BlobWriteItem
             List of blob items to upload. Each item contains data (bytes),
             partition_values (list of str), column_index (int),
-            distribution_key (str), mime_type (str), and checksum_type
-            (ChecksumType). See :class:`BlobWriteItem`.
+            distribution_key (str), mime_type (str), custom_file_name (str),
+            and checksum_type (ChecksumType). The client stamps each item
+            with its own ``api_version`` before upload, so ``custom_file_name``
+            is only sent when targeting v3+. See :class:`BlobWriteItem`.
         session_id : str, optional
             The write session identifier from create_write_session.
-        stream_id : str or int, optional
+        stream_id : str, optional
             Stream identifier for this batch upload.
         stream_version : int, default 0
             Version number for the stream.
         partition_values : list of str, optional
             Default partition values for blobs (can be overridden per item).
             Format: ['pt=20230101', 'region=us-west'].
-        column_index : int, default 0
-            Default column index for blobs (can be overridden per item).
+        column_index : int, default 1
+            1-based column index for blobs (can be overridden per item).
 
         Returns
         -------
@@ -2308,7 +2434,7 @@ class StorageApiClient:
         >>> # 1. Create write session and stream
         >>> session_resp = client.create_write_session()
         >>> session_id = session_resp.session_id
-        >>> stream_resp = client.create_write_stream(session_id, stream_id=0)
+        >>> stream_resp = client.create_write_stream(session_id, stream_id="0")
         >>> # 2. Prepare multiple blob items
         >>> items = []
         >>> for image_path in ['img1.jpg', 'img2.jpg', 'img3.jpg']:
@@ -2317,13 +2443,13 @@ class StorageApiClient:
         ...     item = BlobWriteItem(
         ...         data=image_data,
         ...         partition_values=['pt=20230101'],
-        ...         column_index=0,
+        ...         column_index=1,
         ...         mime_type='image/jpeg',
         ...         checksum_type=ChecksumType.CRC32  # Verify integrity
         ...     )
         ...     items.append(item)
         >>> # 3. Upload all blobs in one batch
-        >>> batch_resp = client.write_blob_batch(items, session_id, stream_id=0)
+        >>> batch_resp = client.write_blob_batch(items, session_id, stream_id="0")
         >>> print(f"Uploaded {len(batch_resp.blob_references)} blobs")
         >>> print(f"Total size: {batch_resp.size} bytes")
         Uploaded 3 blobs
@@ -2331,7 +2457,7 @@ class StorageApiClient:
         >>> # 4. Store references for later reading
         >>> blob_refs = batch_resp.blob_references
         >>> # 5. Close stream and commit session
-        >>> client.close_write_stream(session_id, stream_id=0)
+        >>> client.close_write_stream(session_id, stream_id="0")
         >>> client.commit_write_session(session_id)
 
         Upload blobs to different partitions and columns by customizing
@@ -2341,7 +2467,7 @@ class StorageApiClient:
         ...     BlobWriteItem(
         ...         data=blob1_data,
         ...         partition_values=['pt=20230101'],
-        ...         column_index=0
+        ...         column_index=1
         ...     ),
         ...     BlobWriteItem(
         ...         data=blob2_data,
@@ -2351,10 +2477,10 @@ class StorageApiClient:
         ...     BlobWriteItem(
         ...         data=blob3_data,
         ...         partition_values=['pt=20230103'],
-        ...         column_index=0
+        ...         column_index=1
         ...     ),
         ... ]
-        >>> response = client.write_blob_batch(items, session_id, stream_id=0)
+        >>> response = client.write_blob_batch(items, session_id, stream_id="0")
         >>> # Each blob is stored in its specified partition/column
 
         Use MD5 checksum for stronger integrity verification on critical
@@ -2363,10 +2489,10 @@ class StorageApiClient:
         >>> critical_data = read_critical_file()
         >>> item = BlobWriteItem(
         ...     data=critical_data,
-        ...     column_index=0,
+        ...     column_index=1,
         ...     checksum_type=ChecksumType.MD5
         ... )
-        >>> response = client.write_blob_batch([item], session_id, stream_id=0)
+        >>> response = client.write_blob_batch([item], session_id, stream_id="0")
         >>> # Server verifies MD5 checksum matches computed value
 
         Add MIME type metadata to help applications understand blob content
@@ -2376,7 +2502,7 @@ class StorageApiClient:
         ...     BlobWriteItem(
         ...         data=json_data_bytes,
         ...         mime_type='application/json',
-        ...         column_index=0
+        ...         column_index=1
         ...     ),
         ...     BlobWriteItem(
         ...         data=pdf_data_bytes,
@@ -2384,7 +2510,7 @@ class StorageApiClient:
         ...         column_index=1
         ...     ),
         ... ]
-        >>> response = client.write_blob_batch(items, session_id, stream_id=0)
+        >>> response = client.write_blob_batch(items, session_id, stream_id="0")
         >>> # MIME types stored with blobs for content type hints
 
         Use distribution_key for hash-based storage to ensure blobs are
@@ -2394,10 +2520,10 @@ class StorageApiClient:
         ...     BlobWriteItem(
         ...         data=blob_data,
         ...         distribution_key='user123',
-        ...         column_index=0
+        ...         column_index=1
         ...     ),
         ... ]
-        >>> response = client.write_blob_batch(items, session_id, stream_id=0)
+        >>> response = client.write_blob_batch(items, session_id, stream_id="0")
         >>> # Blob stored at location determined by distribution key hash
 
         Upload a large number of small files efficiently by batching them
@@ -2408,16 +2534,16 @@ class StorageApiClient:
         >>> for file_path in small_files:  # 100 small files
         ...     with open(file_path, 'rb') as f:
         ...         data = f.read()
-        ...     items.append(BlobWriteItem(data=data, column_index=0))
+        ...     items.append(BlobWriteItem(data=data, column_index=1))
         >>> # Upload all in one batch (much faster than 100 individual uploads)
-        >>> response = client.write_blob_batch(items, session_id, stream_id=0)
+        >>> response = client.write_blob_batch(items, session_id, stream_id="0")
         >>> print(f"Batch uploaded {len(response.blob_references)} blobs")
         Batch uploaded 100 blobs
 
         Check for warnings in the response to detect partial upload failures
         or other issues:
 
-        >>> response = client.write_blob_batch(items, session_id, stream_id=0)
+        >>> response = client.write_blob_batch(items, session_id, stream_id="0")
         >>> if response.warning_message:
         ...     print(f"Upload warning: {response.warning_message}")
         ...     # Some blobs may have had issues
@@ -2430,13 +2556,13 @@ class StorageApiClient:
         Use the returned blob_references to read the blobs later by calling
         read_blobs with the reference list:
 
-        >>> batch_resp = client.write_blob_batch(items, session_id, stream_id=0)
+        >>> batch_resp = client.write_blob_batch(items, session_id, stream_id="0")
         >>> blob_refs = batch_resp.blob_references
         >>> # Later, read the blobs back
         >>> blob_iterator = client.read_blobs(blob_references=blob_refs)
-        >>> for data, mime_type in blob_iterator:
+        >>> for record in blob_iterator:
         ...     # Process each blob data
-        ...     print(f"Read blob: {len(data)} bytes, type: {mime_type}")
+        ...     print(f"Read blob: {len(record.data)} bytes, type: {record.mime_type}")
         """
         self._check_not_instance()
         request = WriteBlobRequest(
@@ -2448,16 +2574,15 @@ class StorageApiClient:
         )
 
         url = self._get_v2_url()
-        params = {
-            "Action": "TableWriteBlob",
-            "Target": self._build_target(),
-            "SessionId": request.session_id,
-            "StreamId": request.stream_id,
-            "StreamVersion": str(request.stream_version),
-            "Mode": "Batch",
-        }
-        if self._quota_name:
-            params["quotaName"] = self._quota_name
+        params = self._build_params(
+            "TableWriteBlob",
+            {
+                "SessionId": request.session_id,
+                "StreamId": request.stream_id,
+                "StreamVersion": str(request.stream_version),
+                "Mode": "Batch",
+            },
+        )
 
         headers = self._fill_common_headers(
             {
@@ -2472,27 +2597,26 @@ class StorageApiClient:
         req_io = RequestsIO(upload, chunk_size=options.chunk_size)
         req_io.start()
         for item in items:
+            item.api_version = self._api_version
             item.write_frame_to(req_io)
         resp = req_io.finish()
 
-        response = WriteBlobResponse()
-        response.parse(resp, obj=response)
-        _update_request_id(response, resp)
+        return self._parse_response(resp, WriteBlobResponse, set_route_token=False)
 
-        if response.warning_message:
-            logger.warning(response.warning_message)
-
-        return response
-
-    def read_blobs(self, blob_references=None, compression=None, stream=False):
+    def read_blobs(
+        self,
+        blob_references: Optional[List[Union[str, bytes]]] = None,
+        compression: Optional[Compression] = None,
+        stream: bool = False,
+    ):
         """
         Download binary blobs by their blob references.
 
-        This method retrieves blob data uploaded via write_blob_stream or
-        write_blob_batch by providing the blob references returned during
-        upload. The data is returned as an iterator that yields tuples of
-        (data_bytes, mime_type), handling protocol framing and CRC
-        stripping automatically.
+        upload. The data is returned as an iterator that yields
+        :class:`BlobRecord` instances, each exposing ``data``,
+        ``mime_type`` and ``custom_file_name`` attributes, handling
+        protocol framing and CRC stripping automatically. Prefer
+        attribute access (e.g. ``record.data``) over tuple unpacking.
 
         Parameters
         ----------
@@ -2507,17 +2631,17 @@ class StorageApiClient:
         stream : bool, optional
             If True, return a :class:`BlobStreamReader` instead of
             :class:`BlobDataIterator`. The reader provides file-like
-            ``read()`` access per blob, a ``mime_type`` property,
-            and a ``next()`` method to advance to the next blob.
-            Default is False.
+            ``read()`` access per blob, a ``mime_type`` property, a
+            ``custom_file_name`` property, and a ``next()`` method to
+            advance to the next blob. Default is False.
 
         Returns
         -------
         BlobDataIterator or BlobStreamReader
             When *stream* is False (default), returns an iterator
-            yielding ``(data_bytes, mime_type)`` tuples per blob.
-            When *stream* is True, returns a :class:`BlobStreamReader`
-            for incremental, file-like reading of each blob.
+            yielding :class:`BlobRecord` instances per blob. When
+            *stream* is True, returns a :class:`BlobStreamReader` for
+            incremental, file-like reading of each blob.
 
         See Also
         --------
@@ -2555,22 +2679,26 @@ class StorageApiClient:
         >>> blob_refs = ['blob_ref_001', 'blob_ref_002', 'blob_ref_003']
         >>> # Read the blobs back using references
         >>> blob_iterator = client.read_blobs(blob_references=blob_refs)
-        >>> for data, mime_type in blob_iterator:
-        ...     print(f"Blob size: {len(data)} bytes, MIME type: {mime_type}")
+        >>> for record in blob_iterator:
+        ...     print(f"Blob size: {len(record.data)} bytes, MIME type: {record.mime_type}")
         ...     # Save blob to file
         ...     filename = f"blob_{blob_refs[i]}"
         ...     with open(filename, 'wb') as f:
-        ...         f.write(data)
+        ...         f.write(record.data)
         Blob size: 1024 bytes, MIME type: image/jpeg
         Blob size: 2048 bytes, MIME type: image/png
         Blob size: 512 bytes, MIME type: application/json
 
         Download a single blob by passing a single-element reference list.
-        The iterator yields one (data, mime_type) tuple:
+        The iterator yields one :class:`BlobRecord`; access its fields by
+        attribute:
 
         >>> single_ref = ['blob_ref_abc123']
         >>> blob_iterator = client.read_blobs(blob_references=single_ref)
-        >>> data, mime_type = next(blob_iterator)
+        >>> record = next(blob_iterator)
+        >>> data = record.data
+        >>> mime_type = record.mime_type
+        >>> custom_file_name = record.custom_file_name
         >>> print(f"Downloaded {len(data)} bytes")
         Downloaded 524288 bytes
         >>> # Process the blob data
@@ -2582,16 +2710,16 @@ class StorageApiClient:
         upload and using them to read later:
 
         >>> # Earlier: upload batch
-        >>> batch_resp = client.write_blob_batch(items, session_id, stream_id=0)
+        >>> batch_resp = client.write_blob_batch(items, session_id, stream_id="0")
         >>> all_refs = batch_resp.blob_references  # Save these
         >>> # Later: read all blobs from the batch
         >>> blob_iterator = client.read_blobs(blob_references=all_refs)
         >>> downloaded_blobs = []
-        >>> for data, mime_type in blob_iterator:
+        >>> for record in blob_iterator:
         ...     downloaded_blobs.append({
-        ...         'data': data,
-        ...         'mime_type': mime_type,
-        ...         'size': len(data)
+        ...         'data': record.data,
+        ...         'mime_type': record.mime_type,
+        ...         'size': len(record.data)
         ...     })
         >>> print(f"Downloaded {len(downloaded_blobs)} blobs")
         Downloaded 10 blobs
@@ -2600,9 +2728,9 @@ class StorageApiClient:
         iterating and processing one at a time:
 
         >>> blob_iterator = client.read_blobs(blob_references=large_blob_refs)
-        >>> for i, (data, mime_type) in enumerate(blob_iterator):
+        >>> for i, record in enumerate(blob_iterator):
         ...     # Process each blob and discard data after processing
-        ...     result = analyze_blob(data)
+        ...     result = analyze_blob(record.data)
         ...     print(f"Blob {i}: {result}")
         ...     # data is freed after this iteration
         Blob 0: Analysis complete
@@ -2612,34 +2740,33 @@ class StorageApiClient:
         type was set during upload:
 
         >>> blob_iterator = client.read_blobs(blob_references=blob_refs)
-        >>> for data, mime_type in blob_iterator:
-        ...     if mime_type == 'application/json':
+        >>> for record in blob_iterator:
+        ...     if record.mime_type == 'application/json':
         ...         # Parse as JSON
         ...         import json
-        ...         json_obj = json.loads(data.decode('utf-8'))
+        ...         json_obj = json.loads(record.data.decode('utf-8'))
         ...         process_json(json_obj)
-        ...     elif mime_type == 'image/jpeg':
+        ...     elif record.mime_type == 'image/jpeg':
         ...         # Process as image
-        ...         display_image(data)
-        ...     elif mime_type is None:
+        ...         display_image(record.data)
+        ...     elif record.mime_type is None:
         ...         # No type hint, use generic binary handling
-        ...         process_binary(data)
+        ...         process_binary(record.data)
         ...     else:
-        ...         print(f"Unknown MIME type: {mime_type}")
+        ...         print(f"Unknown MIME type: {record.mime_type}")
 
         Convert blob iterator to list for multiple iterations or indexing,
         though this loads all data into memory:
 
-        >>> blob_iterator = client.read_blobs(blob_references=blob_refs)
-        >>> all_blobs = list(blob_iterator)  # [(data1, mime1), (data2, mime2), ...]
+        >>> all_blobs = list(blob_iterator)  # [BlobRecord, ...]
         >>> # Now can access by index
-        >>> first_blob_data = all_blobs[0][0]
-        >>> first_blob_mime = all_blobs[0][1]
+        >>> first_blob_data = all_blobs[0].data
+        >>> first_blob_mime = all_blobs[0].mime_type
         >>> # Can iterate multiple times
-        >>> for data, mime_type in all_blobs:
-        ...     process_blob(data)
-        >>> for data, mime_type in all_blobs:
-        ...     validate_blob(data)
+        >>> for record in all_blobs:
+        ...     process_blob(record.data)
+        >>> for record in all_blobs:
+        ...     validate_blob(record.data)
 
         Handle empty blob reference list by checking iterator length
         or attempting to iterate:
@@ -2662,7 +2789,8 @@ class StorageApiClient:
         ...         blob_ref = record[0]  # blob_ref column
         ...         # Download the referenced blob
         ...         blob_iterator = client.read_blobs(blob_references=[blob_ref])
-        ...         data, mime_type = next(blob_iterator)
+        ...         record = next(blob_iterator)
+        ...         data = record.data
         ...         print(f"Downloaded blob {blob_ref}: {len(data)} bytes")
 
         Stream blobs incrementally using file-like read interface
@@ -2677,15 +2805,11 @@ class StorageApiClient:
         ...         chunk = reader.read(4096)
         ...     reader = reader.next()
         """
+        # ReadBlobRequest auto-decodes bytes blob references to UTF-8 strings
         request = ReadBlobRequest(blob_references=blob_references)
 
         url = self._get_v2_url()
-        params = {
-            "Action": "BlobRead",
-            "Target": "generic.blob",
-        }
-        if self._quota_name:
-            params["quotaName"] = self._quota_name
+        params = self._build_params("BlobRead", {"Target": "generic.blob"})
 
         body_dict = {"BlobReferences": request.blob_references}
         extra_headers = {}
@@ -2712,7 +2836,7 @@ class StorageApiClient:
             compress_option = CompressOption(compress_algo=compress_algo)
             raw_stream = get_decompress_stream(resp, compress_option)
 
-        iterator = BlobDataIterator(raw_stream)
+        iterator = BlobDataIterator(raw_stream, api_version=self._api_version)
         if stream:
             return BlobStreamReader(iterator)
         return iterator
@@ -2779,17 +2903,17 @@ class StorageApiArrowClient(StorageApiClient):
 
     def read_rows_arrow(
         self,
-        session_id,
-        split_index=None,
-        row_offset=None,
-        row_count=None,
-        max_batch_rows=4096,
-        skip_row_num=0,
-        max_batch_raw_size=0,
-        data_format=None,
-        data_columns=None,
-        compression=None,
-        route_token=None,
+        session_id: Optional[str] = None,
+        split_index: Optional[int] = None,
+        row_offset: Optional[int] = None,
+        row_count: Optional[int] = None,
+        max_batch_rows: int = 4096,
+        skip_row_num: int = 0,
+        max_batch_raw_size: int = 0,
+        data_format: Optional[DataFormat] = None,
+        data_columns: Optional[List[str]] = None,
+        compression: Optional[Compression] = None,
+        route_token: Optional[str] = None,
     ) -> ArrowReader:
         """Read one split of the read session as Arrow batches.
 
@@ -2848,14 +2972,14 @@ class StorageApiArrowClient(StorageApiClient):
 
     def write_rows_arrow(
         self,
-        session_id=None,
-        stream_id=None,
-        stream_version=0,
-        record_count=0,
-        compression=None,
-        route_token=None,
-        row_offset=-1,
-        access_token=None,
+        session_id: Optional[str] = None,
+        stream_id: Optional[str] = None,
+        stream_version: int = 0,
+        record_count: int = 0,
+        compression: Optional[Compression] = None,
+        route_token: Optional[str] = None,
+        row_offset: int = -1,
+        access_token: Optional[str] = None,
     ) -> ArrowWriter:
         """Write Arrow batches to a write stream.
 
@@ -2868,7 +2992,7 @@ class StorageApiArrowClient(StorageApiClient):
         ----------
         session_id : str
             The write session identifier.
-        stream_id : str or int
+        stream_id : str
             The stream identifier from create_write_stream.
         stream_version : int, default 0
             Version of the stream (should match create_write_stream).
@@ -2904,7 +3028,10 @@ class StorageApiArrowClient(StorageApiClient):
         return ArrowWriter(stream_writer, compression)
 
     def preview_table_arrow(
-        self, limit=None, partition=None, columns=None
+        self,
+        limit: Optional[int] = None,
+        partition: Optional[str] = None,
+        columns: Optional[List[str]] = None,
     ) -> ArrowReader:
         """Preview table data as Arrow batches.
 

@@ -131,6 +131,8 @@ class MergeTask(Task):
         if options.default_task_settings:
             hints.update(options.default_task_settings)
 
+        hints = cls._merge_env_settings(hints)
+
         if odps.is_schema_namespace_enabled(hints) or props.schema is not None:
             hints.update(
                 {

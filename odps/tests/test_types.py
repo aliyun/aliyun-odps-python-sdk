@@ -62,6 +62,7 @@ def test_nullable_record():
         "date",
         "interval_year_month",
         "json",
+        "variant",
         "char(20)",
         "varchar(20)",
         "array<string>",
@@ -233,6 +234,7 @@ def test_implicit_cast():
     date = odps_types.Date()
     string = odps_types.String()
     json = odps_types.Json()
+    variant = odps_types.Variant()
 
     assert double.can_implicit_cast(bigint)
     assert string.can_implicit_cast(bigint)
@@ -269,9 +271,15 @@ def test_implicit_cast():
 
     assert json.can_implicit_cast(string)
     assert string.can_implicit_cast(json)
+    assert not variant.can_implicit_cast(string)
+    assert not string.can_implicit_cast(variant)
 
 
 def test_composite_types():
+    primitive_type = odps_types.validate_data_type("variant")
+    assert isinstance(primitive_type, odps_types.Variant)
+    assert primitive_type == odps_types.variant
+
     comp_type = odps_types.validate_data_type("decimal")
     assert isinstance(comp_type, odps_types.Decimal)
 
@@ -695,6 +703,18 @@ def test_vector_creation_and_parse():
     assert v2_parsed.element_type == odps_types.double
     assert v2_parsed.dimension == 512
 
+    # Test parsing from string with angle brackets
+    v3_parsed = odps_types.validate_data_type("VECTOR<FLOAT,3>")
+    assert isinstance(v3_parsed, odps_types.Vector)
+    assert v3_parsed.element_type == odps_types.float_
+    assert v3_parsed.dimension == 3
+    assert v3_parsed.name == "vector(float,3)"
+
+    v4_parsed = odps_types.validate_data_type("vector<double,768>")
+    assert isinstance(v4_parsed, odps_types.Vector)
+    assert v4_parsed.element_type == odps_types.double
+    assert v4_parsed.dimension == 768
+
 
 @py_and_c_deco
 def test_vector_validation():
@@ -739,13 +759,6 @@ def test_vector_invalid_inputs():
 
     with pytest.raises(ValueError):
         odps_types.Vector(odps_types.float_, 3.5)
-
-    # Test dimensions not multiple of 32
-    with pytest.raises(ValueError):
-        odps_types.Vector(odps_types.float_, 100)
-
-    with pytest.raises(ValueError):
-        odps_types.Vector(odps_types.float_, 1537)
 
 
 @py_and_c_deco

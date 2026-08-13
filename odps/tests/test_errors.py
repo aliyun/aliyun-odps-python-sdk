@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ from collections import namedtuple
 from ..errors import (
     BadGatewayError,
     InternalServerError,
+    InvalidArgument,
     ODPSError,
     RequestTimeTooSkewed,
     ScriptError,
@@ -170,3 +171,45 @@ def test_parse_request_time_skew():
     assert exc.max_interval_date == None
     assert exc.now_date is None
     assert exc.expire_date is None
+
+
+def test_json_parse_response_with_composite_code():
+    """Server may return a composite Code like 'ODPS-0420411: Invalid argument - '
+    instead of a bare class name.  The parser should extract the ODPS prefix
+    and resolve it via _CODE_MAPPING."""
+    import json
+
+    body = json.dumps(
+        {
+            "Code": "ODPS-0420411: Invalid argument - ",
+            "Message": "Specified cid 0 does not refer to a blob column.",
+        }
+    )
+    exc = parse_response(
+        _PseudoResponse(body.encode(), body, {"x-odps-request-id": "REQ_ID"}, 400)
+    )
+    assert isinstance(exc, InvalidArgument)
+    assert exc.code == "ODPS-0420411: Invalid argument - "
+    assert (
+        exc.args[0]
+        == "ODPS-0420411: Invalid argument - Specified cid 0 does not refer to a blob column."
+    )
+    assert exc.request_id == "REQ_ID"
+
+
+def test_json_parse_response_with_unknown_composite_code():
+    """An unknown ODPS code prefix should fall back to ODPSError."""
+    import json
+
+    body = json.dumps(
+        {
+            "Code": "ODPS-0999999: Unknown error - ",
+            "Message": "Something went wrong",
+        }
+    )
+    exc = parse_response(
+        _PseudoResponse(body.encode(), body, {"x-odps-request-id": "REQ_ID"}, 400)
+    )
+    assert isinstance(exc, ODPSError)
+    assert exc.code == "ODPS-0999999: Unknown error - "
+    assert exc.args[0] == "ODPS-0999999: Unknown error - Something went wrong"

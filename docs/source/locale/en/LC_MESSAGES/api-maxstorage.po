@@ -1,0 +1,1630 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2014-2018, The Alibaba Group Holding Ltd.
+# This file is distributed under the same license as the PyODPS package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyODPS 0.13.1\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-08-06 16:40+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: en\n"
+"Language-Team: en <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: ../../source/api-maxstorage.rst:4
+msgid "MaxStorage"
+msgstr ""
+
+#: ../../source/api-maxstorage.rst:7
+msgid "Client"
+msgstr ""
+
+#: odps.maxstorage.base.MaxStorageClient:1 of
+msgid "Entry point for the MaxCompute Storage API."
+msgstr ""
+
+#: odps.maxstorage.base.MaxStorageClient:3 of
+msgid ""
+"Constructed from an :class:`odps.Odps` entry (reuses ``RestClient`` + "
+"account) or standalone with explicit account/endpoint."
+msgstr ""
+
+#: ../../source/api-maxstorage.rst
+#: odps.maxstorage.base.MaxStorageClient.create_instance_read_session
+#: odps.maxstorage.base.MaxStorageClient.create_table_read_session
+#: odps.maxstorage.base.MaxStorageClient.create_table_write_session
+#: odps.maxstorage.base.MaxStorageClient.open_blob_manager
+#: odps.maxstorage.base.MaxStorageClient.preview_table
+#: odps.maxstorage.write.session.TableWriteSession.open_arrow_writer of
+msgid "Parameters"
+msgstr ""
+
+#: odps.maxstorage.base.MaxStorageClient:6 of
+msgid ""
+"The ODPS entry object.  If given, the account/endpoint/project are "
+"derived from it."
+msgstr ""
+
+#: odps.maxstorage.base.MaxStorageClient:9 of
+msgid "Explicit account (when ``odps`` is not given)."
+msgstr ""
+
+#: odps.maxstorage.base.MaxStorageClient:11 of
+msgid "Storage/tunnel endpoint override."
+msgstr ""
+
+#: odps.maxstorage.base.MaxStorageClient:13 of
+msgid "Default project."
+msgstr ""
+
+#: odps.maxstorage.base.MaxStorageClient:15 of
+msgid "Default schema."
+msgstr ""
+
+#: odps.maxstorage.base.MaxStorageClient:17 of
+msgid "Region name for V4 signing."
+msgstr ""
+
+#: odps.maxstorage.base.MaxStorageClient:19 of
+msgid "Quota name for resource management."
+msgstr ""
+
+#: odps.maxstorage.base.MaxStorageClient:21 of
+msgid "Tunnel endpoint override (bypasses discovery)."
+msgstr ""
+
+#: odps.maxstorage.base.MaxStorageClient:23 of
+msgid "Custom user agent string."
+msgstr ""
+
+#: odps.maxstorage.base.MaxStorageClient:25 of
+msgid "Pre-configured RestClient (bypasses endpoint discovery)."
+msgstr ""
+
+#: odps.maxstorage.base.MaxStorageClient:27 of
+msgid ""
+"API version: ``\"2\"`` → ``api/storage/v2``, ``\"3\"`` → ``api/storage/"
+"v3``."
+msgstr ""
+
+#: odps.maxstorage.MaxStorageClient.api_version:1 of
+msgid "The negotiated API version (``\"2\"`` or ``\"3\"``)."
+msgstr ""
+
+#: odps.maxstorage.base.MaxStorageClient.create_instance_read_session:1 of
+msgid "Create (or reload via ``session_id``) an instance read session."
+msgstr ""
+
+#: odps.maxstorage.base.MaxStorageClient.create_instance_read_session:3 of
+msgid ":class:`odps.models.Instance` or instance ID."
+msgstr ""
+
+#: odps.maxstorage.base.MaxStorageClient.create_instance_read_session:5
+#: odps.maxstorage.base.MaxStorageClient.create_table_read_session:8
+#: odps.maxstorage.base.MaxStorageClient.create_table_write_session:5
+#: odps.maxstorage.write.session.TableWriteSession:9 of
+msgid "Reload an existing session instead of creating a new one."
+msgstr ""
+
+#: odps.maxstorage.base.MaxStorageClient.create_instance_read_session:7 of
+msgid "Allow ``LIMIT`` pushdown on the instance."
+msgstr ""
+
+#: odps.maxstorage.base.MaxStorageClient.create_instance_read_session:11
+#: odps.maxstorage.base.MaxStorageClient.create_table_read_session:37
+#: odps.maxstorage.base.MaxStorageClient.create_table_write_session:19
+#: odps.maxstorage.base.MaxStorageClient.open_blob_manager:13
+#: odps.maxstorage.base.MaxStorageClient.preview_table:16
+#: odps.maxstorage.blob.BlobManager:13
+#: odps.maxstorage.blob.BlobManager.build_blob_write_item:12
+#: odps.maxstorage.blob.BlobManager.read_blob:11
+#: odps.maxstorage.blob.BlobManager.read_blobs:24
+#: odps.maxstorage.blob.BlobManager.write_blob_batch:10
+#: odps.maxstorage.blob.BlobManager.write_blob_stream:18
+#: odps.maxstorage.read.instance_session.InstanceReadSession.open_arrow_reader:13
+#: odps.maxstorage.read.reader.ArrowReader:27
+#: odps.maxstorage.read.table_session.TableReadSession:19
+#: odps.maxstorage.read.table_session.TableReadSession.open_arrow_reader:14
+#: odps.maxstorage.write.session.TableWriteSession:19
+#: odps.maxstorage.write.session.TableWriteSession.open_arrow_writer:54
+#: odps.maxstorage.write.writer.TableArrowWriter:26
+#: odps.maxstorage.write.writer.TableArrowWriter.build_blob_write_item:13
+#: odps.maxstorage.write.writer.TableArrowWriter.write_blob_batch:7
+#: odps.maxstorage.write.writer.TableArrowWriter.write_blob_stream:17 of
+msgid "Example"
+msgstr ""
+
+#: odps.maxstorage.base.MaxStorageClient.create_table_read_session:1 of
+msgid "Create (or reload via ``session_id``) a table read session."
+msgstr ""
+
+#: odps.maxstorage.base.MaxStorageClient.create_table_read_session:3 of
+msgid ""
+"Polls until ``NORMAL`` (1s interval, ``session_ready_timeout`` default "
+"3600s)."
+msgstr ""
+
+#: odps.maxstorage.base.MaxStorageClient.create_table_read_session:6
+#: odps.maxstorage.base.MaxStorageClient.create_table_write_session:3
+#: odps.maxstorage.base.MaxStorageClient.preview_table:6 of
+msgid "Table name or :class:`odps.models.Table`."
+msgstr ""
+
+#: odps.maxstorage.base.MaxStorageClient.create_table_read_session:10 of
+msgid "Data columns to project."
+msgstr ""
+
+#: odps.maxstorage.base.MaxStorageClient.create_table_read_session:12 of
+msgid "Partition key columns to project (read partition values as data)."
+msgstr ""
+
+#: odps.maxstorage.base.MaxStorageClient.create_table_read_session:14 of
+msgid "Partition specs to filter, e.g. ``[\"pt=20230101\"]``."
+msgstr ""
+
+#: odps.maxstorage.base.MaxStorageClient.create_table_read_session:16 of
+msgid "Restrict reads to specific buckets of a bucketed table."
+msgstr ""
+
+#: odps.maxstorage.base.MaxStorageClient.create_table_read_session:18 of
+msgid "Split strategy (size, row-offset, or parallelism)."
+msgstr ""
+
+#: odps.maxstorage.base.MaxStorageClient.create_table_read_session:20 of
+msgid "Arrow read options (e.g. timestamp unit overrides)."
+msgstr ""
+
+#: odps.maxstorage.base.MaxStorageClient.create_table_read_session:22 of
+msgid "Server-side filter predicate (SQL expression)."
+msgstr ""
+
+#: odps.maxstorage.base.MaxStorageClient.create_table_read_session:24 of
+msgid ""
+"Fall back to client-side filtering when the server rejects "
+"``filter_predicate``."
+msgstr ""
+
+#: odps.maxstorage.base.MaxStorageClient.create_table_read_session:27 of
+msgid "Maximum number of files per split (0 = server default)."
+msgstr ""
+
+#: odps.maxstorage.base.MaxStorageClient.create_table_read_session:29 of
+msgid "Incremental-read configuration (mode + version range)."
+msgstr ""
+
+#: odps.maxstorage.base.MaxStorageClient.create_table_read_session:31 of
+msgid "Enable incremental read for this session."
+msgstr ""
+
+#: odps.maxstorage.base.MaxStorageClient.create_table_read_session:33 of
+msgid "Override the default 3600s poll timeout."
+msgstr ""
+
+#: odps.maxstorage.base.MaxStorageClient.create_table_write_session:1 of
+msgid "Create (or reload via ``session_id``) a table write session."
+msgstr ""
+
+#: odps.maxstorage.base.MaxStorageClient.create_table_write_session:7
+#: odps.maxstorage.write.session.TableWriteSession:11 of
+msgid "Partition to write, e.g. ``\"pt=20230101\"``."
+msgstr ""
+
+#: odps.maxstorage.base.MaxStorageClient.create_table_write_session:9 of
+msgid "Overwrite existing data in the partition."
+msgstr ""
+
+#: odps.maxstorage.base.MaxStorageClient.create_table_write_session:11
+#: odps.maxstorage.write.session.TableWriteSession:13
+#: odps.maxstorage.write.writer.TableArrowWriter:16 of
+msgid "Batch or streaming write mode."
+msgstr ""
+
+#: odps.maxstorage.base.MaxStorageClient.create_table_write_session:13 of
+msgid ""
+"Required data format for the session (e.g. ``DataFormat(\"Arrow\", "
+"\"V5\")``). When ``None`` the server applies its default. Forwarded as "
+"the ``RequiredDataFormat`` wire field consumed by the server."
+msgstr ""
+
+#: odps.maxstorage.base.MaxStorageClient.open_blob_manager:1 of
+msgid "Return a :class:`BlobManager` for standalone blob read/write."
+msgstr ""
+
+#: odps.maxstorage.base.MaxStorageClient.open_blob_manager:3 of
+msgid ""
+"``table`` is optional — needed for write operations (``write_blob_stream`"
+"`, ``write_blob_batch``) to resolve the table identifier.  Read "
+"operations (``read_blobs``, ``read_blob``) do not need it."
+msgstr ""
+
+#: odps.maxstorage.base.MaxStorageClient.open_blob_manager:8 of
+msgid ""
+"Table name or :class:`odps.models.Table`.  Required for write operations;"
+" ignored for reads."
+msgstr ""
+
+#: odps.maxstorage.base.MaxStorageClient.preview_table:1 of
+msgid "Preview initial rows of a table as an :class:`ArrowReader`."
+msgstr ""
+
+#: odps.maxstorage.base.MaxStorageClient.preview_table:3 of
+msgid ""
+"Uncompressed (preview sends no ``ACCEPT-ENCODING`` header); for "
+"compressed reads use ``create_table_read_session`` + "
+"``open_arrow_reader``."
+msgstr ""
+"Uncompressed (preview sends no ``ACCEPT-ENCODING`` header); for "
+"compressed reads use ``create_table_read_session`` + "
+"``open_arrow_reader``."
+
+#: odps.maxstorage.base.MaxStorageClient.preview_table:8 of
+msgid "Partition spec, e.g. ``\"pt=20230101\"``."
+msgstr ""
+
+#: odps.maxstorage.base.MaxStorageClient.preview_table:10 of
+msgid "Columns to project; ``None`` returns all."
+msgstr ""
+
+#: odps.maxstorage.base.MaxStorageClient.preview_table:12 of
+msgid "Maximum rows to preview."
+msgstr ""
+
+#: odps.maxstorage.MaxStorageClient.storage_rest:1 of
+msgid "The dedicated RestClient tagged ``MAXSTORAGE``."
+msgstr ""
+
+#: odps.maxstorage.MaxStorageClient.stub:1 of
+msgid "The :class:`StorageStub` for RPC operations."
+msgstr ""
+
+#: ../../source/api-maxstorage.rst:13
+msgid "Read Sessions"
+msgstr ""
+
+#: odps.maxstorage.read.table_session.TableReadSession:1 of
+msgid "A table read session."
+msgstr ""
+
+#: odps.maxstorage.read.table_session.TableReadSession:3 of
+msgid ""
+"Created by ``MaxStorageClient.create_table_read_session``.  After "
+"construction the session is guaranteed to be in the ``NORMAL`` status and"
+" its ``splits`` are materialized."
+msgstr ""
+
+#: odps.maxstorage.read.instance_session.InstanceReadSession:7
+#: odps.maxstorage.read.table_session.TableReadSession:7
+#: odps.maxstorage.write.session.TableWriteSession:5
+#: odps.maxstorage.write.writer.TableArrowWriter:6 of
+msgid "The RPC layer."
+msgstr ""
+
+#: odps.maxstorage.read.table_session.TableReadSession:9
+#: odps.maxstorage.write.session.TableWriteSession:7
+#: odps.maxstorage.write.writer.TableArrowWriter:8 of
+msgid "Target table."
+msgstr ""
+
+#: odps.maxstorage.read.table_session.TableReadSession:11 of
+msgid "Creation request (partitions, split options, data format, ...)."
+msgstr ""
+
+#: odps.maxstorage.read.table_session.TableReadSession:13 of
+msgid "If given, reload an existing session instead of creating a new one."
+msgstr ""
+
+#: odps.maxstorage.read.table_session.TableReadSession:15 of
+msgid "Override ``options.maxstorage.session_ready_timeout`` (default 3600s)."
+msgstr ""
+
+#: odps.maxstorage.TableReadSession.arrow_schema:1 of
+msgid "Arrow schema over all columns (data + partition)."
+msgstr ""
+
+#: odps.maxstorage.read.table_session.TableReadSession.close:1 of
+msgid "Close the session.  Best-effort; the server expires sessions on its own."
+msgstr ""
+
+#: odps.maxstorage.TableReadSession.enable_large_string:1 of
+msgid "Whether the server uses Arrow large-string columns."
+msgstr ""
+
+#: odps.maxstorage.TableReadSession.expiration_time:1 of
+msgid "Session expiration time (from ``ExpirationTime``)."
+msgstr ""
+
+#: odps.maxstorage.TableReadSession.id:1 of
+msgid "The session id."
+msgstr ""
+
+#: odps.maxstorage.TableReadSession.latest_version:1 of
+msgid "Latest data version (from ``LatestVersion``, used by incremental reads)."
+msgstr ""
+
+#: odps.maxstorage.read.table_session.TableReadSession.open_arrow_reader:1 of
+msgid "Open an :class:`ArrowReader` for ``split``."
+msgstr ""
+
+#: odps.maxstorage.read.table_session.TableReadSession.open_arrow_reader:3 of
+msgid ""
+"Compression follows the tunnel pattern: pass ``compress_option`` (a "
+":class:`odps.tunnel.CompressOption`) or the shorthand "
+"``compress_algo``/``compress_level``.  Default ``None`` = uncompressed. "
+"``compress_option`` takes priority over the shorthand kwargs."
+msgstr ""
+
+#: odps.maxstorage.read.table_session.TableReadSession.open_arrow_reader:8 of
+msgid ""
+"When compression is requested, an ``ACCEPT-ENCODING`` header is sent on "
+"the stream-create request so the server compresses the Arrow stream; the "
+"reader then decompresses the response via "
+":func:`odps.tunnel.io.stream.get_decompress_stream`."
+msgstr ""
+
+#: odps.maxstorage.TableReadSession.record_count:1 of
+msgid "Total row count in this session (from ``RecordCount``)."
+msgstr ""
+
+#: odps.maxstorage.TableReadSession.session_stats:1 of
+msgid "Estimated size / row count (:class:`SessionStats` or ``None``)."
+msgstr ""
+
+#: odps.maxstorage.TableReadSession.split_mode:1 of
+msgid "The :class:`SplitMode` of this session."
+msgstr ""
+
+#: odps.maxstorage.TableReadSession.splits:1 of
+msgid "The materialized list of input splits."
+msgstr ""
+
+#: odps.maxstorage.TableReadSession.supported_data_formats:1 of
+msgid "List of :class:`DataFormat` supported by this session."
+msgstr ""
+
+#: odps.maxstorage.TableReadSession.table_schema:1 of
+msgid "The :class:`ReadSchema` from the response ``DataSchema``."
+msgstr ""
+
+#: odps.maxstorage.read.instance_session.InstanceReadSession:1 of
+msgid "An instance read session."
+msgstr ""
+
+#: odps.maxstorage.read.instance_session.InstanceReadSession:3 of
+msgid ""
+"Created by ``MaxStorageClient.create_instance_read_session``.  After "
+"construction the session is ready for reads; there is no split material "
+"and no polling."
+msgstr ""
+
+#: odps.maxstorage.read.instance_session.InstanceReadSession:9 of
+msgid "Target instance."
+msgstr ""
+
+#: odps.maxstorage.read.instance_session.InstanceReadSession:11 of
+msgid "Creation request."
+msgstr ""
+
+#: odps.maxstorage.read.instance_session.InstanceReadSession:13 of
+msgid ""
+"If given, reload an existing session (``DownloadID``) instead of creating"
+" a new one."
+msgstr ""
+
+#: odps.maxstorage.InstanceReadSession.arrow_schema:1 of
+msgid "Arrow schema over all columns."
+msgstr ""
+
+#: odps.maxstorage.read.instance_session.InstanceReadSession.close:1 of
+msgid "Close the session.  No-op (added for symmetry)."
+msgstr ""
+
+#: odps.maxstorage.InstanceReadSession.id:1 of
+msgid "The download id (wire field ``DownloadID``, not ``SessionId``)."
+msgstr ""
+
+#: odps.maxstorage.read.instance_session.InstanceReadSession.open_arrow_reader:1
+#: of
+msgid "Open an :class:`ArrowReader` for this instance read session."
+msgstr ""
+
+#: odps.maxstorage.read.instance_session.InstanceReadSession.open_arrow_reader:3
+#: of
+msgid ""
+"``task_name`` defaults to ``\"AnonymousSQLTask\"`` and warns when unset "
+"(i.e. left at the default) to surface the likely-missing task "
+"association."
+msgstr ""
+
+#: odps.maxstorage.read.instance_session.InstanceReadSession.open_arrow_reader:7
+#: of
+msgid ""
+"Compression follows the same tunnel pattern as ``TableReadSession``: "
+"``compress_option`` (default ``None`` = uncompressed) or the shorthand "
+"``compress_algo``/``compress_level``.  Uncompressed is the default; LZ4 "
+"and ZSTD are also supported."
+msgstr ""
+"Compression follows the same tunnel pattern as ``TableReadSession``: "
+"``compress_option`` (default ``None`` = uncompressed) or the shorthand "
+"``compress_algo``/``compress_level``.  Uncompressed is the default; LZ4 "
+"and ZSTD are also supported."
+
+#: odps.maxstorage.InstanceReadSession.quota_name:1 of
+msgid "The quota name (from ``QuotaName``), or ``None``."
+msgstr ""
+
+#: odps.maxstorage.InstanceReadSession.record_count:1 of
+msgid "Total row count (from ``RecordCount``)."
+msgstr ""
+
+#: odps.maxstorage.InstanceReadSession.table_schema:1 of
+msgid "The :class:`WriteSchema` deserialized from ``TableSchema``."
+msgstr ""
+
+#: odps.maxstorage.read.table_session.IndexedInputSplit:1 of
+msgid "A split addressed by index — used when ``split_mode == SIZE``."
+msgstr ""
+
+#: odps.maxstorage.read.table_session.IndexedInputSplit:5
+#: odps.maxstorage.read.table_session.RowRangeInputSplit:6 of
+msgid "The read-session id this split belongs to."
+msgstr ""
+
+#: odps.maxstorage.read.table_session.IndexedInputSplit
+#: odps.maxstorage.read.table_session.RowRangeInputSplit of
+msgid "type"
+msgstr ""
+
+#: odps.maxstorage.errors.StorageServiceError:-1
+#: odps.maxstorage.options.SplitOptions:-1
+#: odps.maxstorage.read.table_session.IndexedInputSplit:7
+#: odps.maxstorage.read.table_session.RowRangeInputSplit:8 of
+msgid "str"
+msgstr ""
+
+#: odps.maxstorage.read.table_session.IndexedInputSplit:11 of
+msgid "Zero-based index in ``[0, splits_count)``."
+msgstr ""
+
+#: odps.maxstorage.errors.StorageServiceError:-1
+#: odps.maxstorage.options.SplitOptions:-1
+#: odps.maxstorage.read.table_session.IndexedInputSplit:13
+#: odps.maxstorage.read.table_session.RowRangeInputSplit:14
+#: odps.maxstorage.read.table_session.RowRangeInputSplit:20 of
+msgid "int"
+msgstr ""
+
+#: odps.maxstorage.read.table_session.RowRangeInputSplit:1 of
+msgid ""
+"A split addressed by ``[offset, offset+length)`` — used when ``split_mode"
+" == ROW_OFFSET``."
+msgstr ""
+
+#: odps.maxstorage.read.table_session.RowRangeInputSplit:12 of
+msgid "Starting row offset within the session."
+msgstr ""
+
+#: odps.maxstorage.read.table_session.RowRangeInputSplit:18 of
+msgid "Number of rows in this split."
+msgstr ""
+
+#: ../../source/api-maxstorage.rst:28
+msgid "Readers"
+msgstr ""
+
+#: odps.maxstorage.read.reader.ArrowReader:1 of
+msgid "Arrow reader over a Storage-API read stream."
+msgstr ""
+
+#: odps.maxstorage.read.reader.ArrowReader:3 of
+msgid "Streaming HTTP response returned by the stub's ``create_*_read_stream``."
+msgstr ""
+
+#: odps.maxstorage.read.reader.ArrowReader:5 of
+msgid ""
+"The session's table schema (``ReadSchema`` or ``WriteSchema``).  Used by "
+"``get_as_record_reader`` to build :class:`odps.models.Record` instances "
+"whose columns match the table schema."
+msgstr ""
+
+#: odps.maxstorage.read.reader.ArrowReader:9 of
+msgid ""
+"When set, the response stream is decompressed via "
+":func:`odps.tunnel.io.stream.get_decompress_stream`."
+msgstr ""
+
+#: odps.maxstorage.read.reader.ArrowReader:12 of
+msgid "ODPS request id captured from the stream-create response headers."
+msgstr ""
+
+#: odps.maxstorage.read.reader.ArrowReader:14 of
+msgid ""
+"Total number of rows available to this reader (the split's row range "
+"length, or the instance read's requested count).  Defaults to ``0`` "
+"(unknown).  Exposed via the :attr:`count` property."
+msgstr ""
+
+#: odps.maxstorage.read.reader.ArrowReader:18 of
+msgid ""
+"When ``True``, a background thread pre-reads Arrow batches into a bounded"
+" queue, overlapping network I/O with batch processing. Default ``False``."
+msgstr ""
+
+#: odps.maxstorage.read.reader.ArrowReader:22 of
+msgid ""
+"Maximum number of batches buffered by the async reader (default 2). "
+"Larger values smooth latency spikes at the cost of memory."
+msgstr ""
+
+#: odps.maxstorage.ArrowReader.arrow_schema:1 of
+msgid "The :class:`pyarrow.Schema` of the underlying IPC stream."
+msgstr ""
+
+#: odps.maxstorage.ArrowReader.count:1 of
+msgid "Total number of rows available to this reader (set at open time)."
+msgstr ""
+
+#: odps.maxstorage.read.reader.ArrowReader.get_as_record_reader:1 of
+msgid "Return a record reader yielding :class:`odps.models.Record`."
+msgstr ""
+
+#: odps.maxstorage.read.reader.ArrowReader.get_as_record_reader:3 of
+msgid ""
+"See :class:`~odps.maxstorage.read.record_reader.ArrowRecordReader` for "
+"type-conversion and BLOB-handling details."
+msgstr ""
+
+#: odps.maxstorage.read.reader.ArrowReader.get_request_id:1 of
+msgid "ODPS request id of the stream-create request."
+msgstr ""
+
+#: odps.maxstorage.read.reader.ArrowReader.get_status:1 of
+msgid "Return the reader status."
+msgstr ""
+
+#: odps.maxstorage.read.reader.ArrowReader.get_status:3 of
+msgid ""
+"The Python port has no async-read lifecycle, so this is always ``\"OK\"``"
+" once the stream is openable."
+msgstr ""
+
+#: odps.maxstorage.read.reader.ArrowReader.read:1 of
+msgid "Read the next :class:`pyarrow.RecordBatch`, or ``None`` at EOS."
+msgstr ""
+
+#: odps.maxstorage.read.reader.ArrowReader.read_next_batch:1 of
+msgid "Alias for :meth:`read`, matching the tunnel ArrowReader contract."
+msgstr ""
+
+#: odps.maxstorage.ArrowReader.schema:1 of
+msgid "The session's ODPS schema — matches the tunnel ArrowReader contract."
+msgstr ""
+
+#: odps.maxstorage.ArrowReader.table_schema:1 of
+msgid "The session's ODPS (Storage) schema."
+msgstr ""
+
+#: odps.maxstorage.read.record_reader.ArrowRecordReader:1 of
+msgid "Record reader over a maxstorage :class:`ArrowReader`."
+msgstr ""
+
+#: odps.maxstorage.read.record_reader.ArrowRecordReader:3 of
+msgid ""
+"Subclasses the tunnel :class:`~odps.tunnel.io.reader.ArrowRecordReader` "
+"so that type conversion is identical to the tunnel record reader.  The "
+"only divergence is BLOB columns: the tunnel never supports them, and "
+":func:`odps.types.validate_value` rejects the ``Blob`` type.  Here the "
+"Arrow ``binary`` value (the server-side blob reference) is stored "
+"directly as ``bytes``, bypassing validation."
+msgstr ""
+
+#: odps.maxstorage.ArrowRecordReader.count:1 of
+msgid "Total rows available — delegates to the underlying ArrowReader."
+msgstr ""
+
+#: ../../source/api-maxstorage.rst:37
+msgid "Write Sessions"
+msgstr ""
+
+#: odps.maxstorage.write.session.TableWriteSession:1 of
+msgid "A write session for a MaxCompute table."
+msgstr ""
+
+#: odps.maxstorage.write.session.TableWriteSession:3 of
+msgid "Created by :meth:`MaxStorageClient.create_table_write_session`."
+msgstr ""
+
+#: odps.maxstorage.write.session.TableWriteSession:15
+#: odps.maxstorage.write.writer.TableArrowWriter:22 of
+msgid "Storage API version (``\"2\"`` or ``\"3\"``)."
+msgstr ""
+
+#: odps.maxstorage.write.session.TableWriteSession.abort:1 of
+msgid "Abort the session to discard all uploaded data."
+msgstr ""
+
+#: odps.maxstorage.write.session.TableWriteSession.close:1 of
+msgid "Auto-aborts if not committed."
+msgstr ""
+
+#: odps.maxstorage.write.session.TableWriteSession.commit:1 of
+msgid "Commit the session to finalize all uploaded data."
+msgstr ""
+
+#: odps.maxstorage.write.session.TableWriteSession.get_min_uncommitted_staging_id:1
+#: of
+msgid "Streaming only.  Raises ``NotImplementedError`` on API v2."
+msgstr ""
+
+#: odps.maxstorage.write.session.TableWriteSession.open_arrow_writer:1 of
+msgid "Open a :class:`TableArrowWriter` for this session."
+msgstr ""
+
+#: odps.maxstorage.write.session.TableWriteSession.open_arrow_writer:3 of
+msgid ""
+"If ``resume=True``, calls ``getWriteStream``; otherwise calls "
+"``createTableWriteStream``.  Returns :class:`TableArrowBlobUploadWriter` "
+"if ``auto_upload_blobs``, else :class:`TableArrowWriter`."
+msgstr ""
+
+#: odps.maxstorage.write.session.TableWriteSession.open_arrow_writer:8 of
+msgid ""
+"Both writer classes support "
+":meth:`~TableArrowWriter.get_as_record_writer` and the full blob-upload "
+"helper API (``build_blob_write_item``, ``write_blob_stream``, "
+"``write_blob_batch``).  The difference is whether BLOB cells in "
+"``write_batch`` / ``get_as_record_writer`` are auto-uploaded:"
+msgstr ""
+
+#: odps.maxstorage.write.session.TableWriteSession.open_arrow_writer:14 of
+msgid ""
+"``auto_upload_blobs=False`` (default): BLOB columns must already contain "
+"reference bytes — upload them yourself via ``write_blob_batch`` first and"
+" place the returned references."
+msgstr ""
+
+#: odps.maxstorage.write.session.TableWriteSession.open_arrow_writer:17 of
+msgid ""
+"``auto_upload_blobs=True``: returns a :class:`TableArrowBlobUploadWriter`"
+" that batch-uploads raw ``bytes``/file-like BLOB cells and replaces them "
+"with references."
+msgstr ""
+
+#: odps.maxstorage.write.session.TableWriteSession.open_arrow_writer:21 of
+msgid "write stream identifier (string)."
+msgstr ""
+
+#: odps.maxstorage.write.session.TableWriteSession.open_arrow_writer:22 of
+msgid "write stream version (default 1)."
+msgstr ""
+
+#: odps.maxstorage.write.session.TableWriteSession.open_arrow_writer of
+msgid "Keyword Arguments"
+msgstr ""
+
+#: odps.maxstorage.write.session.TableWriteSession.open_arrow_writer:23 of
+msgid "Arrow IPC buffer size in bytes (default 64 MiB)."
+msgstr ""
+
+#: odps.maxstorage.write.session.TableWriteSession.open_arrow_writer:24 of
+msgid ""
+"when ``True``, return a :class:`TableArrowBlobUploadWriter` that auto-"
+"uploads BLOB cells inline and replaces them with references."
+msgstr ""
+
+#: odps.maxstorage.write.session.TableWriteSession.open_arrow_writer:27 of
+msgid "checksum algorithm for blob uploads."
+msgstr ""
+
+#: odps.maxstorage.write.session.TableWriteSession.open_arrow_writer:28 of
+msgid ""
+"session-level default MIME type, used as fallback when "
+"``blob_metadata_callback`` is unset or returns ``None``."
+msgstr ""
+
+#: odps.maxstorage.write.session.TableWriteSession.open_arrow_writer:31 of
+msgid ""
+"session-level default custom file name (API v3 only), same fallback "
+"semantics as ``blob_mime_type``."
+msgstr ""
+
+#: odps.maxstorage.write.session.TableWriteSession.open_arrow_writer:33 of
+msgid ""
+"optional callable ``callback(row_index, column_name, blob_data) -> "
+"(mime_type, custom_file_name) | None`` invoked once per inline BLOB cell."
+msgstr ""
+
+#: odps.maxstorage.write.session.TableWriteSession.open_arrow_writer:36 of
+msgid "whether to auto-flush when the buffer is full (default ``True``)."
+msgstr ""
+
+#: odps.maxstorage.write.session.TableWriteSession.open_arrow_writer:38 of
+msgid ""
+"when ``True``, the writer closes file-like objects passed to it (e.g. via"
+" ``write_batch`` BLOB cells or ``write_blob_batch`` items) after they are"
+" consumed; objects without a ``close`` attribute or already closed are "
+"skipped."
+msgstr ""
+
+#: odps.maxstorage.write.session.TableWriteSession.open_arrow_writer:42 of
+msgid ""
+"when ``True``, resume an existing write stream instead of creating a new "
+"one."
+msgstr ""
+
+#: odps.maxstorage.write.session.TableWriteSession.open_arrow_writer:44 of
+msgid ""
+"maximum number of pending async flush buffers for back-pressure (default "
+"1)."
+msgstr ""
+
+#: odps.maxstorage.write.session.TableWriteSession.open_arrow_writer:46 of
+msgid "enable exactly-once write semantics."
+msgstr ""
+
+#: odps.maxstorage.write.session.TableWriteSession.open_arrow_writer:47 of
+msgid ":class:`~odps.tunnel.CompressOption` for Arrow IPC compression."
+msgstr ""
+
+#: odps.maxstorage.write.session.TableWriteSession.open_arrow_writer:49 of
+msgid "shorthand for ``compress_option`` — ``\"zstd\"`` / ``\"lz4\"``."
+msgstr ""
+
+#: odps.maxstorage.write.session.TableWriteSession.open_arrow_writer:51 of
+msgid "compression level."
+msgstr ""
+
+#: ../../source/api-maxstorage.rst:43
+msgid "Writers"
+msgstr ""
+
+#: odps.maxstorage.write.writer.TableArrowWriter:1 of
+msgid "Arrow batch writer for a table write stream."
+msgstr ""
+
+#: odps.maxstorage.write.writer.TableArrowWriter:3 of
+msgid ""
+"Caches serialized Arrow batches and flushes them as a single Arrow IPC "
+"stream body via :meth:`stub.write_table`."
+msgstr ""
+
+#: odps.maxstorage.write.writer.TableArrowWriter:10 of
+msgid "Write session ID."
+msgstr ""
+
+#: odps.maxstorage.write.writer.TableArrowWriter:12 of
+msgid "Write stream ID (use different IDs for parallel writers)."
+msgstr ""
+
+#: odps.maxstorage.write.writer.TableArrowWriter:14 of
+msgid "Write stream version."
+msgstr ""
+
+#: odps.maxstorage.write.writer.TableArrowWriter:18 of
+msgid "Server routing token for session affinity."
+msgstr ""
+
+#: odps.maxstorage.write.writer.TableArrowWriter:20 of
+msgid "Arrow IPC compression for write batches."
+msgstr ""
+
+#: odps.maxstorage.blob.BlobManager.build_blob_write_item:1
+#: odps.maxstorage.write.writer.TableArrowWriter.build_blob_write_item:1 of
+msgid "Build a :class:`BlobWriteItem` from writer-resolved state."
+msgstr ""
+
+#: odps.maxstorage.write.writer.TableArrowWriter.build_blob_write_item:3 of
+msgid ""
+"``column_name`` is resolved to the server-assigned column ID via "
+":meth:`WriteSchema.find_all_blob_column_ids` (same dot-path keys). When "
+"omitted, the sole top-level pure-BLOB column is auto-selected (raises if "
+"the schema has multiple BLOB columns or any nested BLOB column).  "
+"``partition_spec`` accepts the same types as "
+":class:`~odps.types.PartitionSpec` (str, dict, or PartitionSpec). "
+"``api_version`` is stamped from the writer so v3-only fields "
+"(``custom_file_name``) are gated automatically."
+msgstr ""
+
+#: odps.maxstorage.write.writer.TableArrowWriter.close:1 of
+msgid "Flush remaining data, then closeWriteStream."
+msgstr ""
+
+#: odps.maxstorage.write.writer.TableArrowWriter.close:3 of
+msgid ""
+"Skips closeWriteStream when (a) streaming with session_id == \"default\" "
+"OR (b) stream_id == \"default\"; otherwise closes the stream."
+msgstr ""
+
+#: odps.maxstorage.write.writer.TableArrowWriter.close:6 of
+msgid ""
+"The async-flush executor is always shut down (even if flush or "
+"closeWriteStream raises) so its worker thread is joined."
+msgstr ""
+
+#: odps.maxstorage.write.writer.TableArrowWriter.flush:1 of
+msgid "Send all cached batches as one Arrow IPC stream body."
+msgstr ""
+
+#: odps.maxstorage.write.writer.TableArrowWriter.flush:3 of
+msgid ""
+"If an async flush is in flight, awaits and surfaces its exception first, "
+"then sync-flushes the remaining buffer."
+msgstr ""
+
+#: odps.maxstorage.write.writer.TableArrowWriter.flush_async:1 of
+msgid "Async flush using a ThreadPoolExecutor + Semaphore for backpressure."
+msgstr ""
+
+#: odps.maxstorage.write.writer.TableArrowWriter.flush_async:3 of
+msgid ""
+"Captures all buffer state (including ``_cached_record_batches`` needed "
+"for compressed writes), submits the flush to a background worker, and "
+"retains the Future in a pending deque so failures surface from the next "
+"``write_batch`` / ``flush`` / ``close``.  The semaphore provides real "
+"backpressure: when ``max_pending_buffers`` flushes are in flight the next"
+" ``flush_async`` blocks until one completes."
+msgstr ""
+
+#: odps.maxstorage.write.writer.TableArrowWriter.flush_async:10 of
+msgid ""
+"Every submitted Future is tracked in ``_pending_futures`` (not a single "
+"scalar) so that ``flush()``, ``close()``, and ``set_row_offset()`` await "
+"*all* pending uploads, and a failure in one buffer is not erased by a "
+"success in another."
+msgstr ""
+
+#: odps.maxstorage.write.writer.TableArrowWriter.flush_async:15 of
+msgid ""
+"On async failure the captured rows are restored to the live cache "
+"(appended after any live data to preserve submission order) so the caller"
+" can retry.  Returns the Future (a completed Future when there is nothing"
+" to flush) so callers can always ``.result()`` it."
+msgstr ""
+
+#: odps.maxstorage.write.writer.TableArrowWriter.get_as_record_writer:1 of
+msgid "Return a record-oriented writer wrapping this writer."
+msgstr ""
+
+#: odps.maxstorage.write.writer.TableArrowWriter.get_as_record_writer:3 of
+msgid ""
+"Returns :class:`DeltaTableRecordWriter` if an ``__operation`` column is "
+"found in either ``system_columns`` or ``columns``; otherwise "
+":class:`AppendTableRecordWriter`."
+msgstr ""
+
+#: odps.maxstorage.write.writer.TableArrowWriter.get_as_record_writer:7 of
+msgid ""
+"On a plain :class:`TableArrowWriter`, BLOB cells must already contain "
+"reference bytes.  On a :class:`TableArrowBlobUploadWriter`, raw ``bytes``"
+" / file-like values are auto-uploaded and replaced with references."
+msgstr ""
+
+#: odps.maxstorage.write.writer.TableArrowWriter.get_as_record_writer:12 of
+msgid "rows per Arrow batch flush."
+msgstr ""
+
+#: odps.maxstorage.write.writer.TableArrowWriter.get_as_record_writer:13 of
+msgid "max blobs per batch upload."
+msgstr ""
+
+#: odps.maxstorage.write.writer.TableArrowWriter.get_row_offset:1 of
+msgid "In EO mode, fetch the latest server-side RowOffset; else return local."
+msgstr ""
+
+#: odps.maxstorage.write.writer.TableArrowWriter.set_row_offset:1 of
+msgid "Flush cached data with current offset, then update (EO mode only)."
+msgstr ""
+
+#: odps.maxstorage.write.writer.TableArrowWriter.set_row_offset:3 of
+msgid ""
+"Awaits any in-flight async flush first so the detached flush cannot race "
+"with the offset change and write rows at the wrong position."
+msgstr ""
+
+#: odps.maxstorage.write.writer.TableArrowWriter.write_batch:1 of
+msgid "Serialize a batch to Arrow IPC bytes and cache it."
+msgstr ""
+
+#: odps.maxstorage.write.writer.TableArrowWriter.write_batch:3 of
+msgid ""
+"``batch`` may be a :class:`pa.Table` or :class:`pa.RecordBatch`. Auto-"
+"flushes at ``buffer_size``."
+msgstr ""
+
+#: odps.maxstorage.write.writer.TableArrowWriter.write_batch:6 of
+msgid ""
+"BLOB column values are sent inline as-is.  To auto-upload raw ``bytes`` "
+"and replace them with references, use :class:`TableArrowBlobUploadWriter`"
+" via ``auto_upload_blobs=True``."
+msgstr ""
+
+#: odps.maxstorage.write.writer.TableArrowWriter.write_blob_batch:1 of
+msgid "Batch blob upload.  Returns :class:`WriteBlobResponse`."
+msgstr ""
+
+#: odps.maxstorage.write.writer.TableArrowWriter.write_blob_batch:3 of
+msgid ""
+"Streams frames to the server via chunked transfer-encoding — the full "
+"batch body is never materialized."
+msgstr ""
+
+#: odps.maxstorage.write.writer.TableArrowWriter.write_blob_stream:1 of
+msgid "Streaming single blob upload with MD5 verification."
+msgstr ""
+
+#: odps.maxstorage.write.writer.TableArrowWriter.write_blob_stream:3 of
+msgid ""
+"Returns a :class:`BlobStreamWriter` that streams data to the server via "
+"chunked transfer-encoding — the full blob is never materialized."
+msgstr ""
+
+#: odps.maxstorage.write.writer.TableArrowWriter.write_blob_stream:6 of
+msgid ""
+"``column_name`` is the dot-path name (a key of "
+":meth:`WriteSchema.find_all_blob_column_ids`) resolved to the server-"
+"assigned column ID internally.  When omitted, the sole top-level pure-"
+"BLOB column is auto-selected (raises if the schema has multiple BLOB "
+"columns or any nested BLOB column)."
+msgstr ""
+
+#: odps.maxstorage.write.writer.TableArrowWriter.write_blob_stream:12 of
+#, python-brace-format
+msgid ""
+"``partition_spec`` accepts the same types as "
+":class:`~odps.types.PartitionSpec` (str, dict, or PartitionSpec "
+"instance), e.g. ``\"pt=20230101\"`` or ``{\"pt\": \"20230101\"}``."
+msgstr ""
+
+#: odps.maxstorage.write.writer.TableArrowBlobUploadWriter:1 of
+msgid "Arrow writer that auto-uploads BLOB cells and replaces with references."
+msgstr ""
+
+#: odps.maxstorage.write.writer.TableArrowBlobUploadWriter:3 of
+msgid ""
+"Subclass of :class:`TableArrowWriter`.  ``write_batch`` is overridden to "
+"batch-upload raw ``bytes`` / file-like BLOB cells via "
+"``table_batch_write_blob`` and replace them with reference bytes before "
+"forwarding to ``super().write_batch``."
+msgstr ""
+
+#: odps.maxstorage.write.writer.TableArrowBlobUploadWriter:8 of
+msgid ""
+"Use this writer when you want inline BLOB content uploaded automatically "
+"— create it via ``auto_upload_blobs=True`` on :meth:`TableWriteSession."
+"open_arrow_writer`."
+msgstr ""
+
+#: odps.maxstorage.write.writer.TableArrowBlobUploadWriter:12
+#: odps.maxstorage.write.writer.TableArrowBlobUploadWriter:13 of
+msgid "Forwarded to :class:`TableArrowWriter`."
+msgstr ""
+
+#: odps.maxstorage.write.writer.TableArrowBlobUploadWriter:14 of
+msgid "Checksum algorithm for blob uploads."
+msgstr ""
+
+#: odps.maxstorage.write.writer.TableArrowBlobUploadWriter:16 of
+msgid "Session-level default MIME type for blobs."
+msgstr ""
+
+#: odps.maxstorage.write.writer.TableArrowBlobUploadWriter:18 of
+msgid "Session-level default custom file name (API v3 only)."
+msgstr ""
+
+#: odps.maxstorage.write.writer.TableArrowBlobUploadWriter:20 of
+msgid ""
+"``callback(row_index, column_name, blob_data) -> (mime_type, "
+"custom_file_name) | None`` invoked once per inline BLOB cell."
+msgstr ""
+
+#: odps.maxstorage.write.writer.TableArrowBlobUploadWriter.write_batch:1 of
+msgid "Override: batch-upload BLOB cells, replace with refs, then super()."
+msgstr ""
+
+#: odps.maxstorage.write.writer.TableArrowBlobUploadWriter.write_batch:3 of
+msgid ""
+"A ``pa.Table`` may contain multiple record-batch chunks; each chunk is "
+"processed independently."
+msgstr ""
+
+#: odps.maxstorage.write.record_writer.AppendTableRecordWriter:1 of
+msgid "Row-oriented writer wrapping :class:`TableArrowWriter`."
+msgstr ""
+
+#: odps.maxstorage.write.record_writer.AppendTableRecordWriter:3 of
+msgid ""
+"Converts Record -> Arrow batches.  When the underlying writer has "
+"``auto_upload_blobs=True``, BLOB columns are intercepted: file-like "
+"objects and raw ``bytes``/``bytearray`` are batch-uploaded by the record "
+"writer itself and replaced with references pass through unchanged.  When "
+"``auto_upload_blobs=False``, BLOB cells must already contain reference "
+"bytes."
+msgstr ""
+
+#: odps.maxstorage.write.record_writer.AppendTableRecordWriter.close:1 of
+msgid "Flush remaining records, then close the underlying writer."
+msgstr ""
+
+#: odps.maxstorage.write.record_writer.AppendTableRecordWriter.flush:1 of
+msgid "Flush buffered records, then flush the underlying writer."
+msgstr ""
+
+#: odps.maxstorage.write.record_writer.AppendTableRecordWriter.write:1 of
+msgid "Write a single record."
+msgstr ""
+
+#: odps.maxstorage.write.record_writer.AppendTableRecordWriter.write:3 of
+msgid ""
+"Accepts ``odps.types.Record``, ``list``, or ``tuple``.  BLOB columns may "
+"contain: ``bytes``/``bytearray`` (batch-uploaded by the record writer), "
+"file-like (streamed in chunks, never fully materialized), ``str`` (blob "
+"reference, passed through), ``None`` (null)."
+msgstr ""
+
+#: odps.maxstorage.write.record_writer.AppendTableRecordWriter.write:9 of
+msgid ""
+"Auto-flushes when ``row_count >= row_count_per_batch`` or when the "
+"accumulated blob file count >= ``blob_batch_file_num``."
+msgstr ""
+
+#: odps.maxstorage.write.record_writer.DeltaTableRecordWriter:1 of
+msgid "Record writer for Delta Tables (primary key tables)."
+msgstr ""
+
+#: odps.maxstorage.write.record_writer.DeltaTableRecordWriter:3 of
+msgid ""
+"``write()`` stamps ``__operation='U'`` (UPSERT) and ``delete()`` stamps "
+"``__operation='D'`` (DELETE) on each record.  Both operations can be "
+"freely interleaved on a single writer instance."
+msgstr ""
+
+#: odps.maxstorage.write.record_writer.DeltaTableRecordWriter.delete:1 of
+msgid "Write a record as a DELETE (``__operation='D'``)."
+msgstr ""
+
+#: odps.maxstorage.write.record_writer.DeltaTableRecordWriter.write:1 of
+msgid "Write a record as an UPSERT (``__operation='U'``)."
+msgstr ""
+
+#: ../../source/api-maxstorage.rst:58
+msgid "Blob I/O"
+msgstr ""
+
+#: odps.maxstorage.blob.BlobManager:1 of
+msgid "Standalone blob read/write manager."
+msgstr ""
+
+#: odps.maxstorage.blob.BlobManager:3 of
+msgid ""
+"Constructed from a :class:`MaxStorageClient`; reuses its "
+":class:`StorageStub` for all HTTP operations."
+msgstr ""
+
+#: odps.maxstorage.blob.BlobManager:6 of
+msgid "The parent client."
+msgstr ""
+
+#: odps.maxstorage.blob.BlobManager:8 of
+msgid ""
+"Table identifier — required for write operations (``write_blob_stream``, "
+"``write_blob_batch``)."
+msgstr ""
+
+#: odps.maxstorage.blob.BlobManager.build_blob_write_item:3 of
+msgid ""
+"``column_name`` is resolved to the server-assigned column ID via the "
+"write schema.  When omitted, the sole top-level pure-BLOB column is auto-"
+"selected (raises if the schema has multiple BLOB columns or any nested "
+"BLOB column).  ``partition_spec`` accepts the same types as "
+":class:`~odps.types.PartitionSpec`. ``api_version`` is stamped from the "
+"client so v3-only fields are gated automatically."
+msgstr ""
+
+#: odps.maxstorage.blob.BlobManager.read_blob:1 of
+msgid "Download a single blob and return a :class:`io.BytesIO` over its data."
+msgstr ""
+
+#: odps.maxstorage.blob.BlobManager.read_blob:3 of
+msgid ""
+"Delegates to :meth:`read_blobs` with a single-element reference list. The"
+" server returns a raw unframed stream for single-ref requests, so no "
+"frame headers are parsed.  Compression follows the same pattern as "
+":meth:`read_blobs`: ``compress_option`` (default ``None`` = uncompressed)"
+" or the shorthand ``compress_algo``.  The reference must be UTF-8 "
+"decodable."
+msgstr ""
+
+#: odps.maxstorage.blob.BlobManager.read_blobs:1 of
+msgid "Download blobs by their references."
+msgstr ""
+
+#: odps.maxstorage.blob.BlobManager.read_blobs:3 of
+msgid "The server's response framing depends on the number of references:"
+msgstr ""
+
+#: odps.maxstorage.blob.BlobManager.read_blobs:5 of
+msgid ""
+"**Single reference**: the server returns raw unframed blob bytes (no "
+"``[HeaderLen][Header][DataLen][Data]`` frames).  The entire decompressed "
+"payload is yielded as one :class:`BlobRecord`."
+msgstr ""
+
+#: odps.maxstorage.blob.BlobManager.read_blobs:8 of
+msgid ""
+"**Multiple references**: the server returns a framed stream with one "
+"frame per blob.  Each :class:`BlobRecord` carries the blob's MIME type "
+"and custom file name (v3+) from the frame header."
+msgstr ""
+
+#: odps.maxstorage.blob.BlobManager.read_blobs:12 of
+msgid ""
+"References must be UTF-8 decodable strings or bytes.  Binary (non-UTF-8) "
+"references returned for nested BLOB columns are not supported by the "
+"generic ``BlobRead`` endpoint; reading them raises "
+":class:`StorageClientError`.  Compression follows the tunnel pattern: "
+"``compress_option`` (default ``None`` = uncompressed) or the shorthand "
+"``compress_algo``.  Pass ``compress_algo=\"lz4\"`` / ``\"zstd\"`` to "
+"request a compressed response. When ``stream=True``, returns a "
+":class:`BlobStreamReader` for incremental file-like reads; otherwise "
+"returns a :class:`BlobDataIterator` yielding :class:`BlobRecord`."
+msgstr ""
+
+#: odps.maxstorage.blob.BlobManager.write_blob_batch:1 of
+msgid "Batch-upload multiple blobs in one request."
+msgstr ""
+
+#: odps.maxstorage.blob.BlobManager.write_blob_batch:3 of
+msgid ""
+"Each :class:`BlobWriteItem` is framed and streamed to the server via "
+"chunked transfer-encoding — the full batch body is never materialized.  "
+"Compression via ``compress_option`` (default ``None`` = uncompressed).  "
+"Returns :class:`WriteBlobResponse` with blob_references matching input "
+"order."
+msgstr ""
+
+#: odps.maxstorage.blob.BlobManager.write_blob_stream:1 of
+msgid "Create a streaming writer for a single blob upload."
+msgstr ""
+
+#: odps.maxstorage.blob.BlobManager.write_blob_stream:3 of
+msgid ""
+"Uses chunked transfer-encoding; compression via ``compress_option`` "
+"(default ``None`` = uncompressed; ``ZSTD``/``LZ4_FRAME`` opt-in via "
+"Content-Encoding).  The returned :class:`BlobStreamWriter` computes MD5 "
+"incrementally and verifies on ``finish()``."
+msgstr ""
+
+#: odps.maxstorage.blob.BlobManager.write_blob_stream:8 of
+msgid ""
+"``column_name`` is the dot-path name (a key of "
+":meth:`WriteSchema.find_all_blob_column_ids`), resolved to the server-"
+"assigned column ID via the write schema.  When omitted, the sole top-"
+"level pure-BLOB column is auto-selected (raises if the schema has "
+"multiple BLOB columns or any nested BLOB column)."
+msgstr ""
+
+#: odps.maxstorage.blob.BlobManager.write_blob_stream:14 of
+msgid ""
+"``partition_spec`` accepts the same types as "
+":class:`~odps.types.PartitionSpec` (str, dict, or PartitionSpec)."
+msgstr ""
+
+#: odps.maxstorage.io.blob_reader.BlobRecord:1 of
+msgid "A single downloaded blob yielded by :class:`BlobDataIterator`."
+msgstr ""
+
+#: odps.maxstorage.io.blob_reader.BlobRecord:3 of
+msgid ""
+"``custom_file_name`` is only populated when the client targets API v3+; "
+"it is ``None`` on v2 (the ``CustomFileName`` header is not parsed)."
+msgstr ""
+
+#: odps.maxstorage.io.blob_reader.BlobDataIterator:1 of
+msgid "Iterator yielding :class:`BlobRecord` per blob."
+msgstr ""
+
+#: odps.maxstorage.io.blob_reader.BlobDataIterator.read_data:1 of
+msgid "Read up to *size* bytes of the current blob's data (for BlobStreamReader)."
+msgstr ""
+
+#: odps.maxstorage.io.blob_reader.BlobDataIterator.skip_remaining_data_and_footer:1
+#: of
+msgid "Skip *remaining_bytes* of unread data and the trailing footer."
+msgstr ""
+
+#: odps.maxstorage.io.blob_reader.BlobStreamReader:1 of
+msgid "File-like reader for streaming blob data from a :class:`BlobDataIterator`."
+msgstr ""
+
+#: odps.maxstorage.io.blob_reader.BlobStreamReader:3 of
+msgid ""
+"Provides ``read(size)`` for incremental reads of the current blob, "
+"``mime_type`` / ``custom_file_name`` properties, and a ``next()`` method "
+"to advance to the next blob.  Avoids materializing entire blobs."
+msgstr ""
+
+#: odps.maxstorage.io.blob_reader.BlobStreamReader:7 of
+msgid ""
+"If ``next()`` is called before the current blob is fully read, the reader"
+" **auto-drains** the remaining bytes.  Returns ``None`` from ``next()`` "
+"when no more blobs remain."
+msgstr ""
+"If ``next()`` is called before the current blob is fully read, the reader"
+" **auto-drains** the remaining bytes.  Returns ``None`` from ``next()`` "
+"when no more blobs remain."
+
+#: odps.maxstorage.io.blob_reader.BlobStreamReader.next:1 of
+msgid "Advance to the next blob in-place. Returns ``self`` or ``None``."
+msgstr ""
+
+#: odps.maxstorage.io.blob_writer.BlobStreamWriter:1 of
+msgid "Stream writer for single blob upload with MD5 checksum verification."
+msgstr ""
+
+#: odps.maxstorage.io.blob_writer.BlobStreamWriter:3 of
+msgid ""
+"Wraps a :class:`RequestsIO` + compressor pipeline.  Data written via ``"
+"write()`` is compressed (if requested) and streamed to the server in "
+"chunks via chunked transfer-encoding — the full blob is never held in "
+"memory.  MD5 is computed incrementally on the uncompressed data and "
+"verified against the server response on ``finish()``."
+msgstr ""
+
+#: odps.maxstorage.io.blob_writer.BlobStreamWriter.finish:1 of
+msgid "Finish writing, send the data, and verify MD5."
+msgstr ""
+
+#: odps.maxstorage.io.blob_writer.BlobStreamWriter.finish:3 of
+msgid ""
+"Returns the parsed :class:`WriteBlobResponse` on success. Raises "
+":class:`odps.errors.ChecksumError` on MD5 mismatch, or "
+":class:`MaxStorageError` if the upload fails with a non-200 response."
+msgstr ""
+
+#: odps.maxstorage.io.blob_writer.BlobStreamWriter.writable:1 of
+msgid "Return whether object was opened for writing."
+msgstr ""
+
+#: odps.maxstorage.io.blob_writer.BlobStreamWriter.writable:3 of
+msgid "If False, write() will raise OSError."
+msgstr ""
+
+#: odps.maxstorage.options.BlobWriteItem:1 of
+msgid "A single blob item for batch upload."
+msgstr ""
+
+#: odps.maxstorage.options.BlobWriteItem:5 of
+msgid ""
+"Prefer :meth:`TableArrowWriter.build_blob_write_item` or :meth:`"
+"BlobManager.build_blob_write_item` to construct items — they resolve ``"
+"column_id``, normalize ``partition_spec``, and stamp ``api_version`` "
+"automatically.  Constructing :class:`BlobWriteItem` directly requires "
+"knowledge of server-assigned column IDs and wire-format details."
+msgstr ""
+
+#: ../../source/api-maxstorage.rst:80
+msgid "Schema and Options"
+msgstr ""
+
+#: odps.maxstorage.models.enums.WriteMode:1 of
+msgid "Write-session mode."
+msgstr ""
+
+#: odps.maxstorage.models.enums.WriteMode:3 of
+msgid ""
+"``BATCH`` / ``BATCH_COMPATIBLE`` -- data visible only after commit. "
+"``STREAMING`` / ``STREAMING_REALTIME`` -- data visible immediately on "
+"flush."
+msgstr ""
+
+#: odps.maxstorage.models.enums.WriteMode.is_streaming:1 of
+msgid "True for ``STREAMING`` / ``STREAMING_REALTIME``."
+msgstr ""
+
+#: odps.maxstorage.models.enums.SplitMode:1 of
+msgid "Data-splitting strategy for read sessions."
+msgstr ""
+
+#: odps.maxstorage.models.enums.SplitMode:3 of
+msgid ""
+"JSON values: ``\"Size\"``, ``\"Parallelism\"``, ``\"RowOffset\"``, "
+"``\"Bucket\"``."
+msgstr ""
+
+#: odps.maxstorage.options.SplitOptions:1 of
+msgid "Controls how a read session splits data."
+msgstr ""
+
+#: odps.maxstorage.errors.StorageServiceError:4
+#: odps.maxstorage.options.SplitOptions:4 of
+msgid "Fields"
+msgstr ""
+
+#: odps.maxstorage.options.SplitOptions:5 of
+msgid "split_mode"
+msgstr ""
+
+#: odps.maxstorage.options.SplitOptions:-1 of
+msgid "SplitMode"
+msgstr ""
+
+#: odps.maxstorage.options.SplitOptions:6 of
+msgid "Strategy: ``SIZE`` (default), ``ROW_OFFSET``, ``PARALLELISM``, ``BUCKET``."
+msgstr ""
+
+#: odps.maxstorage.options.SplitOptions:7 of
+msgid "split_unit"
+msgstr ""
+
+#: odps.maxstorage.options.SplitOptions:8 of
+msgid "Unit of ``split_number``.  Default ``\"ByteSize\"``."
+msgstr ""
+
+#: odps.maxstorage.options.SplitOptions:9 of
+msgid "split_number"
+msgstr ""
+
+#: odps.maxstorage.options.SplitOptions:10 of
+msgid ""
+"Target split size (bytes) for ``SIZE`` mode, or row count for "
+"``ROW_OFFSET``.  Default 256 MiB."
+msgstr ""
+
+#: odps.maxstorage.options.SplitOptions:12 of
+msgid "cross_partition"
+msgstr ""
+
+#: odps.maxstorage.options.SplitOptions:-1 of
+msgid "bool"
+msgstr ""
+
+#: odps.maxstorage.options.SplitOptions:13 of
+msgid "Whether splits may cross partition boundaries.  Default ``True``."
+msgstr ""
+
+#: odps.maxstorage.options.IncrementalReadOptions:1 of
+msgid "Incremental-read configuration."
+msgstr ""
+
+#: odps.maxstorage.options.IncrementalReadOptions:3 of
+#, python-brace-format
+msgid ""
+"Wire fields: ``{Mode, From, To}``.  ``version`` selects the incremental "
+"mode; ``from_``/``to`` are version boundaries (int) or timestamps (str)."
+msgstr ""
+
+#: odps.maxstorage.models.enums.DataFormat:1 of
+msgid "Arrow data-format descriptor."
+msgstr ""
+
+#: odps.maxstorage.models.enums.DataFormat:3 of
+#, python-brace-format
+msgid ""
+"JSON: ``{\"Type\": \"Arrow\", \"Version\": \"V5\"}`` (defaults). Not an `"
+"`enum`` — it carries two free-form string fields."
+msgstr ""
+
+#: odps.maxstorage.models.enums.SessionStatus:1 of
+msgid "Read/write session lifecycle status."
+msgstr ""
+
+#: odps.maxstorage.models.enums.SessionStatus.from_string:1 of
+msgid "Parse a status string; ``None``/empty -> ``UNKNOWN``."
+msgstr ""
+
+#: odps.maxstorage.models.enums.Status:1 of
+msgid "Writer / stream status."
+msgstr ""
+
+#: odps.maxstorage.models.enums.TimestampUnit:1 of
+msgid "Arrow timestamp precision."
+msgstr ""
+
+#: odps.maxstorage.models.enums.TimestampUnit:3 of
+msgid "JSON: ``\"second\"``, ``\"milli\"``, ``\"micro\"``, ``\"nano\"``."
+msgstr ""
+
+#: ../../source/api-maxstorage.rst:107
+msgid "Errors"
+msgstr ""
+
+#: odps.maxstorage.errors.MaxStorageError:1 of
+msgid "Base class for all maxstorage errors."
+msgstr ""
+
+#: odps.maxstorage.errors.StorageServiceError:1 of
+msgid "Server-side error."
+msgstr ""
+
+#: odps.maxstorage.errors.StorageServiceError:5 of
+msgid "http_status"
+msgstr ""
+
+#: odps.maxstorage.errors.StorageServiceError:6 of
+msgid "HTTP status code of the failing response."
+msgstr ""
+
+#: odps.maxstorage.errors.StorageServiceError:7 of
+msgid "error_code"
+msgstr ""
+
+#: odps.maxstorage.errors.StorageServiceError:8 of
+msgid "Server error code parsed from the JSON body."
+msgstr ""
+
+#: odps.maxstorage.errors.StorageServiceError:9 of
+msgid "message"
+msgstr ""
+
+#: odps.maxstorage.errors.StorageServiceError:10 of
+msgid "Human-readable error message."
+msgstr ""
+
+#: odps.maxstorage.errors.StorageServiceError:11 of
+msgid "request_id"
+msgstr ""
+
+#: odps.maxstorage.errors.StorageServiceError:12 of
+msgid "``x-odps-request-id`` response header (may be ``None``)."
+msgstr ""
+
+#: odps.maxstorage.errors.StorageClientError:1 of
+msgid "Client-side error (network, invalid parameters, etc.)."
+msgstr ""
+
+#: odps.maxstorage.errors.BlobDownloadError:1 of
+msgid "Blob download failure — carries the failing blob reference."
+msgstr ""
+
+#~ msgid "Return an iterator of :class:`odps.models.Record`."
+#~ msgstr ""
+
+#~ msgid ""
+#~ "Converts each Arrow batch row-by-"
+#~ "row into a ``Record`` using the "
+#~ "session's ``table_schema``.  Column values are"
+#~ " taken from the Arrow batch in "
+#~ "schema order; the batch's own field "
+#~ "order is reconciled to the table "
+#~ "schema via name lookup."
+#~ msgstr ""
+
+#~ msgid ""
+#~ "``column_name`` is resolved to the "
+#~ "server-assigned column ID via "
+#~ ":meth:`WriteSchema.find_all_blob_column_ids` (same dot-"
+#~ "path keys). ``partition_spec`` accepts the "
+#~ "same types as :class:`~odps.types.PartitionSpec` "
+#~ "(str, dict, or PartitionSpec). ``api_version``"
+#~ " is stamped from the writer so "
+#~ "v3-only fields (``custom_file_name``) are "
+#~ "gated automatically."
+#~ msgstr ""
+
+#~ msgid ""
+#~ "``column_name`` is the dot-path name "
+#~ "(a key of "
+#~ ":meth:`WriteSchema.find_all_blob_column_ids`) resolved to"
+#~ " the server-assigned column ID "
+#~ "internally."
+#~ msgstr ""
+
+#~ msgid ""
+#~ "Mirrors the Java SDK: ``write()`` stamps"
+#~ " ``__operation='U'`` (UPSERT) and ``delete()``"
+#~ " stamps ``__operation='D'`` (DELETE) on "
+#~ "each record. Both operations can be "
+#~ "freely interleaved on a single writer"
+#~ " instance."
+#~ msgstr ""
+
+#~ msgid ""
+#~ "``column_name`` is resolved to the "
+#~ "server-assigned column ID via the "
+#~ "write schema.  ``partition_spec`` accepts the"
+#~ " same types as "
+#~ ":class:`~odps.types.PartitionSpec`.  ``api_version`` is"
+#~ " stamped from the client so v3-only"
+#~ " fields are gated automatically."
+#~ msgstr ""
+
+#~ msgid ""
+#~ "``column_name`` is the dot-path name "
+#~ "(a key of "
+#~ ":meth:`WriteSchema.find_all_blob_column_ids`), resolved to"
+#~ " the server-assigned column ID via"
+#~ " the write schema."
+#~ msgstr ""
+
+#~ msgid ""
+#~ "Delegates to :class:`~odps.maxstorage"
+#~ ".read.record_reader.ArrowRecordReader` "
+#~ "so that type conversion (datetime, "
+#~ "timestamp, decimal, array, map, "
+#~ "struct, …) is identical to the"
+#~ " tunnel record reader.  BLOB columns"
+#~ " — which the tunnel never supports"
+#~ " — are handled specially: the "
+#~ "Arrow ``binary`` value (the "
+#~ "server-side blob reference) is stored"
+#~ " as ``bytes`` without going "
+#~ "through :func:`odps.types.validate_"
+#~ "value`, which would reject the `"
+#~ "`Blob`` type."
+#~ msgstr ""
+
+#~ msgid "write stream identifier."
+#~ msgstr ""
+
+#~ msgid ""
+#~ "Converts Record -> Arrow batches.  When"
+#~ " the underlying writer has "
+#~ "``auto_upload_blobs=True``, BLOB columns are "
+#~ "intercepted: file-like objects and raw"
+#~ " ``bytes``/``bytearray`` are batch-uploaded "
+#~ "by the record writer itself (via "
+#~ "``stream_blob_batch``) and replaced with "
+#~ "reference bytes before the batch reaches"
+#~ " ``write_batch``.  File-like objects are"
+#~ " streamed in chunks, never fully "
+#~ "materialized.  ``str`` references pass through"
+#~ " unchanged.  When ``auto_upload_blobs=False``, "
+#~ "BLOB cells must already contain "
+#~ "reference bytes."
+#~ msgstr ""
+
+#~ msgid ""
+#~ "Accepts ``odps.types.Record``, ``list``, or "
+#~ "``tuple``.  BLOB columns may contain: "
+#~ "``bytes``/``bytearray`` (raw data, batched), "
+#~ "file-like (read to bytes and closed),"
+#~ " ``str`` (blob reference, passed through),"
+#~ " ``None`` (null)."
+#~ msgstr ""
+
+#~ msgid "Compression codecs supported by the Storage API v2."
+#~ msgstr ""
+
+#~ msgid ""
+#~ "Only ``NO_COMPRESSION``, ``ZSTD``, and "
+#~ "``LZ4_FRAME`` are supported. Tunnel algorithms"
+#~ " like ``ODPS_ZLIB`` / ``ODPS_SNAPPY`` are"
+#~ " NOT accepted."
+#~ msgstr ""
+#~ "Only ``NO_COMPRESSION``, ``ZSTD``, and "
+#~ "``LZ4_FRAME`` are supported. Tunnel algorithms"
+#~ " like ``ODPS_ZLIB`` / ``ODPS_SNAPPY`` are"
+#~ " NOT accepted."
+
+#~ msgid "Value for the ``ACCEPT-ENCODING`` request header (alias)."
+#~ msgstr ""
+
+#~ msgid "Build a ``CompressOption`` from a shorthand algorithm string/value."
+#~ msgstr ""
+
+#~ msgid ""
+#~ "``compress_algo`` may be ``None`` "
+#~ "(uncompressed), a ``CompressOption.CompressAlgorithm``,"
+#~ " or a string name. Returns a "
+#~ ":class:`CompressOption` or ``None``."
+#~ msgstr ""
+
+#~ msgid "HTTP ``Content-Encoding`` / ``ACCEPT-ENCODING`` value."
+#~ msgstr ""
+
+#~ msgid "``None`` when uncompressed."
+#~ msgstr ""
+
+#~ msgid "Map an :class:`odps.tunnel.CompressOption` (or ``None``) to a codec."
+#~ msgstr ""
+
+#~ msgid "Raises ``ValueError`` for unsupported algorithms (ZLIB, SNAPPY, etc.)."
+#~ msgstr ""
+

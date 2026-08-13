@@ -279,11 +279,12 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
         **kw
     ):
         stream_kw = dict(compress=compress, columns=columns, arrow=arrow)
-        initial_stream_cache = [None]
+        initial_stream_cache = None
 
         def stream_creator(cursor, cache=False, row_number=None, raw_size=None):
-            if cursor == 0 and initial_stream_cache[0] is not None:
-                initial_stream_cache[0], stream = None, initial_stream_cache[0]
+            nonlocal initial_stream_cache
+            if cursor == 0 and initial_stream_cache is not None:
+                initial_stream_cache, stream = None, initial_stream_cache
                 return stream
             attempt_count = count - cursor if count is not None else None
             if attempt_count <= 0:
@@ -294,7 +295,7 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
                 start + cursor, attempt_count, raw_size=raw_size, **stream_kw
             )
             if cache:
-                initial_stream_cache[0] = stream
+                initial_stream_cache = stream
             return stream
 
         # for MCQA we must obtain schema from the first stream, hence the first reader

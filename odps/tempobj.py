@@ -238,7 +238,7 @@ class ObjectRepository:
             try:
                 obj.drop(odps)
                 cleaned.append(obj)
-            except:
+            except Exception:
                 pass
 
         if self._container:
@@ -347,7 +347,7 @@ class ObjectRepositoryLib(dict):
                 env.subprocess.call(
                     ["chmod", oct(env.file_right).replace("o", ""), script_name]
                 )
-        except:
+        except Exception:
             pass
 
         kwargs = dict(close_fds=True)

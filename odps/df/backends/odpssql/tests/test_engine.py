@@ -950,7 +950,7 @@ def test_function_resources(odps, setup):
     table_name2 = tn('pyodps_t_tmp_function_resource_table2_mcsql_engine')
     try:
         odps.delete_resource(file_resource_name)
-    except:
+    except Exception:
         pass
     file_resource = odps.create_resource(file_resource_name, 'file',
                                          file_obj='\n'.join(str(r[1]) for r in data[:3]))
@@ -964,7 +964,7 @@ def test_function_resources(odps, setup):
         writer.write([r[:2] for r in data[3:4]])
     try:
         odps.delete_resource(table_resource_name)
-    except:
+    except Exception:
         pass
     table_resource = odps.create_resource(table_resource_name, 'table',
                                           table_name=t.name)
@@ -1014,15 +1014,15 @@ def test_function_resources(odps, setup):
     finally:
         try:
             file_resource.drop()
-        except:
+        except Exception:
             pass
         try:
             t.drop()
-        except:
+        except Exception:
             pass
         try:
             table_resource.drop()
-        except:
+        except Exception:
             pass
 
 
@@ -1042,7 +1042,7 @@ def test_function_resources_with_partition(odps, setup):
     table_resource_name = tn('pyodps_t_tmp_part_table_resource')
     try:
         odps.delete_resource(table_resource_name)
-    except:
+    except Exception:
         pass
     table_resource = odps.create_resource(
         table_resource_name, 'table', table_name=table_name, partition='ds=ds1'

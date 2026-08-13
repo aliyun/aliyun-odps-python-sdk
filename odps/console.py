@@ -184,7 +184,7 @@ def in_interactive_session():
 
     try:
         return __IPYTHON__ or check_main()  # noqa: F821
-    except:
+    except Exception:
         return check_main()
 
 
@@ -195,7 +195,7 @@ def in_ipython_frontend():
     try:
         ip = get_ipython()
         return "zmq" in str(type(ip)).lower()
-    except:
+    except Exception:
         pass
 
     return False
@@ -261,7 +261,7 @@ def in_qtconsole():
         ) or ip.config.get("IPKernelApp", {}).get("parent_appname", "")
         if "qtconsole" in front_end.lower():
             return True
-    except:
+    except Exception:
         return False
     return False
 
@@ -322,7 +322,7 @@ def _get_terminal_size_windows():
         h = windll.kernel32.GetStdHandle(-12)
         csbi = create_string_buffer(22)
         res = windll.kernel32.GetConsoleScreenBufferInfo(h, csbi)
-    except:
+    except Exception:
         return None
     if res:
         import struct
@@ -365,7 +365,7 @@ def _get_terminal_size_tput():
         output = proc.communicate(input=None)
         rows = int(output[0])
         return (cols, rows)
-    except:
+    except Exception:
         return None
 
 
@@ -377,7 +377,7 @@ def _get_terminal_size_linux():
             import termios
 
             cr = struct.unpack("hh", fcntl.ioctl(fd, termios.TIOCGWINSZ, "1234"))
-        except:
+        except Exception:
             return None
         return cr
 
@@ -387,14 +387,14 @@ def _get_terminal_size_linux():
             fd = os.open(os.ctermid(), os.O_RDONLY)
             cr = ioctl_GWINSZ(fd)
             os.close(fd)
-        except:
+        except Exception:
             pass
     if not cr or cr == (0, 0):
         try:
             from os import environ as env
 
             cr = (env["LINES"], env["COLUMNS"])
-        except:
+        except Exception:
             return None
     return int(cr[1]), int(cr[0])
 
@@ -487,7 +487,7 @@ def _terminal_size(file=None):
         if width > 10:
             width -= 1
         return (lines, width)
-    except:
+    except Exception:
         try:
             # see if POSIX standard variables will work
             return (int(os.environ.get("LINES")), int(os.environ.get("COLUMNS")))

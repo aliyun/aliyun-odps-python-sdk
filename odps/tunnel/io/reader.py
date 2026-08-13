@@ -44,7 +44,7 @@ import time
 
 from ... import compat, types, utils
 from ...config import options
-from ...errors import ChecksumError, DatetimeOverflowError
+from ...errors import ChecksumError, DatetimeOverflowError, StreamTruncatedException
 from ...models import Record
 from ...readers import AbstractRecordReader
 from ...types import PartitionSpec
@@ -72,6 +72,12 @@ except ImportError as e:
 
 MICRO_SEC_PER_SEC = 1000000
 MIN_RAW_BATCH_SIZE = 1024**2
+
+
+def _should_retry_exc(ex):
+    """Predicate for call_with_retry: stream truncation must not be retried."""
+    return not isinstance(ex, StreamTruncatedException)
+
 
 if BaseTunnelRecordReader is None:
 
@@ -104,6 +110,8 @@ if BaseTunnelRecordReader is None:
             self._curr_cursor = 0
             self._stream_creator = stream_creator
             self._reader = None
+            self._require_stream_footer = options.tunnel.require_stream_footer
+            self._footer_seen = False
 
             if self._enable_client_metrics:
                 ts = time.monotonic()
@@ -174,6 +182,7 @@ if BaseTunnelRecordReader is None:
             self._crc = Checksum()
             self._crccrc = Checksum()
             self._attempt_row_count = 0
+            self._footer_seen = False
 
             stream = self._stream_creator(
                 self._curr_cursor, row_number=row_number, raw_size=raw_size
@@ -351,7 +360,19 @@ if BaseTunnelRecordReader is None:
             record = Record(self._columns, max_field_size=(1 << 63) - 1)
 
             while True:
-                index, _ = self._reader.read_field_number_and_wire_type()
+                try:
+                    index, _ = self._reader.read_field_number_and_wire_type()
+                except DecodeError:
+                    # Stream is exhausted (truncated varint). Check whether
+                    # we already saw the footer tag (TUNNEL_META_COUNT).
+                    if self._require_stream_footer and not self._footer_seen:
+                        raise StreamTruncatedException(
+                            "Stream ended unexpectedly without receiving the "
+                            "footer tag (TUNNEL_META_COUNT). The data stream "
+                            "may be truncated. Records read so far: " + str(self.count),
+                            self.count,
+                        )
+                    return None
 
                 if index == 0:
                     continue
@@ -399,6 +420,7 @@ if BaseTunnelRecordReader is None:
                     if int(self._crccrc.getvalue()) != self._reader.read_uint32():
                         raise ChecksumError("Checksum invalid.")
 
+                    self._footer_seen = True
                     return
 
                 if index > len(self._columns):
@@ -433,6 +455,7 @@ if BaseTunnelRecordReader is None:
 
             result = utils.call_with_retry(
                 self._read_single_record,
+                exc_type=_should_retry_exc,
                 reset_func=self._reopen_reader,
                 on_exception_func=self._on_exception,
             )
@@ -521,7 +544,7 @@ try:
     :return: A record object
     :rtype: :class:`~odps.models.Record`
     """
-except:
+except Exception:
     pass
 
 

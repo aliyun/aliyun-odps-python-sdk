@@ -145,7 +145,7 @@ def _get_session_failure_info(inst):
 
     try:
         return call_with_retry(get_info, delay=0.1)
-    except BaseException:
+    except Exception:
         return ""
 
 
@@ -288,7 +288,7 @@ class SessionInstance(Instance):
             poll_result = json.loads(resp_text)
             self._parse_result_session_name(poll_result["result"])
             session_status = _task_status_value_to_enum(poll_result["status"])
-        except BaseException:
+        except Exception:
             error_string = _get_session_failure_info(self)
             if error_string:
                 self._status = Instance.Status.TERMINATED
@@ -410,13 +410,23 @@ class InSessionInstance(Instance):
         return self._subquery_id
 
     @utils.survey
-    def _open_result_reader(self, schema=None, task_name=None, **kwargs):
+    def _open_result_reader(
+        self, schema=None, task_name=None, require_result_descriptor=False, **kwargs
+    ):
         """
         Fetch result directly from odps. This way does not support limiting, and will cache
         all result in local memory. To achieve better performance and efficiency, use tunnel instead.
         """
         if not self._is_select:
             raise errors.InstanceTypeNotSupported("No results for non-select SQL.")
+        if require_result_descriptor:
+            # The session instance does not carry a ResultDescriptor with a
+            # schema, so the inline CSV reader cannot cast values correctly.
+            # Raise so that _try_result_first falls back to the tunnel path
+            # where the full schema and typed values are available.
+            raise errors.NotSupportedError(
+                "Session instance requires tunnel for typed result"
+            )
         self.reload()
         if not self.is_successful(retry=True):
             raise errors.ODPSError(
@@ -484,7 +494,7 @@ class InSessionInstance(Instance):
             else:
                 self._status = Instance.Status.SUSPENDED
             self._subquery_id = int(query_result.get("subQueryId", -1))
-        except BaseException as ex:
+        except Exception as ex:
             raise errors.ODPSError(
                 "Invalid Response Format: %s\n Response JSON:%s\n"
                 % (str(ex), resp_text)
@@ -558,23 +568,23 @@ class InSessionInstance(Instance):
         return self._report_result
 
     def _get_sql_task(self):
-        resp_text_list = [None]
+        resp_text = None
 
         def _load_task_data():
-            resp_text_list[0] = self.get_task_info(
+            nonlocal resp_text
+            resp_text = self.get_task_info(
                 self._session_task_name, f"sourcexml_{self._subquery_id}"
             )
-            xml_data = json.loads(resp_text_list[0])["result"]
+            xml_data = json.loads(resp_text)["result"]
             return tasks.SQLTask.parse(None, xml_data)
 
         if not self._task_data:
             self._wait_subquery_id_ready()
             try:
                 self._task_data = utils.call_with_retry(_load_task_data)
-            except BaseException as ex:
+            except Exception as ex:
                 raise errors.ODPSError(
-                    "Invalid Response Format: %s\n Response JSON:%s\n"
-                    % (ex, resp_text_list[0])
+                    "Invalid Response Format: %s\n Response JSON:%s\n" % (ex, resp_text)
                 )
         return self._task_data
 
@@ -785,7 +795,7 @@ class McqaV1Methods:
                 utils.to_binary(odps.account.access_id)
             ).hexdigest()
             return os.path.join(dir_name, _SESSION_FILE_PREFIX + access_id_digest)
-        except:
+        except Exception:
             return None
 
     @classmethod
@@ -821,13 +831,13 @@ class McqaV1Methods:
                 odps._default_session = SessionInstance.from_instance(
                     instance_obj, session_project=session_project, **session_info
                 )
-            except:
+            except Exception:
                 pass
 
         if odps._default_session is not None:
             try:
                 cached_is_running = odps._default_session.is_running()
-            except:
+            except Exception:
                 pass
         if (
             force_reattach
@@ -850,7 +860,7 @@ class McqaV1Methods:
                         session_file.write(
                             json.dumps(odps._default_session._extract_json_info())
                         )
-                except:
+                except Exception:
                     pass
         return odps._default_session.run_sql(sql, hints, **kwargs)
 
@@ -912,7 +922,7 @@ class McqaV1Methods:
                 # sql is not a select, just skip creating reader
                 pass
             return inst
-        except BaseException as ex:
+        except Exception as ex:
             if fallback_policy is None:
                 raise
             fallback_mode = fallback_policy.get_mode_from_exception(ex)

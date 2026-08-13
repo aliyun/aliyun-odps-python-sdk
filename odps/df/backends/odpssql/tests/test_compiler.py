@@ -2617,7 +2617,7 @@ def test_union(odps, exprs):
                ') t5'
     try:
         assert expected == ODPSEngine(odps).compile(e.name.union(e1.name), False)
-    except:
+    except Exception:
         assert expected[:-1] == ODPSEngine(odps).compile(e.name.union(e1.name), False)[:-1]
 
     e = exprs.expr['name', 'id']

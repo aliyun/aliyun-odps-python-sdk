@@ -305,7 +305,7 @@ def _contains(expr, pat, case=True, flags=0, regex=True):
         import re
         try:
             re.compile(pat, flags=flags)
-        except:
+        except Exception:
             raise ValueError('Failed to compile regular expression, '
                              'please check re.compile("{0}")'.format(pat))
 

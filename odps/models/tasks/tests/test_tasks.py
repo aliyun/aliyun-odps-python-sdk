@@ -21,6 +21,7 @@ from ....config import options
 from ....errors import ODPSError
 from ....utils import get_zone_name, to_text
 from .. import CupidTask, MaxFrameTask, SQLCostTask, SQLTask, Task
+from ..sql import collect_sql_settings
 
 try:
     import zoneinfo
@@ -257,3 +258,58 @@ def test_ray_cluster_init(odps):
     task = Task.parse(None, to_xml)
     assert isinstance(task, MaxFrameTask)
     assert task.command == MaxFrameTask.CommandType.RAY_CLUSTER_INIT
+
+
+@pytest.mark.parametrize(
+    "environment, explicit, expected",
+    [
+        (
+            {"MC_PLATFORM_ID": "qwen-code", "TRACEPARENT": "00f067aa0ba902b7"},
+            None,
+            {"EXT_PLATFORM_ID": "qwen-code", "EXT_TASK_ID": "00f067aa0ba902b7"},
+        ),
+        ({"MC_PLATFORM_ID": "", "TRACEPARENT": ""}, None, {}),
+        (
+            {"MC_PLATFORM_ID": "env-agent", "TRACEPARENT": "env-trace"},
+            {"EXT_PLATFORM_ID": "explicit", "EXT_TASK_ID": "explicit"},
+            {"EXT_PLATFORM_ID": "explicit", "EXT_TASK_ID": "explicit"},
+        ),
+    ],
+)
+def test_merge_env_settings(environment, explicit, expected):
+    assert Task._merge_env_settings(explicit, environment) == expected
+
+
+_ENV_VARS = ("MC_PLATFORM_ID", "TRACEPARENT")
+
+
+@pytest.mark.parametrize("present", [True, False])
+@pytest.mark.parametrize("collector", ["sql", "maxframe"])
+def test_task_environment_defaults(monkeypatch, collector, present):
+    env = (
+        {"MC_PLATFORM_ID": "qwen-code", "TRACEPARENT": "trace-value"} if present else {}
+    )
+    for var in _ENV_VARS:
+        monkeypatch.delenv(var, raising=False)
+    for k, v in env.items():
+        monkeypatch.setenv(k, v)
+
+    if collector == "sql":
+        settings = collect_sql_settings(
+            {"EXT_PLATFORM_ID": "explicit"} if present else None, glob=False
+        )
+    else:
+        task = MaxFrameTask()
+        task.serialize()
+        settings = json.loads(task.properties["settings"])
+
+    if present:
+        assert (
+            settings["EXT_PLATFORM_ID"] == "explicit"
+            if collector == "sql"
+            else "qwen-code"
+        )
+        assert settings["EXT_TASK_ID"] == "trace-value"
+    else:
+        assert "EXT_PLATFORM_ID" not in settings
+        assert "EXT_TASK_ID" not in settings
