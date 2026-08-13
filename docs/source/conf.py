@@ -51,6 +51,7 @@ extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.todo',
     'sphinx.ext.ifconfig',
+    "sphinx.ext.intersphinx",
     'sphinx.ext.viewcode',
     'sphinx.ext.autosummary',
     'sphinx.ext.napoleon',
@@ -74,7 +75,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = 'PyODPS'
-copyright = '2014-2018, The Alibaba Group Holding Ltd.'
+copyright = '2014-2026, The Alibaba Group Holding Ltd.'
 author = 'Qin Xuye'
 
 # The version info for the project you're documenting, acts as replacement for
@@ -343,7 +344,13 @@ texinfo_documents = [
 gettext_additional_targets = ['literal-block', 'image', 'raw']
 
 # Example configuration for intersphinx: refer to the Python standard library.
-intersphinx_mapping = {'https://docs.python.org/': None}
+intersphinx_mapping = {
+    "numpy": ("https://numpy.org/doc/stable/", None),
+    "pandas": ("https://pandas.pydata.org/docs/", None),
+    "python": ("https://docs.python.org/3/", None),
+    "scipy": ("https://docs.scipy.org/doc/scipy/", None),
+    "pyarrow": ("https://arrow.apache.org/docs/", None),
+}
 
 mathjax_path = "https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"
 

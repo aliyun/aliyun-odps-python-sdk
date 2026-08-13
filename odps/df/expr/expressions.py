@@ -85,7 +85,7 @@ def repr_obj(obj):
     if hasattr(obj, '_repr'):
         try:
             return obj._repr()
-        except:
+        except Exception:
             return object.__repr__(obj)
     elif isinstance(obj, (tuple, list)):
         return ','.join(repr_obj(it) for it in obj)
@@ -166,7 +166,7 @@ class Expr(Node):
                 def _relay(f):
                     try:
                         user_future.set_result(wrapper(f.result()))
-                    except:
+                    except Exception:
                         user_future.set_exception(f.exception())
 
                 result.add_done_callback(_relay)
@@ -289,7 +289,7 @@ class Expr(Node):
             self.compile()
 
             return True
-        except:
+        except Exception:
             return False
 
     def _repr(self):

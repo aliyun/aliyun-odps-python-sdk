@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import datetime
+import io
 import math
 from collections import OrderedDict, namedtuple
 
@@ -52,6 +53,8 @@ from ...compat import Version
 from ...config import options
 from ...models import TableSchema
 from ...tests.core import get_test_unique_name, tn
+from ..io.types import cast_large_offset_array, odps_schema_to_arrow_schema
+from ..io.writer import BaseArrowWriter
 
 
 def _get_tz_str():
@@ -310,13 +313,14 @@ def test_buffered_upload_and_download_by_raw_tunnel(odps, setup):
     # test upload and download with retry
     table.truncate()
     raw_iter_data_in_batches = TableUploadSession._iter_data_in_batches
-    raises = [True]
+    raises = True
 
     def _gen_with_error(cls, data):
+        nonlocal raises
         gen = raw_iter_data_in_batches(data)
         yield next(gen)
-        if raises[0]:
-            raises[0] = False
+        if raises:
+            raises = False
             raise ValueError
         for chunk in gen:
             yield chunk
@@ -326,7 +330,7 @@ def test_buffered_upload_and_download_by_raw_tunnel(odps, setup):
         new=_gen_with_error,
     ):
         setup.buffered_upload_data(test_table_name, data)
-        assert not raises[0], "error not raised"
+        assert not raises, "error not raised"
 
     pd_df = setup.download_data(test_table_name)
     _assert_frame_equal(data, pd_df)
@@ -542,3 +546,180 @@ def test_upload_and_download_vector(odps, tunnel):
     finally:
         options.sql.use_odps2_extension = old_use_odps2_ext
         options.sql.settings = old_settings
+
+
+# ---------------------------------------------------------------------------
+# large_string / large_binary offset-overflow handling
+# ---------------------------------------------------------------------------
+
+_TOO_LARGE = "Failed casting from {0} to {1}: input array too large"
+
+
+class _FakeLargeArray(object):
+    """large_string array whose cast fails when the payload exceeds a threshold.
+
+    The real "input array too large" error needs ~2 GiB of data; this fake
+    triggers it on a tiny threshold to exercise the recursive split. Slice
+    returns another fake so every recursion level is real.
+    """
+
+    def __init__(self, values, threshold):
+        self._values = list(values)
+        self._threshold = threshold
+        self.type = pa.large_string()
+
+    def __len__(self):
+        return len(self._values)
+
+    def cast(self, target_type, safe=None):
+        if sum(len(v) for v in self._values if v is not None) > self._threshold:
+            raise pa.ArrowInvalid(_TOO_LARGE.format(pa.large_string(), target_type))
+        return pa.array(self._values, type=target_type)
+
+    def slice(self, offset, length=None):
+        values = (
+            self._values[offset:]
+            if length is None
+            else self._values[offset : offset + length]
+        )
+        return _FakeLargeArray(values, self._threshold)
+
+
+def _mock_large_string_array(cast_error, length):
+    arr = mock.Mock(type=pa.large_string())
+    arr.__len__ = mock.Mock(return_value=length)
+    arr.cast.side_effect = cast_error
+    return arr
+
+
+@pytest.mark.parametrize(
+    ("make_arr", "target_type", "expected"),
+    [
+        pytest.param(
+            lambda: pa.array(["ab", None, "cd"], type=pa.large_string()),
+            lambda: pa.string(),
+            lambda: ["ab", None, "cd"],
+            id="string_no_split",
+        ),
+        pytest.param(
+            lambda: pa.array([b"ab", None, b"cd"], type=pa.large_binary()),
+            lambda: pa.binary(),
+            lambda: [b"ab", None, b"cd"],
+            id="binary_no_split",
+        ),
+        pytest.param(
+            lambda: _FakeLargeArray(["abcd", None, "ef", "gh", "j"], 4),
+            lambda: pa.string(),
+            lambda: ["abcd", None, "ef", "gh", "j"],
+            id="splits_recursively",
+        ),
+        pytest.param(
+            lambda: _mock_large_string_array(
+                pa.ArrowInvalid(_TOO_LARGE.format(pa.large_string(), pa.string())), 1
+            ),
+            lambda: pa.string(),
+            lambda: pa.ArrowInvalid("input array too large"),
+            id="single_oversized_value",
+        ),
+        pytest.param(
+            lambda: _mock_large_string_array(
+                pa.ArrowInvalid("Invalid UTF8 payload"), 3
+            ),
+            lambda: pa.string(),
+            lambda: pa.ArrowInvalid("Invalid UTF8 payload"),
+            id="other_error",
+        ),
+    ],
+)
+def test_cast_large_offset_array(make_arr, target_type, expected):
+    arr = make_arr()
+    target_type = target_type()
+    expected = expected()
+    if isinstance(expected, pa.ArrowInvalid):
+        with pytest.raises(pa.ArrowInvalid, match=str(expected)):
+            cast_large_offset_array(arr, target_type)
+        arr.slice.assert_not_called()  # neither a single value nor an unrelated error splits
+        return
+
+    result = cast_large_offset_array(arr, target_type)
+    assert result.to_pylist() == expected
+    if isinstance(arr, _FakeLargeArray):
+        # the threshold forces multiple split levels before the cast succeeds
+        assert isinstance(result, pa.ChunkedArray)
+        assert result.num_chunks > 1
+
+
+class _CapturingWriter(BaseArrowWriter):
+    """Runs the real write() cast logic but suppresses uint32 framing so the
+    output holds raw concatenated IPC record-batch messages for inspection."""
+
+    def __init__(self, schema):
+        super(_CapturingWriter, self).__init__(schema, out=io.BytesIO())
+
+    def _write_uint32(self, val):
+        pass
+
+    @property
+    def captured_bytes(self):
+        return self._output.getvalue()
+
+
+def _read_batches(writer, schema):
+    arrow_schema = odps_schema_to_arrow_schema(schema)
+    reader = pa.BufferReader(pa.py_buffer(writer.captured_bytes))
+    batches = []
+    while True:
+        try:
+            msg = pa.ipc.read_message(reader)
+        except EOFError:
+            break
+        batches.append(pa.ipc.read_record_batch(msg, arrow_schema))
+    return batches
+
+
+@pytest.mark.parametrize(
+    ("force_split", "values"),
+    [
+        pytest.param(False, ["hello", "world", None, "pyodps"], id="roundtrip"),
+        pytest.param(
+            True, ["abcd", None, "ef", "gh", "j"], id="split_promotes_to_batches"
+        ),
+    ],
+)
+def test_writer_large_string(force_split, values):
+    schema = TableSchema.from_lists(["id", "s"], [odps_types.bigint, odps_types.string])
+    writer = _CapturingWriter(schema)
+
+    if force_split:
+        original = writer._cast_to_arrow_type
+
+        def fake_cast(col, name, target_type):
+            if name == "s" and col.type == pa.large_string():
+                return pa.chunked_array(
+                    [
+                        pa.array(values[:2], type=pa.string()),
+                        pa.array(values[2:], type=pa.string()),
+                    ],
+                    type=pa.string(),
+                )
+            return original(col, name, target_type)
+
+        writer._cast_to_arrow_type = fake_cast
+
+    writer.write(
+        pa.RecordBatch.from_arrays(
+            [
+                pa.array(list(range(len(values)))),
+                pa.array(values, type=pa.large_string()),
+            ],
+            names=["id", "s"],
+        )
+    )
+
+    batches = _read_batches(writer, schema)
+    if force_split:
+        assert len(batches) > 1  # split column forced the RecordBatch into batches
+    table = pa.Table.from_batches(batches)
+    assert table.column("s").type == pa.string()
+    assert table.column("s").to_pylist() == values
+    assert table.column("id").to_pylist() == list(range(len(values)))

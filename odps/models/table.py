@@ -43,6 +43,7 @@ from .tableio import (
     TableRecordWriter,
     TableUpsertWriter,
 )
+from .vector_index_info import parse_vector_indexes
 
 _auto_part_regex = re.compile(r"^\S+\([^\)]+\)\s*AS\s*", re.I)
 
@@ -241,6 +242,7 @@ class Table(XMLLazyLoad):
         "cdc_record_num",
         "cdc_latest_version",
         "cdc_latest_timestamp",
+        "vector_indexes",
     )
     __slots__ = (
         "_is_extend_info_loaded",
@@ -397,6 +399,7 @@ class Table(XMLLazyLoad):
             self.input_format = None
             self.output_format = None
             self.stored_as = None
+            self.vector_indexes = None
             return
         self.schema_version = self.reserved.get("schema_version")
         is_transactional = self.reserved.get("Transactional")
@@ -421,6 +424,7 @@ class Table(XMLLazyLoad):
         self.input_format = self.reserved.get("InputFormat")
         self.output_format = self.reserved.get("OutputFormat")
         self.stored_as = self.reserved.get("StoredAs")
+        self.vector_indexes = parse_vector_indexes(self.reserved)
 
     def reload_extend_info(self):
         params = {}
@@ -938,7 +942,7 @@ class Table(XMLLazyLoad):
                     timeout=timeout,
                     tags=tags,
                 )
-        except:
+        except Exception:
             # only raises when under tests and
             # use_legacy specified explicitly as False
             if use_legacy is False:
@@ -1693,7 +1697,7 @@ class Table(XMLLazyLoad):
                 "odps.sql.cfile2.field.maxsize", None
             )
             return int(project_field_size or 0) * 1024
-        except:
+        except Exception:
             return 0
 
     def new_record(self, values=None):

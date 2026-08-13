@@ -281,7 +281,7 @@ class ExecuteDAG(DAG):
                         results[func] = res
                         user_wait[func].set_result(res)
                         return res
-                    except:
+                    except Exception:
                         e, tb = sys.exc_info()[1:]
                         if not is_fallback and self._can_fallback() and self._need_fallback(e):
                             if not fallback.is_set():

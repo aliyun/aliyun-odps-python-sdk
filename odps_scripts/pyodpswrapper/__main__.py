@@ -205,7 +205,11 @@ def wrapper_main(args, args_loader=None):
     if args.access_key is None and CONFIG_FILE not in os.environ:
         raise RuntimeError("Either access id and key or config file should be provided")
 
-    if os.getenv(REGION_ENV) and os.getenv(REGION_ENV, "").lower() != "d2":
+    if os.getenv(REGION_ENV) and os.getenv(REGION_ENV, "").lower() not in (
+        "cn",
+        "d2",
+        "nvl",
+    ):
         os.environ["ODPS_REGION_NAME"] = os.getenv(REGION_ENV)
 
     if args.access_key is not None:
@@ -230,7 +234,19 @@ def wrapper_main(args, args_loader=None):
             encrypted = os.environ.get(ACCESS_KEY_ENCRYPT, "true") == "true"
             if encrypted:
                 obj = obj[:1] + (_decrypt_ak(obj[1]),) + obj[2:]
-            return run_load_resource_command(args, ODPS(*obj[:-1], **obj[-1]))
+
+            if "sts_token" not in kw:
+                odps_entry = ODPS(*obj[:-1], **obj[-1])
+            else:
+                sts_account = StsAccount(access_id, access_key, kw["sts_token"])
+                kw.pop("sts_token", None)
+                odps_entry = ODPS(
+                    project=project,
+                    endpoint=endpoint or DEFAULT_ENDPOINT,
+                    account=sts_account,
+                    **kw,
+                )
+            return run_load_resource_command(args, odps_entry)
 
         code = None
         if args.code_file is None:

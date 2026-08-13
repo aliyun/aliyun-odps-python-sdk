@@ -60,7 +60,7 @@ UDF_TMPL_HEADER = '''\
 try:
     # workaround for character not in range error
     import _strptime
-except:
+except Exception:
     pass
 
 import sys

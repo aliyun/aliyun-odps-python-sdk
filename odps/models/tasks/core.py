@@ -16,6 +16,7 @@ import functools
 import importlib
 import itertools
 import json
+import os
 import textwrap
 from collections import OrderedDict
 
@@ -29,6 +30,14 @@ class Task(AbstractXMLRemoteModel):
     __slots__ = ("name", "comment", "properties")
 
     _type_indicator = "type"
+
+    # Maps Task setting keys to the environment variable names that populate
+    # them as defaults. Explicit hints supplied by the caller always take
+    # precedence.
+    _setting_to_env_keys = {
+        "EXT_PLATFORM_ID": "MC_PLATFORM_ID",
+        "EXT_TASK_ID": "TRACEPARENT",
+    }
 
     name = serializers.XMLNodeField("Name")
     type = serializers.XMLTagField(".")
@@ -85,6 +94,22 @@ class Task(AbstractXMLRemoteModel):
 
     def update_settings(self, value):
         self._update_property_json("settings", value)
+
+    @classmethod
+    def _merge_env_settings(cls, settings=None, environment=None):
+        """
+        Merge environment-derived task settings as defaults under explicit ones.
+        """
+        if environment is None:
+            environment = os.environ
+        merged = OrderedDict()
+        for setting_key, env_name in cls._setting_to_env_keys.items():
+            value = environment.get(env_name)
+            if value:
+                merged[setting_key] = value
+        if settings:
+            merged.update(settings)
+        return merged
 
     def serialize(self):
         if type(self) is Task:

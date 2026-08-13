@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.12.3\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-01-15 13:24+0800\n"
+"POT-Creation-Date: 2026-07-31 14:43+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: en\n"
@@ -17,7 +17,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.16.0\n"
+"Generated-By: Babel 2.18.0\n"
 
 #: ../../source/api-tunnel.rst:4
 msgid "Tunnel"
@@ -115,8 +115,8 @@ msgstr ""
 
 #: odps.tunnel.instancetunnel.InstanceTunnel.create_download_session:12
 #: odps.tunnel.tabletunnel.TableTunnel.create_download_session:13
-#: odps.tunnel.tabletunnel.TableTunnel.create_stream_upload_session:14
-#: odps.tunnel.tabletunnel.TableTunnel.create_upload_session:14
+#: odps.tunnel.tabletunnel.TableTunnel.create_stream_upload_session:16
+#: odps.tunnel.tabletunnel.TableTunnel.create_upload_session:15
 #: odps.tunnel.tabletunnel.TableTunnel.create_upsert_session:14
 #: odps.tunnel.tabletunnel.TableTunnel.open_preview_reader:15 of
 msgid "tags of the upload session"
@@ -149,11 +149,27 @@ msgstr ""
 msgid "schema version of the upload"
 msgstr ""
 
-#: odps.tunnel.tabletunnel.TableTunnel.create_stream_upload_session:16 of
-msgid "whether to allow table schema to be mismatched"
+#: odps.tunnel.tabletunnel.TableTunnel.create_stream_upload_session:14 of
+msgid "zorder columns for clustering"
 msgstr ""
 
 #: odps.tunnel.tabletunnel.TableTunnel.create_stream_upload_session:18 of
+msgid "whether to allow table schema to be mismatched"
+msgstr ""
+
+#: odps.tunnel.tabletunnel.TableTunnel.create_stream_upload_session:19 of
+msgid "whether to create partition if not exist"
+msgstr ""
+
+#: odps.tunnel.tabletunnel.TableTunnel.create_stream_upload_session:20 of
+msgid "number of slots for the session"
+msgstr ""
+
+#: odps.tunnel.tabletunnel.TableTunnel.create_stream_upload_session:21 of
+msgid "whether to enable dynamic partition"
+msgstr ""
+
+#: odps.tunnel.tabletunnel.TableTunnel.create_stream_upload_session:23 of
 msgid ":class:`TableStreamUploadSession`"
 msgstr ""
 
@@ -165,7 +181,11 @@ msgstr ""
 msgid "whether to overwrite the table"
 msgstr ""
 
-#: odps.tunnel.tabletunnel.TableTunnel.create_upload_session:17 of
+#: odps.tunnel.tabletunnel.TableTunnel.create_upload_session:14 of
+msgid "whether to create partition if not exist"
+msgstr ""
+
+#: odps.tunnel.tabletunnel.TableTunnel.create_upload_session:18 of
 msgid ":class:`TableUploadSession`"
 msgstr ""
 
@@ -181,7 +201,11 @@ msgstr ""
 msgid "timeout for commit"
 msgstr ""
 
-#: odps.tunnel.tabletunnel.TableTunnel.create_upsert_session:17 of
+#: odps.tunnel.tabletunnel.TableTunnel.create_upsert_session:16 of
+msgid "session lifecycle in hours, valid range 1-24"
+msgstr ""
+
+#: odps.tunnel.tabletunnel.TableTunnel.create_upsert_session:18 of
 msgid ":class:`TableUpsertSession`"
 msgstr ""
 
@@ -251,13 +275,6 @@ msgstr ""
 msgid "whether to compress data"
 msgstr ""
 
-#: odps.tunnel.instancetunnel.InstanceDownloadSession.open_arrow_reader
-#: odps.tunnel.instancetunnel.InstanceDownloadSession.open_record_reader
-#: odps.tunnel.tabletunnel.TableDownloadSession.open_arrow_reader
-#: odps.tunnel.tabletunnel.TableDownloadSession.open_record_reader of
-msgid "columns"
-msgstr ""
-
 #: odps.tunnel.instancetunnel.InstanceDownloadSession.open_arrow_reader:6
 #: odps.tunnel.instancetunnel.InstanceDownloadSession.open_record_reader:6
 #: odps.tunnel.tabletunnel.TableDownloadSession.open_arrow_reader:6
@@ -265,17 +282,24 @@ msgstr ""
 msgid "list of column names to read"
 msgstr ""
 
-#: odps.tunnel.tabletunnel.TableDownloadSession.open_arrow_reader
-#: odps.tunnel.tabletunnel.TableDownloadSession.open_record_reader of
-msgid "append_partitions"
-msgstr ""
-
 #: odps.tunnel.tabletunnel.TableDownloadSession.open_arrow_reader:7
 #: odps.tunnel.tabletunnel.TableDownloadSession.open_record_reader:7 of
 msgid "whether to append partition values as columns"
 msgstr ""
 
-#: odps.tunnel.tabletunnel.TableDownloadSession.open_arrow_reader:9 of
+#: odps.tunnel.instancetunnel.InstanceDownloadSession.open_arrow_reader:7
+#: odps.tunnel.instancetunnel.InstanceDownloadSession.open_record_reader:12
+#: odps.tunnel.tabletunnel.TableDownloadSession.open_arrow_reader:9
+#: odps.tunnel.tabletunnel.TableDownloadSession.open_record_reader:15
+#: odps.tunnel.tabletunnel.TableUploadSession.open_arrow_writer:7
+#: odps.tunnel.tabletunnel.TableUploadSession.open_record_writer:7 of
+msgid ""
+"custom error handling function accepting an Exception instance as input. "
+"If return value is True, error will be raised. Otherwise retry will "
+"continue."
+msgstr ""
+
+#: odps.tunnel.tabletunnel.TableDownloadSession.open_arrow_reader:13 of
 msgid "an Arrow reader"
 msgstr ""
 
@@ -283,8 +307,8 @@ msgstr ""
 msgid "Return type"
 msgstr ""
 
-#: odps.tunnel.instancetunnel.InstanceDownloadSession.open_arrow_reader:9
-#: odps.tunnel.tabletunnel.TableDownloadSession.open_arrow_reader:10 of
+#: odps.tunnel.instancetunnel.InstanceDownloadSession.open_arrow_reader:12
+#: odps.tunnel.tabletunnel.TableDownloadSession.open_arrow_reader:14 of
 msgid ":class:`TunnelArrowReader`"
 msgstr ""
 
@@ -293,13 +317,32 @@ msgstr ""
 msgid "Open a reader to read data as records from the tunnel."
 msgstr ""
 
+#: odps.tunnel.instancetunnel.InstanceDownloadSession.open_record_reader:7
+#: odps.tunnel.tabletunnel.TableDownloadSession.open_record_reader:8 of
+msgid "whether to use buffered reader"
+msgstr ""
+
 #: odps.tunnel.instancetunnel.InstanceDownloadSession.open_record_reader:8
 #: odps.tunnel.tabletunnel.TableDownloadSession.open_record_reader:9 of
+msgid ""
+"download buffer size in bytes. Num of rows read in every batch will be "
+"limited by this parameter as well as `row_batch_size`."
+msgstr ""
+
+#: odps.tunnel.instancetunnel.InstanceDownloadSession.open_record_reader:10
+#: odps.tunnel.tabletunnel.TableDownloadSession.open_record_reader:12 of
+msgid ""
+"number of rows to read per batch. Num of rows read in every batch will be"
+" limited by this parameter as well as `buffer_size`."
+msgstr ""
+
+#: odps.tunnel.instancetunnel.InstanceDownloadSession.open_record_reader:16
+#: odps.tunnel.tabletunnel.TableDownloadSession.open_record_reader:19 of
 msgid "a record reader"
 msgstr ""
 
-#: odps.tunnel.instancetunnel.InstanceDownloadSession.open_record_reader:9
-#: odps.tunnel.tabletunnel.TableDownloadSession.open_record_reader:10 of
+#: odps.tunnel.instancetunnel.InstanceDownloadSession.open_record_reader:17
+#: odps.tunnel.tabletunnel.TableDownloadSession.open_record_reader:20 of
 msgid ":class:`TunnelRecordReader`"
 msgstr ""
 
@@ -359,7 +402,7 @@ msgid "Open a writer to write data in records to the tunnel."
 msgstr ""
 
 #: odps.tunnel.tabletunnel.TableStreamUploadSession.open_record_writer:5
-#: odps.tunnel.tabletunnel.TableUploadSession.open_record_writer:8 of
+#: odps.tunnel.tabletunnel.TableUploadSession.open_record_writer:11 of
 msgid "a record writer"
 msgstr ""
 
@@ -404,11 +447,11 @@ msgstr ""
 msgid "size of the buffer to use for buffered writers."
 msgstr ""
 
-#: odps.tunnel.tabletunnel.TableUploadSession.open_arrow_writer:8 of
+#: odps.tunnel.tabletunnel.TableUploadSession.open_arrow_writer:11 of
 msgid "an Arrow writer"
 msgstr ""
 
-#: odps.tunnel.tabletunnel.TableUploadSession.open_arrow_writer:9 of
+#: odps.tunnel.tabletunnel.TableUploadSession.open_arrow_writer:12 of
 msgid ":class:`ArrowWriter` or :class:`BufferedArrowWriter`"
 msgstr ""
 
@@ -418,7 +461,7 @@ msgid ""
 ":class:`BufferedRecordWriter` will be created."
 msgstr ""
 
-#: odps.tunnel.tabletunnel.TableUploadSession.open_record_writer:9 of
+#: odps.tunnel.tabletunnel.TableUploadSession.open_record_writer:12 of
 msgid ":class:`RecordWriter` or :class:`BufferedRecordWriter`"
 msgstr ""
 
@@ -507,7 +550,7 @@ msgstr ""
 msgid "Open a reader to read data as arrow format from the tunnel."
 msgstr ""
 
-#: odps.tunnel.instancetunnel.InstanceDownloadSession.open_arrow_reader:8 of
+#: odps.tunnel.instancetunnel.InstanceDownloadSession.open_arrow_reader:11 of
 msgid "an arrow reader"
 msgstr ""
 
@@ -524,6 +567,7 @@ msgid "Here we show an example of writing a pandas DataFrame to ODPS."
 msgstr ""
 
 #: odps.tunnel.io.writer.ArrowWriter:8 of
+#, python-brace-format
 msgid ""
 "import pandas as pd\n"
 "from odps.tunnel import TableTunnel\n"
@@ -634,6 +678,7 @@ msgid ""
 msgstr ""
 
 #: odps.tunnel.io.writer.BufferedArrowWriter:10 of
+#, python-brace-format
 msgid ""
 "import pandas as pd\n"
 "from odps.tunnel import TableTunnel\n"
@@ -751,15 +796,15 @@ msgid ""
 "            print(record.values)"
 msgstr ""
 
-#: odps.tunnel.io.reader.BaseTunnelRecordReader.read:1 of
+#: odps.tunnel.io.reader_c.BaseTunnelRecordReader.read:1 of
 msgid "Read next record."
 msgstr ""
 
-#: odps.tunnel.io.reader.BaseTunnelRecordReader.read:3 of
+#: odps.tunnel.io.reader_c.BaseTunnelRecordReader.read:3 of
 msgid "A record object"
 msgstr ""
 
-#: odps.tunnel.io.reader.BaseTunnelRecordReader.read:4 of
+#: odps.tunnel.io.reader_c.BaseTunnelRecordReader.read:4 of
 msgid ":class:`~odps.models.Record`"
 msgstr ""
 

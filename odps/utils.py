@@ -646,7 +646,7 @@ def init_progress_ui(val=1, lock=False, use_console=True, mock=False):
         if bar and bar._ipython_widget:
             try:
                 progress_group = ProgressGroupUI(bar._ipython_widget)
-            except:
+            except Exception:
                 pass
 
     _lock = threading.Lock() if lock else None
@@ -1031,6 +1031,9 @@ def call_with_retry(func, *args, **kwargs):
     and retries the call if exceptions occur, according to the specified
     retry parameters.
 
+    Note that retry will NOT handle BaseException automatically, as they might
+    disturb the program flow, such as KeyboardInterrupt.
+
     Parameters
     ----------
     func : callable
@@ -1058,9 +1061,7 @@ def call_with_retry(func, *args, **kwargs):
             Function to call when an exception occurs; receives the exception as argument.
         exc_type : Exception class or callable, optional
             Type of exception to catch, or a callable that determines if an exception
-            should be retried (default is BaseException).
-        allow_interrupt : bool, optional
-            Whether to allow KeyboardInterrupt to interrupt the retry loop (default is True).
+            should be retried (default is Exception).
         no_raise : bool, optional
             If True, suppress exceptions and return sys.exc_info() instead of raising (default is False).
 
@@ -1083,13 +1084,12 @@ def call_with_retry(func, *args, **kwargs):
     delay_backoff_max = kwargs.pop("delay_backoff_max", 120)
     reset_func = kwargs.pop("reset_func", None)
     on_exception_func = kwargs.pop("on_exception_func", None)
-    exc_type = kwargs.pop("exc_type", BaseException)
-    allow_interrupt = kwargs.pop("allow_interrupt", True)
+    exc_type = kwargs.pop("exc_type", Exception)
     no_raise = kwargs.pop("no_raise", False)
 
     exc_type_func = None
-    if not isinstance(exc_type, BaseException) and callable(exc_type):
-        exc_type_func, exc_type = exc_type, BaseException
+    if not isinstance(exc_type, Exception) and callable(exc_type):
+        exc_type_func, exc_type = exc_type, Exception
 
     start_time = time.monotonic() if retry_timeout is not None else None
     while True:
@@ -1108,8 +1108,6 @@ def call_with_retry(func, *args, **kwargs):
             else:
                 cur_delay = delay
             time.sleep(cur_delay)
-            if allow_interrupt and isinstance(ex, KeyboardInterrupt):
-                raise
             if (retry_times is not None and retry_num > retry_times) or (
                 retry_timeout is not None
                 and start_time is not None
@@ -1377,7 +1375,7 @@ def get_default_logview_endpoint(default_endpoint, odps_endpoint):
             suffix = r"\1" + string.ascii_letters[1::-1] * 2 + parsed_host[-8:]
             return re.sub(r"([a-z])[a-z]{3}\.[a-z]{3}$", suffix, default_endpoint)
         return default_endpoint
-    except:
+    except Exception:
         return default_endpoint
 
 
@@ -1403,8 +1401,17 @@ def is_job_insight_released(odps_endpoint):
             return False
         else:
             return True
-    except:
+    except Exception:
         return True
+
+
+_blacklist_region_hash = {
+    "c5d35e2df0f61deff1dbc070dc5bc455",
+}
+
+
+def is_region_name_blacklisted(region_name):
+    return md5_hexdigest(to_binary(region_name)) in _blacklist_region_hash
 
 
 def _import_version_function():
@@ -1427,7 +1434,7 @@ def get_package_version(pack_name, import_name=None):
     if version_func is not None:
         try:
             return version_func(pack_name)
-        except:
+        except Exception:
             pass
     import_name = pack_name if import_name is True else import_name
     if import_name:

@@ -45,7 +45,7 @@ import requests
 
 from ... import options, types
 from ...compat import Monthdelta, Version
-from ...errors import DatetimeOverflowError, throw_if_parsable
+from ...errors import DatetimeOverflowError, StreamTruncatedException, throw_if_parsable
 from ...models import Record, TableSchema
 from ...rest import RestClient
 from ...tests.core import (
@@ -79,7 +79,7 @@ def check_malicious_requests(odps):
         ):
             try:
                 throw_if_parsable(resp, *args, **kw)
-            except:
+            except Exception:
                 raise AssertionError(f"Malicious request detected: {resp.url}")
         else:
             throw_if_parsable(resp, *args, **kw)
@@ -1596,13 +1596,14 @@ def test_table_tunnel_with_quota(odps_with_tunnel_quota, config):
     from odps.rest import RestClient
 
     orig_request = RestClient.request
-    request_counts = [0]
+    request_counts = 0
 
     def patch_request(self, *args, **kw):
+        nonlocal request_counts
         if self._endpoint == tunnel_endpoint:
             assert kw["params"]["quotaName"] == quota_name
             # Track all tunnel requests
-            request_counts[0] += 1
+            request_counts += 1
         return orig_request(self, *args, **kw)
 
     odps = odps_with_tunnel_quota
@@ -1647,7 +1648,7 @@ def test_table_tunnel_with_quota(odps_with_tunnel_quota, config):
         assert len(results) == 2  # one from regular upload, one from stream upload
         assert results[1][0] == "stream_data"
 
-    assert request_counts[0] > 0, "No tunnel requests were made via patch"
+    assert request_counts > 0, "No tunnel requests were made via patch"
     tb.drop()
 
 
@@ -1656,13 +1657,14 @@ def test_table_upsert_tunnel_with_quota(odps_with_tunnel_quota, config):
     from odps.rest import RestClient
 
     orig_request = RestClient.request
-    request_counts = [0]
+    request_counts = 0
 
     def patch_request(self, *args, **kw):
+        nonlocal request_counts
         if self._endpoint == tunnel_endpoint:
             assert kw["params"]["quotaName"] == quota_name
             # Track all tunnel requests
-            request_counts[0] += 1
+            request_counts += 1
         return orig_request(self, *args, **kw)
 
     odps = odps_with_tunnel_quota
@@ -1709,7 +1711,7 @@ def test_table_upsert_tunnel_with_quota(odps_with_tunnel_quota, config):
         upsert_session.commit()
 
     # Verify that tunnel requests were made with quotaName
-    assert request_counts[0] > 0, "No tunnel requests were made via patch"
+    assert request_counts > 0, "No tunnel requests were made via patch"
 
     # Verify upsert operations worked correctly (outside mock context)
     inst = odps.execute_sql(f"SELECT * FROM {table_name}")
@@ -1817,3 +1819,188 @@ def test_async_mode_timeout(odps):
             table_tunnel.create_download_session(table, timeout=10)
     finally:
         table.drop()
+
+
+@py_and_c_deco
+def test_stream_upload_with_retry(odps, setup):
+    from ..errors import TunnelError as StreamTunnelError
+
+    test_table_name = tn("pyodps_test_stream_upload_retry_" + get_code_mode())
+    odps.delete_table(test_table_name, if_exists=True)
+    setup.create_table(test_table_name)
+
+    try:
+        data = setup.gen_data()
+
+        tunnel = TableTunnel(odps)
+        upload_ss = tunnel.create_stream_upload_session(test_table_name)
+
+        # Reload will replace slots with one pointing at new_server, proving
+        # the retry uses the refreshed routed server rather than the stale one.
+        new_server = "127.0.0.1:9999"
+
+        original_get = upload_ss._client.get
+        put_call_count = 0
+        put_headers = []
+        get_params = []
+
+        def patched_put(*args, **kwargs):
+            nonlocal put_call_count
+            put_call_count += 1
+            # Record the routed-server header used for each attempt.
+            put_headers.append(kwargs.get("headers", {}))
+            if put_call_count == 1:
+                raise StreamTunnelError("Bad Gateway", status_code=502)
+            # On retry, return a synthetic success instead of hitting the
+            # real server with the fake routed server. The writer only needs
+            # the routed-server and slot-num headers to reset its state.
+            resp = requests.Response()
+            resp.status_code = 200
+            resp._content = b""
+            resp.headers["odps-tunnel-routed-server"] = new_server
+            resp.headers["odps-tunnel-slot-num"] = "1"
+            resp.headers["odps-tunnel-metrics"] = "{}"
+            resp.headers["x-odps-request-id"] = "fake-req-retry"
+            resp.url = args[0] if args else kwargs.get("url", "")
+            return resp
+
+        def patched_get(*args, **kwargs):
+            # Spy on reload params: uploadid and schema_version must be set,
+            # and read-only flag must not appear (matches Java SDK contract).
+            get_params.append(dict(kwargs.get("params", {})))
+            resp = original_get(*args, **kwargs)
+            # Override the slots in the response so reload refreshes the
+            # routed server. Keep the session_name and schema intact.
+            parsed = json.loads(resp.content)
+            parsed["slots"] = [["0", new_server]]
+            resp._content = to_binary(json.dumps(parsed))
+            return resp
+
+        with mock.patch.object(
+            upload_ss._client, "put", new=patched_put
+        ), mock.patch.object(upload_ss._client, "get", new=patched_get):
+            writer = upload_ss.open_record_writer()
+            for r in data:
+                record = upload_ss.new_record()
+                for i, it in enumerate(r):
+                    record[i] = it
+                writer.write(record)
+            writer.close()
+
+        assert put_call_count >= 2, "Expected at least one retry"
+        assert len(get_params) >= 1, "Expected reload on 502"
+
+        # The retried PUT must carry the refreshed routed server, not the
+        # original one. A bug where reset() reuses the stale slot would pass
+        # the old assertion but fail here.
+        first_server = put_headers[0].get("odps-tunnel-routed-server")
+        retry_server = put_headers[1].get("odps-tunnel-routed-server")
+        assert (
+            retry_server == new_server
+        ), "Retry did not use the reloaded routed server"
+        assert retry_server != first_server
+        # Tunnel version header must be present on every attempt.
+        assert "x-odps-tunnel-version" in put_headers[0]
+        assert "x-odps-tunnel-version" in put_headers[1]
+
+        # Reload must be called with uploadid and schema_version, and must
+        # not carry a read-only flag (mirrors the Java SDK contract).
+        reload_params = get_params[0]
+        assert reload_params.get("uploadid") == upload_ss.id
+        if upload_ss.schema_version is not None:
+            assert "schema_version" in reload_params
+        assert "read_only" not in reload_params
+    finally:
+        setup.delete_table(test_table_name)
+
+
+@py_and_c_deco
+def test_stream_truncation_detection():
+    """Detect truncated tunnel streams when require_stream_footer is enabled."""
+    from io import BytesIO
+
+    from ..io.reader import TunnelRecordReader
+    from ..io.writer import BaseRecordWriter
+
+    schema = TableSchema.from_lists(["col"], ["string"])
+    record_cls = Record
+    # Encode two records into a BytesIO *without* the footer (no close()).
+    # This simulates a truncated stream where the footer tag is missing.
+    buf = BytesIO()
+    writer = BaseRecordWriter(schema, buf)
+    writer.write(record_cls(schema=schema, values=["hello"]))
+    writer.write(record_cls(schema=schema, values=["world"]))
+    writer.flush()
+
+    truncated_bytes = buf.getvalue()
+
+    def stream_creator(cursor, row_number=None, raw_size=None):
+        if cursor > 0:
+            return None
+        return BytesIO(truncated_bytes)
+
+    # With require_stream_footer=True, reading past the last record
+    # should raise StreamTruncatedException.
+    raw_flag = options.tunnel.require_stream_footer
+    options.tunnel.require_stream_footer = True
+    try:
+        reader = TunnelRecordReader(schema, stream_creator)
+        records = []
+        with pytest.raises(StreamTruncatedException) as exc_info:
+            for rec in reader:
+                records.append(rec.values)
+        # We should have read the two valid records before the truncation
+        # was detected.
+        assert len(records) == 2
+        assert records[0] == ["hello"]
+        assert records[1] == ["world"]
+        assert exc_info.value.records_read == 2
+    finally:
+        options.tunnel.require_stream_footer = raw_flag
+
+    # With require_stream_footer=False (default), the missing footer is
+    # silently ignored and the reader returns None after the last record.
+    options.tunnel.require_stream_footer = False
+    try:
+        reader = TunnelRecordReader(schema, stream_creator)
+        records = [rec.values for rec in reader]
+        assert len(records) == 2
+        assert records[0] == ["hello"]
+        assert records[1] == ["world"]
+    finally:
+        options.tunnel.require_stream_footer = raw_flag
+
+
+@py_and_c_deco
+def test_stream_truncation_complete_stream_ok():
+    """A complete stream with footer should not raise StreamTruncatedException."""
+    from io import BytesIO
+
+    from ..io.reader import TunnelRecordReader
+    from ..io.writer import BaseRecordWriter
+
+    schema = TableSchema.from_lists(["col"], ["string"])
+    record_cls = Record
+    buf = BytesIO()
+    writer = BaseRecordWriter(schema, buf)
+    writer.write(record_cls(schema=schema, values=["hello"]))
+    writer.write(record_cls(schema=schema, values=["world"]))
+    writer.close()  # writes the footer
+
+    complete_bytes = buf.getvalue()
+
+    def stream_creator(cursor, row_number=None, raw_size=None):
+        if cursor > 0:
+            return None
+        return BytesIO(complete_bytes)
+
+    raw_flag = options.tunnel.require_stream_footer
+    options.tunnel.require_stream_footer = True
+    try:
+        reader = TunnelRecordReader(schema, stream_creator)
+        records = [rec.values for rec in reader]
+        assert len(records) == 2
+        assert records[0] == ["hello"]
+        assert records[1] == ["world"]
+    finally:
+        options.tunnel.require_stream_footer = raw_flag

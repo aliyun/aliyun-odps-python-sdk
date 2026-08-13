@@ -59,7 +59,44 @@ def storage_api_blob_client(odps):
     )
     api_endpoint = os.getenv("ODPS_STORAGE_API_ENDPOINT")
     try:
-        yield StorageApiArrowClient(odps, table, rest_endpoint=api_endpoint)
+        yield StorageApiArrowClient(
+            odps, table, rest_endpoint=api_endpoint, api_version="3"
+        )
+    finally:
+        table.drop(async_=True)
+        options.enable_schema = False
+
+
+@pytest.fixture
+def storage_api_nested_blob_client(odps):
+    """Client for a nested-blob table (c1 BIGINT, c2 ARRAY<BLOB>,
+    c3 ARRAY<STRUCT<f1:STRING, f2:BLOB>>).
+
+    Targets api_version="3" so the nested-blob column-ID resolution and
+    write path are exercised end to end.
+    """
+    options.enable_schema = True
+
+    test_table_name = tn(f"test_nested_blob_{get_test_unique_name(5)}")
+    odps.delete_table(test_table_name, if_exists=True)
+    table = odps.create_table(
+        test_table_name,
+        (
+            "c1 BIGINT, c2 ARRAY<BLOB>, c3 ARRAY<STRUCT<f1:STRING, f2:BLOB>>",
+            "pt string",
+        ),
+        hints={
+            "odps.sql.type.system.odps2": "true",
+            "odps.table.append2.enable": "true",
+        },
+        table_properties={"table.format.version": "2", "transactional": "true"},
+        if_not_exists=True,
+    )
+    api_endpoint = os.getenv("ODPS_STORAGE_API_ENDPOINT")
+    try:
+        yield StorageApiArrowClient(
+            odps, table, rest_endpoint=api_endpoint, api_version="3"
+        )
     finally:
         table.drop(async_=True)
         options.enable_schema = False

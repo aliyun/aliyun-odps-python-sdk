@@ -168,17 +168,18 @@ def semaphore_random_delay(request):
     indirect=["semaphore_random_delay"],
 )
 def test_raises(force_thread, semaphore_random_delay):
-    exc_trace = [None]
+    exc_trace = None
     io_stream._FORCE_THREAD = force_thread
 
     def raise_poster(it):
-        exc_trace[0] = None
+        nonlocal exc_trace
+        exc_trace = None
         next(it)
         try:
             raise AttributeError
-        except:
+        except Exception:
             tb = traceback.format_exc().splitlines()
-            exc_trace[0] = "\n".join(tb[-3:])
+            exc_trace = "\n".join(tb[-3:])
             raise
 
     req_io = io_stream.RequestsIO(raise_poster, chunk_size=5)
@@ -190,7 +191,7 @@ def test_raises(force_thread, semaphore_random_delay):
         assert False, "Statement above not raised"
     except AttributeError:
         tb = traceback.format_exc().splitlines()
-        assert "\n".join(tb[-3:]) == exc_trace[0]
+        assert "\n".join(tb[-3:]) == exc_trace
 
 
 @pytest.mark.parametrize(
@@ -217,3 +218,21 @@ def test_large_writes(force_thread, semaphore_random_delay):
     req_io.finish()
 
     assert b"".join(recv_chunks) == TEXT.encode("utf-8") * repeats
+
+
+def test_simple_input_stream_read_all():
+    data = b"hello world " * 1000
+
+    # read() without limit reads everything
+    stream = io_stream.SimpleInputStream(io.BufferedReader(io.BytesIO(data)))
+    assert stream.read() == data
+
+    # read(limit) followed by read() returns the rest
+    stream = io_stream.SimpleInputStream(io.BufferedReader(io.BytesIO(data)))
+    part = stream.read(5)
+    assert part == b"hello"
+    assert part + stream.read() == data
+
+    # read(0) returns empty bytes
+    stream = io_stream.SimpleInputStream(io.BufferedReader(io.BytesIO(data)))
+    assert stream.read(0) == b""

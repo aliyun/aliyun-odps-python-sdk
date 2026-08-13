@@ -34,6 +34,7 @@ from ..pb.decoder_c cimport CDecoder
 
 from ... import compat, options, types, utils
 from ...errors import ChecksumError, DatetimeOverflowError
+from ...errors import StreamTruncatedException
 from ...models import Record
 from ...readers import AbstractRecordReader  # noqa
 from ...types import PartitionSpec
@@ -141,6 +142,8 @@ cdef class BaseTunnelRecordReader:
         self._n_injected_error_cursor = -1
         self._injected_error_exc = None
         self._on_exception = on_exception
+        self._require_stream_footer = options.tunnel.require_stream_footer
+        self._footer_seen = False
 
     def close(self):
         if self._reader is not None:
@@ -174,6 +177,7 @@ cdef class BaseTunnelRecordReader:
         self._crc = Checksum()
         self._crccrc = Checksum()
         self._attempt_row_count = 0
+        self._footer_seen = False
 
         stream = self._stream_creator(
             self._curr_cursor, row_number=row_number, raw_size=raw_size
@@ -235,7 +239,20 @@ cdef class BaseTunnelRecordReader:
         rec_list = record._c_values
 
         while True:
-            index = self._reader.read_field_number(NULL)
+            try:
+                index = self._reader.read_field_number(NULL)
+            except EOFError:
+                # Stream is exhausted. Check whether we already saw
+                # the footer tag (TUNNEL_META_COUNT).
+                if self._require_stream_footer and not self._footer_seen:
+                    raise StreamTruncatedException(
+                        "Stream ended unexpectedly without receiving the "
+                        "footer tag (TUNNEL_META_COUNT). The data stream "
+                        "may be truncated. Records read so far: "
+                        + str(self._curr_cursor),
+                        self._curr_cursor,
+                    )
+                return None
 
             if index == 0:
                 continue
@@ -276,6 +293,7 @@ cdef class BaseTunnelRecordReader:
                 if self._crccrc.c_getvalue() != self._reader.read_uint32():
                     raise ChecksumError("Checksum invalid.")
 
+                self._footer_seen = True
                 return
 
             if index > self._n_columns:
@@ -317,6 +335,10 @@ cdef class BaseTunnelRecordReader:
                     )
                 return result
             except Exception as ex:
+                if isinstance(ex, StreamTruncatedException):
+                    if not callable(self._on_exception) or self._on_exception(ex):
+                        raise
+                    return None
                 retry_num += 1
                 if retry_num > options.retry_times:
                     if not callable(self._on_exception) or self._on_exception(ex):

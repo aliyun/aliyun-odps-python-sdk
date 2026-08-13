@@ -67,5 +67,5 @@ class I18NMessage:
     def safe_replace(self, str_to_replace, replacement):
         try:
             return str(self).replace(str_to_replace, replacement)
-        except:
+        except Exception:
             return self.messages["default"].replace(str_to_replace, replacement)

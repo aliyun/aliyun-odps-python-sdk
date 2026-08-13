@@ -1105,7 +1105,7 @@ def dumps(obj, protocol=None, dump_code=False):
     file = StringIO()
     try:
         object_repr = repr(obj)
-    except:
+    except Exception:
         object_repr = None
 
     try:

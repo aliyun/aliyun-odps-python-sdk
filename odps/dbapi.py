@@ -16,12 +16,18 @@
 
 import base64
 import functools
+import time
 import warnings
 from enum import Enum
 
 from .config import options
 from .core import ODPS
-from .errors import InstanceTypeNotSupported, NotSupportedError, ODPSError
+from .errors import (
+    InstanceNotTerminate,
+    InstanceTypeNotSupported,
+    NotSupportedError,
+    ODPSError,
+)
 from .models.session.v1 import PUBLIC_SESSION_NAME
 from .utils import to_odps_scalar
 
@@ -118,7 +124,7 @@ class Connection:
         try:
             if self._project_as_schema is None:
                 self._project_as_schema = not self._odps.is_schema_namespace_enabled()
-        except:  # pragma: no cover
+        except Exception:  # pragma: no cover
             pass
 
         self._session_name = PUBLIC_SESSION_NAME
@@ -246,8 +252,9 @@ class Cursor:
         if self._description is None:
             self._check_download_session()
             self._description = []
-            if self._download_session is not None:
-                for col in self._download_session.schema.columns:
+            schema = self._get_download_schema()
+            if schema is not None:
+                for col in schema.columns:
                     self._description.append(
                         (col.name, col.type.name, None, None, None, None, True)
                     )
@@ -256,6 +263,14 @@ class Cursor:
                     ("_c0", "string", None, None, None, None, True)
                 )
         return self._description
+
+    def _get_download_schema(self):
+        # Tunnel readers expose ``schema`` while the inline (CSV) reader used
+        # for synchronous results only stores ``_schema``.
+        reader = self._download_session
+        if reader is None:
+            return None
+        return getattr(reader, "schema", None) or getattr(reader, "_schema", None)
 
     @staticmethod
     def _find_placeholders(sql, placeholder_type):
@@ -402,34 +417,59 @@ class Cursor:
     def _run_sqa_with_fallback(self, sql, **kw):
         odps = self._connection.odps
         session_name = self._connection._session_name
-        quota_name = self._connection._odps.quota_name
+        quota_name = kw.get("quota_name") or self._connection._odps.quota_name
+        hints = kw.get("hints")
         use_v2 = kw.get("use_mcqa_v2", False)
+        timeout = kw.get("timeout")
+        check_time = time.monotonic()
         inst = None
         while True:
             try:
                 if inst is None:
                     if use_v2:
                         inst = odps.run_sql_interactive(
-                            sql, quota_name=quota_name, use_mcqa_v2=use_v2
+                            sql,
+                            hints=hints,
+                            quota_name=quota_name,
+                            use_mcqa_v2=use_v2,
                         )
                     else:
-                        inst = odps.run_sql_interactive(sql, service_name=session_name)
+                        inst = odps.run_sql_interactive(
+                            sql, hints=hints, service_name=session_name
+                        )
+                    # v2 submits via the regular instance API, so the instance
+                    # must terminate before a tunnel download session can be
+                    # created. v1 relies on the sessional tunnel's own waiting.
+                    need_wait = use_v2
                 else:
+                    # retry after a transient tunnel error
+                    need_wait = True
+
+                if need_wait:
                     inst.wait_for_success(interval=0.5)
-                rd = inst.open_reader(tunnel=True, limit=False)
-                if not rd:
-                    raise ODPSError("failed to create direct download")
-                rd.schema  # will check if task is ok
-                self._download_session = rd
+
+                # _try_result_first reads the inline CSV result when usable;
+                # otherwise open_reader falls back to the tunnel path.
+                # For non-SELECT (e.g. EXPLAIN), InstanceTypeNotSupported is
+                # caught so _fetch_non_select() returns the raw text.
+                try:
+                    self._download_session = inst.open_reader(
+                        _try_result_first=True, tunnel=True, limit=False
+                    )
+                except InstanceTypeNotSupported:
+                    pass
                 return inst
             except ODPSError as e:
+                if timeout and time.monotonic() - check_time > timeout:
+                    raise
+
                 if self._sqa_error_should_fallback(str(e)):
-                    return odps.execute_sql(sql)
-                elif "OdpsTaskTimeout" in str(e):
+                    return odps.execute_sql(sql, hints=hints)
+                elif isinstance(e, InstanceNotTerminate) or "OdpsTaskTimeout" in str(e):
                     # tunnel failed to wait data cache result. fallback to normal wait.
-                    pass
+                    time.sleep(0.1)
                 else:
-                    raise e
+                    raise
 
     def cancel(self):
         if self._instance is not None:

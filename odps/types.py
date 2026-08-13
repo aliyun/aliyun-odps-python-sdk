@@ -201,6 +201,12 @@ class _CallableList(list):
 
 
 class PartitionSpec:
+    """Partition specification mapping partition keys to values.
+
+    Accepts a string (``"pt=20230101,region=us-west"``), a dict
+    (``{"pt": "20230101"}``), or another :class:`PartitionSpec` instance.
+    """
+
     def __init__(self, spec=None):
         self.kv = OrderedDict()
 
@@ -208,8 +214,12 @@ class PartitionSpec:
             self.kv = spec.kv.copy()
         elif isinstance(spec, dict):
             self.kv = OrderedDict(spec)
-        elif isinstance(spec, str):
-            splits = spec.split(",")
+        elif isinstance(spec, (list, str)):
+            if isinstance(spec, str):
+                splits = spec.split(",")
+            else:
+                splits = spec
+
             for sp in splits:
                 kv = sp.split("=")
                 if len(kv) != 2:
@@ -1902,15 +1912,10 @@ class Vector(CompositeDataType):
                 f"Vector element type must be float or double, got: {element_type.name}"
             )
 
-        # Validate dimension is positive integer and multiple of 32
+        # Validate dimension is positive integer
         if not isinstance(dimension, int) or dimension <= 0:
             raise ValueError(
                 f"Vector dimension must be a positive integer, got: {dimension}"
-            )
-
-        if dimension % 32 != 0:
-            raise ValueError(
-                f"Vector dimension must be a multiple of 32, got: {dimension}"
             )
 
         self.element_type = element_type
@@ -2090,6 +2095,16 @@ class Blob(OdpsPrimitive):
     _type_id = 15
 
 
+@_primitive_doc
+class Variant(OdpsPrimitive):
+    _type_id = 16
+
+    def cast_value(self, value, data_type):
+        raise ValueError(
+            f"Cannot cast value({value}) from type({data_type}) to type({self})"
+        )
+
+
 tinyint = Tinyint()
 smallint = Smallint()
 int_ = Int()
@@ -2108,6 +2123,7 @@ date = Date()
 json = Json()
 geography = Geography()
 blob = Blob()
+variant = Variant()
 
 _odps_primitive_data_types = dict(
     [
@@ -2131,6 +2147,7 @@ _odps_primitive_data_types = dict(
             json,
             geography,
             blob,
+            variant,
         )
     ]
 )
@@ -2264,6 +2281,7 @@ _odps_primitive_to_builtin_types = OrderedDict(
         (interval_year_month, Monthdelta),
         (date, _date),
         (json, (list, dict, str, int, float)),
+        (variant, ()),
     )
 )
 _odps_primitive_clses = set(type(dt) for dt in _odps_primitive_to_builtin_types.keys())

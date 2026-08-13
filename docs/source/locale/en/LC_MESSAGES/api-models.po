@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.12.3\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-02-17 13:45+0800\n"
+"POT-Creation-Date: 2026-08-04 13:45+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: en\n"
@@ -17,7 +17,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.16.0\n"
+"Generated-By: Babel 2.18.0\n"
 
 #: ../../source/api-models.rst:4
 msgid "Model objects"
@@ -198,8 +198,8 @@ msgstr ""
 
 #: odps.models.function.Function.drop:3 odps.models.function.Function.update:3
 #: odps.models.instance.Instance.stop:3
-#: odps.models.instance.Instance.wait_for_completion:9
-#: odps.models.instance.Instance.wait_for_success:9
+#: odps.models.instance.Instance.wait_for_completion:12
+#: odps.models.instance.Instance.wait_for_success:12
 #: odps.models.partition.Partition.drop:5
 #: odps.models.resource.FileResource.close:3
 #: odps.models.resource.FileResource.flush:4
@@ -677,7 +677,7 @@ msgstr ""
 
 #: odps.models.instance.Instance.get_task_cost:3
 #: odps.models.instance.Instance.get_task_info:3
-#: odps.models.instance.Instance.get_task_quota:4
+#: odps.models.instance.Instance.get_task_quota:5
 #: odps.models.instance.Instance.put_task_info:3 of
 msgid "name of the task"
 msgstr ""
@@ -754,7 +754,7 @@ msgid ""
 "larger than 30 seconds, otherwise empty dict is returned."
 msgstr ""
 
-#: odps.models.instance.Instance.get_task_quota:5 of
+#: odps.models.instance.Instance.get_task_quota:6 of
 msgid "quota info in dict format"
 msgstr ""
 
@@ -780,6 +780,12 @@ msgstr ""
 
 #: odps.models.instance.Instance.get_task_statuses:3 of
 msgid ""
+"if True, allow using cached status from sync response instead of making "
+"HTTP request"
+msgstr ""
+
+#: odps.models.instance.Instance.get_task_statuses:5 of
+msgid ""
 "a dict which key is the task name and value is the "
 ":class:`odps.models.Instance.Task` object"
 msgstr ""
@@ -789,7 +795,31 @@ msgid "Get a task's summary, mostly used for MapReduce."
 msgstr ""
 
 #: odps.models.instance.Instance.get_task_summary:4 of
-msgid "summary as a dict parsed from JSON"
+msgid ""
+"if True, return an empty TaskSummary with the finalized attribute when no"
+" summary body is available but the task ends."
+msgstr ""
+
+#: odps.models.instance.Instance.get_task_summary:7 of
+msgid ""
+"summary dict with extra attributes: * summary_text: plain text summary * "
+"json_summary: raw JSON string * finalized: (only when "
+"with_finalized=True) True if task is   finalized (summary won't change), "
+"False if not yet finalized,   None if server did not return the x-odps-"
+"task-finalized header."
+msgstr ""
+
+#: odps.models.instance.Instance.get_task_summary:7 of
+msgid ""
+"summary dict with extra attributes: * summary_text: plain text summary * "
+"json_summary: raw JSON string * finalized: (only when "
+"with_finalized=True) True if task is"
+msgstr ""
+
+#: odps.models.instance.Instance.get_task_summary:11 of
+msgid ""
+"finalized (summary won't change), False if not yet finalized, None if "
+"server did not return the x-odps-task-finalized header."
 msgstr ""
 
 #: odps.models.instance.Instance.get_task_workers:1 of
@@ -933,6 +963,14 @@ msgid ""
 "affect client behavior."
 msgstr ""
 
+#: odps.models.instance.Instance.wait_for_completion:9
+#: odps.models.instance.Instance.wait_for_success:9 of
+msgid ""
+"custom error handling function accepting an Exception instance as input. "
+"If return value is True, error will be raised. Otherwise retry will "
+"continue."
+msgstr ""
+
 #: odps.models.instance.Instance.wait_for_success:1 of
 msgid "Wait for instance to complete, and check if the instance is successful."
 msgstr ""
@@ -941,7 +979,7 @@ msgstr ""
 msgid "raise"
 msgstr ""
 
-#: odps.models.instance.Instance.wait_for_success:10 of
+#: odps.models.instance.Instance.wait_for_success:13 of
 msgid ":class:`odps.errors.ODPSError` if the instance failed"
 msgstr ""
 

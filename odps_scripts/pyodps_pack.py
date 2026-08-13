@@ -501,7 +501,7 @@ def _print_color(s, *args, **kw):
                 from pip._vendor.rich._windows import get_windows_console_features
 
                 supported_platform = get_windows_console_features().truecolor
-            except:
+            except Exception:
                 supported_platform = False
         else:
             supported_platform = plat != "Pocket PC"
@@ -1007,7 +1007,7 @@ def _rewrite_minikube_command(docker_cmd, done_timeout=10):
             try:
                 line_str = line.decode("utf-8").rstrip()
                 logger.debug("Output of minikube mount: %s", line_str)
-            except:
+            except Exception:
                 logger.debug("Output of minikube mount: %r", line)
             if b"mounted" in line:
                 mount_event.set()

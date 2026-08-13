@@ -115,7 +115,7 @@ class PandasEngine(Engine):
             for fo in self._file_objs:
                 try:
                     fo.close()
-                except:
+                except Exception:
                     pass
             self._file_objs = []
 

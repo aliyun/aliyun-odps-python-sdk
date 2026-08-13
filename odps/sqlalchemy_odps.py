@@ -378,12 +378,17 @@ class ODPSDialect(default.DefaultDialect):
                     kwargs["access_id"] = None
                     kwargs["secret_access_key"] = None
                 else:
-                    _sqlalchemy_global_reusable_odps[url_string] = ODPS(
+                    reuse_odps_kwargs = dict(
                         access_id=access_id,
                         secret_access_key=secret_access_key,
                         project=project,
                         endpoint=endpoint,
                         logview_host=logview_host,
+                    )
+                    if quota_name is not None:
+                        reuse_odps_kwargs["quota_name"] = quota_name
+                    _sqlalchemy_global_reusable_odps[url_string] = ODPS(
+                        **reuse_odps_kwargs
                     )
 
         return [], kwargs
@@ -429,7 +434,7 @@ class ODPSDialect(default.DefaultDialect):
         else:
             try:
                 return [schema.name for schema in conn.odps.list_schemas()]
-            except:
+            except Exception:
                 return ["default"]
 
     def has_table(self, connection, table_name, schema=None, **kw):
@@ -542,7 +547,7 @@ class ODPSDialect(default.DefaultDialect):
                     return True
                 cur_frame = cur_frame.f_back
             return False
-        except:  # pragma: no cover
+        except Exception:  # pragma: no cover
             return False
 
     def do_ping(self, dbapi_connection):
@@ -551,7 +556,7 @@ class ODPSDialect(default.DefaultDialect):
             return super(ODPSDialect, self).do_ping(dbapi_connection)
         except InternalServerError:
             raise
-        except BaseException as ex:
+        except Exception as ex:
             _, _, tb = sys.exc_info()
             if not self._is_stack_superset(tb):
                 raise

@@ -106,7 +106,7 @@ def pickled_runner(out_file, pickled, args, kwargs, **kw):
         deserial = loads(base64.b64decode(pickled), impl=impl, dump_code=DUMP_CODE)
         with open(out_file, "wb") as out_file:
             out_file.write(pickle.dumps(wrapper(deserial, args, kwargs)))
-    except:
+    except Exception:
         traceback.print_exc()
         raise
 
@@ -476,7 +476,7 @@ def test_cross_nested_yield_obj(config):
         executable = config.get('test', executable_key)
         if not executable:
             return
-    except:
+    except Exception:
         return
     func = _gen_nested_yield_obj()
     py3_serial = to_binary(_invoke_other_python_pickle(executable, _gen_nested_yield_obj))
@@ -490,7 +490,7 @@ def test_large_if_chain(config):
         executable = config.get('test', executable_key)
         if not executable:
             return
-    except:
+    except Exception:
         return
     func = _gen_large_if_chain_func()
     py3_serial = to_binary(_invoke_other_python_pickle(executable, _gen_large_if_chain_func))
@@ -504,7 +504,7 @@ def test_cross_nested_class_obj(config):
         executable = config.get('test', executable_key)
         if not executable:
             return
-    except:
+    except Exception:
         return
     cls = _gen_class_builder_func()()
     py3_serial = to_binary(_invoke_other_python_pickle(executable, _gen_class_builder_func))

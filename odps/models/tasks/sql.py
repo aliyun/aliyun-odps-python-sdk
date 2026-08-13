@@ -27,6 +27,7 @@ def collect_sql_settings(value, glob):
     from ... import __version__
 
     settings = OrderedDict()
+    settings.update(Task._merge_env_settings())
     if options.default_task_settings:
         settings.update(options.default_task_settings)
 

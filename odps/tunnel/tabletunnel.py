@@ -16,7 +16,6 @@
 
 import enum
 import functools
-import itertools
 import logging
 import sys
 import time
@@ -850,31 +849,29 @@ class TableStreamUploadSession(BaseTableTunnelSession):
     )
 
     class Slots:
-        def __init__(self, slot_elements):
+        def __init__(self, slot_elements, slot_idx=0):
             self._slots = []
             for value in slot_elements:
                 if len(value) != 2:
                     raise TunnelError("Invalid slot routes")
                 self._slots.append(Slot(value[0], value[1]))
 
-            # Use itertools.cycle for thread-safe iteration
-            if len(self._slots) > 0:
-                self._cycle = itertools.cycle(self._slots)
-            else:
-                self._cycle = None
+            self._idx = slot_idx
 
         def __len__(self):
             return len(self._slots)
 
         def __next__(self):
-            if self._cycle is None:
+            if not self._slots:
                 return None
-            return next(self._cycle)
+            slot = self._slots[self._idx % len(self._slots)]
+            self._idx += 1
+            return slot
 
-        def __iter__(self):
-            if self._cycle is None:
-                return iter(())
-            return self._cycle
+        def current(self):
+            if not self._slots:
+                return None
+            return self._slots[(self._idx + len(self._slots) - 1) % len(self._slots)]
 
     schema = serializers.JSONNodeReferenceField(TableSchema, "schema")
     id = serializers.JSONNodeField("session_name")
@@ -972,7 +969,9 @@ class TableStreamUploadSession(BaseTableTunnelSession):
         params["check_latest_schema"] = str(not self._allow_schema_mismatch).lower()
 
         url = self._get_resource()
-        resp = self._client.post(url, {}, params=params, headers=headers)
+        resp = utils.call_with_retry(
+            self._client.post, url, {}, params=params, headers=headers
+        )
         self.check_tunnel_response(resp)
 
         self.parse(resp, obj=self)
@@ -998,10 +997,14 @@ class TableStreamUploadSession(BaseTableTunnelSession):
             params["schema_version"] = str(self.schema_version)
 
         url = self._get_resource()
-        resp = self._client.get(url, params=params, headers=headers)
+        resp = utils.call_with_retry(
+            self._client.get, url, params=params, headers=headers
+        )
         self.check_tunnel_response(resp)
 
+        slot_idx = self.slots._idx
         self.parse(resp, obj=self)
+        self.slots._idx = slot_idx
         if self.schema is not None:
             self.schema.build_snapshot()
 
@@ -1011,12 +1014,14 @@ class TableStreamUploadSession(BaseTableTunnelSession):
         """
         params = self.get_common_params(uploadid=self.id)
 
-        slot = next(iter(self.slots))
+        slot = next(self.slots)
         headers = self.get_common_headers(content_length=0, tags=self._tags)
         headers["odps-tunnel-routed-server"] = slot.server
 
         url = self._get_resource()
-        resp = self._client.post(url, {}, params=params, headers=headers)
+        resp = utils.call_with_retry(
+            self._client.post, url, {}, params=params, headers=headers
+        )
         self.check_tunnel_response(resp)
 
     def reload_slots(self, slot, server, slot_num):
@@ -1026,10 +1031,8 @@ class TableStreamUploadSession(BaseTableTunnelSession):
             if slot.server != server:
                 slot.set_server(server)
 
-    def _open_writer(self, compress=False):
+    def _get_upload_params(self, slot, compress=False):
         compress_option = self._compress_option or CompressOption()
-
-        slot = next(iter(self.slots))
 
         headers = self.get_common_headers(chunked=True, tags=self._tags)
         headers.update(
@@ -1057,11 +1060,38 @@ class TableStreamUploadSession(BaseTableTunnelSession):
         params["check_latest_schema"] = str(not self._allow_schema_mismatch).lower()
 
         url = self._get_resource()
-        option = compress_option if compress else None
+        return url, headers, params
 
-        @_wrap_upload_call(self.id)
+    def _open_writer(self, compress=False):
+        slot = next(self.slots)
+        url, headers, params = self._get_upload_params(slot, compress=compress)
+        option = (self._compress_option or CompressOption()) if compress else None
+
         def upload_block(data):
-            return self._client.put(url, data=data, params=params, headers=headers)
+            @_wrap_upload_call(self.id)
+            def do_put():
+                chunk_size = options.chunk_size
+
+                def gen():
+                    offset = 0
+                    while offset < len(data):
+                        yield data[offset : offset + chunk_size]
+                        offset += chunk_size
+
+                return self._client.put(url, data=gen(), params=params, headers=headers)
+
+            def reset():
+                nonlocal url, headers, params
+                try:
+                    self.reload()
+                except TunnelError:
+                    pass
+                new_slot = self.slots.current()
+                url, headers, params = self._get_upload_params(
+                    new_slot, compress=compress
+                )
+
+            return utils.call_with_retry(do_put, reset_func=reset)
 
         writer = StreamRecordWriter(
             self.schema, upload_block, session=self, slot=slot, compress_option=option
@@ -1356,7 +1386,7 @@ class TableTunnel(BaseTunnel):
             project_odps = self._project.odps
             if isinstance(table, str):
                 table = project_odps.get_table(table, project=self._project.name)
-        except:
+        except Exception:
             pass
 
         project_name = self._project.name
@@ -1463,7 +1493,7 @@ class TableTunnel(BaseTunnel):
         :param int compress_level: compress level
         :param str schema: name of schema of the table
         :param bool overwrite: whether to overwrite the table
-        :param bool create_partition: whether to create partitition if not exist
+        :param bool create_partition: whether to create partition if not exist
         :param tags: tags of the upload session
         :type tags: str | list
 
@@ -1536,13 +1566,14 @@ class TableTunnel(BaseTunnel):
             level=compress_level,
             strategy=compress_strategy,
         )
-        version_need_reloaded = [False]
+        version_need_reloaded = False
 
         def schema_version_reloader():
+            nonlocal version_need_reloaded
             src_table = self._project.tables[table.name]
-            if version_need_reloaded[0]:
+            if version_need_reloaded:
                 src_table.reload_extend_info()
-            version_need_reloaded[0] = True
+            version_need_reloaded = True
             return src_table.schema_version
 
         return TableStreamUploadSession(

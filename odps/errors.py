@@ -68,7 +68,7 @@ def parse_response(resp, endpoint=None, tag=None):
                         request_id = obj.get("RequestId")
             else:
                 raise
-        clz = globals().get(code, ODPSError)
+        clz, msg = _resolve_error_class_and_message(code, msg)
         return clz(
             msg,
             request_id=request_id,
@@ -79,7 +79,7 @@ def parse_response(resp, endpoint=None, tag=None):
             status_code=resp.status_code,
             response_headers=resp.headers,
         )
-    except:
+    except Exception:
         # Error occurred during parsing the response. We ignore it and delegate
         # the situation to caller to handle.
         logger.debug(utils.stringify_expt())
@@ -134,9 +134,11 @@ _CODE_MAPPING = {
     "ODPS-0010000": "InternalServerError",
     "ODPS-0110141": "DataVersionError",
     "ODPS-0123055": "ScriptError",
-    "ODPS-0130131": "NoSuchTable",
     "ODPS-0130013": "NoPermission",
+    "ODPS-0130131": "NoSuchTable",
     "ODPS-0130161": "ParseError",
+    "ODPS-0420153": "InternalServerError",
+    "ODPS-0420411": "InvalidArgument",
     "ODPS-0430055": "InternalConnectionError",
 }
 
@@ -154,6 +156,48 @@ _CATALOG_ERROR_MAPPING = {
     "NotFound": "NoSuchObject",
 }
 
+
+def _resolve_error_class_and_message(code, msg):
+    """Resolve the error class and combined message from an ODPS error code.
+
+    Server responses may return the code as a full string like
+    ``"ODPS-0420411: Invalid argument - "`` rather than a bare class name.
+    This function extracts the ODPS code prefix by splitting on the first
+    colon and looks it up in ``globals()`` and ``_CODE_MAPPING``.
+    Falls back to a direct ``globals()`` lookup for backward compatibility
+    with codes that are already class names.
+
+    When the code is a composite string (not a bare class name), it already
+    contains a human-readable description, so the code and message are
+    combined into a single message string.
+
+    Returns a tuple ``(clz, msg)``.
+    """
+    msg = msg or ""
+
+    # Direct class-name lookup (e.g. "InvalidArgument", "NoSuchObject")
+    clz = globals().get(code)
+    if clz is not None:
+        return clz, msg
+
+    # Extract prefix by splitting on first colon
+    prefix = code.split(":", 1)[0] if code else None
+    prefix = prefix.strip()
+
+    if prefix:
+        # Try globals lookup on prefix (prefix itself may be a class name)
+        clz = globals().get(prefix)
+        # Try _CODE_MAPPING lookup on prefix
+        if clz is None:
+            class_name = _CODE_MAPPING.get(prefix)
+            clz = globals().get(class_name) if class_name else None
+
+    if isinstance(code, str) and not msg.startswith(code):
+        msg = code.rstrip() + " " + msg.lstrip()
+
+    return (clz or ODPSError), msg
+
+
 _nginx_bad_gateway_message = "the page you are looking for is currently unavailable"
 
 
@@ -168,9 +212,9 @@ def parse_instance_error(msg):
         host_id_node = root.find("./HostId")
         host_id = host_id_node.text if host_id_node else None
 
-        clz = globals().get(code, ODPSError)
+        clz, msg = _resolve_error_class_and_message(code, msg)
         return clz(msg, request_id=request_id, code=code, host_id=host_id)
-    except:
+    except Exception:
         pass
 
     msg = utils.to_str(raw_msg)
@@ -321,6 +365,10 @@ class InvalidStateSetting(ServerDefinedException):
     pass
 
 
+class InstanceNotTerminate(ServerDefinedException):
+    pass
+
+
 class InvalidProjectTable(ServerDefinedException):
     pass
 
@@ -413,7 +461,7 @@ class RequestTimeTooSkewed(ServerDefinedException):
             self.max_interval_date = int(kv_dict["max_interval_date"])
             self.expire_date = self._parse_error_date(kv_dict["expire_date"])
             self.now_date = self._parse_error_date(kv_dict["now_date"])
-        except:
+        except Exception:
             self.max_interval_date = None
             self.expire_date = None
             self.now_date = None
@@ -508,3 +556,18 @@ class EmptyTaskInfoError(ODPSError):
 
 class ChecksumError(ODPSError, IOError):
     pass
+
+
+class StreamTruncatedException(ODPSError, IOError):
+    """
+    Raised when a tunnel download stream ends without receiving the footer
+    tag (TUNNEL_META_COUNT), indicating the data stream may be truncated.
+
+    Unlike regular I/O errors, stream truncation means data was lost and
+    retrying will not recover it, so callers should not retry on this
+    exception.
+    """
+
+    def __init__(self, message, records_read=0):
+        super(StreamTruncatedException, self).__init__(message)
+        self.records_read = records_read

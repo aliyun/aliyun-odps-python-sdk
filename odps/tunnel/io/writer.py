@@ -53,7 +53,12 @@ from ..pb.wire_format import (
 )
 from ..wireconstants import ProtoWireConstants
 from .stream import RequestsIO, get_compress_stream
-from .types import _is_timestamp_struct_type, odps_schema_to_arrow_schema
+from .types import (
+    _is_arrow_array_too_large_error,
+    _is_timestamp_struct_type,
+    cast_large_offset_array,
+    odps_schema_to_arrow_schema,
+)
 
 try:
     if not options.force_py:
@@ -718,16 +723,8 @@ class StreamRecordWriter(BufferedRecordWriter):
         if self._enable_client_metrics:
             ts = time.monotonic()
 
-        def gen():  # synchronize chunk upload
-            data = self._buffer.getvalue()
-            chunk_size = options.chunk_size
-            while data:
-                to_send = data[:chunk_size]
-                data = data[chunk_size:]
-                yield to_send
-
         try:
-            return self._request_callback(gen())
+            return self._request_callback(self._buffer.getvalue())
         finally:
             if self._enable_client_metrics:
                 self._network_wall_time_ms += int(
@@ -813,6 +810,27 @@ class BaseArrowWriter:
         nano = col.field("nano")
         ns = pac.add(pac.multiply(sec, 1_000_000_000), nano)
         return ns.cast(pa.timestamp("ns"))
+
+    def _cast_to_arrow_type(self, col, name, target_type):
+        """Cast an Arrow column to the ODPS-mapped Arrow type.
+
+        large_string/large_binary columns that overflow the compact type's
+        32-bit offsets are split recursively instead of failing.
+        """
+        try:
+            return col.cast(target_type, safe=False)
+        except pa.ArrowInvalid as ex:
+            if len(col) > 1 and _is_arrow_array_too_large_error(
+                ex, col.type, target_type
+            ):
+                return cast_large_offset_array(col, target_type)
+            raise ValueError(
+                f"Failed to cast column {name} to type {target_type}"
+            ) from ex
+        except pa.ArrowNotImplementedError as ex:
+            raise ValueError(
+                f"Failed to cast column {name} to type {target_type}"
+            ) from ex
 
     def _build_pd_mappers(self):
         pa_dec_types = (pa.Decimal128Type,)
@@ -961,12 +979,21 @@ class BaseArrowWriter:
                 if tp == type_dict[lower_name]:
                     arrays.append(column_dict[lower_name])
                 else:
-                    try:
-                        arrays.append(column_dict[lower_name].cast(tp, safe=False))
-                    except (pa.ArrowInvalid, pa.ArrowNotImplementedError):
-                        raise ValueError(f"Failed to cast column {name} to type {tp}")
-            pa_type = type(arrow_data)
-            arrow_data = pa_type.from_arrays(arrays, names=self._arrow_schema.names)
+                    arrays.append(
+                        self._cast_to_arrow_type(column_dict[lower_name], name, tp)
+                    )
+            # An oversized large_string/large_binary column may have been split
+            # into a chunked array; a RecordBatch cannot hold chunked columns,
+            # so promote to a Table and let to_batches() emit one batch per chunk.
+            if isinstance(arrow_data, pa.RecordBatch) and any(
+                isinstance(a, pa.ChunkedArray) for a in arrays
+            ):
+                arrow_data = pa.Table.from_arrays(
+                    arrays, names=self._arrow_schema.names
+                )
+            else:
+                pa_type = type(arrow_data)
+                arrow_data = pa_type.from_arrays(arrays, names=self._arrow_schema.names)
 
         if isinstance(arrow_data, pa.RecordBatch):
             batches = [arrow_data]
@@ -1308,9 +1335,7 @@ class Upsert:
                 for fut in futs:
                     fut.result()
                 break
-            except KeyboardInterrupt:
-                raise TunnelError("flush interrupted")
-            except:
+            except Exception:
                 retry += 1
                 if retry == 3:
                     raise

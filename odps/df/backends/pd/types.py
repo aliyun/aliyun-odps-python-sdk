@@ -167,7 +167,7 @@ def pd_to_df_schema(
             try:
                 odps_type = odps_types.validate_data_type(type_mapping[names[i]])
                 df_type = odps_type_to_df_type(odps_type)
-            except:
+            except Exception:
                 df_type = types.validate_data_type(type_mapping[names[i]])
             df_types.append(df_type)
             continue

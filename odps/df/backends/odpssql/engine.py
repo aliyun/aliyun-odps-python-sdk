@@ -193,7 +193,7 @@ class ODPSSQLEngine(Engine):
                         logger.info(" ".join(output_parts))
                         last_log_progress = total_progress
                         progress_time = check_time
-                except:
+                except Exception:
                     # make sure progress display does not affect execution
                     pass
 

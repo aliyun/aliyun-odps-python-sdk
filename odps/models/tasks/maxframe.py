@@ -50,10 +50,9 @@ class MaxFrameTask(Task):
         self.properties["settings"] = "{}"
 
     def serial(self):
+        settings = self._merge_env_settings()
         if options.default_task_settings:
-            settings = options.default_task_settings.copy()
-        else:
-            settings = OrderedDict()
+            settings.update(options.default_task_settings)
 
         if self._major_version is not None:
             settings["odps.task.major.version"] = self._major_version

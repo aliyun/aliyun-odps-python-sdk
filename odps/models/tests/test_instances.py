@@ -193,7 +193,7 @@ def test_list_instances_in_page(odps):
     finally:
         try:
             instance.stop()
-        except:
+        except Exception:
             pass
         res.drop()
         fun.drop()
@@ -425,31 +425,33 @@ def test_instance_to_pandas(odps):
     pd.testing.assert_frame_equal(result, data[["a", "b"]])
 
     # test fallback when arrow format not supported
-    raised_list = [False]
+    raised = False
 
     def _new_to_pandas(self, *_, **__):
-        raised_list[0] = True
+        nonlocal raised
+        raised = True
         raise errors.ChecksumError("Checksum invalid")
 
     with mock.patch(
         "odps.models.readers.TunnelArrowReader.to_pandas", new=_new_to_pandas
     ):
         result = instance.to_pandas(columns=["a", "b"])
-        assert raised_list[0]
+        assert raised
         pd.testing.assert_frame_equal(result, data[["a", "b"]])
 
     # test fallback when instance tunnel not supported
-    raised_list = [False]
+    raised = False
 
     def _new_open_tunnel_reader(self, *_, **__):
-        raised_list[0] = True
+        nonlocal raised
+        raised = True
         raise errors.InvalidProjectTable("InvalidProjectTable")
 
     with mock.patch(
         "odps.models.instance.Instance._open_tunnel_reader", new=_new_open_tunnel_reader
     ):
         result = instance.to_pandas(columns=["a", "b"])
-        assert raised_list[0]
+        assert raised
         pd.testing.assert_frame_equal(result, data[["a", "b"]])
 
     batches = []
@@ -769,7 +771,10 @@ def test_instance_job_insight(odps):
             new=_new_get_job_insight_from_request,
         ):
             new_odps = ODPS(
-                account=odps.account, project=odps.project, endpoint=odps.endpoint
+                account=odps.account,
+                project=odps.project,
+                endpoint=odps.endpoint,
+                region_name="mock-region",
             )
             instance = odps.run_sql("drop table if exists non_exist_table_name")
 
@@ -900,7 +905,12 @@ def _make_rd(schema_types=None, status="FULL"):
 def _make_open_reader_inst(rd=None):
     inst = mock.Mock(spec=Instance)
     inst.get_result_descriptor.return_value = rd
-    inst._open_result_reader = mock.Mock(return_value=mock.Mock())
+    # Bind the real _open_result_reader so the ResultDescriptor validation
+    # (status / unsupported-type checks) that lives inside it actually runs.
+    # Only its dependencies are mocked.
+    inst._open_result_reader = Instance._open_result_reader.__get__(inst, Instance)
+    inst._check_get_task_name = mock.Mock(return_value="sql")
+    inst.get_task_result = mock.Mock(return_value="")
     inst.open_reader = Instance.open_reader.__get__(inst, Instance)
     return inst
 
@@ -930,7 +940,7 @@ def test_result_status(status, limit, legacy, should_raise, should_warn):
                 inst.open_reader(tunnel=False, limit=limit)
                 if should_warn:
                     assert any("truncated" in str(x.message).lower() for x in w)
-            inst._open_result_reader.assert_called_once()
+            inst.get_task_result.assert_called_once()
 
 
 @pytest.mark.parametrize(
@@ -956,7 +966,7 @@ def test_open_reader_schema(schema_types, legacy, should_raise):
                 inst.open_reader(tunnel=False)
         else:
             inst.open_reader(tunnel=False)
-            inst._open_result_reader.assert_called_once()
+            inst.get_task_result.assert_called_once()
 
 
 def test_task_summary_finalized_header():

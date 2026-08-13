@@ -954,7 +954,7 @@ class OdpsSQLCompiler(Backend):
             try:
                 re.compile(expr.pat)
                 is_regex = True
-            except:
+            except Exception:
                 is_regex = False
 
             if expr.pat == escape_pat or not is_regex:

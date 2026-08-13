@@ -91,7 +91,7 @@ class GlobalCopyDict(dict):
                 return
 
             obj.__module__ = pickle.whichmodule(obj, obj.__name__)
-        except:
+        except Exception:
             # all errors should be ignored
             pass
 
@@ -229,7 +229,7 @@ def build_user_locals(odps, args):
 
     try:
         yield local
-    except:
+    except Exception:
         local.check_changes(local_and_builtin_copy)
         raise
     finally:
@@ -280,8 +280,6 @@ def enable_profiling(run_flags):
             p.strip_dirs()
             p.sort_stats("cumtime")
             p.print_stats(40)
-    except:
-        raise
     finally:
         if profiler is not None:
             profiler.disable()
@@ -313,7 +311,7 @@ def _set_maxframe_options():
         if is_production:
             mf_options.is_production = is_production
             mf_options.schedule_id = os.environ.get("SKYNET_ID")
-    except:
+    except Exception:
         pass
 
 
@@ -341,7 +339,7 @@ def set_running_options(odps, args):
         for i in instances_copy:
             try:
                 odps.stop_instance(i)
-            except:
+            except Exception:
                 continue
         # check to avoid unexpected stack
         if cur_pid == os.getpid():

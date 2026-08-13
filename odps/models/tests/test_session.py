@@ -106,7 +106,7 @@ def auto_stop():
 def _dump_instance_results(instance):
     try:
         yield
-    except:
+    except Exception:
         logger.error("LOGVIEW: " + instance.get_logview_address())
         logger.error("Task results: %s", instance.get_task_results())
         try:

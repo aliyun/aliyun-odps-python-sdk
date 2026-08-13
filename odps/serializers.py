@@ -180,7 +180,7 @@ class HasSubModelField(SerializeField):
         if self._ref_module:
             try:
                 mod = importlib.import_module(self._ref_module).__dict__
-            except:
+            except Exception:
                 mod = None
             if mod:
                 yield mod
@@ -475,7 +475,7 @@ class XMLSerializableModel(SerializableModel):
         ):
             try:
                 prettified_xml = utils.to_text(xml_content, encoding="utf-8")
-            except:
+            except Exception:
                 # we fall back to legacy behavior to reparse and prettify
                 pass
 

@@ -208,7 +208,7 @@ if build_cmd != "clean" and not PYPY:  # skip cython in pypy
         setup_options["ext_modules"] = cythonize(
             extensions, force=force_recompile, **cythonize_kw
         )
-    except:
+    except Exception:
         pass
 
 if build_cmd != "clean" and has_jupyter:

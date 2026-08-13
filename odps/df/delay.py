@@ -91,7 +91,7 @@ class Delay:
                 for uf in _futures:
                     uf.result()
                 ui.notify('DataFrame execution succeeded')
-            except:
+            except Exception:
                 ui.notify('DataFrame execution failed')
                 raise
             finally:
@@ -106,7 +106,7 @@ class Delay:
                     return
                 try:
                     result_store[0] = src.result()
-                except:
+                except Exception:
                     exc_store[0] = sys.exc_info()[1:]
 
                 with self._lock:

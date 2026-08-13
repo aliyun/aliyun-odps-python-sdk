@@ -12,15 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import logging
 import time
 
+import mock
 import pytest
+import requests
 
 try:
     import pyarrow as pa
 except ImportError:
     pa = None
+
+from ..storage_api import SessionRequest, StorageApiClient
 
 if pa is not None:
     from ..storage_api import *
@@ -29,6 +34,62 @@ else:
     pytestmark = pytest.mark.skip("Need pyarrow to run this test")
 
 logger = logging.getLogger(__name__)
+
+
+def _make_mock_storage_api_client():
+    client = StorageApiClient.__new__(StorageApiClient)
+    client._quota_name = None
+    client._tags = []
+    client._get_resource = mock.Mock(return_value="http://localhost/commit")
+    client._fill_common_headers = mock.Mock(
+        side_effect=lambda headers=None: headers or {}
+    )
+    client._tunnel_rest = mock.Mock()
+
+    response = requests.Response()
+    response.status_code = 201
+    response._content = b"{}"
+    response.headers["x-odps-request-id"] = "request-id"
+    client._tunnel_rest.post.return_value = response
+    return client
+
+
+def _get_commit_body(client):
+    return json.loads(client._tunnel_rest.post.call_args[1]["data"])
+
+
+@pytest.mark.parametrize("timeout", [None, 0, 1, 600, 601])
+def test_commit_write_session_wait_timeout(timeout):
+    """wait_flying_writers_timeout_seconds is omitted when None and sent otherwise;
+    out-of-range values pass through for the server to enforce bounds."""
+    client = _make_mock_storage_api_client()
+
+    client.commit_write_session(
+        SessionRequest("session-id"),
+        ["commit-message"],
+        wait_flying_writers_timeout_seconds=timeout,
+    )
+
+    body = _get_commit_body(client)
+    assert body["CommitMessages"] == ["commit-message"]
+    if timeout is None:
+        assert "WaitFlyingWritersTimeoutSeconds" not in body
+    else:
+        assert body["WaitFlyingWritersTimeoutSeconds"] == timeout
+
+
+@pytest.mark.parametrize("timeout", [1.5, "1", True])
+def test_commit_write_session_rejects_invalid_wait_timeout(timeout):
+    client = _make_mock_storage_api_client()
+
+    with pytest.raises(ValueError):
+        client.commit_write_session(
+            SessionRequest("session-id"),
+            ["commit-message"],
+            wait_flying_writers_timeout_seconds=timeout,
+        )
+
+    client._tunnel_rest.post.assert_not_called()
 
 
 def test_storage_api(storage_api_client):
@@ -136,6 +197,7 @@ def test_storage_api(storage_api_client):
     req = TableBatchScanRequest()
 
     req.required_partitions = ["pt=test_write_1"]
+    req.enable_estimate_stats = True
 
     resp = storage_api_client.create_read_session(req)
 
@@ -157,6 +219,10 @@ def test_storage_api(storage_api_client):
 
         split_count = resp.split_count
         break
+
+    assert resp.session_stats is not None
+    assert resp.session_stats.estimated_row_count is not None
+    assert resp.session_stats.estimated_size is not None
 
     req = ReadRowsRequest(session_id=resp.session_id, max_batch_rows=4096)
 
@@ -185,3 +251,47 @@ def test_storage_api(storage_api_client):
         batches = [b for b in reader]
     logger.info(schema)
     logger.info(batches[0])
+
+
+def _create_ready_write_session(storage_api_client, partition_spec):
+    response = storage_api_client.create_write_session(
+        TableBatchWriteRequest(partition_spec=partition_spec)
+    )
+    assert response.status == Status.OK
+
+    request = SessionRequest(session_id=response.session_id)
+    for _ in range(60):
+        response = storage_api_client.get_write_session(request)
+        assert response.status == Status.OK
+        if response.session_status == SessionStatus.NORMAL:
+            return response.session_id
+        time.sleep(1)
+
+    raise AssertionError("Write session did not become NORMAL")
+
+
+def _single_row_batch(value):
+    return pa.RecordBatch.from_arrays(
+        [pa.array([value]), pa.array([value]), pa.array([value]), pa.array([value])],
+        names=["a", "b", "c", "d"],
+    )
+
+
+def test_commit_with_custom_wait_timeout(storage_api_client):
+    """E2E: commit accepts wait_flying_writers_timeout_seconds and succeeds."""
+    session_id = _create_ready_write_session(storage_api_client, "pt=commit_timeout")
+    writer = storage_api_client.write_rows_arrow(
+        WriteRowsRequest(session_id=session_id, block_number=0)
+    )
+    assert writer.write(_single_row_batch(1))
+    commit_message, success = writer.finish()
+    assert success is True
+
+    response = storage_api_client.commit_write_session(
+        SessionRequest(session_id=session_id),
+        [commit_message],
+        wait_flying_writers_timeout_seconds=600,
+    )
+
+    assert response.status == Status.OK
+    assert response.session_status == SessionStatus.COMMITTED

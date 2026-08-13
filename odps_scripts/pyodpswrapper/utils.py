@@ -29,7 +29,7 @@ def import_all_sub_modules(mod_name):
     """
     try:
         mod = __import__(mod_name)
-    except:
+    except Exception:
         return
     mod_path = os.path.dirname(mod.__file__)
     mod_parent = os.path.dirname(mod_path)
@@ -50,7 +50,7 @@ def import_all_sub_modules(mod_name):
                 if sub_mod_name in sys.modules:
                     continue
                 __import__(sub_mod_name)
-            except:
+            except Exception:
                 pass
 
 
@@ -61,7 +61,7 @@ def truncate_traceback(tb, filename):
             frame_file = cur_tb.tb_frame.f_code.co_filename
             if frame_file == filename:
                 break
-        except:
+        except Exception:
             cur_tb = None
             break
         cur_tb = cur_tb.tb_next
@@ -118,7 +118,7 @@ def kill_process_tree(pid, signum):
             process.send_signal(signum)
         except psutil.NoSuchProcess:
             logger.error("No such process, ignore it")
-        except:
+        except Exception:
             logger.exception("Fail to kill process")
 
     try:

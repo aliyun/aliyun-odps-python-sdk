@@ -74,9 +74,13 @@ class TunnelReaderMixin:
             func = self._get_split_reader(**get_split_reader_kw)
             try:
                 fut.set_result(func(None, session_id, start, split_count, split_id))
-            except:
+            except BaseException as ex:
                 ex_info = sys.exc_info()
                 fut.set_exception(ex_info[1])
+                # Need to reraise non-Exception bases to avoid swallowing
+                #  exceptions like KeyboardInterrupt
+                if not isinstance(ex, Exception):
+                    raise
 
         thread = threading.Thread(target=thread_runner)
         thread.start()

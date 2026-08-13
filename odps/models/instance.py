@@ -106,11 +106,16 @@ class SpawnedInstanceReaderMixin:
 
             data = utils.call_with_retry(_data_to_pandas)
             conn.send((idx, data, True))
-        except:
+        except BaseException as ex:
             try:
                 conn.send((idx, sys.exc_info(), False))
             except:
+                # Log under all conditions
                 logger.exception("Failed to write in process %d", idx)
+                raise
+            # Need to reraise non-Exception bases to avoid swallowing
+            #  exceptions like KeyboardInterrupt
+            if not isinstance(ex, Exception):
                 raise
 
     def _get_split_reader(self, columns=None, append_partitions=None):  # noqa
@@ -207,6 +212,8 @@ class Instance(XMLLazyLoad):
             pass
 
         if self._task_results is not None and len(self._task_results) > 0:
+            # FIXME: here is_sync is a workaround for sync instance.
+            #  It should be replaced with better sources once implemented
             self._is_sync = True
             self._status = Instance.Status.TERMINATED
         else:
@@ -931,7 +938,7 @@ class Instance(XMLLazyLoad):
                     logger.info(" ".join(output_parts))
                 self._last_progress_value = total_progress
                 self._last_progress_time = check_time
-        except:  # pragma: no cover
+        except Exception:  # pragma: no cover
             # make sure progress display does not affect execution
             pass
 
@@ -1304,7 +1311,55 @@ class Instance(XMLLazyLoad):
         )
 
     @utils.survey
-    def _open_result_reader(self, schema=None, task_name=None, timeout=None, **kw):
+    def _open_result_reader(
+        self,
+        schema=None,
+        task_name=None,
+        timeout=None,
+        limit=False,
+        require_result_descriptor=False,
+        **kw
+    ):
+        result_desc = self.get_result_descriptor()
+        if result_desc and result_desc.is_select:
+            status = result_desc.select_result_status
+            status_upper = status.upper() if isinstance(status, str) else None
+            if status_upper == "NO":
+                raise errors.NotSupportedError(
+                    f"Result read failed: (SelectResultStatus={status})."
+                )
+            if status_upper == "TRUNCATED":
+                if limit is None:
+                    warnings.warn(
+                        "Result has been truncated, you may not get all records."
+                    )
+                elif not limit:
+                    raise errors.NotSupportedError(
+                        "Result has been truncated and limit is not enabled. "
+                        "pass limit=True to accept truncated results."
+                    )
+            # Use ResultDescriptor schema for inline reader when not in legacy mode
+            if not options.legacy_cast_csv_result:
+                if result_desc.schema and any(
+                    CsvRecordReader._contains_unsupported_type(col.type)
+                    for col in result_desc.schema
+                ):
+                    unsupported_names = []
+                    for col in result_desc.schema:
+                        if CsvRecordReader._contains_unsupported_type(col.type):
+                            unsupported_names.append(col.type.name)
+                    raise errors.NotSupportedError(
+                        "Result contains unsupported column types (%s) "
+                        "that cannot be parsed from CSV. "
+                        "Pass tunnel=True to download data with correct format"
+                        % ", ".join(unsupported_names)
+                    )
+                schema = schema or result_desc.schema
+        elif require_result_descriptor:
+            raise errors.NotSupportedError(
+                "Requires result descriptor for the result interface"
+            )
+
         task_name = self._check_get_task_name(
             "sql", task_name=task_name, err_head="Cannot open reader"
         )
@@ -1393,6 +1448,7 @@ class Instance(XMLLazyLoad):
         >>>         # read all data, actually better to split into reading for many times
         """
         use_tunnel = kwargs.get("use_tunnel", kwargs.get("tunnel"))
+        try_result_first = kwargs.get("_try_result_first", False)
         auto_fallback_result = use_tunnel is None
 
         timeout = kwargs.pop("timeout", None)
@@ -1424,6 +1480,14 @@ class Instance(XMLLazyLoad):
         if kwargs["limit"] is None:
             kwargs["limit"] = False
             auto_fallback_protection = True
+
+        if try_result_first:
+            try:
+                return self._open_result_reader(
+                    require_result_descriptor=True, **kwargs
+                )
+            except errors.NotSupportedError:
+                pass
 
         if use_tunnel:
             try:
@@ -1471,44 +1535,6 @@ class Instance(XMLLazyLoad):
                     )
                     kwargs["limit"] = True
                     return self.open_reader(*args, **kwargs)
-
-        rd = self.get_result_descriptor()
-        if rd is None or not rd.is_select:
-            # No ResultDescriptor: offline mode — fall through to legacy inline path
-            return self._open_result_reader(*args, **kwargs)
-
-        status = rd.select_result_status
-        status_upper = status.upper() if isinstance(status, str) else None
-        if status_upper == "NO":
-            raise errors.NotSupportedError(
-                f"Result read failed: (SelectResultStatus={status})."
-            )
-        if status_upper == "TRUNCATED":
-            limit = kwargs.get("limit")
-            if limit is None:
-                warnings.warn("Result has been truncated, you may not get all records.")
-            elif not limit:
-                raise errors.NotSupportedError(
-                    "Result has been truncated and limit is not enabled. "
-                    "pass limit=True to accept truncated results."
-                )
-        # Use ResultDescriptor schema for inline reader when not in legacy mode
-        if not options.legacy_cast_csv_result:
-            if rd.schema and any(
-                CsvRecordReader._contains_unsupported_type(col.type)
-                for col in rd.schema
-            ):
-                unsupported_names = []
-                for col in rd.schema:
-                    if CsvRecordReader._contains_unsupported_type(col.type):
-                        unsupported_names.append(col.type.name)
-                raise errors.NotSupportedError(
-                    "Result contains unsupported column types (%s) "
-                    "that cannot be parsed from CSV. "
-                    "Pass tunnel=True to download data with correct format"
-                    % ", ".join(unsupported_names)
-                )
-            kwargs["schema"] = rd.schema
 
         return self._open_result_reader(*args, **kwargs)
 

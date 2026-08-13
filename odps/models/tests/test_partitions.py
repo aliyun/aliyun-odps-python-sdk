@@ -160,30 +160,31 @@ def test_iter_partition_condition(odps):
         list(tb.iterate_partitions("pt1~1"))
 
     orig_init = PartitionSpecCondition.__init__
-    part_prefix = [None]
+    part_prefix = None
 
     def new_init(self, *args, **kwargs):
+        nonlocal part_prefix
         orig_init(self, *args, **kwargs)
-        part_prefix[0] = self.partition_spec
+        part_prefix = self.partition_spec
 
     with mock.patch(
         "odps.models.partitions.PartitionSpecCondition.__init__", new=new_init
     ):
         # filter with predicates
         parts = list(tb.iterate_partitions("pt1=1"))
-        assert part_prefix[0] == PartitionSpec("pt1=1")
+        assert part_prefix == PartitionSpec("pt1=1")
         assert len(parts) == 2
         assert [str(pt) for pt in parts] == ["pt1='1',pt2='1'", "pt1='1',pt2='2'"]
 
         # filter with sub partitions
         parts = list(tb.iterate_partitions("pt2=1"))
-        assert part_prefix[0] is None
+        assert part_prefix is None
         assert len(parts) == 2
         assert [str(pt) for pt in parts] == ["pt1='1',pt2='1'", "pt1='2',pt2='1'"]
 
         # filter with inequalities
         parts = list(tb.iterate_partitions("pt2!=1"))
-        assert part_prefix[0] is None
+        assert part_prefix is None
         assert len(parts) == 2
         assert [str(pt) for pt in parts] == ["pt1='1',pt2='2'", "pt1='2',pt2='2'"]
 

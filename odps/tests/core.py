@@ -332,6 +332,7 @@ def global_locked(lock_key):
             try:
                 return func(*args, **kwargs)
             except:
+                # Mark error on all conditions
                 has_err = True
                 raise
             finally:
@@ -375,7 +376,7 @@ def run_sub_tests_in_parallel(n_parallel, sub_tests):
         for fut in futures:
             try:
                 fut.result()
-            except:
+            except Exception:
                 if first_exc is None:
                     first_exc = sys.exc_info()
         if first_exc is not None:

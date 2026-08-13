@@ -78,7 +78,7 @@ class RequestsIO:
             if self._record_io_time:
                 self._io_start_time = time.monotonic()
             self._resp = self._post_call(self.data_generator())
-        except:
+        except Exception:
             self._async_err = sys.exc_info()
         self._wait_obj = None
 
@@ -197,6 +197,7 @@ class ThreadRequestsIO(RequestsIO):
             self._reraise_errors()
             self._last_data = data
         except:
+            # Do cleanup on all errors
             self._last_data = None
             raise
         finally:
@@ -426,10 +427,24 @@ class SimpleInputStream:
     def __len__(self):
         return self._pos
 
-    def read(self, limit):
+    def read(self, limit=-1):
         if self._closed:
             raise IOError("closed")
 
+        if limit >= 0:
+            return self._read(limit)
+
+        bufs = list()
+        while True:
+            content = self._internal_read(self.READ_BLOCK_SIZE)
+            if not content:
+                break
+            bufs.append(content)
+        ret = bytes().join(bufs)
+        self._pos += len(ret)
+        return ret
+
+    def _read(self, limit):
         if limit <= self._buffered_len - self._buffered_pos:
             mv = self._internal_buffer[self._buffered_pos : self._buffered_pos + limit]
             self._buffered_pos += len(mv)

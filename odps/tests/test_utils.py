@@ -374,84 +374,86 @@ def test_split_backquoted():
 
 
 def test_call_with_retry():
-    retry_idx_list = [0]
-    ret_exc_list = [None]
+    retry_idx = 0
+    ret_exc = None
 
     def func(delay=0):
+        nonlocal retry_idx
         if delay:
             time.sleep(delay)
-        if retry_idx_list[0] < 3:
-            retry_idx_list[0] += 1
+        if retry_idx < 3:
+            retry_idx += 1
             raise ValueError
 
     # test cases for retry times
     with pytest.raises(ValueError):
-        retry_idx_list[0] = 0
+        retry_idx = 0
         utils.call_with_retry(func, retry_times=1, exc_type=(TypeError, ValueError))
-    assert retry_idx_list[0] == 2
+    assert retry_idx == 2
 
-    retry_idx_list[0] = 0
+    retry_idx = 0
     utils.call_with_retry(func, retry_times=3, exc_type=(TypeError, ValueError))
-    assert retry_idx_list[0] == 3
+    assert retry_idx == 3
 
-    retry_idx_list[0] = 0
+    retry_idx = 0
     utils.call_with_retry(
         func, retry_times=3, exc_type=lambda ex: isinstance(ex, ValueError)
     )
-    assert retry_idx_list[0] == 3
+    assert retry_idx == 3
 
-    retry_idx_list[0] = 0
+    retry_idx = 0
     with pytest.raises(ValueError):
         utils.call_with_retry(
             func, retry_times=3, exc_type=lambda ex: isinstance(ex, IndexError)
         )
-    assert retry_idx_list[0] == 1
+    assert retry_idx == 1
 
-    retry_idx_list[0] = 0
+    retry_idx = 0
     exc_info = utils.call_with_retry(
         func, retry_times=1, exc_type=(TypeError, ValueError), no_raise=True
     )
     assert isinstance(exc_info[1], ValueError)
-    assert retry_idx_list[0] == 2
+    assert retry_idx == 2
 
     delay_func = functools.partial(func, delay=0.5)
     with pytest.raises(ValueError):
-        retry_idx_list[0] = 0
+        retry_idx = 0
         utils.call_with_retry(delay_func, retry_times=None, retry_timeout=0.7)
-    assert retry_idx_list[0] == 2
+    assert retry_idx == 2
 
-    retry_idx_list[0] = 0
+    retry_idx = 0
     utils.call_with_retry(delay_func, retry_times=None, retry_timeout=2.2)
-    assert retry_idx_list[0] == 3
+    assert retry_idx == 3
 
-    retry_idx_list[0] = 0
+    retry_idx = 0
     exc_info = utils.call_with_retry(
         delay_func, retry_times=None, retry_timeout=0.7, no_raise=True
     )
     assert isinstance(exc_info[1], ValueError)
-    assert retry_idx_list[0] == 2
+    assert retry_idx == 2
 
     def on_exception_func(ex, ret_val=True):
-        ret_exc_list[0] = ex
+        nonlocal ret_exc
+        ret_exc = ex
         return ret_val
 
     with pytest.raises(ValueError):
-        retry_idx_list[0] = 0
+        retry_idx = 0
         utils.call_with_retry(
             delay_func,
             retry_times=None,
             retry_timeout=0.7,
             on_exception_func=on_exception_func,
         )
-    assert isinstance(ret_exc_list[0], ValueError)
-    assert retry_idx_list[0] == 2
+    assert isinstance(ret_exc, ValueError)
+    assert retry_idx == 2
 
-    retry_idx_list[0] = 0
+    retry_idx = 0
     utils.call_with_retry(
         delay_func,
         retry_times=None,
         retry_timeout=0.7,
         on_exception_func=functools.partial(on_exception_func, ret_val=False),
     )
-    assert isinstance(ret_exc_list[0], ValueError)
-    assert retry_idx_list[0] == 3
+    assert isinstance(ret_exc, ValueError)
+    assert retry_idx == 3

@@ -183,7 +183,7 @@ class XFlows(XMLIterable):
         )
         try:
             return project.instances.create(xml=inst_xml)
-        except:
+        except Exception:
             logger.error("Failed to create xflow instance. Job XML:\n%s", inst_xml)
             raise
 
