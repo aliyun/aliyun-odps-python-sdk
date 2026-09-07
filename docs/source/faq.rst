@@ -194,3 +194,26 @@ PyODPS DataFrame 不支持遍历每行数据。这样设计的原因是由于 Py
 `这篇 Pandas 文档 <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.memory_usage.html>`_ 。
 
 为减小读取数据时的内存开销，可以考虑使用 Arrow 格式，具体可以参考 :ref:`这里 <table_read>`。
+
+.. rubric:: CSV 写入 Decimal 列时为什么出现额外的小数位？
+    :name: faq_csv_decimal_precision
+
+``pandas.read_csv`` 默认可能把小数解析为二进制浮点数。此时原始十进制文本已经
+丢失精度；随后把浮点数转换为 ``Decimal`` 或写入 Decimal 列，都无法恢复原文。
+需要精确保存金额等十进制数据时，应在读取 CSV 时保留字符串或直接创建
+``Decimal``，而不是在读取之后对浮点列调用 ``astype(str)``。
+
+.. code-block:: python
+
+    from decimal import Decimal
+    import pandas as pd
+
+    frame = pd.read_csv(
+        "input.csv",
+        converters={"amount": lambda value: Decimal(value) if value.strip() else None},
+    )
+    o.write_table("target_table", frame)
+
+目标表的 Decimal precision 和 scale 必须能容纳输入值。空白字段在上述示例中
+转换为 ``None``；其他缺失值标记或非法数字应根据输入文件约定显式处理。
+此方式保留 CSV 的十进制值，不通过自动四舍五入掩盖已有浮点误差。
