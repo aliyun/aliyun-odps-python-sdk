@@ -33,8 +33,13 @@ Not gated (predate v3, work on both v2 and v3 servers):
 import json
 import logging
 
+from ..tunnel.retry import OptionsRetryPolicy, RetryContext, TunnelRetryHandler
 from .errors import StorageServiceError
+from .models.enums import WriteMode
+from .models.requests import BatchCompatibleCommitRequest
 from .models.responses import (
+    BatchCompatibleSessionResponse,
+    BatchCompatibleWriteResponse,
     CloseWriteStreamResponse,
     CreateInstanceReadSessionResponse,
     CreateTableReadSessionResponse,
@@ -86,10 +91,37 @@ class StorageStub:
     def __init__(self, rest, api_version="2"):
         self._rest = rest
         self._api_version = str(api_version)
+        self._retry_handler = TunnelRetryHandler(
+            default_retry_policy=OptionsRetryPolicy()
+        )
 
     @property
     def api_version(self):
         return self._api_version
+
+    def _execute(self, func, *args, **kwargs):
+        """Execute an HTTP call through the retry handler.
+
+        Every HTTP call is wrapped in the retry handler.  The retry
+        semantics (429 infinite, 408/5xx ×7, 4xx no-retry) are shared
+        with the tunnel via :class:`~odps.tunnel.retry.TunnelRetryHandler`.
+
+        Each actual request carries retry-correlation headers
+        (``odps-tunnel-retry-trace-id`` + ``odps-tunnel-retry-index``).
+        The caller-supplied ``headers`` map is never mutated: a copy is
+        stamped per attempt, and a fresh :class:`RetryContext` sequence is
+        used per call.
+        """
+        caller_headers = kwargs.pop("headers", None)
+
+        def action(ctx):
+            request_headers = dict(caller_headers or {})
+            ctx.inject_headers(request_headers)
+            request_kwargs = dict(kwargs)
+            request_kwargs["headers"] = request_headers
+            return func(*args, **request_kwargs)
+
+        return self._retry_handler.execute_with_retry_ctx(action)
 
     def _supports_v3(self):
         """True when ``api_version >= 3``.  Gates v3-era features only."""
@@ -138,7 +170,9 @@ class StorageStub:
         params = self._build_params(table_id.to_target(), "TableCreateReadSession")
         headers = self._build_common_headers()
         body = json.dumps(request.to_dict())
-        resp = self._rest.post(url, data=body, params=params, headers=headers)
+        resp = self._execute(
+            self._rest.post, url, data=body, params=params, headers=headers
+        )
         return self._parse_response(resp, CreateTableReadSessionResponse)
 
     def get_table_read_session(self, table_id, session_id, refresh=False):
@@ -150,7 +184,9 @@ class StorageStub:
             {"SessionId": session_id, "session_refresh": str(refresh).lower()},
         )
         headers = self._build_common_headers()
-        resp = self._rest.post(url, data="{}", params=params, headers=headers)
+        resp = self._execute(
+            self._rest.post, url, data="{}", params=params, headers=headers
+        )
         return self._parse_response(resp, GetTableReadSessionResponse)
 
     def create_table_read_stream(
@@ -177,8 +213,8 @@ class StorageStub:
         if accept_encoding:
             headers["ACCEPT-ENCODING"] = accept_encoding
         body = json.dumps(request.to_dict())
-        return self._rest.post(
-            url, data=body, params=params, headers=headers, stream=True
+        return self._execute(
+            self._rest.post, url, data=body, params=params, headers=headers, stream=True
         )
 
     def preview(self, table_id, request):
@@ -191,8 +227,8 @@ class StorageStub:
             params["Partition"] = request.partition
         headers = self._build_common_headers()
         body = json.dumps(request.to_dict())
-        return self._rest.post(
-            url, data=body, params=params, headers=headers, stream=True
+        return self._execute(
+            self._rest.post, url, data=body, params=params, headers=headers, stream=True
         )
 
     # ---- Table write ----
@@ -204,7 +240,9 @@ class StorageStub:
         params.update(self._write_mode_params(write_mode))
         headers = self._build_common_headers()
         body = json.dumps(request.to_dict())
-        resp = self._rest.post(url, data=body, params=params, headers=headers)
+        resp = self._execute(
+            self._rest.post, url, data=body, params=params, headers=headers
+        )
         return self._parse_response(resp, CreateTableWriteSessionResponse)
 
     def get_table_write_session(self, table_id, session_id, write_mode):
@@ -217,7 +255,9 @@ class StorageStub:
         )
         params.update(self._write_mode_params(write_mode))
         headers = self._build_common_headers()
-        resp = self._rest.post(url, data="{}", params=params, headers=headers)
+        resp = self._execute(
+            self._rest.post, url, data="{}", params=params, headers=headers
+        )
         return self._parse_response(resp, GetTableWriteSessionResponse)
 
     def commit_table_write_session(
@@ -246,7 +286,7 @@ class StorageStub:
                     "StreamVersions": stream_versions,
                 }
             )
-        self._rest.post(url, data=body, params=params, headers=headers)
+        self._execute(self._rest.post, url, data=body, params=params, headers=headers)
 
     def abort_table_write_session(
         self,
@@ -264,7 +304,7 @@ class StorageStub:
         )
         params.update(self._write_mode_params(write_mode))
         headers = self._build_common_headers(route_token=route_token)
-        self._rest.post(url, data="{}", params=params, headers=headers)
+        self._execute(self._rest.post, url, data="{}", params=params, headers=headers)
 
     def create_table_write_stream(
         self, table_id, session_id, request, route_token, write_mode
@@ -279,7 +319,9 @@ class StorageStub:
         params.update(self._write_mode_params(write_mode))
         headers = self._build_common_headers(route_token=route_token)
         body = json.dumps(request.to_dict())
-        resp = self._rest.post(url, data=body, params=params, headers=headers)
+        resp = self._execute(
+            self._rest.post, url, data=body, params=params, headers=headers
+        )
         return self._parse_response(resp, CreateWriteStreamResponse)
 
     def get_write_stream(self, table_id, request, route_token, write_mode):
@@ -299,7 +341,9 @@ class StorageStub:
             params["ExactlyOnceMode"] = "true"
         headers = self._build_common_headers(route_token=route_token)
         body = json.dumps(request.to_dict())
-        resp = self._rest.post(url, data=body, params=params, headers=headers)
+        resp = self._execute(
+            self._rest.post, url, data=body, params=params, headers=headers
+        )
         return self._parse_response(resp, GetWriteStreamResponse, set_route_token=False)
 
     def write_table(
@@ -342,7 +386,9 @@ class StorageStub:
         headers["Content-Type"] = "application/octet-stream"
         if access_token:
             headers[WRITE_ACCESS_TOKEN_HEADER] = access_token
-        return self._rest.post(url, data=arrow_body, params=params, headers=headers)
+        return self._execute(
+            self._rest.post, url, data=arrow_body, params=params, headers=headers
+        )
 
     def parse_write_stream_response(self, http_response):
         """Parse the writeTable response body into :class:`WriteStreamResponse`."""
@@ -360,7 +406,9 @@ class StorageStub:
         params.update(self._write_mode_params(write_mode))
         headers = self._build_common_headers(route_token=route_token)
         body = json.dumps(request.to_dict())
-        resp = self._rest.post(url, data=body, params=params, headers=headers)
+        resp = self._execute(
+            self._rest.post, url, data=body, params=params, headers=headers
+        )
         return self._parse_response(
             resp, CloseWriteStreamResponse, set_route_token=False
         )
@@ -378,9 +426,91 @@ class StorageStub:
             {"SessionId": session_id},
         )
         headers = self._build_common_headers(route_token=route_token)
-        resp = self._rest.post(url, data="{}", params=params, headers=headers)
+        resp = self._execute(
+            self._rest.post, url, data="{}", params=params, headers=headers
+        )
         resp_json = _parse_json_response(resp)
         return WriteSchema.from_dict(resp_json.get("TableSchema"))
+
+    # ---- Batch-compatible block protocol ----
+
+    def _batch_compatible_params(self, table_id, action, session_id=None):
+        """Build query params for a batch-compatible operation."""
+        params = self._build_params(table_id.to_target(), action)
+        params["WriteMode"] = WriteMode.BATCH_COMPATIBLE.value
+        if session_id is not None:
+            params["SessionId"] = session_id
+        return params
+
+    def create_batch_compatible_session(self, table_id, request):
+        """Action=TableCreateWriteSession with ``enableQuotaToken=true``."""
+        url = self._url()
+        params = self._batch_compatible_params(table_id, "TableCreateWriteSession")
+        params["enableQuotaToken"] = "true"
+        headers = self._build_common_headers()
+        body = json.dumps(request.to_dict())
+        resp = self._execute(
+            self._rest.post, url, data=body, params=params, headers=headers
+        )
+        return self._parse_response(resp, BatchCompatibleSessionResponse)
+
+    def get_batch_compatible_session(self, table_id, session_id, route_token=None):
+        """Action=TableGetWriteSession (batch-compatible)."""
+        url = self._url()
+        params = self._batch_compatible_params(
+            table_id, "TableGetWriteSession", session_id
+        )
+        headers = self._build_common_headers(route_token=route_token)
+        resp = self._execute(
+            self._rest.post, url, data="{}", params=params, headers=headers
+        )
+        return self._parse_response(resp, BatchCompatibleSessionResponse)
+
+    def write_batch_compatible_block(
+        self,
+        table_id,
+        session_id,
+        block_number,
+        attempt_number,
+        arrow_body,
+        route_token,
+        quota_token,
+    ):
+        """Action=TableWrite for one block/attempt pair.
+
+        Sends the pre-assembled Arrow IPC stream body and returns the
+        parsed :class:`BatchCompatibleWriteResponse`.
+        """
+        url = self._url()
+        params = self._batch_compatible_params(table_id, "TableWrite", session_id)
+        params["BlockNumber"] = str(block_number)
+        params["AttemptNumber"] = str(attempt_number)
+        params["quotaToken"] = quota_token
+        headers = self._build_common_headers(route_token=route_token)
+        headers["Content-Type"] = "application/vnd.apache.arrow.stream"
+        resp = self._execute(
+            self._rest.post, url, data=arrow_body, params=params, headers=headers
+        )
+        resp_json = _parse_json_response(resp)
+        response = BatchCompatibleWriteResponse.from_dict(resp_json)
+        _update_request_id(response, resp)
+        return response
+
+    def commit_batch_compatible_session(
+        self, table_id, session_id, route_token, commit_messages
+    ):
+        """Action=TableCommitWriteSession for batch-compatible mode."""
+        url = self._url()
+        params = self._batch_compatible_params(
+            table_id, "TableCommitWriteSession", session_id
+        )
+        headers = self._build_common_headers(route_token=route_token)
+        request = BatchCompatibleCommitRequest(commit_messages=commit_messages)
+        body = json.dumps(request.to_dict())
+        resp = self._execute(
+            self._rest.post, url, data=body, params=params, headers=headers
+        )
+        return self._parse_response(resp, BatchCompatibleSessionResponse)
 
     # ---- Instance read ----
 
@@ -392,7 +522,9 @@ class StorageStub:
         )
         headers = self._build_common_headers()
         body = json.dumps(request.to_dict())
-        resp = self._rest.post(url, data=body, params=params, headers=headers)
+        resp = self._execute(
+            self._rest.post, url, data=body, params=params, headers=headers
+        )
         response = CreateInstanceReadSessionResponse.from_dict(
             _parse_json_response(resp)
         )
@@ -408,7 +540,7 @@ class StorageStub:
             {"SessionId": session_id},
         )
         headers = self._build_common_headers()
-        resp = self._rest.get(url, params=params, headers=headers)
+        resp = self._execute(self._rest.get, url, params=params, headers=headers)
         response = CreateInstanceReadSessionResponse.from_dict(
             _parse_json_response(resp)
         )
@@ -437,8 +569,8 @@ class StorageStub:
         if accept_encoding:
             headers["ACCEPT-ENCODING"] = accept_encoding
         body = json.dumps(request.to_dict())
-        return self._rest.post(
-            url, data=body, params=params, headers=headers, stream=True
+        return self._execute(
+            self._rest.post, url, data=body, params=params, headers=headers, stream=True
         )
 
     # ---- Blob ----
@@ -451,8 +583,8 @@ class StorageStub:
         if accept_encoding:
             headers["ACCEPT-ENCODING"] = accept_encoding
         body = json.dumps({"BlobReferences": references})
-        return self._rest.post(
-            url, data=body, params=params, headers=headers, stream=True
+        return self._execute(
+            self._rest.post, url, data=body, params=params, headers=headers, stream=True
         )
 
     def table_write_blob(
@@ -466,7 +598,12 @@ class StorageStub:
         headers["Content-Type"] = "application/octet-stream"
         if content_encoding:
             headers["Content-Encoding"] = content_encoding
-        return self._rest.post(url, data=data, params=params, headers=headers)
+        # Blob uploads bypass retry (streaming generators are not
+        # replayable), but still carry a fresh retry-correlation context
+        # (trace id + index 0).
+        request_headers = dict(headers)
+        RetryContext().inject_headers(request_headers)
+        return self._rest.post(url, data=data, params=params, headers=request_headers)
 
     def table_batch_write_blob(
         self, table_id, params_extra, data, route_token=None, content_encoding=None
@@ -479,4 +616,9 @@ class StorageStub:
         headers["Content-Type"] = "application/octet-stream"
         if content_encoding:
             headers["Content-Encoding"] = content_encoding
-        return self._rest.post(url, data=data, params=params, headers=headers)
+        # Blob uploads bypass retry (streaming generators are not
+        # replayable), but still carry a fresh retry-correlation context
+        # (trace id + index 0).
+        request_headers = dict(headers)
+        RetryContext().inject_headers(request_headers)
+        return self._rest.post(url, data=data, params=params, headers=request_headers)

@@ -17,8 +17,11 @@
 import enum
 import functools
 import logging
+import random
 import sys
+import threading
 import time
+import weakref
 from datetime import datetime
 
 import requests
@@ -26,7 +29,7 @@ import requests
 from .. import errors, options, serializers, types, utils
 from ..models import Projects, Record, TableSchema
 from ..types import Column
-from .base import TUNNEL_VERSION, BaseTunnel
+from .base import TUNNEL_VERSION, BaseTunnel, TunnelRetryMixin
 from .errors import TunnelError, TunnelReadTimeout, TunnelWriteTimeout
 from .io.reader import (
     ArrowRecordReader,
@@ -43,6 +46,7 @@ from .io.writer import (
     StreamRecordWriter,
     Upsert,
 )
+from .retry import BAD_GATEWAY, GATEWAY_TIMEOUT, OptionsRetryPolicy, TunnelRetryHandler
 
 try:
     import numpy as np
@@ -76,7 +80,9 @@ def _wrap_upload_call(request_id):
     return wrapper
 
 
-class BaseTableTunnelSession(serializers.JSONSerializableModel):
+class BaseTableTunnelSession(serializers.JSONSerializableModel, TunnelRetryMixin):
+    __slots__ = ("_retry_handler",)
+
     @staticmethod
     def get_common_headers(content_length=None, chunked=False, tags=None):
         header = {
@@ -243,8 +249,11 @@ class TableDownloadSession(BaseTableTunnelSession):
         url = self._table.table_resource()
         ts = time.monotonic()
         try:
-            resp = self._client.post(
-                url, {}, params=params, headers=headers, timeout=timeout
+            resp = self.retry_handler.execute_with_retry_headers(
+                lambda stamped: self._client.post(
+                    url, {}, params=params, headers=stamped, timeout=timeout
+                ),
+                headers,
             )
         except requests.exceptions.ReadTimeout:
             if callable(options.tunnel_session_create_timeout_callback):
@@ -275,7 +284,10 @@ class TableDownloadSession(BaseTableTunnelSession):
         headers = self.get_common_headers(content_length=0, tags=self._tags)
 
         url = self._table.table_resource()
-        resp = self._client.get(url, params=params, headers=headers)
+        resp = self.retry_handler.execute_with_retry_headers(
+            lambda stamped: self._client.get(url, params=params, headers=stamped),
+            headers,
+        )
         self.check_tunnel_response(resp)
 
         self.parse(resp, obj=self)
@@ -306,8 +318,11 @@ class TableDownloadSession(BaseTableTunnelSession):
             params["raw_size"] = str(raw_size)
 
         url = self._table.table_resource()
-        resp = self._client.get(
-            url, stream=True, actions=actions, params=params, headers=headers
+        resp = self.retry_handler.execute_with_retry_headers(
+            lambda stamped: self._client.get(
+                url, stream=True, actions=actions, params=params, headers=stamped
+            ),
+            headers,
         )
         self.check_tunnel_response(resp)
 
@@ -562,12 +577,18 @@ class TableUploadSession(BaseTableTunnelSession):
 
         url = self._table.table_resource()
         if reload:
-            resp = utils.call_with_retry(
-                _call_tunnel, self._client.get, url, params=params, headers=headers
+            resp = self.retry_handler.execute_with_retry_headers(
+                lambda stamped: _call_tunnel(
+                    self._client.get, url, params=params, headers=stamped
+                ),
+                headers,
             )
         else:
-            resp = utils.call_with_retry(
-                _call_tunnel, self._client.post, url, {}, params=params, headers=headers
+            resp = self.retry_handler.execute_with_retry_headers(
+                lambda stamped: _call_tunnel(
+                    self._client.post, url, {}, params=params, headers=stamped
+                ),
+                headers,
             )
 
         self.parse(resp, obj=self)
@@ -630,17 +651,17 @@ class TableUploadSession(BaseTableTunnelSession):
             def upload_block(blockid, data):
                 params["blockid"] = blockid
 
-                def upload_func():
+                def upload_func(stamped):
                     if isinstance(data, (bytes, bytearray)):
                         to_upload = self._iter_data_in_batches(data)
                     else:
                         to_upload = data
                     return self._client.put(
-                        url, data=to_upload, params=params, headers=headers
+                        url, data=to_upload, params=params, headers=stamped
                     )
 
-                return utils.call_with_retry(
-                    upload_func, on_exception_func=on_exception
+                return self.retry_handler.execute_with_retry_headers(
+                    upload_func, headers, on_exception=on_exception
                 )
 
             if writer_cls is ArrowWriter:
@@ -662,6 +683,8 @@ class TableUploadSession(BaseTableTunnelSession):
 
             @_wrap_upload_call(self.id)
             def upload(data):
+                # data is a generator from RequestsIO.data_generator() —
+                # consumed once, cannot be replayed on retry.
                 return self._client.put(url, data=data, params=params, headers=headers)
 
             if writer_cls is ArrowWriter:
@@ -774,27 +797,29 @@ class TableUploadSession(BaseTableTunnelSession):
         params = self.get_common_params(uploadid=self.id)
         url = self._table.table_resource()
 
-        resp = utils.call_with_retry(
-            self._client.post,
-            url,
-            "",
-            params=params,
-            headers=headers,
-            exc_type=(
-                requests.Timeout,
-                requests.ConnectionError,
-                errors.InternalServerError,
-            ),
+        resp = self.retry_handler.execute_with_retry_headers(
+            lambda stamped: self._client.post(url, "", params=params, headers=stamped),
+            headers,
         )
         self.parse(resp, obj=self)
 
 
 class Slot:
+    """A tunnel slot route: ``slot_id`` + ``ip:port`` worker address.
+
+    The constructor validates that both slot id and server are
+    non-empty. ``set_server`` parses ``ip:port``; an invalid format or
+    empty ip raises ``TunnelError`` so a stale address is never
+    silently retained.
+    """
+
     def __init__(self, slot, server):
+        if slot is None or slot == "" or not server:
+            raise TunnelError("Slot or Routed server is empty")
         self._slot = slot
         self._ip = None
         self._port = None
-        self.set_server(server, True)
+        self.set_server(server, check_empty=True)
 
     @property
     def slot(self):
@@ -813,18 +838,39 @@ class Slot:
         return str(self._ip) + ":" + str(self._port)
 
     def set_server(self, server, check_empty=False):
-        if len(server.split(":")) != 2:
+        """Parse ``server`` (``ip:port``) and update the address.
+
+        With ``check_empty`` (used by the constructor) an empty ip is
+        also rejected. Without it — the reload path — an empty ip still
+        raises, while the port is always re-parsed so a
+        stale value can never linger.
+        """
+        segs = server.split(":")
+        if len(segs) != 2:
             raise TunnelError(f"Invalid slot format: {server}")
 
-        ip, port = server.split(":")
+        ip, port = segs
+        if check_empty and (not ip or not port):
+            raise TunnelError(f"Empty server ip or port: {server}")
+        if not ip:
+            raise TunnelError(f"Empty server ip: {server}")
+        if not port:
+            raise TunnelError(f"Empty server port: {server}")
+        self._ip = ip
+        self._port = int(port)
 
-        if check_empty:
-            if (not ip) or (not port):
-                raise TunnelError("Empty server ip or port")
-        if ip:
-            self._ip = ip
-        if port:
-            self._port = int(port)
+    def __eq__(self, other):
+        if not isinstance(other, Slot):
+            return NotImplemented
+        return (
+            self._slot == other._slot
+            and self._ip == other._ip
+            and self._port == other._port
+        )
+
+    # Slot is mutable (set_server mutates ip/port); compare by value and
+    # stay unhashable so equal-but-mutated instances cannot key a dict.
+    __hash__ = None
 
 
 class TableStreamUploadSession(BaseTableTunnelSession):
@@ -846,32 +892,55 @@ class TableStreamUploadSession(BaseTableTunnelSession):
         "_tags",
         "_slot_num",
         "_dynamic_partition",
+        "_reloading",
+        "_last_reload_time",
+        "_reload_throttle",
     )
 
     class Slots:
-        def __init__(self, slot_elements, slot_idx=0):
+        """Round-robin slot iterator with a random start offset.
+
+        ``next()`` is synchronized so concurrent writers do not observe
+        the same slot index mid-increment.
+        """
+
+        def __init__(self, slot_elements, slot_idx=None):
             self._slots = []
             for value in slot_elements:
                 if len(value) != 2:
                     raise TunnelError("Invalid slot routes")
                 self._slots.append(Slot(value[0], value[1]))
 
-            self._idx = slot_idx
+            if slot_idx is not None:
+                self._idx = slot_idx
+            elif self._slots:
+                self._idx = random.randint(0, len(self._slots) - 1)
+            else:
+                self._idx = 0
+            self._lock = threading.Lock()
 
         def __len__(self):
             return len(self._slots)
 
-        def __next__(self):
+        def next(self):
+            """Return the next slot in round-robin order (thread-safe)."""
             if not self._slots:
                 return None
-            slot = self._slots[self._idx % len(self._slots)]
-            self._idx += 1
-            return slot
+            with self._lock:
+                slot = self._slots[self._idx % len(self._slots)]
+                self._idx += 1
+                return slot
+
+        def __next__(self):
+            return self.next()
 
         def current(self):
             if not self._slots:
                 return None
-            return self._slots[(self._idx + len(self._slots) - 1) % len(self._slots)]
+            with self._lock:
+                return self._slots[
+                    (self._idx + len(self._slots) - 1) % len(self._slots)
+                ]
 
     schema = serializers.JSONNodeReferenceField(TableSchema, "schema")
     id = serializers.JSONNodeField("session_name")
@@ -923,6 +992,13 @@ class TableStreamUploadSession(BaseTableTunnelSession):
         self._slot_num = slot_num
         self._dynamic_partition = dynamic_partition
 
+        # Slot-route reload state. ``_reloading`` acts as a non-reentrant
+        # CAS flag (acquired via ``acquire(blocking=False)``) so concurrent
+        # non-force reloads collapse to a single in-flight request.
+        self._reloading = threading.Lock()
+        self._last_reload_time = 0.0
+        self._reload_throttle = options.tunnel.stream_reload_throttle
+
         self._tags = tags or options.tunnel.tags
         if isinstance(self._tags, str):
             self._tags = self._tags.split(",")
@@ -969,8 +1045,9 @@ class TableStreamUploadSession(BaseTableTunnelSession):
         params["check_latest_schema"] = str(not self._allow_schema_mismatch).lower()
 
         url = self._get_resource()
-        resp = utils.call_with_retry(
-            self._client.post, url, {}, params=params, headers=headers
+        resp = self.retry_handler.execute_with_retry_headers(
+            lambda stamped: self._client.post(url, {}, params=params, headers=stamped),
+            headers,
         )
         self.check_tunnel_response(resp)
 
@@ -990,23 +1067,58 @@ class TableStreamUploadSession(BaseTableTunnelSession):
     def _get_resource(self):
         return self._table.table_resource() + "/streams"
 
-    def reload(self):
-        params = self.get_common_params(uploadid=self.id)
-        headers = self.get_common_headers(content_length=0, tags=self._tags)
-        if self.schema_version is not None:
-            params["schema_version"] = str(self.schema_version)
+    def reload(self, force=False, readonly=False):
+        """Refresh the session's slot routes from the server.
 
-        url = self._get_resource()
-        resp = utils.call_with_retry(
-            self._client.get, url, params=params, headers=headers
-        )
-        self.check_tunnel_response(resp)
+        Parameters
+        ----------
+        force : bool
+            Bypass the 30s throttle and the in-flight de-duplication, and
+            always issue a GET. Used after slot-count changes and on
+            502/504 gateway errors.
+        readonly : bool
+            Send ``read_only=true`` so the server returns metadata
+            (last_batch_id / last_batch_commit_time) without touching the
+            write routing state. Only meaningful for non-force queries.
+        """
+        if not force:
+            # Non-force reload: throttle to one request per
+            # ``_reload_throttle`` seconds and collapse concurrent callers
+            # to a single in-flight request (CAS via non-blocking acquire).
+            if time.monotonic() - self._last_reload_time < self._reload_throttle:
+                return
+            if not self._reloading.acquire(blocking=False):
+                # Another thread is already reloading; skip.
+                return
+        else:
+            # Force reload: block until we hold the lock so the caller
+            # observes the refreshed routes after returning.
+            self._reloading.acquire()
 
-        slot_idx = self.slots._idx
-        self.parse(resp, obj=self)
-        self.slots._idx = slot_idx
-        if self.schema is not None:
-            self.schema.build_snapshot()
+        try:
+            params = self.get_common_params(uploadid=self.id)
+            headers = self.get_common_headers(content_length=0, tags=self._tags)
+            if self.schema_version is not None:
+                params["schema_version"] = str(self.schema_version)
+            if readonly:
+                params["read_only"] = "true"
+
+            url = self._get_resource()
+            resp = self.retry_handler.execute_with_retry_headers(
+                lambda stamped: self._client.get(url, params=params, headers=stamped),
+                headers,
+            )
+            self.check_tunnel_response(resp)
+
+            slot_idx = self.slots._idx
+            self.parse(resp, obj=self)
+            self.slots._idx = slot_idx
+            if self.schema is not None:
+                self.schema.build_snapshot()
+
+            self._last_reload_time = time.monotonic()
+        finally:
+            self._reloading.release()
 
     def abort(self):
         """
@@ -1019,17 +1131,51 @@ class TableStreamUploadSession(BaseTableTunnelSession):
         headers["odps-tunnel-routed-server"] = slot.server
 
         url = self._get_resource()
-        resp = utils.call_with_retry(
-            self._client.post, url, {}, params=params, headers=headers
+        resp = self.retry_handler.execute_with_retry_headers(
+            lambda stamped: self._client.post(url, {}, params=params, headers=stamped),
+            headers,
         )
         self.check_tunnel_response(resp)
 
     def reload_slots(self, slot, server, slot_num):
+        """Refresh routing after a successful write.
+
+        If the server-reported slot count differs from the local count,
+        force a full reload. Otherwise, if only this slot's routed server
+        changed, update it in place without a request.
+        """
         if len(self.slots) != slot_num:
-            self.reload()
+            self.reload(force=True)
         else:
             if slot.server != server:
                 slot.set_server(server)
+
+    def _readonly_reload(self):
+        """Non-force, readonly reload returning refreshed metadata."""
+        self.reload(force=False, readonly=True)
+        return self
+
+    def get_last_batch_id(self):
+        """Return the last committed batch id.
+
+        Uses a non-force readonly reload, which is throttled by
+        ``options.tunnel.stream_reload_throttle`` (default 30s): a call
+        within the throttle window skips the server reload and returns
+        the cached value, so the result may be up to that window stale.
+        This mirrors the Java SDK ``StreamUploadSession.getLastBatchId``
+        semantics (eventual consistency for monitoring accessors).
+        """
+        return self._readonly_reload().last_batch_id
+
+    def get_last_batch_commit_time(self):
+        """Return the last batch commit time.
+
+        Uses a non-force readonly reload, throttled by
+        ``options.tunnel.stream_reload_throttle`` (default 30s); the
+        result may be up to that window stale. Mirrors the Java SDK
+        ``StreamUploadSession.getLastBatchCommitTime`` semantics.
+        """
+        return self._readonly_reload().last_batch_commit_time
 
     def _get_upload_params(self, slot, compress=False):
         compress_option = self._compress_option or CompressOption()
@@ -1063,14 +1209,23 @@ class TableStreamUploadSession(BaseTableTunnelSession):
         return url, headers, params
 
     def _open_writer(self, compress=False):
-        slot = next(self.slots)
-        url, headers, params = self._get_upload_params(slot, compress=compress)
+        slot = self.slots.next()
         option = (self._compress_option or CompressOption()) if compress else None
+        # Mutable per-writer state resolved fresh on every attempt so a
+        # mid-flight reload is honoured by the next retry.
+        state = {"slot": slot, "url": None, "headers": None, "params": None}
+        state["url"], state["headers"], state["params"] = self._get_upload_params(
+            slot, compress=compress
+        )
 
         def upload_block(data):
             @_wrap_upload_call(self.id)
-            def do_put():
+            def do_put(ctx):
                 chunk_size = options.chunk_size
+                cur_url = state["url"]
+                cur_headers = dict(state["headers"])
+                cur_params = state["params"]
+                ctx.inject_headers(cur_headers)
 
                 def gen():
                     offset = 0
@@ -1078,20 +1233,32 @@ class TableStreamUploadSession(BaseTableTunnelSession):
                         yield data[offset : offset + chunk_size]
                         offset += chunk_size
 
-                return self._client.put(url, data=gen(), params=params, headers=headers)
-
-            def reset():
-                nonlocal url, headers, params
-                try:
-                    self.reload()
-                except TunnelError:
-                    pass
-                new_slot = self.slots.current()
-                url, headers, params = self._get_upload_params(
-                    new_slot, compress=compress
+                return self._client.put(
+                    cur_url, data=gen(), params=cur_params, headers=cur_headers
                 )
 
-            return utils.call_with_retry(do_put, reset_func=reset)
+            def on_error_status(status_code):
+                # 502/504: gateway error — the route is likely stale, so
+                # force a full reload and re-resolve the slot before retry.
+                if status_code in (BAD_GATEWAY, GATEWAY_TIMEOUT):
+                    try:
+                        self.reload(force=True)
+                    except TunnelError:
+                        # Swallow reload errors so the retry handler can
+                        # decide based on the original failure; the next
+                        # attempt reuses the previous slot.
+                        return
+                    new_slot = self.slots.current()
+                    state["slot"] = new_slot
+                    (
+                        state["url"],
+                        state["headers"],
+                        state["params"],
+                    ) = self._get_upload_params(new_slot, compress=compress)
+
+            return self.retry_handler.execute_with_retry_ctx(
+                do_put, on_error_status=on_error_status
+            )
 
         writer = StreamRecordWriter(
             self.schema, upload_block, session=self, slot=slot, compress_option=option
@@ -1127,6 +1294,11 @@ class TableUpsertSession(BaseTableTunnelSession):
         "_quota_name",
         "_lifecycle",
         "_tags",
+        "_buckets_lock",
+        "_keepalive_scheduler",
+        "_keepalive_interval",
+        "_keepalive_lock",
+        "_keepalive_stopped",
     )
 
     UPSERT_EXTRA_COL_NUM = 5
@@ -1205,12 +1377,22 @@ class TableUpsertSession(BaseTableTunnelSession):
         if isinstance(self._tags, str):
             self._tags = self._tags.split(",")
 
+        # Read-write lock guarding the buckets map. Reload replaces the
+        # whole map (write); update_buckets / get_buckets read it.
+        self._buckets_lock = threading.RLock()
+        self._keepalive_interval = options.tunnel.upsert_keepalive_interval
+        self._keepalive_scheduler = None
+        self._keepalive_lock = threading.Lock()
+        self._keepalive_stopped = False
         if upsert_id is None:
             self._init()
         else:
             self.id = upsert_id
             self.reload()
         self._compress_option = compress_option or self._get_default_compress_option()
+
+        # Start the background keepalive once the session is loaded.
+        self._start_keepalive()
 
         logger.info("Upsert session created: %r", self)
         if options.tunnel_session_create_callback:
@@ -1225,7 +1407,8 @@ class TableUpsertSession(BaseTableTunnelSession):
 
     @property
     def buckets(self):
-        return self.slots.buckets
+        with self._buckets_lock:
+            return self.slots.buckets
 
     def _get_resource(self):
         return self._table.table_resource() + "/upserts"
@@ -1258,12 +1441,21 @@ class TableUpsertSession(BaseTableTunnelSession):
         if not reload:
             if self._lifecycle and 0 < self._lifecycle <= 24:
                 params["lifecycle"] = str(self._lifecycle)
-            resp = self._client.post(url, {}, params=params, headers=headers)
+            resp = self.retry_handler.execute_with_retry_headers(
+                lambda stamped: self._client.post(
+                    url, {}, params=params, headers=stamped
+                ),
+                headers,
+            )
         else:
-            resp = self._client.get(url, params=params, headers=headers)
+            resp = self.retry_handler.execute_with_retry_headers(
+                lambda stamped: self._client.get(url, params=params, headers=stamped),
+                headers,
+            )
         if self._client.is_ok(resp):
-            self.parse(resp, obj=self)
-            self._patch_schema()
+            with self._buckets_lock:
+                self.parse(resp, obj=self)
+                self._patch_schema()
         else:
             e = TunnelError.parse(resp)
             raise e
@@ -1279,6 +1471,87 @@ class TableUpsertSession(BaseTableTunnelSession):
     def reload(self, init=False):
         self._init_or_reload(reload=True)
 
+    def get_buckets(self):
+        """Return a snapshot copy of the current bucket→slot map."""
+        with self._buckets_lock:
+            return dict(self.slots.buckets)
+
+    def update_buckets(self, bucket_id, new_slot_server):
+        """Refresh routing for a single bucket after a 308 response.
+
+        If ``new_slot_server`` is falsy, fall back to a full reload
+        (GET session). Otherwise update only the slot serving
+        ``bucket_id`` in place, without a request.
+        """
+        if not new_slot_server:
+            self.reload()
+            return
+        with self._buckets_lock:
+            slot = self.slots.buckets.get(bucket_id)
+            if slot is not None and slot.server != new_slot_server:
+                slot.set_server(new_slot_server)
+
+    @staticmethod
+    def _keepalive_tick(sess_ref):
+        """One keepalive tick; no-op if the session has been GC'd."""
+        sess = sess_ref()
+        if sess is None:
+            return
+        try:
+            sess.reload()
+            if sess.status not in (
+                TableUpsertSession.Status.Normal,
+                TableUpsertSession.Status.Committing,
+            ):
+                sess._stop_keepalive()
+                return
+        except Exception:
+            logger.debug("Upsert keepalive reload failed", exc_info=True)
+        with sess._keepalive_lock:
+            if sess._keepalive_stopped:
+                return
+            sess._keepalive_scheduler = sess._arm_keepalive(sess_ref)
+
+    def _arm_keepalive(self, sess_ref):
+        """Create and start the next keepalive timer (caller holds the lock)."""
+        timer = threading.Timer(
+            self._keepalive_interval,
+            TableUpsertSession._keepalive_tick,
+            args=(sess_ref,),
+        )
+        timer.daemon = True
+        timer.start()
+        return timer
+
+    def _start_keepalive(self):
+        """Start the background keepalive that refreshes buckets.
+
+        Re-armed after each tick (``scheduleAtFixedRate`` semantics).
+        Stops when status leaves NORMAL/COMMITTING.  The timer callback
+        holds only a :class:`weakref.ref` to the session so a dead
+        session is never kept alive.
+        """
+        with self._keepalive_lock:
+            if self._keepalive_scheduler is not None or self._keepalive_stopped:
+                return
+            if self._keepalive_interval <= 0:
+                # Non-positive interval disables keepalive; never arm a
+                # Timer(0) that re-arms into an unthrottled reload loop.
+                return
+            self._keepalive_scheduler = self._arm_keepalive(weakref.ref(self))
+
+    def _stop_keepalive(self):
+        with self._keepalive_lock:
+            self._keepalive_stopped = True
+            timer = self._keepalive_scheduler
+            self._keepalive_scheduler = None
+        if timer is not None:
+            timer.cancel()
+
+    def close(self):
+        """Stop the background keepalive scheduler."""
+        self._stop_keepalive()
+
     def abort(self):
         """
         Abort the current session.
@@ -1288,8 +1561,12 @@ class TableUpsertSession(BaseTableTunnelSession):
         headers["odps-tunnel-routed-server"] = self.slots.buckets[0].server
 
         url = self._get_resource()
-        resp = self._client.delete(url, params=params, headers=headers)
+        resp = self.retry_handler.execute_with_retry_headers(
+            lambda stamped: self._client.delete(url, params=params, headers=stamped),
+            headers,
+        )
         self.check_tunnel_response(resp)
+        self._stop_keepalive()
 
     def open_upsert_stream(self, compress=False):
         """
@@ -1326,8 +1603,11 @@ class TableUpsertSession(BaseTableTunnelSession):
             req_headers = headers.copy()
             req_headers["odps-tunnel-routed-server"] = slot.server
             req_headers["Content-Length"] = len(data)
-            return self._client.put(
-                url, data=data, params=req_params, headers=req_headers
+            return self.retry_handler.execute_with_retry_headers(
+                lambda stamped: self._client.put(
+                    url, data=data, params=req_params, headers=stamped
+                ),
+                req_headers,
             )
 
         return Upsert(self.schema, upload_block, self, compress_option)
@@ -1341,7 +1621,10 @@ class TableUpsertSession(BaseTableTunnelSession):
         headers["odps-tunnel-routed-server"] = self.slots.buckets[0].server
 
         url = self._get_resource()
-        resp = self._client.post(url, params=params, headers=headers)
+        resp = self.retry_handler.execute_with_retry_headers(
+            lambda stamped: self._client.post(url, params=params, headers=stamped),
+            headers,
+        )
         self.check_tunnel_response(resp)
         self.reload()
 
@@ -1358,8 +1641,12 @@ class TableUpsertSession(BaseTableTunnelSession):
                 if time.monotonic() - start > self._commit_timeout:
                     raise TunnelError("Commit session timeout")
                 time.sleep(delay)
-
-                resp = self._client.post(url, params=params, headers=headers)
+                resp = self.retry_handler.execute_with_retry_headers(
+                    lambda stamped: self._client.post(
+                        url, params=params, headers=stamped
+                    ),
+                    headers,
+                )
                 self.check_tunnel_response(resp)
                 self.reload()
 
@@ -1368,6 +1655,7 @@ class TableUpsertSession(BaseTableTunnelSession):
                 self.status = TableUpsertSession.Status.Committed
         if self.status != TableUpsertSession.Status.Committed:
             raise TunnelError("commit session failed, status: " + self.status.value)
+        self._stop_keepalive()
 
 
 class TableTunnel(BaseTunnel):
@@ -1707,8 +1995,12 @@ class TableTunnel(BaseTunnel):
                 headers["Accept-Encoding"] = encoding
 
         url = tunnel_table.table_resource(force_schema=True) + "/preview"
-        resp = self.tunnel_rest.get(
-            url, stream=True, params=params, headers=headers, timeout=timeout
+        retry_handler = TunnelRetryHandler(default_retry_policy=OptionsRetryPolicy())
+        resp = retry_handler.execute_with_retry_headers(
+            lambda stamped: self.tunnel_rest.get(
+                url, stream=True, params=params, headers=stamped, timeout=timeout
+            ),
+            headers,
         )
         if not self.tunnel_rest.is_ok(resp):  # pragma: no cover
             e = TunnelError.parse(resp)

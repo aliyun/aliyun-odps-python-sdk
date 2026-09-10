@@ -268,3 +268,49 @@ AUTO_COMMIT_SESSION_ID = "default"
 
 AUTO_COMMIT_DEFAULT_STREAM_ID = "default"
 """Sentinel stream id meaning "no explicit stream" (auto-commit)."""
+
+
+class BatchCompatibleOptions:
+    """Immutable advanced settings for :class:`WriteMode.BATCH_COMPATIBLE`.
+
+    Pass directly to :meth:`MaxStorageClient.create_table_write_session`
+    via the ``batch_compatible_options`` parameter.
+
+    When unset, the server applies its own defaults.  ``max_field_size``
+    (if set) must be at least 1024 bytes; ``dynamic_partition_limit``
+    uses ``-1`` to mean "server default".
+    """
+
+    def __init__(
+        self,
+        enhance_write_check: bool = False,
+        max_field_size: int = 0,
+        dynamic_partition_limit: int = -1,
+    ):
+        if max_field_size < 1024 and max_field_size != 0:
+            raise ValueError(
+                "max_field_size must be at least 1024 bytes (0 for server default)"
+            )
+        if dynamic_partition_limit < -1:
+            raise ValueError("dynamic_partition_limit must be at least -1")
+        self._enhance_write_check = enhance_write_check
+        self._max_field_size = max_field_size
+        self._dynamic_partition_limit = dynamic_partition_limit
+
+    @classmethod
+    def create_default(cls) -> "BatchCompatibleOptions":
+        """Return the default options (all server-side defaults)."""
+        return cls()
+
+    @property
+    def enhance_write_check(self) -> bool:
+        return self._enhance_write_check
+
+    @property
+    def max_field_size(self) -> int:
+        """Zero means the server should use its project-level default."""
+        return self._max_field_size
+
+    @property
+    def dynamic_partition_limit(self) -> int:
+        return self._dynamic_partition_limit

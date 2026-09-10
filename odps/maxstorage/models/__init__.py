@@ -25,6 +25,9 @@ from .enums import (
 )
 from .identifier import InstanceIdentifier, TableIdentifier
 from .requests import (
+    BatchCompatibleCommitRequest,
+    BatchCompatibleCreateSessionRequest,
+    BatchCompatibleDynamicPartitionOptions,
     BlobWriteRequest,
     CloseWriteStreamRequest,
     CreateInstanceReadSessionRequest,
@@ -37,6 +40,10 @@ from .requests import (
     TablePreviewRequest,
 )
 from .responses import (
+    BatchCompatibleColumn,
+    BatchCompatibleDataSchema,
+    BatchCompatibleSessionResponse,
+    BatchCompatibleWriteResponse,
     CloseWriteStreamResponse,
     CreateInstanceReadSessionResponse,
     CreateTableReadSessionResponse,
@@ -64,6 +71,9 @@ __all__ = [
     "ReadSchema",
     "StorageSchema",
     "WriteSchema",
+    "BatchCompatibleCommitRequest",
+    "BatchCompatibleCreateSessionRequest",
+    "BatchCompatibleDynamicPartitionOptions",
     "BlobWriteRequest",
     "CloseWriteStreamRequest",
     "CreateInstanceReadSessionRequest",
@@ -74,6 +84,10 @@ __all__ = [
     "CreateWriteStreamRequest",
     "GetWriteStreamRequest",
     "TablePreviewRequest",
+    "BatchCompatibleColumn",
+    "BatchCompatibleDataSchema",
+    "BatchCompatibleSessionResponse",
+    "BatchCompatibleWriteResponse",
     "CloseWriteStreamResponse",
     "CreateInstanceReadSessionResponse",
     "CreateTableReadSessionResponse",

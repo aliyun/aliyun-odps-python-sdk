@@ -48,10 +48,20 @@ Writers
 .. autoclass:: odps.maxstorage.TableArrowBlobUploadWriter
     :members:
 
+.. autoclass:: odps.maxstorage.TableBlockWriter
+    :members:
+
 .. autoclass:: odps.maxstorage.AppendTableRecordWriter
     :members:
 
 .. autoclass:: odps.maxstorage.DeltaTableRecordWriter
+    :members:
+
+
+Write Results
+-------------
+
+.. autoclass:: odps.maxstorage.BlockWriteResult
     :members:
 
 Blob I/O
@@ -89,6 +99,9 @@ Schema and Options
     :members:
 
 .. autoclass:: odps.maxstorage.IncrementalReadOptions
+    :members:
+
+.. autoclass:: odps.maxstorage.BatchCompatibleOptions
     :members:
 
 .. autoclass:: odps.maxstorage.DataFormat

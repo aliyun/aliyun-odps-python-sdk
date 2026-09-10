@@ -102,9 +102,9 @@ class BlobDataIterator:
         self._frames_yielded = 0
         # When ``crc_strip`` is True (default) the iterator wraps the raw
         # stream in CrcStrippedInputStream, preserving backward compat for
-        # direct construction (legacy storage_api_v2 client, unit tests).
-        # ``BlobManager._wrap_download_stream`` pre-strips CRC, so it passes
-        # ``crc_strip=False`` to avoid double-stripping.
+        # direct construction. ``BlobManager._wrap_download_stream``
+        # pre-strips CRC, so it passes ``crc_strip=False`` to avoid
+        # double-stripping.
         self._crc_strip = crc_strip
         # Track whether the final footer of the last yielded frame has been
         # consumed so __next__ can drain it before stopping.

@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import calendar
-import ctypes
 import functools
 import struct
 
@@ -25,7 +24,22 @@ _int64_struct = struct.Struct("<q")
 _float_struct = struct.Struct("<f")
 _double_struct = struct.Struct("<d")
 
-_ord_code = lambda x: x
+_int32_mask = 0xFFFFFFFF
+_int64_mask = 0xFFFFFFFFFFFFFFFF
+
+
+def _to_int32(val):
+    val &= _int32_mask
+    if val >= 0x80000000:
+        val -= 0x100000000
+    return val
+
+
+def _to_int64(val):
+    val &= _int64_mask
+    if val >= 0x8000000000000000:
+        val -= 0x10000000000000000
+    return val
 
 
 class AbstractHasher:
@@ -47,13 +61,14 @@ class AbstractHasher:
 
 class DefaultHasher(AbstractHasher):
     def hash_bigint(self, val):
-        val = (~val) + ctypes.c_int64(val << 18).value
+        val = _to_int64(~val) + _to_int64(val << 18)
+        val = _to_int64(val)
         val ^= val >> 31
-        val = ctypes.c_int64(val * 21).value
+        val = _to_int64(val * 21)
         val ^= val >> 11
-        val += ctypes.c_int64(val << 6).value
+        val = _to_int64(val + _to_int64(val << 6))
         val ^= val >> 22
-        return ctypes.c_int32(val).value
+        return _to_int32(val)
 
     def hash_float(self, val):
         return self.hash_bigint(_int32_struct.unpack(_float_struct.pack(val))[0])
@@ -72,18 +87,21 @@ class DefaultHasher(AbstractHasher):
         val = to_binary(val)
         hash_val = 0
         for ch in val:
-            hash_val += _ord_code(ch)
-            hash_val += ctypes.c_int32(hash_val << 10).value
-            hash_val ^= hash_val >> 6
-        hash_val += ctypes.c_int32(hash_val << 3).value
-        hash_val ^= hash_val >> 11
-        hash_val += ctypes.c_int32(hash_val << 15).value
-        return ctypes.c_int32(hash_val).value
+            # Bytes are signed (-128..127); Python yields 0..255.
+            if ch >= 0x80:
+                ch -= 0x100
+            hash_val = _to_int32(hash_val + ch)
+            hash_val = _to_int32(hash_val + _to_int32(hash_val << 10))
+            hash_val = _to_int32(hash_val ^ (hash_val >> 6))
+        hash_val = _to_int32(hash_val + _to_int32(hash_val << 3))
+        hash_val = _to_int32(hash_val ^ (hash_val >> 11))
+        hash_val = _to_int32(hash_val + _to_int32(hash_val << 15))
+        return hash_val
 
 
 class LegacyHasher(AbstractHasher):
     def hash_bigint(self, val):
-        return ctypes.c_int32((val >> 32) ^ val).value
+        return _to_int32((val >> 32) ^ val)
 
     def hash_float(self, val):
         return self.hash_bigint(_int32_struct.unpack(_float_struct.pack(val))[0])
@@ -102,7 +120,10 @@ class LegacyHasher(AbstractHasher):
         val = to_binary(val)
         hash_val = 0
         for ch in val:
-            hash_val = ctypes.c_int32(hash_val * 31 + _ord_code(ch)).value
+            # Bytes are signed (-128..127); Python yields 0..255.
+            if ch >= 0x80:
+                ch -= 0x100
+            hash_val = _to_int32(hash_val * 31 + ch)
         return hash_val
 
 
@@ -244,7 +265,7 @@ class RecordHasher:
             if record[data_idx] is None:
                 continue
             hash_sum += self._column_hash_appenders[idx](self._hasher, record[data_idx])
-        hash_sum = ctypes.c_int32(hash_sum).value
+        hash_sum = _to_int32(hash_sum)
         return hash_sum ^ (hash_sum >> 8)
 
     def hash_record(self, record):

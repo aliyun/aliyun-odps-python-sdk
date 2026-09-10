@@ -15,21 +15,31 @@
 
 """Table write session for :mod:`odps.maxstorage`.
 
-The constructor handles three creation paths:
+The constructor handles four creation paths:
 - ``STREAMING``/``STREAMING_REALTIME`` (with ``session_id`` ``None`` or
   ``"default"``) -> session id ``"default"``, no API call.
 - Existing ``session_id`` (not ``"default"``) -> ``getTableWriteSession``
   for route_token.
 - New -> ``createTableWriteSession``, extract id + route_token.
+- ``BATCH_COMPATIBLE`` -> ``createBatchCompatibleSession`` /
+  ``getBatchCompatibleSession``, extract id + route_token + data schema +
+  max block number.
 """
 
 import logging
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING, Collection, List, Optional
 
+from ..errors import StorageClientError
 from ..io.compress import resolve_compress_option
 from ..models.enums import WriteMode
-from ..models.requests import CreateTableWriteSessionRequest
-from ..options import AUTO_COMMIT_SESSION_ID, _supports_v3
+from ..models.requests import (
+    BatchCompatibleCreateSessionRequest,
+    BatchCompatibleDynamicPartitionOptions,
+    CreateTableWriteSessionRequest,
+    CreateWriteStreamRequest,
+)
+from ..options import AUTO_COMMIT_SESSION_ID, BatchCompatibleOptions, _supports_v3
+from .block_writer import BlockWriteResult, TableBlockWriter
 from .writer import TableArrowBlobUploadWriter, TableArrowWriter
 
 if TYPE_CHECKING:
@@ -87,6 +97,7 @@ class TableWriteSession:
         quota_name: Optional[str] = None,
         enable_schema_evolution: bool = False,
         required_data_format: Optional["DataFormat"] = None,
+        batch_compatible_options: Optional[BatchCompatibleOptions] = None,
         api_version: str = "2",
     ):
         self._stub = stub
@@ -96,6 +107,11 @@ class TableWriteSession:
         self._route_token = None
         self._committed = False
         self._aborted = False
+
+        # Batch-compatible session state
+        self._max_block_number = 0
+        self._batch_compatible_schema = None
+        self._enhance_write_check = False
 
         # Build the partition spec string
         spec = ""
@@ -113,7 +129,16 @@ class TableWriteSession:
         if enable_schema_evolution:
             flags["enable_schema_evolution"] = "true"
 
-        if write_mode.is_streaming() and (
+        if write_mode == WriteMode.BATCH_COMPATIBLE:
+            self._init_batch_compatible(
+                stub,
+                table_id,
+                session_id,
+                spec,
+                overwrite,
+                batch_compatible_options or BatchCompatibleOptions.create_default(),
+            )
+        elif write_mode.is_streaming() and (
             session_id is None or session_id == AUTO_COMMIT_SESSION_ID
         ):
             # Streaming auto-commit path: session id is "default", no API call.
@@ -136,6 +161,46 @@ class TableWriteSession:
             if resp.route_token:
                 self._route_token = resp.route_token
 
+    def _init_batch_compatible(
+        self, stub, table_id, session_id, spec, overwrite, options
+    ):
+        """Create or reload a batch-compatible session."""
+        if session_id is not None and session_id != AUTO_COMMIT_SESSION_ID:
+            resp = stub.get_batch_compatible_session(
+                table_id, session_id, route_token=None
+            )
+        else:
+            request = BatchCompatibleCreateSessionRequest(
+                partition_spec=spec,
+                overwrite=overwrite,
+                dynamic_partition_options=BatchCompatibleDynamicPartitionOptions(
+                    dynamic_partition_limit=options.dynamic_partition_limit,
+                ),
+                max_field_size=options.max_field_size,
+                enhance_write_check=options.enhance_write_check,
+            )
+            resp = stub.create_batch_compatible_session(table_id, request)
+            if resp is None or not resp.session_id:
+                raise StorageClientError(
+                    "Create batch-compatible session returned no session identifier"
+                )
+
+        if resp is None:
+            raise StorageClientError(
+                "Get batch-compatible session returned an empty response"
+            )
+        if resp.data_schema is None:
+            raise StorageClientError(
+                "Batch-compatible session response did not contain DataSchema"
+            )
+
+        self._session_id = resp.session_id
+        if resp.route_token:
+            self._route_token = resp.route_token
+        self._max_block_number = resp.max_block_number
+        self._batch_compatible_schema = resp.data_schema
+        self._enhance_write_check = resp.enhance_write_check
+
     @property
     def id(self) -> Optional[str]:
         return self._session_id
@@ -147,6 +212,15 @@ class TableWriteSession:
     @property
     def route_token(self) -> Optional[str]:
         return self._route_token
+
+    @property
+    def max_block_number(self) -> Optional[int]:
+        """Exclusive block-number limit for batch-compatible sessions.
+
+        Returns ``None`` for non-batch-compatible modes or when the service
+        omitted it.  Valid block numbers are ``[0, max_block_number)``.
+        """
+        return self._max_block_number if self._max_block_number > 0 else None
 
     def _supports_v3(self) -> bool:
         return _supports_v3(self._api_version)
@@ -262,7 +336,11 @@ class TableWriteSession:
         >>> writer.close()
         >>> session.commit()
         """
-
+        if self._write_mode == WriteMode.BATCH_COMPATIBLE:
+            raise NotImplementedError(
+                "BATCH_COMPATIBLE uses block writers; call "
+                "open_block_writer(block_number, attempt_number)"
+            )
         if stream_id is None:
             raise ValueError("stream_id must not be None")
         stream_id = str(stream_id)
@@ -311,12 +389,122 @@ class TableWriteSession:
                 session=self,
             )
 
+    def open_block_writer(
+        self,
+        block_number: int,
+        attempt_number: int,
+        *,
+        compress_option: Optional["CompressOption"] = None,
+        compress_algo=None,
+        compress_level=None,
+    ) -> TableBlockWriter:
+        """Create a :class:`TableBlockWriter` for ``BATCH_COMPATIBLE`` mode.
+
+        Each call reserves a one-time upload quota for the given
+        ``block_number + attempt_number`` pair.  Retry the same block with
+        a new ``attempt_number``; do not reuse a committed or aborted
+        writer.
+
+        Compression follows the other write interfaces: pass
+        ``compress_option`` (a :class:`odps.tunnel.CompressOption`) or the
+        shorthand ``compress_algo``/``compress_level``.  Default ``None`` =
+        uncompressed.  When set, the block body is serialized as an Arrow
+        IPC stream with the built-in codec (``"zstd"`` / ``"lz4"``),
+        matching :meth:`open_arrow_writer` — no HTTP ``Content-Encoding``.
+
+        :param block_number: zero-based block number.
+        :param attempt_number: zero-based attempt number for this block.
+        :keyword compress_option: :class:`~odps.tunnel.CompressOption` for
+            Arrow IPC compression.
+        :keyword compress_algo: shorthand for ``compress_option`` —
+            ``"zstd"`` / ``"lz4"``.
+        :keyword compress_level: compression level.
+        :raises NotImplementedError: if this session is not batch-compatible.
+        :raises StorageClientError: if the service cannot reserve quota.
+        """
+        if self._committed or self._aborted:
+            raise StorageClientError("Session is already closed")
+        if self._write_mode != WriteMode.BATCH_COMPATIBLE:
+            raise NotImplementedError(
+                "open_block_writer requires WriteMode.BATCH_COMPATIBLE"
+            )
+        if block_number < 0:
+            raise ValueError("block_number must not be negative")
+        if attempt_number < 0:
+            raise ValueError("attempt_number must not be negative")
+        if self._max_block_number > 0 and block_number >= self._max_block_number:
+            raise ValueError(
+                f"block_number must be less than the session "
+                f"max_block_number {self._max_block_number}"
+            )
+        if self._batch_compatible_schema is None:
+            raise StorageClientError(
+                "Batch-compatible session response did not contain DataSchema"
+            )
+
+        # Validate before the quota reservation so bad algorithms never
+        # reach the service.
+        co = resolve_compress_option(compress_option, compress_algo, compress_level)
+
+        request = CreateWriteStreamRequest(
+            stream_id=f"block-{block_number}-attempt-{attempt_number}",
+            stream_version=1,
+        )
+        reservation = self._stub.create_table_write_stream(
+            self._table_id,
+            self._session_id,
+            request,
+            self._route_token,
+            WriteMode.BATCH_COMPATIBLE,
+        )
+        if not reservation or not reservation.quota_token:
+            raise StorageClientError(
+                "Batch-compatible quota reservation returned no quota token"
+            )
+        if not reservation.route_token:
+            raise StorageClientError(
+                "Batch-compatible quota reservation returned no route token"
+            )
+        return TableBlockWriter(
+            self._stub,
+            self._table_id,
+            self._session_id,
+            block_number,
+            attempt_number,
+            reservation.route_token,
+            reservation.quota_token,
+            self._batch_compatible_schema,
+            self._enhance_write_check,
+            compress_option=co,
+        )
+
     def commit(
         self,
         stream_ids: Optional[List[str]] = None,
         stream_versions: Optional[List[int]] = None,
+        block_results: Optional[Collection[BlockWriteResult]] = None,
     ) -> None:
-        """Commit the session to finalize all uploaded data."""
+        """Commit the session to finalize all uploaded data.
+
+        For ``BATCH_COMPATIBLE`` mode, pass ``block_results`` (a collection
+        of :class:`BlockWriteResult` from successful block writers).  The
+        ``stream_ids`` / ``stream_versions`` parameters are not used in
+        batch-compatible mode.
+        """
+        if self._committed or self._aborted:
+            raise StorageClientError("Session is already closed")
+
+        if self._write_mode == WriteMode.BATCH_COMPATIBLE:
+            self._commit_batch_compatible(block_results)
+            return
+
+        if (
+            self._write_mode.is_streaming()
+            and self._session_id == AUTO_COMMIT_SESSION_ID
+        ):
+            self._committed = True
+            return
+
         self._stub.commit_table_write_session(
             self._table_id,
             self._session_id,
@@ -329,6 +517,14 @@ class TableWriteSession:
 
     def abort(self) -> None:
         """Abort the session to discard all uploaded data."""
+        if self._aborted:
+            return
+        if (
+            self._write_mode.is_streaming()
+            and self._session_id == AUTO_COMMIT_SESSION_ID
+        ):
+            self._aborted = True
+            return
         self._stub.abort_table_write_session(
             self._table_id,
             self._session_id,
@@ -336,6 +532,53 @@ class TableWriteSession:
             route_token=self._route_token,
         )
         self._aborted = True
+
+    def _commit_batch_compatible(self, block_results):
+        """Validate and commit block results for batch-compatible mode."""
+        if block_results is None:
+            raise ValueError("block_results cannot be None; use an empty collection")
+
+        commit_messages = []
+        committed_blocks = set()
+        for result in block_results:
+            if result is None:
+                raise ValueError("block_results cannot contain None values")
+            if result.session_id != self._session_id:
+                raise ValueError(
+                    f"block {result.block_number} belongs to a different "
+                    f"write session"
+                )
+            if result.block_number in committed_blocks:
+                raise ValueError(
+                    f"block_results contain duplicate blockNumber "
+                    f"{result.block_number}"
+                )
+            if result.commit_message is None:
+                raise ValueError(
+                    f"block {result.block_number} does not contain a " f"commit message"
+                )
+            committed_blocks.add(result.block_number)
+            commit_messages.append(result.commit_message)
+
+        response = self._stub.commit_batch_compatible_session(
+            self._table_id,
+            self._session_id,
+            self._route_token,
+            commit_messages,
+        )
+        if response is None:
+            raise StorageClientError(
+                "Batch-compatible commit returned an empty response"
+            )
+        if response.route_token:
+            self._route_token = response.route_token
+        status = response.session_status
+        if status is None or status.upper() != "COMMITTED":
+            raise StorageClientError(
+                f"Batch-compatible commit returned session status {status} "
+                f"for session {self._session_id}"
+            )
+        self._committed = True
 
     def close(self) -> None:
         """Auto-aborts if not committed."""

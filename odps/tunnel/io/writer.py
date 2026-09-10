@@ -51,6 +51,7 @@ from ..pb.wire_format import (
     WIRETYPE_LENGTH_DELIMITED,
     WIRETYPE_VARINT,
 )
+from ..retry import BAD_GATEWAY, GATEWAY_TIMEOUT, SLOT_REASSIGNMENT
 from ..wireconstants import ProtoWireConstants
 from .stream import RequestsIO, get_compress_stream
 from .types import (
@@ -1297,13 +1298,20 @@ class Upsert:
         return self._write(record, Upsert.Operation.DELETE)
 
     def flush(self, flush_all=True):
+        """Flush all data in buffer to server.
+
+        On a 308 (SLOT_REASSIGNMENT) the routed-server response header
+        drives a local ``update_buckets``; a missing header triggers a
+        full session reload. On 502/504 the buckets are fully reloaded.
+        308/429 retry indefinitely (capped 64s backoff); 5xx retries up
+        to 7 times; other 4xx propagates immediately.
         """
-        Flush all data in buffer to server.
-        """
-        if len(self._session.buckets) != len(self._bucket_writers):
+        # Re-read the session buckets; a size change means the slot map
+        # was reassigned out from under us.
+        session_buckets = self._session.get_buckets()
+        if len(session_buckets) != len(self._bucket_writers):
             raise TunnelError("session slot map is changed")
-        else:
-            self._buckets = self._session.buckets.copy()
+        self._buckets = session_buckets
 
         bucket_written = dict()
         bucket_to_count = dict()
@@ -1312,35 +1320,85 @@ class Upsert:
             slot = self._buckets[bucket_id]
             sio = self._bucket_buffers[bucket_id]
             rec_count = bucket_to_count[bucket_id]
-
             self._request_callback(bucket_id, slot, rec_count, sio.getvalue())
             self._build_bucket_writer(bucket_id)
             bucket_written[bucket_id] = True
 
-        retry = 0
+        retry_handler = self._session.retry_handler
+        attempt = 0
         while True:
+            self._check_status()
             futs = []
+            fut_buckets = {}
             pool = ThreadPoolExecutor(len(self._bucket_writers))
+            failures = []
             try:
-                self._check_status()
                 for bucket, writer in self._bucket_writers.items():
                     if writer.n_bytes == 0 or bucket_written.get(bucket):
                         continue
                     if not flush_all and writer.n_bytes <= self._slot_buffer_size:
                         continue
-
                     bucket_to_count[bucket] = writer.count
                     writer.close()
-                    futs.append(pool.submit(write_bucket, bucket))
+                    fut = pool.submit(write_bucket, bucket)
+                    futs.append(fut)
+                    fut_buckets[fut] = bucket
+                # Collect every failure with its bucket so 308 routing
+                # updates can target the right slot. Successful buckets
+                # are already marked written and won't be re-sent.
                 for fut in futs:
-                    fut.result()
-                break
-            except Exception:
-                retry += 1
-                if retry == 3:
-                    raise
+                    try:
+                        fut.result()
+                    except Exception as exc:
+                        failures.append((fut_buckets[fut], exc))
             finally:
                 pool.shutdown()
+
+            if not failures:
+                break
+
+            # Refresh routing for each failure according to its status.
+            # Retry if ANY failure's policy says retry (so a retriable 502
+            # on bucket B is not abandoned because bucket A failed 400).
+            # Only when no failure is retriable do we raise the first
+            # non-retriable error. The wait uses the policy of the first
+            # retriable failure.
+            need_reload = False
+            retry_policy = None
+            retry_exc = None
+            first_non_retriable = None
+            attempt += 1
+            for bucket_id, exc in failures:
+                status_code = getattr(exc, "status_code", None)
+                if status_code == SLOT_REASSIGNMENT:
+                    resp_headers = getattr(exc, "response_headers", None) or {}
+                    new_server = resp_headers.get("odps-tunnel-routed-server")
+                    if new_server:
+                        self._session.update_buckets(bucket_id, new_server)
+                    else:
+                        need_reload = True
+                elif status_code in (BAD_GATEWAY, GATEWAY_TIMEOUT):
+                    need_reload = True
+                policy = retry_handler.get_retry_policy(status_code)
+                if policy.should_retry(exc, attempt):
+                    if retry_policy is None:
+                        retry_policy = policy
+                        retry_exc = exc
+                elif first_non_retriable is None:
+                    first_non_retriable = exc
+            if need_reload:
+                try:
+                    self._session.reload()
+                except TunnelError:
+                    pass
+            self._buckets = self._session.get_buckets()
+
+            if retry_policy is None:
+                raise first_non_retriable
+            try:
+                retry_policy.wait_for_next_retry(attempt)
+            except KeyboardInterrupt:
+                raise retry_exc
 
     def close(self):
         """

@@ -43,9 +43,8 @@ def _count_rows(read_session):
     return total
 
 
-@pytest.fixture
-def maxstorage_client(odps):
-    """MaxStorageClient wired to a fresh 4-column BIGINT table with a partition.
+def _maxstorage_client(odps, api_version="2"):
+    """Yield a MaxStorageClient wired to a fresh 4-column BIGINT table.
 
     The storage endpoint is resolved from the tunnel endpoint discovered by
     ``BaseTunnel._get_tunnel_server`` — no explicit endpoint needed.
@@ -61,10 +60,22 @@ def maxstorage_client(odps):
         if_not_exists=True,
     )
     try:
-        yield MaxStorageClient(odps), table
+        yield MaxStorageClient(odps, api_version=api_version), table
     finally:
         table.drop(async_=True)
         options.enable_schema = prev_enable_schema
+
+
+@pytest.fixture
+def maxstorage_client(odps):
+    """MaxStorageClient wired to a fresh 4-column BIGINT table with a partition."""
+    yield from _maxstorage_client(odps)
+
+
+@pytest.fixture
+def maxstorage_v3_client(odps):
+    """MaxStorageClient (api_version=3) wired to a fresh 4-col BIGINT table."""
+    yield from _maxstorage_client(odps, api_version="3")
 
 
 @pytest.fixture

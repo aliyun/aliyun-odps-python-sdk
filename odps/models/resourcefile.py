@@ -292,15 +292,20 @@ class StreamResourceFile(ResourceFile):
         self._resource_counter += 1
         return name
 
+    def _reset_read_state(self, offset):
+        self._source_offset = offset
+        self._is_source_exhausted = False
+        self._rebuild_buffer()
+
     def _load_next_offset(self):
         if self._is_source_exhausted:
             return
 
-        buf = self.resource.parent.read_resource(
-            self.resource, offset=self._source_offset, read_size=self._chunk_size
+        buf = self._read_resource(
+            offset=self._source_offset, read_size=self._chunk_size
         )
         self._rebuild_buffer()
-        self._buffer.write(self._convert(buf.read()))
+        self._buffer.write(buf.read())
         self._buffer.seek(0, os.SEEK_SET)
         self._buffered_size = buf.tell()
         self._source_offset += buf.tell()
@@ -424,12 +429,42 @@ class StreamResourceFile(ResourceFile):
         self.size += content_size
 
     def seek(self, pos, whence=io.SEEK_SET):
-        raise compat.UnsupportedOperation("File or stream is not seekable.")
+        if self.mode != FileResource.Mode.READ:
+            raise compat.UnsupportedOperation(
+                "seek() is not supported in write mode under streaming mode"
+            )
+        if whence == io.SEEK_SET:
+            new_pos = pos
+        elif whence == io.SEEK_CUR:
+            new_pos = self._source_offset - self._buffered_size + pos
+        elif whence == io.SEEK_END:
+            total = self.resource.size
+            if total is None:
+                raise compat.UnsupportedOperation(
+                    "Cannot seek from end: resource size is not available."
+                )
+            new_pos = total + pos
+        else:
+            raise ValueError(f"Invalid whence: {whence}")
+        if new_pos < 0:
+            raise ValueError(f"Negative seek position {new_pos}")
+        # buffer content spans [buf_start, _source_offset); after partial reads
+        # the cursor may sit inside that range, so derive start from buffer size.
+        buf_len = self._buffer.tell() + self._buffered_size
+        buf_start = self._source_offset - buf_len
+        if buf_start <= new_pos <= self._source_offset:
+            self._buffer.seek(new_pos - buf_start)
+            self._buffered_size = self._source_offset - new_pos
+        else:
+            self._reset_read_state(new_pos)
+        return new_pos
 
     def seekable(self):
-        return False
+        return self.mode == FileResource.Mode.READ
 
     def tell(self):
+        if self.mode == FileResource.Mode.READ:
+            return self._source_offset - self._buffered_size
         return self.size
 
     def truncate(self, size=None):

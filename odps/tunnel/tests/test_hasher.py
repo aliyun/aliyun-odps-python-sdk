@@ -24,6 +24,7 @@ except ImportError:
 
 from decimal import Decimal
 
+from ...compat import Version
 from ...models import Record
 from ...types import Column, OdpsSchema
 from .. import hasher as py_hasher
@@ -67,9 +68,16 @@ def _build_schema_and_record(pd):
                 Column("col9", "interval_day_time"),
             ]
         )
+        # pandas < 2.0: nanosecond is positional-or-keyword and gets
+        # clobbered by the positional branch, so pass it positionally.
+        # pandas >= 2.0: nanosecond is keyword-only, pass it as a kwarg.
+        if Version(pd.__version__) < Version("2.0.0"):
+            ts_value = pd.Timestamp(2022, 6, 11, 22, 33, 1, 134561, 241)
+        else:
+            ts_value = pd.Timestamp(2022, 6, 11, 22, 33, 1, 134561, nanosecond=241)
         values.extend(
             [
-                pd.Timestamp(2022, 6, 11, 22, 33, 1, 134561, 241),
+                ts_value,
                 pd.Timedelta(
                     days=128, hours=10, minutes=5, seconds=17, microseconds=11
                 ),
@@ -82,11 +90,18 @@ def _build_schema_and_record(pd):
 
 @pytest.mark.parametrize("hasher_mod, pd", params)
 def test_default_hasher(hasher_mod, pd):
-    assert hasher_mod.hash_value("default", "bigint", 145680) == 1063204611
+    # Large bigint values that overflow 64-bit intermediates
+    assert hasher_mod.hash_value("default", "bigint", -4149976519821344517) == 808790275
+    assert hasher_mod.hash_value("default", "bigint", 6812388553834026379) == 319711033
+    assert hasher_mod.hash_value("default", "bigint", 5641369577242833675) == 1388740052
     assert hasher_mod.hash_value("default", "float", 134.562) == -1512465477
     assert hasher_mod.hash_value("default", "double", 15672.56271) == 1254569207
     assert hasher_mod.hash_value("default", "boolean", True) == 388737479
-    assert hasher_mod.hash_value("default", "string", "hello".encode()) == -1259046373
+    assert hasher_mod.hash_value("default", "string", "eragf".encode()) == 1281892457
+    assert (
+        hasher_mod.hash_value("default", "string", "abcdefghijklmnop".encode())
+        == -458446633
+    )
     assert (
         hasher_mod.hash_value("default", "date", datetime.date(2022, 12, 5))
         == 903574500
@@ -139,7 +154,10 @@ def test_default_hasher(hasher_mod, pd):
 
 @pytest.mark.parametrize("hasher_mod, pd", params)
 def test_legacy_hasher(hasher_mod, pd):
-    assert hasher_mod.hash_value("legacy", "bigint", 145680) == 145680
+    # Large bigint values that overflow 32-bit in (val >> 32) ^ val
+    assert hasher_mod.hash_value("legacy", "bigint", -4149976519821344517) == 2076054188
+    assert hasher_mod.hash_value("legacy", "bigint", 6812388553834026379) == -1849908544
+    assert hasher_mod.hash_value("legacy", "bigint", 5641369577242833675) == -1945429834
     assert hasher_mod.hash_value("legacy", "float", 134.562) == 1124503519
     assert hasher_mod.hash_value("legacy", "double", 15672.56271) == 1177487321
     assert hasher_mod.hash_value("legacy", "boolean", False) == -978963218
@@ -218,3 +236,52 @@ def test_record_hasher_pk_not_at_beginning(hasher_mod):
         ["pk_val_1", "pk_val_2"], need_index=False
     )
     assert hash_result == hash_no_idx_result
+
+
+@pytest.mark.parametrize("hasher_mod", hasher_mods)
+def test_hash_string_signed_bytes(hasher_mod):
+    """Test that hash_string treats bytes as signed (-128..127).
+
+    Python's bytes iteration yields unsigned values (0..255), but the
+    reference implementation treats byte arrays as signed. This test
+    verifies the pure-Python fallback matches for bytes >= 0x80.
+    """
+    default_hasher = hasher_mod.get_hasher("default")
+    legacy_hasher = hasher_mod.get_hasher("legacy")
+
+    # Single high-byte values where signed vs unsigned interpretation diverges
+    assert default_hasher.hash_string(b"\x80") == 656789031
+    assert default_hasher.hash_string(b"\xfe") == 613435680
+    assert default_hasher.hash_string(b"\xff") == 306848916
+
+    assert legacy_hasher.hash_string(b"\x80") == -128
+    assert legacy_hasher.hash_string(b"\xfe") == -2
+    assert legacy_hasher.hash_string(b"\xff") == -1
+
+    # Multi-byte with high bytes
+    assert default_hasher.hash_string(b"\x80\x81\x82") == 1267950483
+    assert legacy_hasher.hash_string(b"\x80\x81\x82") == -127071
+
+
+@pytest.mark.parametrize("hasher_mod", hasher_mods)
+def test_upsert_bucket_assignment(hasher_mod):
+    """Test bucket assignment for the exact values from the field bug.
+
+    The string "eragf" was hashed to bucket 15 by the buggy pure-Python
+    hasher (no 32-bit truncation of intermediates), but the server computed
+    bucket 9, causing "bucket id mismatch: expected=15, computed=9".
+    """
+    schema = OdpsSchema([Column("a", "string"), Column("b", "bigint")])
+    rec_hasher = hasher_mod.RecordHasher(schema, "default", ["a"])
+    num_buckets = 16
+
+    test_data = [("abcd", 12345), ("efgh", 94512), ("eragf", 434)]
+    expected_buckets = [4, 13, 9]
+
+    for (s, b), expected_bucket in zip(test_data, expected_buckets):
+        rec = Record(schema=schema, values=[s, b])
+        hash_val = rec_hasher.hash_record(rec)
+        bucket = hash_val % num_buckets
+        assert (
+            bucket == expected_bucket
+        ), f"Bucket mismatch for ({s!r}, {b}): got {bucket}, expected {expected_bucket}"

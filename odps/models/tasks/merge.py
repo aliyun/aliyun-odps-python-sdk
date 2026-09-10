@@ -399,6 +399,8 @@ class MergeTask(Task):
         quota_name=None,
         create_callback=None,
     ):
+        if options.sql.skip_parse_merge_task:
+            return None
         command_to_call = [
             (_ARCHIVE_TABLE_REGEX, cls.run_archive_table),
             (_FREEZE_COMMAND_REGEX, cls.run_freeze_command),

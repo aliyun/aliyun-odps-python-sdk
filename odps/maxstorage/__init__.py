@@ -45,7 +45,12 @@ from .models import (
     TimestampUnit,
     WriteMode,
 )
-from .options import BlobWriteItem, IncrementalReadOptions, SplitOptions
+from .options import (
+    BatchCompatibleOptions,
+    BlobWriteItem,
+    IncrementalReadOptions,
+    SplitOptions,
+)
 
 # Read path — the submodule handles optional pyarrow internally, so the only
 # legitimate ImportError here is a missing pyarrow install.  Any other
@@ -80,23 +85,28 @@ except ImportError as _e:
 # Write path — same rationale as the read path above.
 _write_names = [
     "AppendTableRecordWriter",
+    "BlockWriteResult",
     "DeltaTableRecordWriter",
     "TableArrowBlobUploadWriter",
     "TableArrowWriter",
+    "TableBlockWriter",
     "TableWriteSession",
 ]
 try:
     from .write import (
         AppendTableRecordWriter,
+        BlockWriteResult,
         DeltaTableRecordWriter,
         TableArrowBlobUploadWriter,
         TableArrowWriter,
+        TableBlockWriter,
         TableWriteSession,
     )
 except ImportError as _e:
     _missing = getattr(_e, "name", None) or ""
     if _missing == "pyarrow" or _missing.startswith("pyarrow."):
         AppendTableRecordWriter = DeltaTableRecordWriter = None
+        BlockWriteResult = TableBlockWriter = None
         TableArrowBlobUploadWriter = TableArrowWriter = TableWriteSession = None
     else:
         raise
@@ -109,6 +119,7 @@ __all__ = (
         "BlobDataIterator",
         "BlobStreamReader",
         "BlobStreamWriter",
+        "BatchCompatibleOptions",
         "BlobWriteItem",
         "MaxStorageError",
         "StorageServiceError",

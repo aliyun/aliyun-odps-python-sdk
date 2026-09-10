@@ -24,6 +24,12 @@ class StorageTier(enum.Enum):
     STANDARD = "standard"
     LOWFREQENCY = "lowfrequency"
     LONGTERM = "longterm"
+    COLDARCHIVE = "coldarchive"
+    UNKNOWN = "unknown"
+
+    @classmethod
+    def _missing_(cls, value):
+        return cls.UNKNOWN
 
 
 class StorageTierInfo(serializers.JSONSerializableModel):
@@ -42,11 +48,14 @@ class StorageTierInfo(serializers.JSONSerializableModel):
     }
 
     storage_tier = serializers.JSONNodeField(
-        "StorageTier", parse_callback=lambda x: StorageTier(x.lower()) if x else None
+        "StorageTier",
+        parse_callback=serializers.none_or(lambda x: StorageTier(x.lower())),
     )
     last_modified_time = serializers.JSONNodeField(
         "StorageLastModifiedTime",
-        parse_callback=lambda x: datetime.datetime.fromtimestamp(int(x)),
+        parse_callback=serializers.none_or(
+            lambda x: datetime.datetime.fromtimestamp(int(x))
+        ),
     )
 
     def __init__(self, **kwargs):

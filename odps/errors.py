@@ -260,6 +260,7 @@ class BaseODPSError(Exception):
         self.host_id = host_id
         self.endpoint = endpoint
         self.tag = tag
+        self.response_headers = response_headers
         self.status_code = status_code
 
     def __str__(self):
@@ -334,6 +335,10 @@ class NoSuchTable(NoSuchObject):
 
 
 class NoSuchVolume(NoSuchObject):
+    pass
+
+
+class ObjectAlreadyExists(ServerDefinedException):
     pass
 
 

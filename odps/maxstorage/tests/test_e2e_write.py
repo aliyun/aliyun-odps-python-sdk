@@ -23,6 +23,7 @@ except ImportError:
     pa = None
 
 from ..models.enums import WriteMode
+from ..options import BatchCompatibleOptions
 from .conftest import _count_rows
 
 pytestmark = pytest.mark.skipif(pa is None, reason="Need pyarrow to run E2E tests")
@@ -211,3 +212,85 @@ def test_delta_table_record_writer(maxstorage_delta_client):
         [1, 100, "alice"],
         [2, 999, "bob-updated"],
     ]
+
+
+def _bc_write_blocks(session, num_blocks, rows_per_block, compress_algo=None):
+    """Write *num_blocks* blocks of *rows_per_block* rows each; return results."""
+    results = []
+    for block in range(num_blocks):
+        w = session.open_block_writer(block, 0, compress_algo=compress_algo)
+        w.write_batch(_make_batch(rows_per_block, offset=block * rows_per_block))
+        results.append(w.commit())
+    return results
+
+
+def _bc_read_count(client, table, partition_spec):
+    return _count_rows(
+        client.create_table_read_session(table, partitions=[partition_spec])
+    )
+
+
+@pytest.mark.parametrize("compress_algo", [None, "zstd", "lz4"])
+def test_batch_compatible_write_and_read_back(maxstorage_v3_client, compress_algo):
+    """Multi-block write (optionally compressed), commit, read back."""
+    client, table = maxstorage_v3_client
+    pt = f"pt=test_bc_write_{compress_algo or 'plain'}"
+    sess = client.create_table_write_session(
+        table,
+        partition_spec=pt,
+        write_mode=WriteMode.BATCH_COMPATIBLE,
+        batch_compatible_options=BatchCompatibleOptions(enhance_write_check=True),
+    )
+    assert sess.id is not None and sess.max_block_number is not None
+    sess.commit(
+        block_results=_bc_write_blocks(sess, 3, 50, compress_algo=compress_algo)
+    )
+    assert _bc_read_count(client, table, pt) == 150
+
+
+def test_batch_compatible_superseded_attempt(maxstorage_v3_client):
+    """Superseded attempt excluded; only retry attempt committed."""
+    client, table = maxstorage_v3_client
+    pt = "pt=test_bc_supersede"
+    sess = client.create_table_write_session(
+        table, partition_spec=pt, write_mode=WriteMode.BATCH_COMPATIBLE
+    )
+    w0 = sess.open_block_writer(0, 0)
+    w0.write_batch(_make_batch(10))
+    w0.commit()  # superseded — result discarded
+    w1 = sess.open_block_writer(0, 1)
+    w1.write_batch(_make_batch(20))
+    sess.commit(block_results=[w1.commit()])
+    assert _bc_read_count(client, table, pt) == 20
+
+
+def test_batch_compatible_abort_isolates_data(maxstorage_v3_client):
+    """Committed data survives a separate session's abort."""
+    client, table = maxstorage_v3_client
+    pt = "pt=test_bc_abort"
+    s1 = client.create_table_write_session(
+        table, partition_spec=pt, write_mode=WriteMode.BATCH_COMPATIBLE
+    )
+    s1.commit(block_results=_bc_write_blocks(s1, 2, 30))
+    s2 = client.create_table_write_session(
+        table, partition_spec=pt, write_mode=WriteMode.BATCH_COMPATIBLE
+    )
+    w = s2.open_block_writer(0, 0)
+    w.write_batch(_make_batch(40))
+    w.abort()
+    s2.abort()
+    assert _bc_read_count(client, table, pt) == 60
+
+
+def test_batch_compatible_context_manager(maxstorage_v3_client):
+    """Block writer context manager uploads on clean exit."""
+    client, table = maxstorage_v3_client
+    pt = "pt=test_bc_ctx"
+    sess = client.create_table_write_session(
+        table, partition_spec=pt, write_mode=WriteMode.BATCH_COMPATIBLE
+    )
+    with sess.open_block_writer(0, 0) as w:
+        w.write_batch(_make_batch(25))
+        results = [w.commit()]
+    sess.commit(block_results=results)
+    assert _bc_read_count(client, table, pt) == 25

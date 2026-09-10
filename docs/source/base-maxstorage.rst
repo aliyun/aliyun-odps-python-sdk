@@ -316,6 +316,12 @@ MaxStorage 的分片机制天然支持并行读取。每个分片可以独立读
        write_mode=WriteMode.STREAMING,
    )
 
+   # 创建兼容模式写会话
+   write_session = client.create_table_write_session(
+       "your_table",
+       write_mode=WriteMode.BATCH_COMPATIBLE,
+   )
+
    # 写入指定分区
    write_session = client.create_table_write_session(
        "your_table",
@@ -441,6 +447,60 @@ BLOB 表）。
 .. note::
 
     ``close()`` 不会自动提交：若未显式提交或终止，``close()`` 会自动终止会话。
+
+
+兼容模式写入（BatchCompatible）
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``WriteMode.BATCH_COMPATIBLE`` 使用 ``block_number + attempt_number`` 标识 Writer，
+并以强类型 :class:`~odps.maxstorage.BlockWriteResult` 汇总提交，适合迁移依赖 Block
+写入语义的任务。
+
+兼容模式下不使用 ``open_arrow_writer``，而是通过
+:meth:`~odps.maxstorage.TableWriteSession.open_block_writer` 创建
+:class:`~odps.maxstorage.TableBlockWriter`：
+
+.. code-block:: python
+
+   from odps.maxstorage import MaxStorageClient, WriteMode, BatchCompatibleOptions
+
+   client = MaxStorageClient(odps)
+   write_session = client.create_table_write_session(
+       "your_table",
+       write_mode=WriteMode.BATCH_COMPATIBLE,
+       batch_compatible_options=BatchCompatibleOptions(
+           enhance_write_check=True,
+           max_field_size=8 * 1024 * 1024,
+           dynamic_partition_limit=-1,
+       ),
+   )
+
+   results = []
+   for block in range(block_count):
+       writer = write_session.open_block_writer(block, 0)
+       batch = pa.RecordBatch.from_arrays(
+           [pa.array([1, 2, 3], type=pa.int64())],
+           schema=writer.schema,
+       )
+       writer.write_batch(batch)
+       results.append(writer.commit())
+
+   write_session.commit(block_results=results)
+
+.. note::
+
+   - ``block_number`` 和 ``attempt_number`` 均从 0 开始。重试同一份 Block 数据时保持
+     ``block_number`` 不变并递增 ``attempt_number``，最终只提交成功 attempt 的结果。
+   - 每个 ``TableBlockWriter`` 实例对应一个 ``block_number + attempt_number`` 对，
+     会在内存中缓存该 Block 的所有批次，直到 ``commit()`` 或 ``close()`` 上传完整的
+     Arrow IPC Stream。大任务应拆为多个 Block。
+   - ``open_block_writer`` 时 SDK 会自动预留一次上传 quota，调用方无需配置或传递
+     token。若无法完成 quota 预留，``open_block_writer`` 会直接失败。
+   - 兼容模式必须调用 ``commit(block_results=...)`` 提交，无参 ``commit()`` 会报错。
+   - ``BatchCompatibleOptions`` 的 ``max_field_size`` 设置后必须至少为 1024 字节，
+     ``dynamic_partition_limit`` 使用 ``-1`` 表示服务端默认。
+   - 可通过 :attr:`~odps.maxstorage.TableWriteSession.max_block_number` 获取 Block
+     上限，合法范围为 ``[0, max_block_number)``。
 
 跨进程读写
 ~~~~~~~~~~

@@ -28,11 +28,14 @@ except ImportError:
     pa = None
     pytestmark = pytest.mark.skip("Need pyarrow to run this test")
 
+from ..errors import StorageClientError
 from ..io.arrow_writer import RawArrowRequestBody, serialize_batch
 from ..io.compress import CompressOption
 from ..models.enums import DataFormat, WriteMode
 from ..models.identifier import TableIdentifier
 from ..models.responses import (
+    BatchCompatibleSessionResponse,
+    BatchCompatibleWriteResponse,
     CreateTableWriteSessionResponse,
     CreateWriteStreamResponse,
     GetTableWriteSessionResponse,
@@ -40,6 +43,8 @@ from ..models.responses import (
     WriteStreamResponse,
 )
 from ..models.schema import WriteSchema
+from ..options import BatchCompatibleOptions
+from ..write.block_writer import BlockWriteResult
 from ..write.record_writer import AppendTableRecordWriter, DeltaTableRecordWriter
 from ..write.session import TableWriteSession
 from ..write.writer import TableArrowBlobUploadWriter
@@ -109,11 +114,61 @@ def _make_delta_table_schema():
     return schema
 
 
+_BC_SESSION_JSON = json.dumps(
+    {
+        "SessionId": "session-1",
+        "SessionStatus": "NORMAL",
+        "DataSchema": {
+            "DataColumns": [{"Name": "a", "Type": "INT", "Nullable": True}],
+            "PartitionColumns": [],
+        },
+        "MaxBlockNumber": 8,
+        "EnhanceWriteCheck": False,
+    }
+)
+_BC_COMMIT_MSG = json.dumps(
+    {"BlockNumber": 0, "AttemptNumber": 0, "WriterStats": {"RecordNum": 3}}
+)
+
+
 class FakeWriteStub:
-    def __init__(self):
+    """Stand-in ``StorageStub`` for session/arrow and batch-compatible writes.
+
+    Batch-compatible behavior is configurable via keyword arguments:
+    ``quota_token`` / ``route_token`` control the block quota reservation,
+    ``record_count`` / ``commit_message`` / ``enhance_write_check`` shape the
+    block write response, ``write_should_fail`` forces an upload error.
+    """
+
+    def __init__(
+        self,
+        *,
+        quota_token="quota-token",
+        route_token="route-reservation",
+        commit_status="COMMITTED",
+        record_count=None,
+        commit_message=_BC_COMMIT_MSG,
+        enhance_write_check=False,
+        write_should_fail=False
+    ):
         self.calls = []
         self.route_token = "rt-123"
         self.write_record_counts = []
+        self._quota_token = quota_token
+        self._reservation_route_token = route_token
+        self._commit_status = commit_status
+        self._record_count = record_count
+        self._commit_message = commit_message
+        self._enhance_write_check = enhance_write_check
+        self.session_route_token = "route-token"
+        self.write_should_fail = write_should_fail
+
+    def _session_response(self, route_token=None):
+        d = json.loads(_BC_SESSION_JSON)
+        d["EnhanceWriteCheck"] = self._enhance_write_check
+        resp = BatchCompatibleSessionResponse.from_dict(d)
+        resp.route_token = route_token or self.session_route_token
+        return resp
 
     def create_table_write_session(self, table_id, request, write_mode):
         self.calls.append(("create_session",))
@@ -127,17 +182,37 @@ class FakeWriteStub:
         r.route_token = self.route_token
         return r
 
+    def create_batch_compatible_session(self, table_id, request):
+        self.calls.append(("create_batch_session", table_id, request))
+        return self._session_response()
+
+    def get_batch_compatible_session(self, table_id, session_id, route_token=None):
+        self.calls.append(("get_batch_session", table_id, session_id))
+        return self._session_response("route-get")
+
     def create_table_write_stream(
         self, table_id, session_id, request, route_token, write_mode
     ):
-        self.calls.append(("create_stream",))
-        return CreateWriteStreamResponse.from_dict(
+        self.calls.append(
+            (
+                "create_stream",
+                table_id,
+                session_id,
+                request.stream_id,
+                request.stream_version,
+                write_mode,
+            )
+        )
+        r = CreateWriteStreamResponse.from_dict(
             {
                 "TableId": "t1",
                 "SchemaVersion": 1,
                 "TableSchema": _make_write_table_schema(),
             }
         )
+        r.quota_token = self._quota_token
+        r.route_token = self._reservation_route_token
+        return r
 
     def get_write_stream(self, table_id, request, route_token, write_mode):
         return GetWriteStreamResponse.from_dict({})
@@ -163,6 +238,39 @@ class FakeWriteStub:
             },
         )
 
+    def write_batch_compatible_block(
+        self,
+        table_id,
+        session_id,
+        block_number,
+        attempt_number,
+        arrow_body,
+        route_token,
+        quota_token,
+    ):
+        self.calls.append(
+            (
+                "write_block",
+                table_id,
+                session_id,
+                block_number,
+                attempt_number,
+                route_token,
+                quota_token,
+                arrow_body,
+            )
+        )
+        if self.write_should_fail:
+            raise StorageClientError("write failed")
+        return BatchCompatibleWriteResponse.from_dict(
+            {
+                "CommitMessage": self._commit_message,
+                "RecordCount": (
+                    self._record_count if self._record_count is not None else 3
+                ),
+            }
+        )
+
     def parse_write_stream_response(self, resp):
         return WriteStreamResponse.from_dict(resp.json())
 
@@ -171,6 +279,18 @@ class FakeWriteStub:
 
     def commit_table_write_session(self, *a, **kw):
         self.calls.append(("commit",))
+
+    def commit_batch_compatible_session(
+        self, table_id, session_id, route_token, commit_messages
+    ):
+        self.calls.append(
+            ("commit_batch", table_id, session_id, tuple(commit_messages))
+        )
+        resp = BatchCompatibleSessionResponse.from_dict(
+            {"SessionId": session_id, "SessionStatus": self._commit_status}
+        )
+        resp.route_token = "route-commit"
+        return resp
 
     def abort_table_write_session(self, *a, **kw):
         self.calls.append(("abort",))
@@ -1651,8 +1771,364 @@ def test_auto_close_files_false_record_writer_keeps_files_open(table_id):
     rw.write([1, "a", file_a])
     rw.write([2, "b", file_b])
     rw.close()
-
     assert file_a.close_count == 0
     assert file_b.close_count == 0
     assert not file_a.closed
     assert not file_b.closed
+
+
+# ---------------------------------------------------------------------------
+# Batch-compatible write mode
+# ---------------------------------------------------------------------------
+
+
+def _bc_sess(stub, table_id, **kw):
+    d = dict(write_mode=WriteMode.BATCH_COMPATIBLE, api_version="3")
+    d.update(kw)
+    return TableWriteSession(stub, table_id, **d)
+
+
+def _bc_batch(n):
+    return pa.RecordBatch.from_arrays(
+        [pa.array(list(range(n)), pa.int32())],
+        schema=pa.schema([("a", pa.int32())]),
+    )
+
+
+def _bc_commit_result(
+    session_id="session-1", block=0, attempt=0, rows=3, msg=_BC_COMMIT_MSG
+):
+    return BlockWriteResult(session_id, block, attempt, rows, msg)
+
+
+def _bc_write_and_commit(stub, table_id, rows=3, **kw):
+    """Write one block and return the committed writer result."""
+    sess = _bc_sess(stub, table_id, **kw)
+    w = sess.open_block_writer(0, 0)
+    w.write_batch(_bc_batch(rows))
+    return sess, w, w.commit()
+
+
+@pytest.mark.parametrize(
+    "session_id, expect_call",
+    [
+        (None, "create_batch_session"),
+        ("session-1", "get_batch_session"),
+    ],
+)
+def test_bc_session_create_and_reload(table_id, session_id, expect_call):
+    stub = FakeWriteStub()
+    sess = _bc_sess(stub, table_id, session_id=session_id)
+    assert sess.id == "session-1" and sess.max_block_number == 8
+    assert any(c[0] == expect_call for c in stub.calls)
+
+
+def test_bc_options_forwarded(table_id):
+    stub = FakeWriteStub()
+    _bc_sess(
+        stub,
+        table_id,
+        batch_compatible_options=BatchCompatibleOptions(
+            enhance_write_check=True, max_field_size=4096, dynamic_partition_limit=32
+        ),
+        partition_spec="pt=20260812",
+        overwrite=True,
+    )
+    req = next(c for c in stub.calls if c[0] == "create_batch_session")[2]
+    assert req.partition_spec == "pt=20260812" and req.max_field_size == 4096
+    assert req.enhance_write_check is True
+    assert req.dynamic_partition_options.dynamic_partition_limit == 32
+    body = req.to_dict()
+    assert body["ArrowOptions"] == {"TimestampUnit": "nano", "DatetimeUnit": "milli"}
+    # Partial user options must merge with (not replace) the defaults.
+    req.arrow_options = {"TimestampUnit": "micro"}
+    body = req.to_dict()
+    assert body["ArrowOptions"] == {
+        "TimestampUnit": "micro",
+        "DatetimeUnit": "milli",
+    }
+
+
+@pytest.mark.parametrize(
+    "kwargs, match",
+    [
+        (dict(max_field_size=512), "at least 1024"),
+        (dict(dynamic_partition_limit=-2), "at least -1"),
+    ],
+)
+def test_bc_options_validation(kwargs, match):
+    with pytest.raises(ValueError, match=match):
+        BatchCompatibleOptions(**kwargs)
+
+
+def test_bc_options_defaults():
+    o = BatchCompatibleOptions.create_default()
+    assert (
+        not o.enhance_write_check
+        and o.max_field_size == 0
+        and o.dynamic_partition_limit == -1
+    )
+
+
+def test_bc_streaming_skips_session_creation(table_id):
+    stub = FakeWriteStub()
+    sess = TableWriteSession(
+        stub, table_id, write_mode=WriteMode.STREAMING, api_version="3"
+    )
+    assert sess.id == "default" and not stub.calls
+
+
+@pytest.mark.parametrize(
+    "method, args, mode, match",
+    [
+        ("open_arrow_writer", ("s",), WriteMode.BATCH_COMPATIBLE, "BATCH_COMPATIBLE"),
+        ("open_block_writer", (0, 0), WriteMode.BATCH, "BATCH_COMPATIBLE"),
+    ],
+)
+def test_bc_mode_isolation(table_id, method, args, mode, match):
+    sess = TableWriteSession(
+        FakeWriteStub(), table_id, write_mode=mode, api_version="3"
+    )
+    with pytest.raises(NotImplementedError, match=match):
+        getattr(sess, method)(*args)
+
+
+@pytest.mark.parametrize(
+    "block, attempt, match",
+    [
+        (-1, 0, "block_number must not be negative"),
+        (8, 0, "less than the session"),
+        (0, -1, "attempt_number must not be negative"),
+    ],
+)
+def test_bc_block_writer_arg_validation(table_id, block, attempt, match):
+    with pytest.raises(ValueError, match=match):
+        _bc_sess(FakeWriteStub(), table_id).open_block_writer(block, attempt)
+
+
+def test_bc_block_writer_reserves_quota(table_id):
+    stub = FakeWriteStub()
+    w = _bc_sess(stub, table_id).open_block_writer(7, 2)
+    assert w.block_number == 7 and w.attempt_number == 2
+    s = next(c for c in stub.calls if c[0] == "create_stream")
+    assert s[3] == "block-7-attempt-2" and s[4] == 1
+
+
+@pytest.mark.parametrize(
+    "attr, match",
+    [
+        ("quota_token", "no quota token"),
+        ("route_token", "no route token"),
+    ],
+)
+def test_bc_missing_reservation_token(table_id, attr, match):
+    stub = FakeWriteStub(**{attr: None})
+    with pytest.raises(StorageClientError, match=match):
+        _bc_sess(stub, table_id).open_block_writer(0, 0)
+
+
+def test_bc_write_and_commit(table_id):
+    stub = FakeWriteStub()
+    sess, w, r = _bc_write_and_commit(stub, table_id)
+    assert (r.block_number, r.attempt_number, r.record_count) == (0, 0, 3)
+    wc = next(c for c in stub.calls if c[0] == "write_block")
+    assert wc[5] == "route-reservation" and wc[6] == "quota-token"
+
+
+@pytest.mark.parametrize("compress_algo", ["zstd", "lz4"])
+def test_bc_block_writer_compressed_payload(table_id, compress_algo):
+    """Compressed block payload is valid Arrow IPC and genuinely compressed.
+
+    The body uploaded for a compressed block must be a valid Arrow IPC
+    stream whose data round-trips, and must actually be smaller than the
+    same batches serialized uncompressed — the codec must not be silently
+    ignored.
+    """
+    stub = FakeWriteStub()
+    w = _bc_sess(stub, table_id).open_block_writer(0, 0, compress_algo=compress_algo)
+    rows = 2000
+    stub._record_count = rows
+    batch = pa.RecordBatch.from_arrays(
+        [pa.array([7] * rows, pa.int32())],
+        schema=pa.schema([("a", pa.int32())]),
+    )
+    w.write_batch(batch)
+    w.commit()
+
+    wc = next(c for c in stub.calls if c[0] == "write_block")
+    body = wc[7]
+    round_tripped = pa.ipc.open_stream(pa.BufferReader(body)).read_all()
+    assert round_tripped.num_rows == rows
+    assert round_tripped.column(0).to_pylist() == [7] * rows
+
+    plain_body = RawArrowRequestBody(
+        w.schema, [serialize_batch(batch)], None
+    ).serialize()
+    assert len(body) < len(plain_body)
+
+
+@pytest.mark.parametrize("compress_algo", ["zlib", "snappy"])
+def test_bc_block_writer_rejects_unsupported_algo(table_id, compress_algo):
+    """Unsupported algorithms fail before the quota reservation."""
+    stub = FakeWriteStub()
+    with pytest.raises(ValueError, match="does not support compression algorithm"):
+        _bc_sess(stub, table_id).open_block_writer(0, 0, compress_algo=compress_algo)
+    assert not any(c[0] == "create_stream" for c in stub.calls)
+
+
+@pytest.mark.parametrize(
+    "num_batches, rows, expected_count",
+    [(1, 0, 0), (1, 3, 3), (2, 3, 6)],
+)
+def test_bc_batch_accumulation(table_id, num_batches, rows, expected_count):
+    """Empty batch skipped; single and double batches accumulate correctly."""
+    msg = json.dumps(
+        {
+            "BlockNumber": 0,
+            "AttemptNumber": 0,
+            "WriterStats": {"RecordNum": expected_count},
+        }
+    )
+    stub = FakeWriteStub(record_count=expected_count, commit_message=msg)
+    w = _bc_sess(stub, table_id).open_block_writer(0, 0)
+    for _ in range(num_batches):
+        w.write_batch(_bc_batch(rows))
+    assert w.commit().record_count == expected_count
+
+
+def test_bc_schema_mismatch_raises(table_id):
+    w = _bc_sess(FakeWriteStub(), table_id).open_block_writer(0, 0)
+    with pytest.raises(IOError, match="schema does not match"):
+        w.write_batch(
+            pa.RecordBatch.from_arrays(
+                [pa.array([1], pa.int64())], schema=pa.schema([("wrong", pa.int64())])
+            )
+        )
+
+
+@pytest.mark.parametrize(
+    "action, match",
+    [
+        ("abort_then_commit", "aborted"),
+        ("commit_then_write", "already closed"),
+    ],
+)
+def test_bc_writer_state_errors(table_id, action, match):
+    w = _bc_sess(FakeWriteStub(), table_id).open_block_writer(0, 0)
+    w.write_batch(_bc_batch(3))
+    if action == "abort_then_commit":
+        w.abort()
+        with pytest.raises(IOError, match=match):
+            w.commit()
+    else:
+        w.commit()
+        with pytest.raises(IOError, match=match):
+            w.write_batch(_bc_batch(1))
+
+
+@pytest.mark.parametrize(
+    "kw, match",
+    [
+        (dict(write_should_fail=True), "Failed to write block"),
+        (dict(record_count=999), "Unexpected record count"),
+        (dict(commit_message=None), "did not return a commit message"),
+    ],
+)
+def test_bc_upload_failures(table_id, kw, match):
+    stub = FakeWriteStub(**kw)
+    w = _bc_sess(stub, table_id).open_block_writer(0, 0)
+    w.write_batch(_bc_batch(3))
+    with pytest.raises(IOError, match=match):
+        w.commit()
+
+
+@pytest.mark.parametrize("raises, expect_write", [(False, True), (True, False)])
+def test_bc_context_manager(table_id, raises, expect_write):
+    stub = FakeWriteStub()
+    sess = _bc_sess(stub, table_id)
+    if raises:
+        with pytest.raises(RuntimeError):
+            with sess.open_block_writer(0, 0) as w:
+                w.write_batch(_bc_batch(3))
+                raise RuntimeError("oops")
+    else:
+        with sess.open_block_writer(0, 0) as w:
+            w.write_batch(_bc_batch(3))
+    assert any(c[0] == "write_block" for c in stub.calls) == expect_write
+
+
+def test_bc_commit_sends_messages(table_id):
+    stub = FakeWriteStub()
+    sess = _bc_sess(stub, table_id)
+    sess.commit(
+        block_results=[
+            _bc_commit_result(msg="m0"),
+            _bc_commit_result(block=1, msg="m1"),
+        ]
+    )
+    assert next(c for c in stub.calls if c[0] == "commit_batch")[3] == ("m0", "m1")
+
+
+@pytest.mark.parametrize(
+    "results, match",
+    [
+        ([_bc_commit_result(), _bc_commit_result(block=0, attempt=1)], "duplicate"),
+        ([_bc_commit_result(session_id="other")], "different"),
+        ([None], "None"),
+        (None, "cannot be None"),
+    ],
+)
+def test_bc_commit_rejects_invalid_results(table_id, results, match):
+    with pytest.raises(ValueError, match=match):
+        _bc_sess(FakeWriteStub(), table_id).commit(block_results=results)
+
+
+@pytest.mark.parametrize(
+    "results, status, match",
+    [
+        ([], "NORMAL", "session status"),
+        ([_bc_commit_result()], "NORMAL", "session status"),
+    ],
+)
+def test_bc_commit_non_committed_status_raises(table_id, results, status, match):
+    stub = FakeWriteStub(commit_status=status)
+    with pytest.raises(StorageClientError, match=match):
+        _bc_sess(stub, table_id).commit(block_results=results)
+
+
+@pytest.mark.parametrize("commit_first, expect_abort", [(False, True), (True, False)])
+def test_bc_close_behavior(table_id, commit_first, expect_abort):
+    stub = FakeWriteStub()
+    sess = _bc_sess(stub, table_id)
+    if commit_first:
+        sess.commit(block_results=[_bc_commit_result()])
+    sess.close()
+    assert any(c[0] == "abort" for c in stub.calls) == expect_abort
+
+
+@pytest.mark.parametrize("action", ["commit", "open_block_writer"])
+def test_bc_operation_after_close_raises(table_id, action):
+    sess = _bc_sess(FakeWriteStub(), table_id)
+    sess.close()
+    with pytest.raises(StorageClientError, match="already closed"):
+        if action == "commit":
+            sess.commit(block_results=[_bc_commit_result()])
+        else:
+            sess.open_block_writer(0, 0)
+
+
+@pytest.mark.parametrize(
+    "bad_field, bad_value, match",
+    [
+        ("BlockNumber", 99, "BlockNumber does not match"),
+        ("WriterStats", {"RecordNum": 999}, "record count does not match"),
+    ],
+)
+def test_bc_enhance_write_check(table_id, bad_field, bad_value, match):
+    msg = {"BlockNumber": 0, "AttemptNumber": 0, "WriterStats": {"RecordNum": 3}}
+    msg[bad_field] = bad_value
+    stub = FakeWriteStub(commit_message=json.dumps(msg), enhance_write_check=True)
+    w = _bc_sess(stub, table_id).open_block_writer(0, 0)
+    w.write_batch(_bc_batch(3))
+    with pytest.raises(IOError, match=match):
+        w.commit()

@@ -18,6 +18,7 @@ import os
 import tempfile
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
+from unittest import mock
 
 import pytest
 
@@ -39,6 +40,7 @@ from .. import (
     VolumeArchiveResource,
     VolumeFileResource,
 )
+from ..resourcefile import StreamResourceFile
 
 FILE_CONTENT = to_text(
     """
@@ -300,6 +302,94 @@ def test_stream_file_resource(odps):
     res.reload()
     assert res.is_temp_resource
     assert "".join(lines) == content
+
+
+class _FakeResourceParent:
+    """In-memory stand-in for Resources.read_resource."""
+
+    def __init__(self, content):
+        self._content = content
+        self.read_calls = 0
+
+    def read_resource(self, resource, offset=0, read_size=None, **kw):
+        self.read_calls += 1
+        read_size = len(self._content) if read_size is None else read_size
+        chunk = self._content[offset : offset + read_size]
+        sio = io.BytesIO(chunk)
+        sio.is_eof = (offset + len(chunk)) >= len(self._content)
+        return sio
+
+
+_UNSET = object()
+
+
+def _make_stream_resource(content, size=_UNSET):
+    if size is _UNSET:
+        size = len(content)
+    resource = mock.Mock()
+    resource.parent = _FakeResourceParent(content)
+    resource.size = size
+    resource._reload_size = lambda: setattr(resource, "size", size)
+    return resource
+
+
+SEEK_CASES = [
+    # (whence, pos, expected_pos) — each case starts after reading 50 bytes from position 0
+    (io.SEEK_SET, 70, 70),  # within buffered window
+    (io.SEEK_SET, 0, 0),  # backward within window
+    (io.SEEK_SET, 500, 500),  # outside window, fresh fetch
+    (io.SEEK_CUR, 10, 60),  # relative forward (pos 50 -> 60)
+    (io.SEEK_END, 0, 1000),  # absolute end
+]
+
+
+@pytest.mark.parametrize("whence,pos,expected_pos", SEEK_CASES)
+def test_stream_file_resource_seek(whence, pos, expected_pos):
+    content = b"ABCDEFGHIJ" * 100  # 1000 bytes
+    options.resource_chunk_size = 100
+    resource = _make_stream_resource(content)
+    parent = resource.parent
+
+    rf = StreamResourceFile(resource, mode="rb")
+    assert rf.seekable()
+    assert rf.tell() == 0
+    assert rf.read(50) == content[:50]
+    assert rf.tell() == 50
+
+    calls_before = parent.read_calls
+    rf.seek(pos, whence)
+    assert rf.tell() == expected_pos
+    # within-window seeks avoid network reads; out-of-window ones fetch
+    if whence == io.SEEK_SET and pos <= 100:
+        assert parent.read_calls == calls_before
+    assert rf.read(10) == content[expected_pos : expected_pos + 10]
+
+
+def test_stream_file_resource_seek_errors():
+    content = b"ABCDEFGHIJ" * 100
+    options.resource_chunk_size = 100
+
+    # SEEK_END with unknown size raises
+    resource = _make_stream_resource(content, size=None)
+    rf = StreamResourceFile(resource, mode="rb")
+    with pytest.raises(UnsupportedOperation):
+        rf.seek(0, io.SEEK_END)
+
+    # negative seek position raises
+    resource2 = _make_stream_resource(content)
+    rf2 = StreamResourceFile(resource2, mode="rb")
+    with pytest.raises(ValueError):
+        rf2.seek(-5)
+
+    # write mode: seek unsupported; tell tracks bytes written
+    wf = StreamResourceFile(_make_stream_resource(content, size=0), mode="wb")
+    assert not wf.seekable()
+    with pytest.raises(UnsupportedOperation):
+        wf.seek(0, os.SEEK_END)
+    with pytest.raises(UnsupportedOperation):
+        wf.seek(5)
+    wf.write(b"hello")
+    assert wf.tell() == 5
 
 
 def test_file_resource(odps):

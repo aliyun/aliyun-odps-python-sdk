@@ -24,7 +24,7 @@ import requests
 from .. import serializers, types
 from ..config import options
 from ..models import Projects, TableSchema
-from .base import TUNNEL_VERSION, BaseTunnel
+from .base import TUNNEL_VERSION, BaseTunnel, TunnelRetryMixin
 from .errors import TunnelError
 from .io.reader import BufferedRecordReader, TunnelArrowReader, TunnelRecordReader
 from .io.stream import CompressOption, get_decompress_stream
@@ -37,7 +37,7 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
-class InstanceDownloadSession(serializers.JSONSerializableModel):
+class InstanceDownloadSession(serializers.JSONSerializableModel, TunnelRetryMixin):
     """
     Tunnel session for downloading data from instance results. Instances of
     this class should be created by :meth:`InstanceTunnel.create_download_session`.
@@ -57,6 +57,7 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
         "_quota_name",
         "_timeout",
         "_tags",
+        "_retry_handler",
     )
 
     class Status(enum.Enum):
@@ -158,13 +159,16 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
                 params["instance_tunnel_limit_enabled"] = ""
             url = self._instance.resource()
             try:
-                resp = self._client.post(
-                    url,
-                    {},
-                    action="downloads",
-                    params=params,
-                    headers=headers,
-                    timeout=self._timeout,
+                resp = self.retry_handler.execute_with_retry_headers(
+                    lambda stamped: self._client.post(
+                        url,
+                        {},
+                        action="downloads",
+                        params=params,
+                        headers=stamped,
+                        timeout=self._timeout,
+                    ),
+                    headers,
                 )
             except requests.exceptions.ReadTimeout:
                 if callable(options.tunnel_session_create_timeout_callback):
@@ -194,7 +198,10 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
                 params["taskname"] = self._session_task_name
 
             url = self._instance.resource()
-            resp = self._client.get(url, params=params, headers=headers)
+            resp = self.retry_handler.execute_with_retry_headers(
+                lambda stamped: self._client.get(url, params=params, headers=stamped),
+                headers,
+            )
             if self._client.is_ok(resp):
                 self.parse(resp, obj=self)
                 if self.schema is not None:
@@ -239,7 +246,12 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
             params["raw_size"] = str(raw_size)
 
         url = self._instance.resource()
-        resp = self._client.get(url, stream=True, params=params, headers=headers)
+        resp = self.retry_handler.execute_with_retry_headers(
+            lambda stamped: self._client.get(
+                url, stream=True, params=params, headers=stamped
+            ),
+            headers,
+        )
         if not self._client.is_ok(resp):
             e = TunnelError.parse(resp)
             raise e

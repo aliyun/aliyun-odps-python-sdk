@@ -26,9 +26,10 @@ from .. import options, serializers
 from ..models import errors
 from ..utils import to_binary, to_text
 from . import io
-from .base import BaseTunnel
+from .base import BaseTunnel, TunnelRetryMixin
 from .checksum import Checksum
 from .errors import TunnelError
+from .retry import OptionsRetryPolicy, TunnelRetryHandler
 
 logger = logging.getLogger(__name__)
 
@@ -158,7 +159,11 @@ class VolumeFSTunnel(BaseTunnel):
                 raise TunnelError("invalid compression option")
 
         url = volume.resource(client=self.tunnel_rest)
-        resp = self.tunnel_rest.get(url, headers=headers, stream=True)
+        retry_handler = TunnelRetryHandler(default_retry_policy=OptionsRetryPolicy())
+        resp = retry_handler.execute_with_retry_headers(
+            lambda stamped: self.tunnel_rest.get(url, headers=stamped, stream=True),
+            headers,
+        )
         if not self.tunnel_rest.is_ok(resp):
             e = TunnelError.parse(resp)
             raise e
@@ -227,9 +232,11 @@ class VolumeFSTunnel(BaseTunnel):
 
         url = volume.resource(client=self.tunnel_rest)
 
-        chunk_upload = lambda data: self.tunnel_rest.post(
-            url, data=data, params=params, headers=headers
-        )
+        def chunk_upload(data):
+            # data is a generator from RequestsIO.data_generator() —
+            # consumed once, cannot be replayed on retry.
+            return self.tunnel_rest.post(url, data=data, params=params, headers=headers)
+
         if compress_option is None and compress_algo is not None:
             compress_option = io.CompressOption(
                 compress_algo=compress_algo,
@@ -241,7 +248,9 @@ class VolumeFSTunnel(BaseTunnel):
         )
 
 
-class BaseVolumeTunnelSession(serializers.JSONSerializableModel):
+class BaseVolumeTunnelSession(serializers.JSONSerializableModel, TunnelRetryMixin):
+    __slots__ = ("_retry_handler",)
+
     @staticmethod
     def get_common_headers(content_length=None, tags=None):
         header = {}
@@ -253,6 +262,11 @@ class BaseVolumeTunnelSession(serializers.JSONSerializableModel):
                 tags = tags.split(",")
             header["odps-tunnel-tags"] = ",".join(tags)
         return header
+
+    def check_tunnel_response(self, resp):
+        if not self._client.is_ok(resp):
+            e = TunnelError.parse(resp)
+            raise e
 
 
 class VolumeDownloadSession(BaseVolumeTunnelSession):
@@ -345,12 +359,12 @@ class VolumeDownloadSession(BaseVolumeTunnelSession):
             params["quotaName"] = self._quota_name
 
         url = self.resource()
-        resp = self._client.post(url, {}, params=params, headers=headers)
-        if self._client.is_ok(resp):
-            self.parse(resp, obj=self)
-        else:
-            e = TunnelError.parse(resp)
-            raise e
+        resp = self.retry_handler.execute_with_retry_headers(
+            lambda stamped: self._client.post(url, {}, params=params, headers=stamped),
+            headers,
+        )
+        self.check_tunnel_response(resp)
+        self.parse(resp, obj=self)
 
     def reload(self):
         headers = self.get_common_headers(content_length=0, tags=self._tags)
@@ -360,14 +374,13 @@ class VolumeDownloadSession(BaseVolumeTunnelSession):
             params["partition"] = self.partition_spec
         if self._quota_name is not None:
             params["quotaName"] = self._quota_name
-
         url = self.resource() + "/" + str(self.id)
-        resp = self._client.get(url, params=params, headers=headers)
-        if self._client.is_ok(resp):
-            self.parse(resp, obj=self)
-        else:
-            e = TunnelError.parse(resp)
-            raise e
+        resp = self.retry_handler.execute_with_retry_headers(
+            lambda stamped: self._client.get(url, params=params, headers=stamped),
+            headers,
+        )
+        self.check_tunnel_response(resp)
+        self.parse(resp, obj=self)
 
     def open(self, start=0, length=sys.maxsize):
         compress_option = self._compress_option or io.CompressOption()
@@ -387,12 +400,13 @@ class VolumeDownloadSession(BaseVolumeTunnelSession):
             params["quotaName"] = self._quota_name
 
         url = self.resource()
-        resp = self._client.get(
-            url + "/" + self.id, params=params, headers=headers, stream=True
+        resp = self.retry_handler.execute_with_retry_headers(
+            lambda stamped: self._client.get(
+                url + "/" + self.id, params=params, headers=stamped, stream=True
+            ),
+            headers,
         )
-        if not self._client.is_ok(resp):
-            e = TunnelError.parse(resp)
-            raise e
+        self.check_tunnel_response(resp)
 
         content_encoding = resp.headers.get("Content-Encoding")
         if content_encoding is not None:
@@ -676,7 +690,10 @@ class VolumeUploadSession(BaseVolumeTunnelSession):
             params["quotaName"] = self._quota_name
 
         url = self.resource()
-        resp = self._client.post(url, {}, params=params, headers=headers)
+        resp = self.retry_handler.execute_with_retry_headers(
+            lambda stamped: self._client.post(url, {}, params=params, headers=stamped),
+            headers,
+        )
         if self._client.is_ok(resp):
             self.parse(resp, obj=self)
         else:
@@ -688,12 +705,12 @@ class VolumeUploadSession(BaseVolumeTunnelSession):
         params = {}
 
         url = self.resource() + "/" + str(self.id)
-        resp = self._client.get(url, params=params, headers=headers)
-        if self._client.is_ok(resp):
-            self.parse(resp, obj=self)
-        else:
-            e = TunnelError.parse(resp)
-            raise e
+        resp = self.retry_handler.execute_with_retry_headers(
+            lambda stamped: self._client.get(url, params=params, headers=stamped),
+            headers,
+        )
+        self.check_tunnel_response(resp)
+        self.parse(resp, obj=self)
 
     @staticmethod
     def _format_file_name(file_name):
@@ -746,9 +763,11 @@ class VolumeUploadSession(BaseVolumeTunnelSession):
 
         url = self.resource() + "/" + self.id
 
-        chunk_uploader = lambda data: self._client.post(
-            url, data=data, params=params, headers=headers
-        )
+        def chunk_uploader(data):
+            # data is a generator from RequestsIO.data_generator() —
+            # consumed once, cannot be replayed on retry.
+            return self._client.post(url, data=data, params=params, headers=headers)
+
         option = compress_option if compress else None
         return VolumeWriter(self._client, chunk_uploader, option, tags=self._tags)
 
@@ -779,7 +798,10 @@ class VolumeUploadSession(BaseVolumeTunnelSession):
             params["quotaName"] = self._quota_name
 
         url = self.resource() + "/" + self.id
-        resp = self._client.put(url, {}, params=params, headers=headers)
+        resp = self.retry_handler.execute_with_retry_headers(
+            lambda stamped: self._client.put(url, {}, params=params, headers=stamped),
+            headers,
+        )
         if self._client.is_ok(resp):
             self.parse(resp, obj=self)
         else:
@@ -900,8 +922,17 @@ class VolumeFSWriter(VolumeWriter):
                 ),
             }
         )
-        commit_result = self._client.put(
-            self._volume.resource(client=self._client), None, headers=headers
+        # Body is None (replayable); wrap in the tunnel retry handler so
+        # connection errors and 502/503/504 are retried, as they were on
+        # master before tunnel_rest disabled rest-level retry.
+        retry_handler = TunnelRetryHandler(default_retry_policy=OptionsRetryPolicy())
+        commit_result = retry_handler.execute_with_retry_headers(
+            lambda stamped: self._client.put(
+                self._volume.resource(client=self._client),
+                None,
+                headers=stamped,
+            ),
+            headers,
         )
         if not self._client.is_ok(commit_result):
             e = TunnelError.parse(commit_result)

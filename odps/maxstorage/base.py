@@ -37,7 +37,7 @@ from .models.requests import (
     CreateTableReadSessionRequest,
     TablePreviewRequest,
 )
-from .options import _supports_v3
+from .options import BatchCompatibleOptions, _supports_v3
 from .read.instance_session import InstanceReadSession
 from .read.reader import ArrowReader
 from .read.table_session import TableReadSession
@@ -190,7 +190,9 @@ class MaxStorageClient:
                     "Pass tunnel_endpoint= or odps= to MaxStorageClient."
                 )
 
-            kw = dict(tag="MAXSTORAGE")
+            # StorageStub._execute wraps every call in TunnelRetryHandler,
+            # so disable rest-level retry here to avoid double retry.
+            kw = dict(tag="MAXSTORAGE", retry_enabled=False)
             if self._odps is not None:
                 kw["namespace"] = self._odps.namespace
             if config_options.data_proxy is not None:
@@ -422,6 +424,7 @@ class MaxStorageClient:
         quota_name: Optional[str] = None,
         enable_schema_evolution: bool = False,
         required_data_format: Optional["DataFormat"] = None,
+        batch_compatible_options: Optional["BatchCompatibleOptions"] = None,
     ) -> TableWriteSession:
         """Create (or reload via ``session_id``) a table write session.
 
@@ -436,11 +439,14 @@ class MaxStorageClient:
         overwrite : bool, default False
             Overwrite existing data in the partition.
         write_mode : WriteMode, default WriteMode.BATCH
-            Batch or streaming write mode.
+            Batch, batch-compatible, or streaming write mode.
         required_data_format : DataFormat, optional
             Required data format for the session (e.g. ``DataFormat("Arrow", "V5")``).
             When ``None`` the server applies its default. Forwarded as the
             ``RequiredDataFormat`` wire field consumed by the server.
+        batch_compatible_options : BatchCompatibleOptions, optional
+            Advanced settings for ``WriteMode.BATCH_COMPATIBLE``.  Ignored
+            for other write modes.
 
         Example
         -------
@@ -454,6 +460,23 @@ class MaxStorageClient:
         >>> writer.write_batch(batch)
         >>> writer.close()
         >>> write_session.commit()
+        >>>
+        >>> # Batch-compatible mode
+        >>> from odps.maxstorage import BatchCompatibleOptions, WriteMode
+        >>> session = client.create_table_write_session(
+        ...     "my_table",
+        ...     write_mode=WriteMode.BATCH_COMPATIBLE,
+        ...     batch_compatible_options=BatchCompatibleOptions(
+        ...         enhance_write_check=True,
+        ...     ),
+        ... )
+        >>> results = []
+        >>> for block in range(2):
+        ...     writer = session.open_block_writer(block, 0)
+        ...     root = writer.create_vector_schema_root()
+        ...     writer.write_batch(root)
+        ...     results.append(writer.commit())
+        >>> session.commit(block_results=results)
         """
 
         table_id = self._resolve_table_id(table)
@@ -467,6 +490,7 @@ class MaxStorageClient:
             quota_name=quota_name,
             enable_schema_evolution=enable_schema_evolution,
             required_data_format=required_data_format,
+            batch_compatible_options=batch_compatible_options,
             api_version=self._api_version,
         )
 

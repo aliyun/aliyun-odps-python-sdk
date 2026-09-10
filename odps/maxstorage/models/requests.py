@@ -25,6 +25,17 @@ from typing import Dict, List, Optional
 from ..options import IncrementalReadOptions, SplitOptions
 from .enums import DataFormat
 
+#: Default Arrow serialization options shared by every request carrying them.
+_DEFAULT_ARROW_OPTIONS = {"TimestampUnit": "nano", "DatetimeUnit": "milli"}
+
+
+def _arrow_options_dict(extra=None):
+    """Default Arrow options merged with any caller overrides."""
+    opts = dict(_DEFAULT_ARROW_OPTIONS)
+    if extra:
+        opts.update(extra)
+    return opts
+
 
 @dataclass
 class CreateTableReadSessionRequest:
@@ -45,10 +56,7 @@ class CreateTableReadSessionRequest:
     incremental_read_options: Optional[IncrementalReadOptions] = None
 
     def to_dict(self):
-        arrow_opts = self.arrow_options or {
-            "TimestampUnit": "nano",
-            "DatetimeUnit": "milli",
-        }
+        arrow_opts = _arrow_options_dict(self.arrow_options)
         d = {
             "RequiredDataColumns": self.required_data_columns,
             "RequiredPartitionColumns": self.required_partition_columns,
@@ -228,3 +236,58 @@ class BlobWriteRequest:
 
     def to_dict(self):
         return {"BlobReferences": self.blob_references}
+
+
+@dataclass
+class BatchCompatibleDynamicPartitionOptions:
+    """Dynamic-partition settings in the batch-compatible wire format."""
+
+    invalid_strategy: str = "Exception"
+    invalid_limit: int = -1
+    dynamic_partition_limit: int = -1
+
+    def to_dict(self):
+        return {
+            "InvalidStrategy": self.invalid_strategy,
+            "InvalidLimit": self.invalid_limit,
+            "DynamicPartitionLimit": self.dynamic_partition_limit,
+        }
+
+
+@dataclass
+class BatchCompatibleCreateSessionRequest:
+    """Request body used by ``WriteMode.BATCH_COMPATIBLE`` session creation."""
+
+    partition_spec: str = ""
+    overwrite: bool = False
+    dynamic_partition_options: BatchCompatibleDynamicPartitionOptions = field(
+        default_factory=BatchCompatibleDynamicPartitionOptions
+    )
+    arrow_options: dict = field(default_factory=dict)
+    support_write_cluster: bool = False
+    max_field_size: int = 0
+    enhance_write_check: bool = False
+    support_save_to_pangu: bool = False
+
+    def to_dict(self):
+        arrow_opts = _arrow_options_dict(self.arrow_options)
+        return {
+            "PartitionSpec": self.partition_spec,
+            "Overwrite": self.overwrite,
+            "DynamicPartitionOptions": self.dynamic_partition_options.to_dict(),
+            "ArrowOptions": arrow_opts,
+            "SupportWriteCluster": self.support_write_cluster,
+            "MaxFieldSize": self.max_field_size,
+            "EnhanceWriteCheck": self.enhance_write_check,
+            "SupportSaveToPangu": self.support_save_to_pangu,
+        }
+
+
+@dataclass
+class BatchCompatibleCommitRequest:
+    """Commit body used by the batch-compatible block protocol."""
+
+    commit_messages: List[str] = field(default_factory=list)
+
+    def to_dict(self):
+        return {"CommitMessages": self.commit_messages}

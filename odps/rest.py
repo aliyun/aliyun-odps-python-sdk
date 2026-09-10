@@ -15,6 +15,7 @@
 """Restful client enhanced by URL building and request signing facilities.
 """
 
+import copy
 import json
 import logging
 import os
@@ -209,6 +210,11 @@ class RestClient:
         self._proxy = kwargs.get("proxy")
         self._app_account = kwargs.get("app_account")
         self._tag = kwargs.get("tag")
+        # When False, RestClient skips its own call_with_retry layer and
+        # fires a single request. Callers that own retry semantics (the
+        # tunnel layer's TunnelRetryHandler) set this so requests are not
+        # double-retried.
+        self._retry_enabled = kwargs.get("retry_enabled", True)
         if isinstance(self._proxy, str):
             self._proxy = dict(http=self._proxy, https=self._proxy)
 
@@ -227,6 +233,29 @@ class RestClient:
     @property
     def region_name(self):
         return self._region_name
+
+    @property
+    def retry_enabled(self):
+        return self._retry_enabled
+
+    def with_retry_enabled(self, retry_enabled):
+        """Return a new RestClient sharing this client's config but with
+        the chosen rest-level retry flag.
+
+        The clone reuses the same account, endpoint, project, schema,
+        namespace, proxy, app_account, tag, region_name and user_agent,
+        and shares the class-level requests session cache, so no extra
+        connection pool is created. Use this when a caller needs the
+        same endpoint but different retry semantics than the shared
+        tunnel client (e.g. storage_api keeps rest-level retry enabled
+        while the tunnel client disables it for TunnelRetryHandler).
+        """
+        # Shallow-copy so subclasses (e.g. McqaV2RestClient) keep their
+        # type and instance state (_conn_header, _request/is_ok overrides)
+        # rather than being downgraded to a plain RestClient.
+        clone = copy.copy(self)
+        clone._retry_enabled = retry_enabled
+        return clone
 
     @property
     def session(self):
@@ -314,6 +343,12 @@ class RestClient:
                 auth_expire_retried = True
 
     def _request_with_retry(self, url, method, stream=False, **kwargs):
+        # When retry is suspended the caller owns retry semantics (e.g. the
+        # tunnel layer's TunnelRetryHandler), so issue a single request and
+        # let any exception propagate for the caller's loop to handle.
+        if not self._retry_enabled:
+            return self._request(url, method, stream=stream, **kwargs)
+
         def exc_filter(ex):
             # Connection errors: retry unconditionally regardless of method,
             # matching urllib3's _is_connection_error behavior.

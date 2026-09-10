@@ -376,6 +376,8 @@ is_string = lambda x: isinstance(x, str)
 is_dict = lambda x: isinstance(x, dict)
 is_list = lambda x: isinstance(x, list)
 
+is_positive_integer = lambda x: isinstance(x, int) and x > 0
+
 
 def is_in(vals):
     def validate(x):
@@ -604,6 +606,17 @@ default_options.register_option(
 )
 default_options.register_option("tunnel.compress.level", 1, validator=is_integer)
 default_options.register_option("tunnel.compress.strategy", 0, validator=is_integer)
+# Slot route refresh intervals (seconds).
+# Non-force stream-upload reload throttle: skip if last reload was within this window.
+default_options.register_option(
+    "tunnel.stream_reload_throttle", 30, validator=is_integer
+)
+# Upsert session background keepalive interval (seconds). Must be
+# positive: threading.Timer(0) would fire immediately and re-arm into
+# an unthrottled reload-request loop.
+default_options.register_option(
+    "tunnel.upsert_keepalive_interval", 30, validator=is_positive_integer
+)
 
 default_options.redirect_option("tunnel_endpoint", "tunnel.endpoint")
 default_options.redirect_option("use_instance_tunnel", "tunnel.use_instance_tunnel")
@@ -628,6 +641,7 @@ default_options.register_option(
     "sql.use_odps2_extension", None, validator=any_validator(is_null, is_bool)
 )
 default_options.register_option("sql.parse_set_as_hints", True, validator=is_bool)
+default_options.register_option("sql.skip_parse_merge_task", False, validator=is_bool)
 default_options.register_option("legacy_cast_csv_result", False, validator=is_bool)
 
 # Catalog API

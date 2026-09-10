@@ -53,6 +53,7 @@ PyODPS 提供了一系列的配置选项，可通过 ``odps.options`` 获得，�
    "sql.settings", "ODPS SQL运行全局hints", "None"
    "sql.use_odps2_extension", "启用 MaxCompute 2.0 语言扩展", "None"
    "sql.enable_schema", "在任何情形下启用 MaxCompute Schema", "None"
+   "sql.skip_parse_merge_task", "跳过 ALTER TABLE ... MERGE SMALLFILES / COMPACT 的 MergeTask 解析，改为普通 SQLTask 执行", "False"
 
 .. _options_tunnel:
 

@@ -167,6 +167,7 @@ class CreateWriteStreamResponse:
     table_id: Optional[str] = None
     schema_version: Optional[int] = None
     access_token: Optional[str] = None
+    quota_token: Optional[str] = None
     request_id: str = ""
     route_token: Optional[str] = None
 
@@ -179,6 +180,7 @@ class CreateWriteStreamResponse:
             table_id=d.get("TableId"),
             schema_version=d.get("SchemaVersion"),
             access_token=d.get("AccessToken"),
+            quota_token=d.get("QuotaToken"),
         )
 
 
@@ -293,4 +295,96 @@ class WriteBlobResponse:
             blob_references_b64=d.get("BlobReferences") or [],
             warning_message=d.get("WarningMessage"),
             size=d.get("Size"),
+        )
+
+
+@dataclass
+class BatchCompatibleWriteResponse:
+    """Response returned after uploading one batch-compatible block."""
+
+    commit_message: Optional[str] = None
+    record_count: int = 0
+    request_id: str = ""
+
+    @classmethod
+    def from_dict(cls, d):
+        if not d:
+            return cls()
+        return cls(
+            commit_message=d.get("CommitMessage"),
+            record_count=d.get("RecordCount", 0),
+        )
+
+
+@dataclass
+class BatchCompatibleColumn:
+    """Column definition returned by the block protocol session response."""
+
+    name: Optional[str] = None
+    type: Optional[str] = None
+    comment: Optional[str] = None
+    nullable: bool = True
+
+    @classmethod
+    def from_dict(cls, d):
+        if not d:
+            return cls()
+        return cls(
+            name=d.get("Name"),
+            type=d.get("Type"),
+            comment=d.get("Comment"),
+            nullable=d.get("Nullable", True),
+        )
+
+
+@dataclass
+class BatchCompatibleDataSchema:
+    """Table schema returned by the block protocol session response."""
+
+    data_columns: List["BatchCompatibleColumn"] = field(default_factory=list)
+    partition_columns: List["BatchCompatibleColumn"] = field(default_factory=list)
+
+    @classmethod
+    def from_dict(cls, d):
+        if not d:
+            return cls()
+        return cls(
+            data_columns=[
+                BatchCompatibleColumn.from_dict(c) for c in (d.get("DataColumns") or [])
+            ],
+            partition_columns=[
+                BatchCompatibleColumn.from_dict(c)
+                for c in (d.get("PartitionColumns") or [])
+            ],
+        )
+
+
+@dataclass
+class BatchCompatibleSessionResponse:
+    """Session response returned by the batch-compatible block protocol.
+
+    Used for create, get, and commit operations.  The ``route_token`` is
+    sourced from the HTTP response header, not the JSON body.
+    """
+
+    session_id: Optional[str] = None
+    session_status: Optional[str] = None
+    data_schema: Optional["BatchCompatibleDataSchema"] = None
+    max_block_number: int = 0
+    enhance_write_check: bool = False
+    message: Optional[str] = None
+    request_id: str = ""
+    route_token: Optional[str] = None
+
+    @classmethod
+    def from_dict(cls, d):
+        if not d:
+            return cls()
+        return cls(
+            session_id=d.get("SessionId"),
+            session_status=d.get("SessionStatus"),
+            data_schema=BatchCompatibleDataSchema.from_dict(d.get("DataSchema")),
+            max_block_number=d.get("MaxBlockNumber", 0),
+            enhance_write_check=d.get("EnhanceWriteCheck", False),
+            message=d.get("Message"),
         )

@@ -22,6 +22,7 @@ from .. import options
 from ..models import Projects
 from ..rest import RestClient
 from .errors import TunnelError
+from .retry import OptionsRetryPolicy, TunnelRetryHandler
 
 TUNNEL_VERSION = 6
 
@@ -104,6 +105,24 @@ class TunnelMetrics:
             server_io_cost=self.server_io_cost + other.server_io_cost,
             rate_limit_cost=self.rate_limit_cost + other.rate_limit_cost,
         )
+
+
+class TunnelRetryMixin:
+    """Lazy :class:`TunnelRetryHandler` shared by all tunnel sessions.
+
+    Subclasses must include ``"_retry_handler"`` in ``__slots__`` (or be a
+    plain class).  The handler is built on first access with the global
+    ``options.retry_times`` / ``options.retry_delay`` as the default policy
+    for non-status (network IO) exceptions.
+    """
+
+    @property
+    def retry_handler(self):
+        handler = getattr(self, "_retry_handler", None)
+        if handler is None:
+            handler = TunnelRetryHandler(default_retry_policy=OptionsRetryPolicy())
+            self._retry_handler = handler
+        return handler
 
 
 class BaseTunnel:
@@ -189,7 +208,7 @@ class BaseTunnel:
             if self._tunnel_rest is not None:
                 return self._tunnel_rest
 
-            kw = dict(tag="TUNNEL", namespace=self._namespace)
+            kw = dict(tag="TUNNEL", namespace=self._namespace, retry_enabled=False)
             if options.data_proxy is not None:
                 kw["proxy"] = options.data_proxy
             if getattr(self._client, "app_account", None) is not None:

@@ -661,10 +661,17 @@ class StorageApiClient:
 
         from ...tunnel.tabletunnel import TableTunnel
 
+        # Borrow the shared TableTunnel.tunnel_rest (which disables
+        # rest-level retry so the tunnel's TunnelRetryHandler owns
+        # semantics) and clone it with rest-level retry re-enabled.
+        # The storage_api call sites are plain single calls (json POSTs
+        # and GETs with replayable bodies) that rely on rest-level retry,
+        # as they did on master. The clone shares the requests session
+        # cache, so no extra connection pool.
         tunnel = TableTunnel(
             self._odps, endpoint=self._rest_endpoint, quota_name=self._quota_name
         )
-        self._tunnel_rest = tunnel.tunnel_rest
+        self._tunnel_rest = tunnel.tunnel_rest.with_retry_enabled(True)
         return self._tunnel_rest
 
     def _get_resource(self, *args, url_prefix=None) -> str:
@@ -706,7 +713,6 @@ class StorageApiClient:
             params["quotaName"] = self._quota_name
 
         res = self.tunnel_rest.post(url, data=json_str, params=params, headers=headers)
-
         response = TableBatchScanResponse()
         response.parse(res, obj=response)
         response.status = (

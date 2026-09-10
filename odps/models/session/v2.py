@@ -129,7 +129,7 @@ class McqaV2Methods:
             offline_quota_name = kwargs.pop("offline_quota_name", None)
             fb_info = {"Fallback": "true"}
             if offline_quota_name:
-                fb_info["FallBackQuota"] = offline_quota_name
+                fb_info["FallbackQuota"] = offline_quota_name
             header_txt = json.dumps(fb_info)
             extra_headers = {"x-odps-fallback-infos": header_txt}
         return mcqa_odps.run_sql(

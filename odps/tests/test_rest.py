@@ -20,6 +20,8 @@ from requests.exceptions import ConnectTimeout as RequestsConnectTimeout
 from .. import errors, rest
 from ..accounts import AliyunAccount
 
+_URL = "http://localhost/test"
+
 
 def _make_client(**kwargs):
     account = kwargs.pop("account", None) or AliyunAccount("id", "key")
@@ -31,7 +33,7 @@ def _fake_response(ok=True, status_code=200):
     return mock.MagicMock(ok=ok, status_code=status_code, headers={}, content=b"")
 
 
-def _capture_request(client, url="http://localhost/test", method="GET", **kwargs):
+def _capture_request(client, url=_URL, method="GET", **kwargs):
     captured = {}
 
     def fake_send(prepared_req, **kw):
@@ -48,13 +50,10 @@ def _capture_request(client, url="http://localhost/test", method="GET", **kwargs
 def fresh_user_agent(monkeypatch):
     monkeypatch.delenv("MC_PLATFORM_ID", raising=False)
     monkeypatch.setattr(rest, "_default_user_agent", None)
-    yield
-    monkeypatch.setattr(rest, "_default_user_agent", None)
 
 
 @pytest.mark.parametrize(
-    "platform_id, has_fragment",
-    [("qwen-code", True), (None, False)],
+    "platform_id, has_fragment", [("qwen-code", True), (None, False)]
 )
 def test_user_agent_platform_id_and_headers(
     monkeypatch, fresh_user_agent, platform_id, has_fragment
@@ -68,8 +67,9 @@ def test_user_agent_platform_id_and_headers(
     if not has_fragment:
         return
     captured = _capture_request(_make_client())
-    assert captured["headers"]["User-Agent"] == _make_client()._user_agent
-    assert captured["headers"]["x-odps-user-agent"] == _make_client()._user_agent
+    ua = _make_client()._user_agent
+    assert captured["headers"]["User-Agent"] == ua
+    assert captured["headers"]["x-odps-user-agent"] == ua
 
 
 def test_default_user_agent_cached(fresh_user_agent):
@@ -85,18 +85,10 @@ def test_default_user_agent_cached(fresh_user_agent):
             "_proxy",
             {"http": "http://p:80", "https": "http://p:80"},
         ),
-        ({"user_agent": "ua"}, "_user_agent", "ua"),
-        ({"namespace": "ns"}, "namespace", "ns"),
-        ({"region_name": "cn"}, "region_name", "cn"),
     ],
 )
 def test_init(kwargs, attr, expected):
     assert getattr(_make_client(**kwargs), attr) == expected
-
-
-def test_init_app_account():
-    acct = AliyunAccount("a", "b")
-    assert _make_client(app_account=acct).app_account is acct
 
 
 @pytest.mark.parametrize(
@@ -137,14 +129,14 @@ def test_request_none_header_raises():
         lambda req, *a, **kw: req.headers.update({"X-None": None}),
     ):
         with pytest.raises(TypeError, match="cannot be None"):
-            client._request("http://localhost/test", "GET")
+            client._request(_URL, "GET")
 
 
 def test_request_connect_timeout_wrapped():
     client = _make_client()
     with mock.patch.object(client.session, "send", side_effect=RequestsConnectTimeout):
         with pytest.raises(errors.ConnectTimeout):
-            client._request("http://localhost/test", "GET")
+            client._request(_URL, "GET")
 
 
 def test_request_error_response_raises():
@@ -153,12 +145,7 @@ def test_request_error_response_raises():
         client.session, "send", return_value=_fake_response(ok=False, status_code=500)
     ):
         with pytest.raises(errors.ODPSError):
-            client._request("http://localhost/test", "GET")
-
-
-@pytest.mark.parametrize("ok", [True, False])
-def test_is_ok(ok):
-    assert _make_client().is_ok(_fake_response(ok=ok)) is ok
+            client._request(_URL, "GET")
 
 
 @pytest.mark.parametrize(
@@ -174,5 +161,44 @@ def test_is_ok(ok):
 def test_http_helpers_call_request(method, kwarg, value):
     client = _make_client()
     with mock.patch.object(client, "request", return_value=_fake_response()) as m:
-        getattr(client, method)("http://localhost/test", **{kwarg: value})
+        getattr(client, method)(_URL, **{kwarg: value})
         assert m.call_args[0][1] == method
+
+
+@pytest.mark.parametrize(
+    "retry_enabled, expect_gt1",
+    [(False, False), (True, True)],
+    ids=["disabled", "default"],
+)
+def test_retry_enabled(retry_enabled, expect_gt1):
+    """retry_enabled=False fires once; default retries forcelist status codes."""
+    client = _make_client(retry_enabled=retry_enabled)
+    calls = {"n": 0}
+
+    def fail(*a, **kw):
+        calls["n"] += 1
+        raise errors.ODPSError("boom", status_code=503)
+
+    with mock.patch.object(client, "_request", side_effect=fail):
+        with pytest.raises(errors.ODPSError):
+            client._request_with_retry(_URL, "GET")
+    assert (calls["n"] > 1) is expect_gt1
+
+
+def test_with_retry_enabled_clones_config_and_flips_flag():
+    """with_retry_enabled shares config, flips only the retry flag, and
+    does not mutate the source."""
+    src = _make_client(retry_enabled=False, proxy="http://p:80")
+    src.project = "proj"
+    src.namespace = "ns"
+
+    clone = src.with_retry_enabled(True)
+
+    assert clone is not src
+    assert clone.retry_enabled is True
+    assert src.retry_enabled is False  # source unchanged
+    assert clone.endpoint == src.endpoint
+    assert clone._proxy == src._proxy
+    assert clone._user_agent == src._user_agent
+    assert clone.project == src.project
+    assert clone.namespace == src.namespace

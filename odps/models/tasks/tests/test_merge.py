@@ -15,8 +15,10 @@
 import json
 import os
 
+import mock
 import pytest
 
+from ....config import options
 from ....tests.core import tn, wait_filled
 from ....utils import to_text
 from .. import MergeTask, Task
@@ -143,3 +145,18 @@ def test_run_freeze(odps, test_table):
         inst.stop()
     except Exception:
         pass
+
+
+def test_skip_parse_merge_task():
+    odps = mock.Mock()
+    sql = "alter table some_table partition (part1=1) merge smallfiles"
+
+    try:
+        # option enabled: MergeTask parse is skipped, returns None
+        # without touching the odps client (no table lookup / submission)
+        options.sql.skip_parse_merge_task = True
+        result = MergeTask.submit_alter_table_instance(odps, sql)
+        assert result is None
+        assert not odps.method_calls
+    finally:
+        options.sql.skip_parse_merge_task = False

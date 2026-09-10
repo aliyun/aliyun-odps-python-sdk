@@ -14,11 +14,14 @@
 
 """Write sub-package for :mod:`odps.maxstorage`."""
 
+from .block_writer import BlockWriteResult, TableBlockWriter
 from .record_writer import AppendTableRecordWriter, DeltaTableRecordWriter
 from .session import TableWriteSession
 from .writer import TableArrowBlobUploadWriter, TableArrowWriter
 
 __all__ = [
+    "BlockWriteResult",
+    "TableBlockWriter",
     "TableWriteSession",
     "TableArrowWriter",
     "TableArrowBlobUploadWriter",

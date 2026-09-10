@@ -333,6 +333,17 @@ msgstr ""
 msgid "在任何情形下启用 MaxCompute Schema"
 msgstr "Enable Schema level under any scenario"
 
+#: ../../source/options.rst:1
+msgid "sql.skip_parse_merge_task"
+msgstr ""
+
+#: ../../source/options.rst:1
+msgid ""
+"跳过 ALTER TABLE ... MERGE SMALLFILES / COMPACT 的 MergeTask "
+"解析，改为普通 SQLTask 执行"
+msgstr ""
+"Skip parsing MergeTask of ALTER TABLE ... MERGE SMALLFILES / COMPACT, and "
+"execute as a normal SQLTask instead"
 msgid "数据上传/下载配置"
 msgstr "Data upload/download configurations"
 
