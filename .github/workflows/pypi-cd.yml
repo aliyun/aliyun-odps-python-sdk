@@ -19,27 +19,31 @@ jobs:
             arch: aarch64
           - os: macos-15-intel
             arch: auto
+          - os: windows-11-arm
+            arch: ARM64
 
     steps:
       - name: Check out code
         uses: actions/checkout@v2
 
-      - name: "Build wheels (Python >= 3.7, <3.13)"
+      - name: "Build wheels (Python >= 3.7, <3.11)"
+        if: ${{ matrix.os != 'windows-11-arm' }}
         uses: pypa/cibuildwheel@v2.16.5
         env:
           CIBW_BEFORE_BUILD: git reset --hard && bash .github/workflows/allow-cython-in-windows.sh
           CIBW_ARCHS: ${{ matrix.arch }}
-          CIBW_SKIP: pp* *-musllinux* *i686 cp36-*
+          CIBW_SKIP: pp* *-musllinux* *i686 cp36-* cp311-* cp312-*
           CIBW_MANYLINUX_X86_64_IMAGE: manylinux2014
           CIBW_MANYLINUX_AARCH64_IMAGE: manylinux2014
 
-      - name: "Build wheels (Python >= 3.13)"
+      # CPython ships Windows ARM64 builds from 3.11 onwards, so ARM64 is covered here only
+      - name: "Build wheels (Python >= 3.11)"
         uses: pypa/cibuildwheel@v3.4.0
         env:
           # allow building with cython on Windows
           CIBW_BEFORE_BUILD: git reset --hard && bash .github/workflows/allow-cython-in-windows.sh
           CIBW_ARCHS: ${{ matrix.arch }}
-          CIBW_SKIP: "*-musllinux* *i686 cp38-* cp39-* cp310-* cp311-* cp312-*"
+          CIBW_SKIP: "*-musllinux* *i686 cp38-* cp39-* cp310-*"
           CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
           CIBW_MANYLINUX_AARCH64_IMAGE: manylinux_2_28
 
