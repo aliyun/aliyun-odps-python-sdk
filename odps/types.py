@@ -18,6 +18,7 @@ import decimal
 import io
 import json as _json
 import math
+import struct
 import warnings
 from collections import OrderedDict
 from datetime import date as _date
@@ -2047,6 +2048,42 @@ class Vector(CompositeDataType):
             ) from None
 
         return cls(element_type, dimension)
+
+
+def _vector_to_numpy(element_type, values):
+    """Return *values* as a numpy array with the dtype matching *element_type*.
+
+    Falls back to the plain list when numpy is unavailable. ``element_type``
+    must be ``float_`` or ``double`` (as enforced by :class:`Vector`).
+    """
+    if np is None:
+        # Without numpy we cannot rely on np.errstate to catch float32
+        # overflow, so reject out-of-range values explicitly to keep
+        # validity consistent with the numpy path.
+        if element_type == float_:
+            for v in values:
+                try:
+                    struct.pack(">f", v)
+                except OverflowError:
+                    raise ValueError(f"Vector element {v} overflows float32 range")
+        return values
+    dtype = np.float32 if element_type == float_ else np.float64
+    with np.errstate(over="raise"):
+        result = np.array(values, dtype=dtype)
+
+    # Some numpy releases (e.g. 1.21) do not raise on a cast overflow from
+    # ``np.array`` even with ``over="raise"`` and silently store +/-inf
+    # instead, so verify the converted values explicitly. Vector elements
+    # may never be NaN or Infinity, hence any non-finite value here can only
+    # come from numeric overflow.
+    if not np.all(np.isfinite(result)):
+        for value, converted in zip(values, result):
+            if not np.isfinite(converted):
+                raise ValueError(
+                    f"Vector element {value} overflows {dtype.__name__} range"
+                )
+
+    return result
 
 
 @_primitive_doc

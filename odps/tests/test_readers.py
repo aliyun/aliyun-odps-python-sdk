@@ -21,11 +21,24 @@ from odps import types as odps_types
 from odps.models import TableSchema
 from odps.readers import CsvRecordReader, parse_complex_value
 
+try:
+    import numpy as np
+except ImportError:
+    np = None
+
 
 def _make_columns(type_list):
     return TableSchema.from_lists(
         [f"c{i}" for i in range(len(type_list))], type_list
     ).columns
+
+
+def _assert_vector_result(result, expected):
+    """Compare a vector parse result, accounting for float32 precision."""
+    if np is not None and isinstance(result, np.ndarray):
+        np.testing.assert_allclose(result, expected, rtol=1e-6)
+    else:
+        assert result == expected
 
 
 @pytest.mark.parametrize(
@@ -149,10 +162,39 @@ def test_parse_complex_value_struct(value, struct_type, expected):
             odps_types.Map(odps_types.string, odps_types.string),
             "Map format error",
         ),
+        (
+            "not_a_vector",
+            odps_types.Vector(odps_types.float_, 2),
+            "Vector format error",
+        ),
+        ("[]", odps_types.Vector(odps_types.float_, 2), "at least one element"),
+        (
+            "[1.0, 2.0]",
+            odps_types.Vector(odps_types.float_, 3),
+            "Vector dimension mismatch",
+        ),
+        ("[nan, 1.0]", odps_types.Vector(odps_types.float_, 2), "NaN or Infinity"),
+        ("[inf, 1.0]", odps_types.Vector(odps_types.float_, 2), "NaN or Infinity"),
+        (
+            "[-inf, 1.0]",
+            odps_types.Vector(odps_types.float_, 2),
+            "NaN or Infinity",
+        ),
+        (
+            "[3.5e38, \\N]",
+            odps_types.Vector(odps_types.float_, 2),
+            "must not be null",
+        ),
+        pytest.param(
+            "[3.5e38, 1.0]",
+            odps_types.Vector(odps_types.float_, 2),
+            "overflow",
+            marks=pytest.mark.skipif(np is None, reason="numpy unavailable"),
+        ),
     ],
 )
 def test_parse_complex_value_error(value, data_type, error_match):
-    with pytest.raises(ValueError, match=error_match):
+    with pytest.raises((ValueError, FloatingPointError), match=error_match):
         parse_complex_value(value, data_type)
 
 
@@ -182,16 +224,29 @@ def test_parse_complex_value_error(value, data_type, error_match):
             "{x:42,y:hello}",
             None,  # checked separately via namedtuple
         ),
+        (
+            odps_types.Vector(odps_types.float_, 3),
+            "[1.0, 2.0, 3.0]",
+            [1.0, 2.0, 3.0],
+        ),
+        (
+            odps_types.Vector(odps_types.double, 2),
+            "[0.5, -0.5]",
+            [0.5, -0.5],
+        ),
     ],
 )
 def test_get_caster_complex_types(col_type, value, expected):
     cols = _make_columns([col_type])
     caster = CsvRecordReader._get_caster(cols[0].type)
+    assert caster is not None
     result = caster(value)
-    if expected is not None:
-        assert result == expected
-    else:
+    if expected is None:
         assert result == col_type.namedtuple_type(42, "hello")
+    elif isinstance(col_type, odps_types.Vector):
+        _assert_vector_result(result, expected)
+    else:
+        assert result == expected
 
 
 @pytest.mark.parametrize(
@@ -199,7 +254,6 @@ def test_get_caster_complex_types(col_type, value, expected):
     [
         odps_types.Binary(),
         odps_types.Blob(),
-        odps_types.Vector(odps_types.float_, 32),
         odps_types.Array(odps_types.Binary()),
         odps_types.Map(odps_types.string, odps_types.Blob()),
         odps_types.Array(odps_types.Map(odps_types.string, odps_types.Binary())),
@@ -207,3 +261,27 @@ def test_get_caster_complex_types(col_type, value, expected):
 )
 def test_get_caster_unsupported_returns_none(col_type):
     assert CsvRecordReader._get_caster(col_type) is None
+
+
+@pytest.mark.parametrize(
+    "value,element_type,dimension,expected",
+    [
+        ("[1.0, 2.5, -3.14]", odps_types.float_, 3, [1.0, 2.5, -3.14]),
+        ("[1.0, 2.5, -3.14]", odps_types.double, 3, [1.0, 2.5, -3.14]),
+        ("[0.0]", odps_types.float_, 1, [0.0]),
+        ("[1.0, 0.0, 1.0, 0.0]", odps_types.float_, 4, [1.0, 0.0, 1.0, 0.0]),
+    ],
+)
+def test_parse_complex_value_vector(value, element_type, dimension, expected):
+    result = parse_complex_value(value, odps_types.Vector(element_type, dimension))
+    _assert_vector_result(result, expected)
+
+
+def test_cast_value_legacy_vector():
+    """Legacy CSV casting must parse Vector columns like other composites."""
+    cols = _make_columns([odps_types.Vector(odps_types.float_, 2)])
+    reader = CsvRecordReader.__new__(CsvRecordReader)  # skip __init__ (no stream)
+    reader._csv_columns = cols
+
+    result = reader._cast_value_legacy(0, "[1.0, 2.0]")
+    _assert_vector_result(result, [1.0, 2.0])

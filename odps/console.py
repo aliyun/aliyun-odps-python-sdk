@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import codecs
+import functools
 import locale
 import math
 import multiprocessing
@@ -24,7 +25,10 @@ import sys
 import threading
 import time
 import warnings
+from collections import namedtuple
 from collections.abc import Iterable, Iterator
+
+from .utils import detect_console_encoding  # noqa: F401
 
 try:
     import fcntl
@@ -35,18 +39,32 @@ try:
 except ImportError:
     _CAN_RESIZE_TERMINAL = False
 
-try:
-    from IPython import get_ipython
-except (ImportError, AttributeError):
-    pass
-try:
-    get_ipython()
-except NameError:
-    OutStream = None
-    IPythonIOStream = None
-    widgets = None
-else:
-    from IPython import version_info
+_IPythonEnv = namedtuple(
+    "_IPythonEnv",
+    [
+        "get_ipython",
+        "ipython_major_version",
+        "out_stream",
+        "io_stream",
+        "widgets",
+        "display",
+        "pyreadline_console",
+        "ipyio",
+    ],
+)
+_IPYTHON_ENV_NONE = _IPythonEnv(*(None,) * len(_IPythonEnv._fields))
+
+
+@functools.lru_cache(maxsize=None)
+def _build_ipython_env():
+    """Resolve the IPython-derived state, at most once.
+
+    Only called when IPython is already imported, so the IPython imports below
+    are dict hits. ipykernel / ipywidgets / traitlets are imported here on
+    first use, which inside a running IPython happens during `import odps`.
+    """
+    from IPython import get_ipython, version_info
+    from IPython.display import display
 
     ipython_major_version = version_info[0]
 
@@ -64,6 +82,7 @@ else:
             else:
                 OutStream = None
 
+    ipyio = None
     if OutStream is not None:
         from IPython.utils import io as ipyio
 
@@ -89,13 +108,9 @@ else:
 
     # import widgets and display
     try:
-        if ipython_major_version < 4:
-            from IPython.html import widgets
-        else:
-            from ipywidgets import widgets
+        from ipywidgets import widgets
     except ImportError:
         widgets = None
-    from IPython.display import display
 
     # ignore widgets deprecated message
     def _ignore_deprecated_warnings():
@@ -103,45 +118,54 @@ else:
             "ignore", category=DeprecationWarning, module=r".*widget.*"
         )
 
-    if get_ipython and get_ipython():
+    if get_ipython() is not None:
         get_ipython().events.register("pre_execute", _ignore_deprecated_warnings)
 
+    return _IPythonEnv(
+        get_ipython,
+        ipython_major_version,
+        OutStream,
+        IPythonIOStream,
+        widgets,
+        display,
+        PyreadlineConsole,
+        ipyio,
+    )
+
+
+def _ipython_env():
+    # correctness: IPython must be imported before any front end (kernel,
+    # terminal, embed) can exist, so a missing module proves "not in a front
+    # end" without importing anything. A miss is not cached, so a later
+    # IPython.embed() is noticed; the first successful build is cached, and it
+    # usually happens while `import odps` runs when IPython is already imported.
+    if sys.modules.get("IPython") is None:
+        return _IPYTHON_ENV_NONE
+    return _build_ipython_env()
+
+
+def get_ipython_major_version():
+    """Major version of the imported IPython, or None if it was never imported."""
+    return _ipython_env().ipython_major_version
+
+
+def get_widgets():
+    """The ipywidgets module when IPython is imported, else None."""
+    return _ipython_env().widgets
+
+
+def get_ipython_display():
+    """`IPython.display.display` when IPython is imported, else None."""
+    return _ipython_env().display
+
+
+# NOTE: the former module globals (`widgets`, `ipython_major_version`,
+# `display`, `OutStream`, `IPythonIOStream`, `PyreadlineConsole`, `ipyio`,
+# `get_ipython`) are gone; use the accessors above. `odps.console` is internal,
+# so no aliases are kept.
+
+
 _DEFAULT_ENCODING = "utf-8"
-_initial_defencoding = None
-
-
-def detect_console_encoding():
-    """
-    Try to find the most capable encoding supported by the console.
-    slighly modified from the way IPython handles the same issue.
-    """
-    import locale
-
-    global _initial_defencoding
-
-    encoding = None
-    try:
-        encoding = sys.stdout.encoding or sys.stdin.encoding
-    except AttributeError:
-        pass
-
-    # try again for something better
-    if not encoding or "ascii" in encoding.lower():
-        try:
-            encoding = locale.getpreferredencoding()
-        except Exception:
-            pass
-
-    # when all else fails. this will usually be "ascii"
-    if not encoding or "ascii" in encoding.lower():
-        encoding = sys.getdefaultencoding()
-
-    # GH3360, save the reported defencoding at import time
-    # MPL backends may change it. Make available for debugging.
-    if not _initial_defencoding:
-        _initial_defencoding = sys.getdefaultencoding()
-
-    return encoding
 
 
 def get_terminal_size():
@@ -193,7 +217,7 @@ def in_ipython_frontend():
     check if we're inside an an IPython zmq frontend
     """
     try:
-        ip = get_ipython()
+        ip = _ipython_env().get_ipython()
         return "zmq" in str(type(ip)).lower()
     except Exception:
         pass
@@ -204,20 +228,19 @@ def in_ipython_frontend():
 _backend_name = None
 
 
-def get_notebook_backend():
-    global _backend_name
-    if _backend_name is not None:
-        return _backend_name
+def _detect_notebook_backend():
+    lowered_env_names = [env_name.lower() for env_name in os.environ]
 
-    if "VSCODE_PID" in os.environ:
-        _backend_name = "VSCode"
-        return _backend_name
+    if any(name.startswith("dsw_") for name in lowered_env_names):
+        # DSW always use jupyter lab
+        return "DSW"
 
-    # DSW always use jupyter lab
-    for env_name in os.environ.keys():
-        if env_name.lower().startswith("dsw_"):
-            _backend_name = "DSW"
-            return _backend_name
+    if any(name.startswith("vscode_") for name in lowered_env_names):
+        # Local VS Code sets VSCODE_PID, while VS Code remote (remote-ssh,
+        # dev containers, WSL) does not set it in the kernel process but
+        # exports other VSCODE_* variables that the kernel inherits. Widgets
+        # fail to load on both front ends. See GH#258.
+        return "VSCode"
 
     for arg in sys.argv:
         if arg.endswith(".json") and os.path.exists(arg):
@@ -226,26 +249,47 @@ def get_notebook_backend():
             # jupyter notebook will generate a nbserver-{pid}.json instead
             lab_cfg_path = os.path.join(ipy_json_path, f"jpserver-{os.getppid()}.json")
             if os.path.exists(lab_cfg_path):
-                _backend_name = "JupyterLab"
-                return _backend_name
-    _backend_name = "JupyterNotebook"
-    return _backend_name
+                return "JupyterLab"
+    return "JupyterNotebook"
+
+
+def get_notebook_backend():
+    global _backend_name
+    if _backend_name is not None:
+        return _backend_name
+
+    backend = _detect_notebook_backend()
+    # Cache the result only inside an IPython front end: elsewhere the process
+    # may start a kernel later on (sys.argv then carries its connection file),
+    # and a value cached beforehand would describe the wrong front end.
+    if in_ipython_frontend():
+        _backend_name = backend
+    return backend
 
 
 def is_widgets_available():
     from .config import options
 
-    if not options.display.notebook_widget or widgets is None:
+    widget_opt = options.display.notebook_widget
+    if widget_opt is False or get_widgets() is None:
         return False
 
-    # todo when widget for lab or vscode ready, change this
-    if get_notebook_backend() in ("DSW", "JupyterLab", "VSCode"):
+    if widget_opt is None and get_notebook_backend() in ("DSW", "VSCode"):
+        # None means auto-detecting: widgets stay enabled by default, except
+        # on front ends without a working widget extension.
         return False
 
-    if hasattr(widgets.Widget, "_version_validated"):
-        return bool(getattr(widgets.Widget, "_version_validated", None))
-    else:
-        return True
+    # Gate on ipywidgets version >= 7.0
+    try:
+        import ipywidgets as _ipywidgets
+
+        _widgets_version = tuple(int(v) for v in _ipywidgets.__version__.split(".")[:2])
+        if _widgets_version < (7, 0):
+            return False
+    except Exception:
+        return False
+
+    return True
 
 
 def in_qtconsole():
@@ -255,7 +299,7 @@ def in_qtconsole():
     DEPRECATED: This is no longer needed, or working, in IPython 3 and above.
     """
     try:
-        ip = get_ipython()
+        ip = _ipython_env().get_ipython()
         front_end = ip.config.get("KernelApp", {}).get(
             "parent_appname", ""
         ) or ip.config.get("IPKernelApp", {}).get("parent_appname", "")
@@ -416,10 +460,11 @@ def _get_stdout(stderr=False):
 
     sys_stream = getattr(sys, stream)
 
-    if IPythonIOStream is None:
+    env = _ipython_env()
+    if env.io_stream is None:
         return sys_stream
 
-    ipyio_stream = getattr(ipyio, stream)
+    ipyio_stream = getattr(env.ipyio, stream)
 
     if isatty(sys_stream) and isatty(ipyio_stream):
         # Use the IPython console output stream
@@ -447,14 +492,18 @@ def isatty(file):
     if proc_name != "MainProcess" or thread_name != "MainThread":
         return False
 
+    env = _ipython_env()
     if hasattr(file, "isatty"):
         return file.isatty()
     elif (
-        OutStream is not None
-        and isinstance(file, (OutStream, IPythonIOStream))
+        env.out_stream is not None
+        and isinstance(file, (env.out_stream, env.io_stream))
         and (
             (hasattr(file, "name") and file.name == "stdout")
-            or (hasattr(file, "stream") and isinstance(file.stream, PyreadlineConsole))
+            or (
+                hasattr(file, "stream")
+                and isinstance(file.stream, env.pyreadline_console)
+            )
         )
     ):
         # File is an IPython OutStream or IOStream and
@@ -543,7 +592,7 @@ def _color_text(text, color):
         "white": "1;37",
     }
 
-    if sys.platform == "win32" and OutStream is None:
+    if sys.platform == "win32" and _ipython_env().out_stream is None:
         # On Windows do not colorize text unless in IPython
         return text
 
@@ -576,7 +625,8 @@ def _write_with_fallback(s, write, fileobj):
     'latin-1'.
     """
 
-    if IPythonIOStream is not None and isinstance(fileobj, IPythonIOStream):
+    env = _ipython_env()
+    if env.io_stream is not None and isinstance(fileobj, env.io_stream):
         # If the output stream is an IPython.utils.io.IOStream object that's
         # not going to be very helpful to us since it doesn't raise any
         # exceptions when an error occurs writing to its underlying stream.
@@ -772,21 +822,7 @@ def human_file_size(size):
 
 
 def create_progress_widget():
-    # Import only if an IPython widget, i.e., widget in iPython NB
-    if ipython_major_version < 4:
-        widget_cls = widgets.FloatProgressWidget
-        from IPython.utils.traitlets import Unicode
-    else:
-        widget_cls = widgets.FloatProgress
-        from traitlets import Unicode
-
-    from .ui.common import build_trait
-
-    class TransientProgressBar(widget_cls):
-        _view_name = build_trait(Unicode, "TransientProgressView", sync=True)
-        _view_module = build_trait(Unicode, "pyodps/progress", sync=True)
-
-    return TransientProgressBar()
+    return get_widgets().FloatProgress()
 
 
 class ProgressBar(Iterator):
@@ -828,11 +864,8 @@ class ProgressBar(Iterator):
             # Import only if ipython_widget, i.e., widget in IPython
             # notebook
             try:
-                if ipython_major_version < 4:
-                    from IPython.html import widgets  # noqa: F401
-                else:
-                    from ipywidgets import widgets  # noqa: F401
                 from IPython.display import display  # noqa: F401
+                from ipywidgets import widgets  # noqa: F401
 
                 ipython_widget = is_widgets_available()
             except ImportError:
@@ -981,7 +1014,7 @@ class ProgressBar(Iterator):
         if not hasattr(self, "_widget"):
             self._widget = create_progress_widget()
             if in_ipython_frontend() and is_widgets_available():
-                display(self._widget)
+                _ipython_env().display(self._widget)
             self._widget.value = 0
 
         # Calculate percent completion, and update progress bar
@@ -1051,7 +1084,7 @@ class ProgressBar(Iterator):
 
 class StatusLine:
     def __init__(self, ipython_widget=False):
-        if widgets is None:
+        if get_widgets() is None:
             ipython_widget = False
 
         self.ipython_widget = ipython_widget
@@ -1060,9 +1093,9 @@ class StatusLine:
     def update(self, text):
         if self.ipython_widget:
             if not self._widget:
-                self._widget = widgets.HTML()
+                self._widget = get_widgets().HTML()
                 if is_widgets_available():
-                    display(self._widget)
+                    _ipython_env().display(self._widget)
             self._widget.value = text
 
     def close(self):

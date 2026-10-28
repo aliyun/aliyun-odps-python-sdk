@@ -42,7 +42,7 @@ class CreateTableReadSessionResponse:
     session_status: Optional[str] = None
     session_type: Optional[str] = None
     splits_count: int = 0
-    record_count: int = 0
+    record_count: int = -1
     data_schema: Optional[ReadSchema] = None
     expiration_time: Optional[int] = None
     split_mode: Optional[str] = None
@@ -53,6 +53,8 @@ class CreateTableReadSessionResponse:
     message: Optional[str] = None
     enable_large_string: bool = False
     incremental_read_options: Optional[Dict] = None
+    extended_arrow_ipc_enabled: bool = False
+    latest_txn_id: Optional[str] = None
     request_id: str = ""
     route_token: Optional[str] = None
 
@@ -65,7 +67,7 @@ class CreateTableReadSessionResponse:
             session_status=d.get("SessionStatus"),
             session_type=d.get("SessionType"),
             splits_count=d.get("SplitsCount", 0),
-            record_count=d.get("RecordCount", 0),
+            record_count=d.get("RecordCount", -1),
             data_schema=ReadSchema.from_dict(d.get("DataSchema")),
             expiration_time=d.get("ExpirationTime"),
             split_mode=d.get("SplitMode"),
@@ -78,6 +80,8 @@ class CreateTableReadSessionResponse:
             message=d.get("Message"),
             enable_large_string=d.get("EnableLargeString", False),
             incremental_read_options=d.get("IncrementalReadOptions"),
+            extended_arrow_ipc_enabled=d.get("ExtendedArrowIPCEnabled", False),
+            latest_txn_id=d.get("LatestTxnId"),
         )
 
 
@@ -360,6 +364,44 @@ class BatchCompatibleDataSchema:
 
 
 @dataclass
+class BatchCompatibleOrderKey:
+    """Ordering requirement returned by the batch-compatible protocol."""
+
+    name: Optional[str] = None
+    sort_direction: Optional[str] = None
+    null_ordering: Optional[str] = None
+
+    @classmethod
+    def from_dict(cls, d):
+        if not d:
+            return cls()
+        return cls(
+            name=d.get("Name"),
+            sort_direction=d.get("SortDirection"),
+            null_ordering=d.get("NullOrdering"),
+        )
+
+
+@dataclass
+class BatchCompatibleClusterDistribution:
+    """Distribution requirement returned by the batch-compatible protocol."""
+
+    type: Optional[str] = None
+    cluster_keys: List[str] = field(default_factory=list)
+    buckets_number: int = -1
+
+    @classmethod
+    def from_dict(cls, d):
+        if not d:
+            return cls()
+        return cls(
+            type=d.get("Type"),
+            cluster_keys=list(d.get("ClusterKeys") or []),
+            buckets_number=d.get("BucketsNumber", -1),
+        )
+
+
+@dataclass
 class BatchCompatibleSessionResponse:
     """Session response returned by the batch-compatible block protocol.
 
@@ -373,6 +415,9 @@ class BatchCompatibleSessionResponse:
     max_block_number: int = 0
     enhance_write_check: bool = False
     message: Optional[str] = None
+    supported_data_format: List[DataFormat] = field(default_factory=list)
+    required_ordering: List[BatchCompatibleOrderKey] = field(default_factory=list)
+    required_distribution: Optional[BatchCompatibleClusterDistribution] = None
     request_id: str = ""
     route_token: Optional[str] = None
 
@@ -387,4 +432,16 @@ class BatchCompatibleSessionResponse:
             max_block_number=d.get("MaxBlockNumber", 0),
             enhance_write_check=d.get("EnhanceWriteCheck", False),
             message=d.get("Message"),
+            supported_data_format=[
+                DataFormat.from_dict(df) for df in (d.get("SupportedDataFormat") or [])
+            ],
+            required_ordering=[
+                BatchCompatibleOrderKey.from_dict(ok)
+                for ok in (d.get("RequiredOrdering") or [])
+            ],
+            required_distribution=(
+                BatchCompatibleClusterDistribution.from_dict(d["RequiredDistribution"])
+                if d.get("RequiredDistribution") is not None
+                else None
+            ),
         )

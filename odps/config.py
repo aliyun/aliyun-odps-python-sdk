@@ -544,6 +544,9 @@ default_options.register_option(
     "read_timeout", DEFAULT_READ_TIMEOUT, validator=is_integer
 )
 default_options.register_option(
+    "write_timeout", None, validator=any_validator(is_null, is_positive_integer)
+)
+default_options.register_option(
     "pool_connections", DEFAULT_POOL_CONNECTIONS, validator=is_integer
 )
 default_options.register_option(
@@ -703,11 +706,6 @@ default_options.register_option("ml.model_volume", "pyodps_volume", validator=is
 default_options.redirect_option("runner.dry_run", "ml.dry_run")
 
 # display
-from .console import detect_console_encoding
-
-default_options.register_pandas(
-    "display.encoding", detect_console_encoding(), validator=is_string
-)
 default_options.register_pandas(
     "display.max_rows", 60, validator=any_validator(is_null, is_integer)
 )
@@ -744,7 +742,12 @@ default_options.register_pandas(
     "display.show_dimensions", "truncate", validator=is_in([True, False, "truncate"])
 )
 
-default_options.register_option("display.notebook_widget", True, validator=is_bool)
+# None means auto-detecting: interactive widgets are enabled unless the
+# notebook front end is known to lack support (DSW, Jupyter inside VSCode).
+# True forces widgets on, False turns them off.
+default_options.register_option(
+    "display.notebook_widget", None, validator=any_validator(is_null, is_bool)
+)
 default_options.redirect_option(
     "display.notebook_repr_widget", "display.notebook_widget"
 )
@@ -840,3 +843,12 @@ class OptionsProxy:
 
 
 options = OptionsProxy()
+
+# Imported here because odps.utils reads the options proxy above at import
+# time. The option can be registered late as default_options is the same
+# object stored by reset_global_options().
+from .utils import detect_console_encoding
+
+default_options.register_pandas(
+    "display.encoding", detect_console_encoding(), validator=is_string
+)

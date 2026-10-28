@@ -19,6 +19,7 @@ import inspect
 import io
 import json
 import re
+import sys
 from collections import OrderedDict
 
 import requests
@@ -168,11 +169,13 @@ class HasSubModelField(SerializeField):
 
         self._ref_module = None
         if self._model_str is not None:
-            for stack in inspect.stack():
-                module = stack[0].f_locals.get("__module__")
+            frame = sys._getframe(1)
+            while frame is not None:
+                module = frame.f_locals.get("__module__")
                 if module and module != __name__:
                     self._ref_module = module
                     break
+                frame = frame.f_back
 
         super(HasSubModelField, self).__init__(*args, **kwargs)
 
@@ -184,8 +187,10 @@ class HasSubModelField(SerializeField):
                 mod = None
             if mod:
                 yield mod
-        for stack in inspect.stack():
-            yield stack[0].f_globals
+        frame = sys._getframe()
+        while frame is not None:
+            yield frame.f_globals
+            frame = frame.f_back
 
     @property
     def _model(self):

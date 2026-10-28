@@ -24,6 +24,24 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v2
 
+      - name: Install Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # The manylinux containers ship no npm, so the Jupyter widget bundles are
+      # built here, outside cibuildwheel. The wheel builds only assert that the
+      # bundles are present (PYODPS_REQUIRE_JS=1), which keeps the containers
+      # free of any JS toolchain.
+      - name: Build Jupyter widget bundles
+        shell: bash
+        run: python setup.py build_js
+
       - name: "Build wheels (Python >= 3.7, <3.13)"
         uses: pypa/cibuildwheel@v2.16.5
         env:
@@ -32,22 +50,17 @@ jobs:
           CIBW_SKIP: pp* *-musllinux* *i686 cp36-*
           CIBW_MANYLINUX_X86_64_IMAGE: manylinux2014
           CIBW_MANYLINUX_AARCH64_IMAGE: manylinux2014
+          CIBW_ENVIRONMENT: PYODPS_REQUIRE_JS=1
 
       - name: "Build wheels (Python >= 3.13)"
         uses: pypa/cibuildwheel@v3.4.0
         env:
-          # allow building with cython on Windows
           CIBW_BEFORE_BUILD: git reset --hard && bash .github/workflows/allow-cython-in-windows.sh
           CIBW_ARCHS: ${{ matrix.arch }}
           CIBW_SKIP: "*-musllinux* *i686 cp38-* cp39-* cp310-* cp311-* cp312-*"
           CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
           CIBW_MANYLINUX_AARCH64_IMAGE: manylinux_2_28
-
-      - name: Install Python
-        uses: actions/setup-python@v4
-        if: ${{ startsWith(matrix.os, 'macos-') }}
-        with:
-          python-version: '3.9'
+          CIBW_ENVIRONMENT: PYODPS_REQUIRE_JS=1
 
       - name: Build source
         if: ${{ matrix.os == 'ubuntu-latest' && matrix.arch == 'auto'}}

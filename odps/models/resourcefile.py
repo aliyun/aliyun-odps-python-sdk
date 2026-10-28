@@ -503,6 +503,24 @@ class StreamResourceFile(ResourceFile):
         )
         self._opened = False
 
+    def abort(self):
+        # Called on the exceptional exit path: discard any buffered prefix and
+        # skip the final merge so a truncated source stream cannot overwrite
+        # the destination resource. Best-effort delete temp part resources that
+        # were already flushed; cleanup errors are suppressed because we are
+        # already propagating an exception.
+        if not self._opened:
+            return
+        self._opened = False
+        self._rebuild_buffer()
+        parts = self._resource_parts
+        self._resource_parts = []
+        for part in parts:
+            try:
+                self.resource.parent.delete(part)
+            except Exception:
+                pass
+
     def _iter(self):
         return self
 

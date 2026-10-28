@@ -50,12 +50,16 @@ class SplitOptions:
         ``ROW_OFFSET``.  Default 256 MiB.
     cross_partition : bool
         Whether splits may cross partition boundaries.  Default ``True``.
+    bucket_sort : bool
+        Whether bucket split results keep the clustered ordering.
+        Only meaningful for ``BUCKET`` splits.  Default ``False``.
     """
 
     split_mode: object = None
     split_unit: str = "ByteSize"
     split_number: int = 256 * 1024 * 1024
     cross_partition: bool = True
+    bucket_sort: bool = False
 
     def __post_init__(self):
         if self.split_mode is None:
@@ -66,25 +70,31 @@ class SplitOptions:
             self.split_mode = _SM.SIZE
 
     def to_dict(self):
-        return {
+        d = {
             "SplitMode": self.split_mode.value,
             "SplitUnit": self.split_unit,
             "SplitNumber": self.split_number,
             "CrossPartition": self.cross_partition,
         }
+        if self.bucket_sort:
+            d["BucketSort"] = self.bucket_sort
+        return d
 
 
 @dataclass
 class IncrementalReadOptions:
     """Incremental-read configuration.
 
-    Wire fields: ``{Mode, From, To}``.  ``version`` selects the incremental
-    mode; ``from_``/``to`` are version boundaries (int) or timestamps (str).
+    Wire fields: ``{Mode, From, To, StartTxnId}``.  ``version`` selects the
+    incremental mode; ``from_``/``to`` are version boundaries (int) or
+    timestamps (str); ``start_txn_id`` requests exactly-once incremental
+    reads starting after the given transaction id.
     """
 
     version: Optional[str] = None
     from_: Optional[Union[int, str]] = None
     to: Optional[Union[int, str]] = None
+    start_txn_id: Optional[str] = None
 
     def to_dict(self):
         d = {}
@@ -94,6 +104,8 @@ class IncrementalReadOptions:
             d["From"] = self.from_
         if self.to is not None:
             d["To"] = self.to
+        if self.start_txn_id is not None:
+            d["StartTxnId"] = self.start_txn_id
         return d
 
 

@@ -72,3 +72,20 @@ def test_nodes():
     copy_nodes = list(node5.copy_tree().traverse())
     assert len(all_nodes) == len(copy_nodes)
     assert all(l is not r for l, r in zip(all_nodes, copy_nodes)) is True
+
+
+def test_expr_dictionary_teardown():
+    from ..core import ExprDictionary
+
+    d = ExprDictionary()
+    node = FakeNode(name='1')
+    d[node] = True
+    proxy = next(iter(dict.keys(d)))
+
+    # The cyclic GC may clear the instance __dict__ (and thus the proxy caches)
+    # before the weakref callbacks of the stored proxies run.
+    d.__dict__.clear()
+
+    assert proxy in d
+    del d[proxy]
+    assert proxy not in d

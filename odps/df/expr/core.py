@@ -504,23 +504,32 @@ class ExprDictionary(dict):
         self._ref_cache_none = weakref.WeakKeyDictionary()
 
     def _ref(self, obj, ref_self=False):
-        if ref_self:
-            r = self
-            cache = self._ref_cache_self
-        else:
-            r = None
-            cache = self._ref_cache_none
-
         if isinstance(obj, ExprProxy):
             return obj
+
+        if ref_self:
+            r = self
+            cache = getattr(self, "_ref_cache_self", None)
+        else:
+            r = None
+            cache = getattr(self, "_ref_cache_none", None)
+        if cache is None:
+            # The dictionary is being torn down by the cyclic GC, which has
+            # already cleared our instance ``__dict__``. Keep going without
+            # tracking the proxy so weakref callbacks running at that point
+            # do not fail.
+            return ExprProxy(obj, d=None)
+
         if obj in cache:
             return cache[obj]
         cache[obj] = ExprProxy(obj, d=r)
         return cache[obj]
 
     def _del_cache(self, obj):
-        self._ref_cache_none.pop(obj, None)
-        self._ref_cache_self.pop(obj, None)
+        for name in ("_ref_cache_none", "_ref_cache_self"):
+            cache = getattr(self, name, None)
+            if cache is not None:
+                cache.pop(obj, None)
 
     def __getitem__(self, item):
         if item is None:

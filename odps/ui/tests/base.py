@@ -22,7 +22,6 @@ from subprocess import PIPE, Popen
 from ...tests.core import ignore_case
 
 try:
-    from ipython_genutils import py3compat
     from jupyter_client import BlockingKernelClient
     from jupyter_core import paths
 
@@ -36,8 +35,8 @@ DEFAULT_CMD = """
 from odps.tests.core import start_coverage
 start_coverage()
 
-from IPython import start_kernel
-start_kernel()
+from ipykernel.kernelapp import IPKernelApp
+IPKernelApp.launch_instance()
 """.lstrip()
 
 
@@ -113,7 +112,7 @@ def setup_kernel(cmd=DEFAULT_CMD):
 
     if kernel.poll() is not None:
         o, e = kernel.communicate()
-        e = py3compat.cast_unicode(e)
+        e = e.decode("utf-8", "replace")
         raise IOError(f"Kernel failed to start:\n{e}")
 
     if not os.path.exists(connection_file):

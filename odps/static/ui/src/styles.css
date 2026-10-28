@@ -13,8 +13,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+/* Icon font carrying the scatter-chart glyph (`.cf-scatter-chart`). */
+@import "./fonts/custom-font.css";
 .pyodps-progress-launcher {
     margin-right: 5px;
+    color: #2196F3 !important;
+    text-decoration: underline !important;
+    cursor: pointer;
+}
+
+.pyodps-progress-launcher:hover {
+    color: #1976D2 !important;
 }
 
 #pyodps-progress-viewer .generated-time {
@@ -123,4 +132,525 @@
 .df-agg-selector {
     padding-left: 3px !important;
     padding-right: 0 !important;
+}
+
+/* --- Progress dialog (Radix UI) --- */
+.pyodps-dialog-overlay {
+    position: fixed;
+    inset: 0;
+    background-color: transparent !important;
+    z-index: 10000;
+}
+
+.pyodps-dialog-content {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: #fff;
+    border-radius: 6px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    max-width: 720px;
+    width: 90vw;
+    max-height: 80vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    z-index: 10001;
+}
+
+.pyodps-dialog-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.pyodps-dialog-header h2,
+.pyodps-dialog-title {
+    flex: 1;
+    font-size: 14px;
+    font-weight: 600;
+    color: #333;
+    margin: 0;
+}
+
+.pyodps-dialog-time {
+    font-size: 12px;
+    color: #999;
+    white-space: nowrap;
+}
+
+.pyodps-dialog-close {
+    margin-left: auto;
+    cursor: pointer;
+    font-size: 20px;
+    color: #999;
+    border: none;
+    background: none;
+    padding: 0 4px;
+    line-height: 1;
+}
+
+.pyodps-dialog-close:hover {
+    color: #333;
+}
+
+.pyodps-dialog-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px 16px;
+}
+
+.pyodps-dialog-footer {
+    padding: 10px 16px;
+    border-top: 1px solid #e0e0e0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+}
+
+/* Legend for the stage progress colours (see .pyodps-stage-progress). */
+.pyodps-progress-legend {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    font-size: 12px;
+    color: var(--jp-ui-font-color1, #333);
+}
+
+.pyodps-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+}
+
+.pyodps-legend-swatch {
+    display: inline-block;
+    width: 22px;
+    height: 12px;
+    border-radius: 3px;
+}
+
+/* Colours mirror .pyodps-progress-bar-terminated / -running / the track. */
+.pyodps-legend-swatch-finished {
+    background: #4CAF50;
+}
+
+.pyodps-legend-swatch-submitted {
+    background: #FF9800;
+}
+
+.pyodps-legend-swatch-waiting {
+    background: #f0f0f0;
+    border: 1px solid #d0d0d0;
+}
+
+.pyodps-dialog-btn {
+    padding: 6px 16px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background: #f5f5f5;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.pyodps-dialog-btn:hover {
+    background: #e8e8e8;
+}
+
+/* --- Instance/Task/Stage views in dialog --- */
+.pyodps-instance {
+    margin-bottom: 12px;
+    border: 1px solid #eee;
+    border-radius: 4px;
+    padding: 8px;
+}
+
+.pyodps-instance-header {
+    font-family: monospace;
+    font-size: 12px;
+    color: #666;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.pyodps-logview {
+    font-size: 12px;
+    color: #2196F3 !important;
+    text-decoration: none !important;
+}
+
+.pyodps-logview:hover {
+    text-decoration: underline !important;
+}
+
+.pyodps-task {
+    margin: 4px 0;
+}
+
+.pyodps-task-name {
+    font-weight: 500;
+    font-size: 13px;
+    color: #333;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 2px;
+    margin-bottom: 4px;
+}
+
+.pyodps-stages {
+    padding-left: 8px;
+}
+
+.pyodps-stage {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    margin: 2px 0;
+}
+
+.pyodps-stage-name {
+    min-width: 120px;
+    color: #666;
+}
+
+.pyodps-stage-progress {
+    flex: 1;
+    height: 16px;
+    background: #f0f0f0;
+    border-radius: 3px;
+    overflow: hidden;
+    display: flex;
+    position: relative;
+}
+
+.pyodps-progress-bar-terminated {
+    height: 100%;
+    background: #4CAF50;
+    color: #fff;
+    font-size: 10px;
+    line-height: 16px;
+    text-align: center;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+.pyodps-progress-bar-running {
+    height: 100%;
+    background: #FF9800;
+    color: #fff;
+    font-size: 10px;
+    line-height: 16px;
+    text-align: center;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+/* --- DataFrame View (DFView) --- */
+.pyodps-df-view {
+    width: 100% !important;
+}
+
+.pyodps-df-view .pyodps-tab-list {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--jp-border-color1, #e0e0e0);
+    background: var(--jp-layout-color2, #f5f5f5);
+}
+
+.pyodps-df-view .pyodps-tab-trigger {
+    padding: 4px 10px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--jp-ui-font-color2, #666);
+    border-radius: 3px 3px 0 0;
+    transition: background 0.15s, color 0.15s;
+}
+
+.pyodps-df-view .pyodps-tab-trigger:hover {
+    background: var(--jp-layout-color1, #fff);
+    color: var(--jp-ui-font-color1, #333);
+}
+
+.pyodps-df-view .pyodps-tab-trigger[data-state="active"] {
+    background: var(--jp-layout-color1, #fff);
+    color: var(--jp-brand-color1, #2196F3);
+    border-bottom: 2px solid var(--jp-brand-color1, #2196F3);
+}
+
+.pyodps-df-view .pyodps-chart-toolbar {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.pyodps-df-view .pyodps-df-close {
+    padding: 4px 9px;
+    border: 1px solid var(--jp-border-color1, #ccc);
+    border-radius: 3px;
+    background: var(--jp-layout-color1, #fff);
+    color: var(--jp-ui-font-color2, #666);
+    cursor: pointer;
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+.pyodps-df-view .pyodps-df-close:hover {
+    background: var(--jp-error-color3, #fdd);
+    border-color: var(--jp-error-color1, #d32f2f);
+    color: var(--jp-error-color1, #d32f2f);
+}
+
+.pyodps-df-view .pyodps-tab-content {
+    padding: 8px;
+    min-height: 100px;
+}
+
+.pyodps-df-view .pyodps-table-container {
+    width: 100%;
+    overflow-x: auto;
+}
+
+.pyodps-df-view .pyodps-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.pyodps-df-view .pyodps-table th {
+    padding: 6px 12px;
+    text-align: left;
+    font-weight: 600;
+    background: var(--jp-layout-color2, #f5f5f5);
+    border-bottom: 2px solid var(--jp-border-color1, #e0e0e0);
+    white-space: nowrap;
+}
+
+.pyodps-df-view .pyodps-table td {
+    padding: 4px 12px;
+    border-bottom: 1px solid var(--jp-border-color2, #eee);
+    white-space: nowrap;
+}
+
+.pyodps-df-view .pyodps-table tr:hover td {
+    background: var(--jp-layout-color2, #f9f9f9);
+}
+
+.pyodps-df-view .pyodps-pagination {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 0;
+    font-size: 13px;
+    color: var(--jp-ui-font-color2, #666);
+}
+
+.pyodps-df-view .pyodps-pagination button {
+    padding: 2px 8px;
+    border: 1px solid var(--jp-border-color1, #ccc);
+    border-radius: 3px;
+    background: var(--jp-layout-color1, #fff);
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--jp-ui-font-color1, #333);
+}
+
+.pyodps-df-view .pyodps-pagination button:hover:not(:disabled) {
+    background: var(--jp-layout-color2, #f0f0f0);
+}
+
+.pyodps-df-view .pyodps-pagination button:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+.pyodps-df-view .pyodps-table-loading,
+.pyodps-df-view .pyodps-table-empty,
+.pyodps-df-view .pyodps-chart-loading {
+    padding: 20px;
+    text-align: center;
+    color: var(--jp-ui-font-color2, #999);
+    font-size: 13px;
+}
+
+/* Chart config popover button */
+.pyodps-chart-config-btn {
+    padding: 4px 10px;
+    border: 1px solid var(--jp-border-color1, #ccc);
+    border-radius: 3px;
+    background: var(--jp-layout-color1, #fff);
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--jp-ui-font-color1, #333);
+}
+
+.pyodps-chart-config-btn:hover {
+    background: var(--jp-layout-color2, #f0f0f0);
+}
+
+/* --- Chart Config Popover (custom dropdown) --- */
+.pyodps-config-wrapper {
+    position: relative;
+    display: inline-block;
+}
+
+.pyodps-config-btn {
+    padding: 4px 10px;
+    border: 1px solid var(--jp-border-color1, #ccc);
+    border-radius: 3px;
+    background: var(--jp-layout-color1, #fff);
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--jp-ui-font-color1, #333);
+}
+
+.pyodps-config-btn:hover {
+    background: var(--jp-layout-color2, #f0f0f0);
+}
+
+.pyodps-config-dropdown {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    z-index: 1000;
+    min-width: 280px;
+    padding: 12px;
+    background: var(--jp-layout-color1, #fff);
+    border: 1px solid var(--jp-border-color1, #ccc);
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.pyodps-config-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.pyodps-config-row > label {
+    min-width: 55px;
+    font-size: 12px;
+    color: var(--jp-ui-font-color2, #666);
+    padding-top: 4px;
+}
+
+.pyodps-refresh-btn {
+    width: 100%;
+    padding: 6px;
+    margin-top: 4px;
+    border: 1px solid var(--jp-brand-color1, #2196F3);
+    border-radius: 3px;
+    background: var(--jp-brand-color1, #2196F3);
+    color: #fff;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.pyodps-refresh-btn:hover {
+    background: var(--jp-brand-color0, #1976D2);
+}
+
+/* --- MultiSelect (custom dropdown) --- */
+.pyodps-multiselect {
+    position: relative;
+    flex: 1;
+}
+
+.pyodps-multiselect-trigger {
+    width: 100%;
+    padding: 4px 8px;
+    border: 1px solid var(--jp-border-color1, #ccc);
+    border-radius: 3px;
+    background: var(--jp-layout-color1, #fff);
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--jp-ui-font-color1, #333);
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pyodps-multiselect-trigger:hover {
+    border-color: var(--jp-brand-color1, #2196F3);
+}
+
+/* --- Field menus ---
+ *
+ * The item list floats above the form; it is portalled to the document body and
+ * positioned from the trigger, so it neither enlarges the configuration box nor
+ * gets clipped by it (or by the notebook output area that hosts the widget).
+ */
+.pyodps-multiselect-dropdown {
+    z-index: 10000;
+    overflow-y: auto;
+    background: var(--jp-layout-color1, #fff);
+    border: 1px solid var(--jp-border-color1, #ccc);
+    border-radius: 3px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+}
+
+.pyodps-multiselect-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    font-size: 12px;
+    color: var(--jp-ui-font-color1, #333);
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.pyodps-multiselect-item:hover {
+    background: var(--jp-layout-color2, #f0f0f0);
+}
+
+.pyodps-multiselect-item.selected {
+    background: var(--jp-brand-color4, #e3f2fd);
+}
+
+.pyodps-multiselect-item input[type="checkbox"],
+.pyodps-multiselect-item input[type="radio"] {
+    margin: 0;
+    cursor: pointer;
+}
+
+/* --- Chart fields and errors --- */
+/* The popover scrolls as a whole when many value columns add method rows; its
+ * field menus are in-flow (see above), so they cannot be clipped by it. */
+.pyodps-config-dropdown {
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+/* Aggregation methods of one value column. */
+.pyodps-agg-row > label {
+    min-width: 55px;
+    padding-left: 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pyodps-df-error {
+    margin: 8px 0;
+    padding: 8px 10px;
+    border-left: 3px solid var(--jp-error-color1, #d32f2f);
+    background: var(--jp-error-color3, #ffebee);
+    color: var(--jp-ui-font-color1, #333);
+    font-family: var(--jp-code-font-family, monospace);
+    font-size: 12px;
+    white-space: pre-wrap;
 }

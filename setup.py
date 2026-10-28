@@ -17,13 +17,30 @@
 # (https://github.com/pandas-dev/pandas), which is permitted for use under
 # the BSD 3-Clause License
 
+import json
 import os
 import platform
 import shutil
+import subprocess
 import sys
 
 from setuptools import Command, Extension, setup
 from setuptools.command.install import install
+
+try:
+    from setuptools.command.build import build as build_command
+except ImportError:  # setuptools < 62
+    from distutils.command.build import build as build_command
+
+try:
+    from setuptools.command.develop import develop as develop_command
+except ImportError:  # setuptools without develop (very old)
+    develop_command = None
+
+try:
+    from setuptools.command.editable_wheel import editable_wheel
+except ImportError:  # setuptools < 64 has no PEP 660 support
+    editable_wheel = None
 
 try:
     from packaging.version import Version
@@ -211,76 +228,316 @@ if build_cmd != "clean" and not PYPY:  # skip cython in pypy
     except Exception:
         pass
 
-if build_cmd != "clean" and has_jupyter:
+# --- Jupyter widget extension data files ---
+# The webpack bundles are built from odps/static/ui/src and shipped as Jupyter
+# data files: pip installs them into
+# sys.prefix/share/jupyter/{labextensions,nbextensions}/pyodps/.
+# JupyterLab discovers them via _jupyter_labextension_paths() in odps/__init__.py;
+# classic Notebook discovers them via _jupyter_nbextension_paths().
+#
+# They are deliberately absent from git and from the sdist (see .gitignore,
+# MANIFEST.in and pyproject.toml). The `build` command below produces them when
+# npm is available and attaches them to the distribution, so the wheel carries
+# the bundles and an install from the sdist builds them on the fly.
 
-    class InstallJS(Command):
-        description = "install JavaScript extensions"
-        user_options = []
 
-        def initialize_options(self):
-            pass
+def _js_ui_dir():
+    return os.path.join(repo_root, "odps", "static", "ui")
 
-        def finalize_options(self):
-            pass
 
-        def run(self):
-            src_dir = os.path.join(repo_root, "odps", "static", "ui", "target")
-            if not os.path.exists(src_dir):
-                return
+def _labextension_built():
+    """True when the JupyterLab bundle is complete, not merely present.
 
-            dest_dir = os.path.join(jupyter_data_dir(), "nbextensions", "pyodps")
-            if os.path.exists(dest_dir):
-                shutil.rmtree(dest_dir)
-            if not os.path.exists(dest_dir):
-                os.makedirs(dest_dir)
-            recursive_overwrite(src_dir, dest_dir)
+    The generated manifest names the remote entry the front end loads, so that
+    exact file has to exist: a glob alone would also accept a stale entry left
+    behind by an earlier, different build.
+    """
+    lab_dir = os.path.join(_js_ui_dir(), "labextension")
+    if not os.path.isfile(os.path.join(lab_dir, "install.json")):
+        return False
 
+    try:
+        with open(os.path.join(lab_dir, "package.json"), encoding="utf-8") as fp:
+            manifest = json.load(fp)
+    except (OSError, ValueError):
+        return False
+
+    load = manifest.get("jupyterlab", {}).get("_build", {}).get("load")
+    if not load:
+        return False
+    return os.path.isfile(os.path.join(lab_dir, *load.split("/")))
+
+
+def _nbextension_built():
+    """True when the classic Notebook bundle is complete, not merely present."""
+    return os.path.isfile(os.path.join(_js_ui_dir(), "nbextension", "main.js"))
+
+
+def _js_bundles_built():
+    """True when both webpack bundles are complete in the tree.
+
+    Testing the directories alone is not enough: an interrupted `npm run build`
+    leaves them behind, possibly empty, which would suppress the rebuild and
+    ship a wheel whose widget extensions cannot load.
+    """
+    return _labextension_built() and _nbextension_built()
+
+
+def _npm_argv(*args):
+    """Return an npm argv that both POSIX and Windows can launch.
+
+    Windows ships npm as ``npm.cmd`` plus a POSIX shell script named ``npm``.
+    CreateProcess only appends ``.exe`` when searching PATH, so invoking the
+    bare name fails with WinError 2 even when npm is installed; ``shutil.which``
+    honours PATHEXT and yields the launcher's full path.
+    """
+    return [shutil.which("npm") or "npm", *args]
+
+
+def _build_js_bundles(registry=None):
+    """Build the webpack bundles with npm. Returns False when npm is missing."""
+    if not shutil.which("npm"):
+        return False
+
+    ui_dir = _js_ui_dir()
+    if not os.path.isdir(ui_dir):
+        return False
+
+    cwd = os.getcwd()
+    os.chdir(ui_dir)
+    try:
+        cmd = _npm_argv("install")
+        if registry:
+            cmd += ["--registry=" + registry]
+        print("executing " + " ".join(cmd))
+        subprocess.check_call(cmd)
+
+        print("building JS bundles (nbextension + labextension)")
+        subprocess.check_call(_npm_argv("run", "build"))
+    finally:
+        os.chdir(cwd)
+    return True
+
+
+def _collect_js_data_files():
+    """Collect prebuilt labextension/nbextension files as Jupyter data_files.
+
+    Returns (dest_dir, [relative_src_paths]) pairs. setuptools requires
+    /-separated paths relative to the setup.py directory.
+    """
+    data_files = []
+    ui_dir = os.path.join("odps", "static", "ui")
+
+    # Labextension: share/jupyter/labextensions/pyodps/
+    # Only complete bundles are collected, so that an interrupted build is
+    # reported as missing bundles instead of being shipped half-written.
+    lab_src = os.path.join(ui_dir, "labextension")
+    if _labextension_built():
+        for root, _dirs, files in os.walk(lab_src):
+            for fname in files:
+                rel_src = os.path.relpath(os.path.join(root, fname), ".")
+                rel_to_lab = os.path.relpath(rel_src, lab_src)
+                dest = os.path.join(
+                    "share", "jupyter", "labextensions", "pyodps", rel_to_lab
+                )
+                data_files.append((os.path.dirname(dest), [rel_src]))
+
+    # Nbextension: share/jupyter/nbextensions/pyodps/
+    nb_src = os.path.join(ui_dir, "nbextension")
+    if _nbextension_built():
+        for root, _dirs, files in os.walk(nb_src):
+            for fname in files:
+                rel_src = os.path.relpath(os.path.join(root, fname), ".")
+                rel_to_nb = os.path.relpath(rel_src, nb_src)
+                dest = os.path.join(
+                    "share", "jupyter", "nbextensions", "pyodps", rel_to_nb
+                )
+                data_files.append((os.path.dirname(dest), [rel_src]))
+
+        # Copying the nbextension is not enough: classic Notebook only loads
+        # it when the entry point is enabled. Ship the nbconfig fragment so a
+        # plain pip install activates `pyodps/main` without a manual
+        # `jupyter nbextension enable --py pyodps`.
+        nbconfig_src = os.path.join(ui_dir, "nbconfig", "notebook.d", "pyodps.json")
+        if os.path.isfile(nbconfig_src):
+            data_files.append(
+                (
+                    os.path.join("etc", "jupyter", "nbconfig", "notebook.d"),
+                    [nbconfig_src],
+                )
+            )
+
+    return data_files
+
+
+def _report_js_missing(reason, required):
+    """Fail when the bundles are required, warn otherwise.
+
+    The bundles are a user-experience enhancement, not a requirement, so a
+    distribution without them is still installable and usable unless
+    PYODPS_REQUIRE_JS=1 says otherwise.
+    """
+    if required:
+        raise RuntimeError(
+            f"{reason}. PYODPS_REQUIRE_JS=1 requires the Jupyter widget JS "
+            "bundles; install npm and run `python setup.py build_js`, or "
+            "drop PYODPS_REQUIRE_JS to build them best-effort."
+        )
+    print(
+        f"WARNING: {reason}. The PyODPS Jupyter widgets will not be available;"
+        " they are an optional user-experience enhancement and the package "
+        "installs and works without them. Run `python setup.py build_js` (with"
+        " npm) to bundle them."
+    )
+
+
+def _attach_js_data_files(distribution):
+    """Attach the built bundles to ``distribution.data_files`` once.
+
+    More than one command can ask for the bundles in a single invocation, so
+    skip entries that are already present instead of duplicating them.
+    """
+    existing = {
+        (dest, src)
+        for dest, sources in (distribution.data_files or [])
+        for src in sources
+    }
+    new_entries = []
+    for dest, sources in _collect_js_data_files():
+        sources = [src for src in sources if (dest, src) not in existing]
+        if sources:
+            new_entries.append((dest, sources))
+    if new_entries:
+        distribution.data_files = list(distribution.data_files or []) + new_entries
+
+
+def _ensure_js_bundles(distribution, attach_data_files=True):
+    """Build missing bundles (best effort) and optionally attach them.
+
+    Shared by the regular build, ``pip install -e .`` and the legacy
+    ``setup.py develop`` path. Editable installs are why this cannot live only
+    in ``BuildWithJS.run``: setuptools' PEP 660 command does not run the
+    ``build`` command, so an editable install would otherwise leave JupyterLab
+    without the widget view bundle. ``develop`` installs no data files, so it
+    passes ``attach_data_files=False``.
+    """
+    skip = os.environ.get("PYODPS_SKIP_JS") == "1"
+    rebuild = os.environ.get("PYODPS_REBUILD_JS") == "1"
+    require = os.environ.get("PYODPS_REQUIRE_JS", "0") == "1"
+
+    if not skip and (rebuild or not _js_bundles_built()):
+        if not shutil.which("npm"):
+            _report_js_missing(
+                "npm was not found, so the Jupyter widget extensions were not built",
+                require,
+            )
+        else:
+            # Bundling is best-effort unless required: a failed npm build
+            # must not make the distribution uninstallable, so warn and
+            # continue instead of aborting.
             try:
-                from notebook.nbextensions import enable_nbextension
-            except ImportError:
-                return
-            enable_nbextension("notebook", "pyodps/main")
+                _build_js_bundles(os.environ.get("PYODPS_NPM_REGISTRY"))
+            except Exception as exc:
+                _report_js_missing(
+                    f"building the Jupyter widget extensions failed: {exc}",
+                    require,
+                )
 
-    class BuildJS(Command):
-        description = "build JavaScript files"
-        user_options = [("registry=", None, "npm registry")]
+    if attach_data_files:
+        _attach_js_data_files(distribution)
+    # Warn about whichever bundle is missing, so a partially built tree is
+    # never packaged silently.
+    if not _labextension_built():
+        _report_js_missing("the JupyterLab widget extension bundle is missing", require)
+    if not _nbextension_built():
+        _report_js_missing(
+            "the classic Notebook widget extension bundle is missing", require
+        )
 
-        def initialize_options(self):
-            self.registry = None
 
-        def finalize_options(self):
-            pass
+class BuildJS(Command):
+    """Build the Jupyter widget JS bundles (labextension + nbextension).
+
+    Run with: python setup.py build_js
+    Requires npm and network access to the npm registry.
+    """
+
+    description = "build JavaScript widget extension bundles"
+    user_options = [("registry=", None, "npm registry")]
+
+    def initialize_options(self):
+        self.registry = None
+
+    def finalize_options(self):
+        pass
+
+    def run(self):
+        if not _build_js_bundles(getattr(self, "registry", None)):
+            raise Exception("You need to install npm before building the scripts.")
+
+
+class BuildWithJS(build_command):
+    """Produce the JS bundles and attach them to the distribution.
+
+    The data_files are collected here rather than at import time because the
+    bundles only exist once this command has run. That is what lets an install
+    from the sdist -- which ships sources only -- still end up with a wheel
+    that registers the widgets with Jupyter.
+
+    Environment variables:
+      PYODPS_REBUILD_JS=1    rebuild even when bundles are already present
+      PYODPS_SKIP_JS=1       never invoke npm
+      PYODPS_REQUIRE_JS=1    fail the build when npm is missing or the JS
+                             bundles cannot be built
+      PYODPS_NPM_REGISTRY    registry passed to ``npm install``
+    """
+
+    def run(self):
+        _ensure_js_bundles(self.distribution)
+        super().run()
+
+
+if editable_wheel is not None:
+
+    class EditableWithJS(editable_wheel):
+        """Install the widget bundles together with an editable install.
+
+        PEP 660 says non-Python files are not live-editable, but setuptools
+        also skips ``install_data`` for editable wheels: ``_run_install`` looks
+        for a ``has_data`` hook that does not exist (the real method is
+        ``has_data_files``), so the data_files never reach the wheel. Run the
+        command ourselves after the build commands have configured the install
+        command; its output directory is the unpacked wheel's ``.data/data``
+        tree, which pip copies into ``sys.prefix``.
+        """
+
+        def _run_build_commands(self, *args, **kwargs):
+            _ensure_js_bundles(self.distribution)
+            result = super()._run_build_commands(*args, **kwargs)
+            if self.distribution.data_files:
+                self.run_command("install_data")
+            return result
+
+
+if develop_command is not None:
+
+    class DevelopWithJS(develop_command):
+        """Pre-build the bundles for the legacy ``setup.py develop`` path.
+
+        ``develop`` installs no ``data_files``, but the extension paths prefer
+        the source tree, so building the bundles there is still needed.
+        """
 
         def run(self):
-            if not shutil.which("npm"):
-                raise Exception("You need to install npm before building the scripts.")
+            _ensure_js_bundles(self.distribution, attach_data_files=False)
+            super().run()
 
-            cwd = os.getcwd()
 
-            ui_path = os.path.join(os.path.abspath(os.getcwd()), "odps", "static", "ui")
-            if not os.path.exists(ui_path):
-                return
-
-            os.chdir(ui_path)
-            cmd = "npm install"
-            if getattr(self, "registry", None):
-                cmd += " --registry=" + self.registry
-            print("executing " + cmd)
-            ret = os.system(cmd)
-            ret >>= 8
-            if ret != 0:
-                print(f"{cmd} exited with error: {ret}")
-
-            print("executing grunt")
-            ret = os.system("npm run grunt")
-            ret >>= 8
-            if ret != 0:
-                print(f"grunt exited with error: {ret}")
-
-            os.chdir(cwd)
-
-    setup_options["cmdclass"].update({"install_js": InstallJS, "build_js": BuildJS})
-    extra_install_cmds.append("install_js")
+setup_options["cmdclass"].update({"build_js": BuildJS, "build": BuildWithJS})
+if editable_wheel is not None:
+    setup_options["cmdclass"]["editable_wheel"] = EditableWithJS
+if develop_command is not None:
+    setup_options["cmdclass"]["develop"] = DevelopWithJS
 
 setup(**setup_options)
 

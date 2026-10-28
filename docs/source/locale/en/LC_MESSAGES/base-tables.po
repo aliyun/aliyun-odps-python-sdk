@@ -1061,17 +1061,30 @@ msgid "表分区"
 msgstr "Table partitions"
 
 #: ../../source/base-tables.rst:508
-msgid "判断表是否为分区表："
-msgstr "Check if a table is partitioned:"
+msgid "自 PyODPS 0.13.3 开始，可通过 ``Table.is_partitioned`` 属性判断表是否为分区表："
+msgstr ""
+"Since PyODPS 0.13.3, use the ``Table.is_partitioned`` property to check "
+"whether a table is partitioned:"
 
 #: ../../source/base-tables.rst:510
-#, python-format
+msgid ""
+">>> if table.is_partitioned:\n"
+">>>     print('Table %s is partitioned.' % table.name)"
+msgstr ""
+
+#: ../../source/base-tables.rst:515
+msgid "对于低于 0.13.3 的版本，可通过 ``table.table_schema.partitions`` 判断："
+msgstr ""
+"For versions earlier than 0.13.3, use ``table.table_schema.partitions`` "
+"to check:"
+
+#: ../../source/base-tables.rst:517
 msgid ""
 ">>> if table.table_schema.partitions:\n"
 ">>>     print('Table %s is partitioned.' % table.name)"
 msgstr ""
 
-#: ../../source/base-tables.rst:515
+#: ../../source/base-tables.rst:522
 msgid ""
 "使用 :meth:`~odps.models.Table.exist_partition` 方法判断分区是否存在（该"
 "方法需要填写所有分区字段值）："
@@ -1201,6 +1214,22 @@ msgstr ""
 #: ../../source/base-tables.rst:576
 msgid ""
 ">>> for partition in table.iterate_partitions(spec='pt=test'):\n"
+">>>     print(partition.name)"
+msgstr ""
+
+#: ../../source/base-tables.rst:588
+msgid ""
+"可以通过 ``max_items`` 控制单次请求获取的分区数量，通过 ``limit`` 限制最"
+"多返回的分区数量。 ``limit`` 达到后迭代即停止，不再发起后续请求。"
+msgstr ""
+"You can use ``max_items`` to control the number of partitions fetched "
+"per request, and ``limit`` to limit the total number of partitions "
+"returned. Iteration stops once ``limit`` is reached, and no further "
+"requests are sent."
+
+#: ../../source/base-tables.rst:593
+msgid ""
+">>> for partition in table.iterate_partitions(max_items=100, limit=10):\n"
 ">>>     print(partition.name)"
 msgstr ""
 

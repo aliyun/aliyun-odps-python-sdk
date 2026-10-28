@@ -29,6 +29,8 @@ except ImportError:
 import mock
 import pytest
 
+from ... import errors
+from ...errors import ConnectTimeout as ErrorsConnectTimeout
 from ..io import stream as io_stream
 
 TEXT = """
@@ -218,6 +220,120 @@ def test_large_writes(force_thread, semaphore_random_delay):
     req_io.finish()
 
     assert b"".join(recv_chunks) == TEXT.encode("utf-8") * repeats
+
+
+def _make_post_call(exc):
+    """Create a post_call that drains data then raises *exc*."""
+
+    def post_call(data_gen):
+        for chunk in data_gen:
+            pass
+        raise exc
+
+    return post_call
+
+
+_TIMEOUT_EXC = io_stream.RequestsConnectionError(
+    "Connection aborted.", TimeoutError("timed out")
+)
+_NON_TIMEOUT_EXC = io_stream.RequestsConnectionError(
+    "Connection refused", ConnectionRefusedError(111, "Connection refused")
+)
+
+
+def _make_connect_timeout_exc():
+    """Simulate rest.py's raise path: errors.ConnectTimeout chained from
+    the underlying socket.timeout via __cause__."""
+    try:
+        raise TimeoutError("timed out")
+    except TimeoutError as cause:
+        try:
+            raise ErrorsConnectTimeout("Connecting to endpoint timeout.") from cause
+        except ErrorsConnectTimeout as exc:
+            return exc
+
+
+_CONNECT_TIMEOUT_EXC = _make_connect_timeout_exc()
+
+
+@pytest.mark.parametrize("force_thread", [False, True])
+@pytest.mark.parametrize(
+    "chunk_size,write_timeout,writes,expected_bytes",
+    [
+        pytest.param(32, 5, [b"x" * 64], 64, id="single_write"),
+        pytest.param(16, 3, [b"a" * 16, b"b" * 32], 48, id="multiple_writes"),
+    ],
+)
+def test_write_timeout_raises_write_timeout(
+    force_thread, chunk_size, write_timeout, writes, expected_bytes
+):
+    io_stream._FORCE_THREAD = force_thread
+    req_io = io_stream.RequestsIO(
+        _make_post_call(_TIMEOUT_EXC),
+        chunk_size=chunk_size,
+        write_timeout=write_timeout,
+    )
+    req_io.start()
+    for data in writes:
+        req_io.write(data)
+    req_io.flush()
+
+    with pytest.raises(errors.WriteTimeout) as exc_info:
+        req_io.finish()
+
+    assert exc_info.value.timeout_seconds == write_timeout
+    assert exc_info.value.bytes_produced == expected_bytes
+
+
+@pytest.mark.parametrize("force_thread", [False, True])
+@pytest.mark.parametrize(
+    "exc,expected,write_timeout",
+    [
+        pytest.param(
+            _TIMEOUT_EXC, io_stream.RequestsConnectionError, None, id="unconfigured"
+        ),
+        pytest.param(
+            _NON_TIMEOUT_EXC, io_stream.RequestsConnectionError, 5, id="non-timeout"
+        ),
+        pytest.param(
+            _CONNECT_TIMEOUT_EXC, ErrorsConnectTimeout, 5, id="connect-timeout"
+        ),
+    ],
+)
+def test_write_timeout_propagates_non_write_exceptions(
+    force_thread, exc, expected, write_timeout
+):
+    """Non-write-stall exceptions propagate unchanged even with write_timeout set."""
+    io_stream._FORCE_THREAD = force_thread
+    req_io = io_stream.RequestsIO(
+        _make_post_call(exc), chunk_size=32, write_timeout=write_timeout
+    )
+    req_io.start()
+    req_io.write(b"x" * 64)
+    req_io.flush()
+
+    with pytest.raises(expected) as exc_info:
+        req_io.finish()
+
+    assert not isinstance(exc_info.value, errors.WriteTimeout)
+
+
+@pytest.mark.parametrize("force_thread", [False, True])
+def test_write_timeout_reraises_on_subsequent_write(force_thread):
+    io_stream._FORCE_THREAD = force_thread
+    req_io = io_stream.RequestsIO(
+        _make_post_call(_TIMEOUT_EXC),
+        chunk_size=32,
+        write_timeout=5,
+    )
+    req_io.start()
+    req_io.write(b"x" * 64)
+    req_io.flush()
+
+    with pytest.raises(errors.WriteTimeout):
+        req_io.finish()
+    with pytest.raises(errors.WriteTimeout):
+        req_io.write(b"x" * 64)
 
 
 def test_simple_input_stream_read_all():

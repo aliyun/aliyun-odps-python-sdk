@@ -281,10 +281,21 @@ class FakeWriteStub:
         self.calls.append(("commit",))
 
     def commit_batch_compatible_session(
-        self, table_id, session_id, route_token, commit_messages
+        self,
+        table_id,
+        session_id,
+        route_token,
+        commit_messages,
+        wait_flying_writers_timeout_seconds=None,
     ):
         self.calls.append(
-            ("commit_batch", table_id, session_id, tuple(commit_messages))
+            (
+                "commit_batch",
+                table_id,
+                session_id,
+                tuple(commit_messages),
+                wait_flying_writers_timeout_seconds,
+            )
         )
         resp = BatchCompatibleSessionResponse.from_dict(
             {"SessionId": session_id, "SessionStatus": self._commit_status}
@@ -2067,6 +2078,25 @@ def test_bc_commit_sends_messages(table_id):
         ]
     )
     assert next(c for c in stub.calls if c[0] == "commit_batch")[3] == ("m0", "m1")
+
+
+@pytest.mark.parametrize("timeout", [None, 120])
+def test_bc_commit_forwards_wait_timeout(table_id, timeout):
+    """The wait timeout (or its absence) reaches the stub unchanged."""
+    stub = FakeWriteStub()
+    sess = _bc_sess(stub, table_id)
+    sess.commit(
+        block_results=[_bc_commit_result(msg="m0")],
+        wait_flying_writers_timeout_seconds=timeout,
+    )
+    call = next(c for c in stub.calls if c[0] == "commit_batch")
+    assert call[4] == timeout
+
+
+def test_bc_commit_wait_timeout_rejects_non_compatible_mode(table_id):
+    sess = TableWriteSession(FakeWriteStub(), table_id)
+    with pytest.raises(ValueError, match="batch-compatible mode"):
+        sess.commit(wait_flying_writers_timeout_seconds=60)
 
 
 @pytest.mark.parametrize(

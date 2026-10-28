@@ -36,6 +36,21 @@ from .models import Table
 from .models.session.v1 import PUBLIC_SESSION_NAME
 from .utils import to_str, to_text
 
+try:
+    from sqlalchemy.dialects import registry as _dialect_registry
+except ImportError:  # pragma: no cover - very old SQLAlchemy
+    _dialect_registry = None
+
+if _dialect_registry is not None:
+    # Keep the dialect discoverable when pyodps runs from a source tree without
+    # installed package metadata, where SQLAlchemy finds no
+    # "sqlalchemy.dialects" entry point. `register` only stores a module path,
+    # so importing this module never triggers another import by itself.
+    # Only "odps": registering "maxcompute" here would shadow a third-party
+    # dialect installed under that name for the rest of the process. The
+    # "maxcompute" URL scheme is covered by the entry point in pyproject.toml.
+    _dialect_registry.register("odps", __name__, "ODPSDialect")
+
 test_setting = threading.local()
 test_setting.get_tables_filter = None
 

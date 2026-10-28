@@ -26,6 +26,12 @@ PyODPS 支持集成 SQLAlchemy，可以使用 SQLAlchemy 查询 MaxCompute 数�
     )
     engine = create_engine(conn_string)
 
+.. Note::
+
+    以上示例假定 PyODPS 已经通过 ``pip`` 安装。安装后的 PyODPS 通过
+    ``sqlalchemy.dialects`` entry point 注册 ``odps`` 方言。如果直接从源码树使用（未安装），需要先执行
+    ``import odps.sqlalchemy_odps`` 再调用 ``create_engine()``。
+
 要在连接字符串中指定 ``endpoint``，可以按如下方式：
 
 .. code-block:: python

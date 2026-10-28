@@ -20,6 +20,7 @@ import pytest
 
 from ...tests.core import get_result, tn, pandas_case, global_locked, get_test_unique_name
 from ...models import TableSchema
+from ...types import Column
 from ...utils import to_text
 from ...errors import ODPSError, DependencyNotInstalledError
 from .. import DataFrame, Delay
@@ -90,6 +91,71 @@ def test_dataframe_from_pandas():
 
     df = DataFrame(pd_df, as_type={'b': 'dict<string, string>'})
     assert df.schema.get_type('b').name == 'dict<string,string>'
+
+
+@pandas_case
+def test_dataframe_from_pandas_with_table_schema():
+    import pandas as pd
+
+    pd_df = pd.DataFrame({'a': [1, 2, 3], 'b': ['x', 'y', 'z']})
+    schema = TableSchema.from_lists(
+        ['a', 'b'], ['bigint', 'string'],
+        partition_names=['pt'], partition_types=['string'])
+    schema.simple_columns[0].comment = 'value column'
+    schema.simple_columns[1].nullable = False
+
+    df = DataFrame(pd_df, schema=schema)
+
+    # The storage types of the given TableSchema are converted to DataFrame
+    # types, otherwise expressions have no CLASS_NAME to build their classes.
+    assert [
+        col.type.name for col in df.schema.simple_columns
+    ] == ['int64', 'string']
+    assert df.dtypes.get_type('a').name == 'int64'
+    assert df['a'].execute().to_pandas()['a'].tolist() == [1, 2, 3]
+
+    # Only the types change: the rest of the schema survives the conversion.
+    assert [part.name for part in df.schema.partitions] == ['pt']
+    assert df.schema.partitions[0].type.name == 'string'
+    assert df.schema.simple_columns[0].comment == 'value column'
+    assert df.schema.simple_columns[1].nullable is False
+
+
+@pandas_case
+def test_dataframe_from_pandas_with_model_schema():
+    """Columns coming from the model layer keep their class."""
+    import pandas as pd
+
+    schema = TableSchema(
+        columns=[TableSchema.TableColumn(name='a', type='bigint')],
+        partitions=[TableSchema.TablePartition(name='pt', type='string')],
+    )
+
+    df = DataFrame(pd.DataFrame({'a': [1, 2]}), schema=schema)
+
+    assert isinstance(df.schema.simple_columns[0], TableSchema.TableColumn)
+    assert df.schema.simple_columns[0].type.name == 'int64'
+    assert isinstance(df.schema.partitions[0], TableSchema.TablePartition)
+    assert df.schema.partitions[0].type.name == 'string'
+    assert df['a'].execute().to_pandas()['a'].tolist() == [1, 2]
+
+
+@pandas_case
+def test_dataframe_from_pandas_with_dynamic_schema():
+    """A dynamic schema keeps its default type, used for unknown fields."""
+    import pandas as pd
+
+    from ..types import DynamicSchema, int64
+
+    schema = DynamicSchema(
+        columns=[Column('a', 'bigint')], default_type=int64)
+
+    df = DataFrame(pd.DataFrame({'a': [1, 2]}), schema=schema)
+
+    assert isinstance(df.schema, DynamicSchema)
+    assert df.schema.default_type is int64
+    assert df.schema['unknown_field'].type.type is int64
+    assert df['a'].execute().to_pandas()['a'].tolist() == [1, 2]
 
 
 def test_head_and_tail(table):

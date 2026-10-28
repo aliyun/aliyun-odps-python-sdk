@@ -236,6 +236,11 @@ class Instance(XMLLazyLoad):
         RUNNING = "Running"
         SUSPENDED = "Suspended"
         TERMINATED = "Terminated"
+        UNKNOWN = "Unknown"
+
+        @classmethod
+        def _missing_(cls, value):
+            return cls.UNKNOWN
 
     class InstanceStatus(XMLRemoteModel):
         _root = "Instance"
@@ -301,7 +306,7 @@ class Instance(XMLLazyLoad):
             "EndTime", parse_callback=utils.parse_rfc822
         )
         status = serializers.XMLNodeField(
-            "Status", parse_callback=lambda s: Instance.Task.TaskStatus(s.upper())
+            "Status", parse_callback=lambda s: Instance.Task.TaskStatus(s)
         )
         histories = serializers.XMLNodesReferencesField(
             "Instance.Task", "Histories", "History"
@@ -314,6 +319,16 @@ class Instance(XMLLazyLoad):
             FAILED = "FAILED"
             SUSPENDED = "SUSPENDED"
             CANCELLED = "CANCELLED"
+            UNKNOWN = "UNKNOWN"
+
+            @classmethod
+            def _missing_(cls, value):
+                if isinstance(value, str):
+                    upper = value.upper()
+                    for member in cls:
+                        if member.value == upper:
+                            return member
+                return cls.UNKNOWN
 
         class TaskProgress(XMLRemoteModel):
             """
@@ -420,6 +435,10 @@ class Instance(XMLLazyLoad):
             SUSPENDED = "Suspended"
             TERMINATED = "Terminated"
             UNKNOWN = "Unknown"
+
+            @classmethod
+            def _missing_(cls, value):
+                return cls.UNKNOWN
 
         _properties = serializers.JSONRawField()  # hold the raw dict
         instance_id = serializers.JSONNodeField("instanceId")
@@ -641,7 +660,7 @@ class Instance(XMLLazyLoad):
                 tr.name: Instance.Task(
                     name=tr.name,
                     type=tr.type.lower(),  # make sure type exists
-                    status=Instance.Task.TaskStatus(tr.status.upper()),
+                    status=Instance.Task.TaskStatus(tr.status),
                 )
                 for tr in self._task_results.values()
             }

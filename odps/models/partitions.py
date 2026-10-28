@@ -128,7 +128,20 @@ class Partitions(XMLIterable):
     def project(self):
         return self.parent.project
 
-    def iterate_partitions(self, spec=None, reverse=False):
+    def iterate_partitions(self, spec=None, reverse=False, max_items=None, limit=None):
+        """
+        Create an iterable object to iterate over partitions.
+
+        :param spec: specification of the partition.
+        :param bool reverse: output partitions in reversed order.
+        :param int max_items: maximum number of partitions to fetch per request.
+        :param int limit: maximum number of partitions to return.
+        """
+        if max_items is not None and max_items <= 0:
+            raise ValueError("Argument 'max_items' should be greater than 0")
+        if limit is not None and limit <= 0:
+            raise ValueError("Argument 'limit' should be greater than 0")
+
         condition = PartitionSpecCondition(
             [pt.name for pt in self.parent.table_schema.partitions], spec
         )
@@ -140,6 +153,8 @@ class Partitions(XMLIterable):
             actions.append("reverse")
         if spec is not None and not spec.is_empty:
             params["partition"] = str(spec)
+        if max_items is not None:
+            params["maxitems"] = str(max_items)
         schema_name = self._get_schema_name()
         if schema_name:
             params["curr_schema"] = schema_name
@@ -157,13 +172,19 @@ class Partitions(XMLIterable):
 
             return t.partitions
 
+        count = 0
         while True:
+            if limit is not None and count >= limit:
+                return
             partitions = _it()
             if partitions is None:
                 break
             for partition in partitions:
                 if condition.match(partition.partition_spec):
                     yield partition
+                    count += 1
+                    if limit is not None and count >= limit:
+                        return
 
     def get_max_partition(self, spec=None, skip_empty=True, reverse=False):
         table_parts = self.parent.table_schema.partitions

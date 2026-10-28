@@ -17,7 +17,9 @@
 import collections
 import functools
 import json
+import logging
 import struct
+import time
 import warnings
 from collections import OrderedDict
 from decimal import Decimal
@@ -39,8 +41,6 @@ try:
     import pyarrow.compute as pac
 except (AttributeError, ImportError):
     pac = None
-
-import time
 
 from ... import compat, types, utils
 from ...config import options
@@ -70,8 +70,11 @@ except ImportError as e:
         raise e
     BaseTunnelRecordReader = convert_legacy_decimal_bytes = None
 
+logger = logging.getLogger(__name__)
+
 MICRO_SEC_PER_SEC = 1000000
 MIN_RAW_BATCH_SIZE = 1024**2
+_PD_NA = getattr(pd, "NA", None)
 
 
 def _should_retry_exc(ex):
@@ -626,33 +629,51 @@ class BufferedRecordReader(TunnelRecordReader):
         record_cache = [None] * (1 + self._row_batch_size)
         read_idx = 0
 
-        while read_idx < len(record_cache):
-            if (
-                not self._session_with_byte_size_limit
-                or self._buffer_size < MIN_RAW_BATCH_SIZE
-            ) and self._get_attempt_bytes() > self._buffer_size:
-                if self._enable_client_metrics and not self._buffer_exceed_warned:
-                    self._buffer_exceed_warned = True
-                    warnings.warn(
-                        "Bytes of buffered records (%d) exceeds buffer_size (%d). "
-                        "Tunnel metrics cannot be obtained correctly. To retrieve "
-                        "correct metrics, you may increase the buffer size by "
-                        "setting options.tunnel.block_buffer_size or decrease "
-                        "the size of row batch by setting options.tunnel."
-                        "read_row_batch_size (currently %d)."
-                        % (
-                            self._get_attempt_bytes(),
-                            self._buffer_size,
-                            options.tunnel.read_row_batch_size,
-                        ),
-                        UserWarning,
+        try:
+            while read_idx < len(record_cache):
+                if (
+                    not self._session_with_byte_size_limit
+                    or self._buffer_size < MIN_RAW_BATCH_SIZE
+                ) and self._get_attempt_bytes() > self._buffer_size:
+                    if self._enable_client_metrics and not self._buffer_exceed_warned:
+                        self._buffer_exceed_warned = True
+                        warnings.warn(
+                            "Bytes of buffered records (%d) exceeds buffer_size (%d). "
+                            "Tunnel metrics cannot be obtained correctly. To retrieve "
+                            "correct metrics, you may increase the buffer size by "
+                            "setting options.tunnel.block_buffer_size or decrease "
+                            "the size of row batch by setting options.tunnel."
+                            "read_row_batch_size (currently %d)."
+                            % (
+                                self._get_attempt_bytes(),
+                                self._buffer_size,
+                                options.tunnel.read_row_batch_size,
+                            ),
+                            UserWarning,
+                        )
+                    break
+                record = super(BufferedRecordReader, self).read()
+                if record is None:
+                    break
+                record_cache[read_idx] = record
+                read_idx += 1
+        except BaseException:
+            # A half-read batch must release its decoder, which holds the HTTP
+            # connection and the decompression state, instead of waiting for
+            # the reader to close; an ordinary failure to release is logged so
+            # it cannot mask the batch error, while a BaseException from the
+            # release (e.g. KeyboardInterrupt) still propagates. The decoder
+            # stays referenced so the next _reopen_reader can settle its
+            # metrics and byte count, and so close() can retry the release.
+            if self._reader is not None:
+                try:
+                    self._reader.close()
+                except Exception:
+                    logger.warning(
+                        "Failed to close the reader of an already failed row batch",
+                        exc_info=True,
                     )
-                break
-            record = super(BufferedRecordReader, self).read()
-            if record is None:
-                break
-            record_cache[read_idx] = record
-            read_idx += 1
+            raise
 
         self._record_cache = record_cache[:read_idx]
         self._record_idx = 0
@@ -822,6 +843,8 @@ class TunnelArrowReader:
         self._pos = 0
         self._stream_creator = stream_creator
         self._use_ipc_stream = use_ipc_stream
+        self._reader = None
+        self._arrow_stream = None
         self._reopen_reader()
 
         self._to_datetime = utils.MillisecondsConverter().from_milliseconds
@@ -836,7 +859,9 @@ class TunnelArrowReader:
             arrow_type = self._arrow_schema.field(
                 self._arrow_schema.get_field_index(col.name)
             ).type
-            if isinstance(col.type, (types.Map, types.Array, types.Struct)):
+            if isinstance(
+                col.type, (types.Map, types.Array, types.Struct, types.Vector)
+            ):
                 self._pd_column_converters[col.name] = ArrowRecordFieldConverter(
                     col.type, convert_ts=False
                 )
@@ -850,6 +875,21 @@ class TunnelArrowReader:
 
     def _reopen_reader(self):
         self._last_n_bytes = len(self._reader) if self._pos != 0 else 0
+        # Release the decoder of the previous attempt before replacing it;
+        # otherwise every retry abandons a live HTTP response until GC.
+        if self._reader is not None:
+            try:
+                self.close()
+            except Exception:
+                # Keep an ordinary failure to release from aborting the retry
+                # loop this runs inside as reset_func, or masking the tunnel
+                # error that triggered it; the reader is replaced below
+                # regardless. BaseExceptions (e.g. KeyboardInterrupt) are not
+                # absorbed.
+                logger.warning(
+                    "Failed to release the reader of the previous arrow attempt",
+                    exc_info=True,
+                )
         input_stream = self._stream_creator(self._pos)
         self._arrow_stream = None
         if self._use_ipc_stream:
@@ -1170,6 +1210,7 @@ class ArrowRecordFieldConverter:
         types.Array,
         types.Map,
         types.Struct,
+        types.Vector,
     )
 
     def __init__(self, odps_type, arrow_type=None, convert_ts=True):
@@ -1322,17 +1363,33 @@ class ArrowRecordFieldConverter:
                 tuple_type=tuple_type,
                 use_ordered_dict=use_ordered_dict,
             )
+        elif isinstance(odps_type, types.Vector):
+            # Vector arrives as a list via Arrow; convert elements and let
+            # Vector.validate_value enforce dimension / null / NaN / Infinity.
+            arrow_value_type = getattr(arrow_type, "value_type", None)
+            sub_converter = self._build_converter(
+                odps_type.element_type, arrow_value_type
+            )
+
+            def _convert_vector(value):
+                if value is None:
+                    return None
+                result = [sub_converter(x) for x in value]
+                odps_type.validate_value(result)
+                return types._vector_to_numpy(odps_type.element_type, result)
+
+            return _convert_vector
         else:
             return _reflective
 
     def __call__(self, value):
-        if value is None:
+        if value is None or value is _PD_NA:
             return None
         return self._converter(value)
 
 
 class ArrowRecordReader(AbstractRecordReader):
-    _complex_types_to_convert = (types.Array, types.Map, types.Struct)
+    _complex_types_to_convert = (types.Array, types.Map, types.Struct, types.Vector)
 
     def __init__(self, arrow_reader, make_compat=True, read_all=False):
         self._arrow_reader = arrow_reader

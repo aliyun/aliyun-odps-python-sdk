@@ -48,12 +48,32 @@ if TYPE_CHECKING:
     from ..accounts import BaseAccount
     from ..core import ODPS
     from ..models import Table  # noqa: F401
+    from .models.descriptor import SessionDescriptor
     from .models.enums import DataFormat
     from .options import IncrementalReadOptions, SplitOptions
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_API_VERSION = "2"
+
+
+def _verify_descriptor_args(table, descriptor, session_id=None):
+    """Validate the ``table`` / ``descriptor`` / ``session_id`` triple.
+
+    Returns ``True`` when ``descriptor`` selects local restoration, in which
+    case the caller must not resolve ``table`` or build a request.  Both
+    ``table`` and ``session_id`` select the remote path, so neither may be
+    combined with ``descriptor``.
+    """
+    if descriptor is not None:
+        if table is not None:
+            raise ValueError("Pass either table or descriptor, not both")
+        if session_id is not None:
+            raise ValueError("Pass either descriptor or session_id, not both")
+        return True
+    if table is None:
+        raise ValueError("table is required when descriptor is not given")
+    return False
 
 
 class MaxStorageClient:
@@ -322,8 +342,9 @@ class MaxStorageClient:
 
     def create_table_read_session(
         self,
-        table,
+        table=None,
         *,
+        descriptor: Optional["SessionDescriptor"] = None,
         session_id: Optional[str] = None,
         columns: Optional[List[str]] = None,
         partition_columns: Optional[List[str]] = None,
@@ -340,13 +361,24 @@ class MaxStorageClient:
     ) -> TableReadSession:
         """Create (or reload via ``session_id``) a table read session.
 
+        Alternatively, pass ``descriptor`` to restore a session locally from
+        a :class:`~odps.maxstorage.SessionDescriptor` exported elsewhere —
+        no remote session is created or reloaded, and the descriptor is
+        authoritative for schema, filters, incremental options, and split
+        planning.
+
         Polls until ``NORMAL`` (1s interval, ``session_ready_timeout`` default
         3600s).
 
         Parameters
         ----------
-        table : str or Table
-            Table name or :class:`odps.models.Table`.
+        table : str or Table, optional
+            Table name or :class:`odps.models.Table`.  Required unless
+            ``descriptor`` is given.
+        descriptor : SessionDescriptor, optional
+            Restore from a descriptor instead of creating a new session;
+            supersedes ``table`` and every planning parameter below, and
+            cannot be combined with ``table`` or ``session_id``.
         session_id : str, optional
             Reload an existing session instead of creating a new one.
         columns : list[str], optional
@@ -386,7 +418,14 @@ class MaxStorageClient:
         ...             break
         ...         print(batch.to_pandas())
         ...     reader.close()
+
+        >>> # Restore a planned session on a worker
+        >>> descriptor = SessionDescriptor.from_json(transferred_json)
+        >>> read_session = client.create_table_read_session(descriptor=descriptor)
         """
+
+        if _verify_descriptor_args(table, descriptor, session_id):
+            return TableReadSession.from_descriptor(self.stub, descriptor)
 
         table_id = self._resolve_table_id(table)
         timeout = (
@@ -415,8 +454,9 @@ class MaxStorageClient:
 
     def create_table_write_session(
         self,
-        table,
+        table=None,
         *,
+        descriptor: Optional["SessionDescriptor"] = None,
         session_id: Optional[str] = None,
         partition_spec: Optional[str] = None,
         overwrite: bool = False,
@@ -428,10 +468,21 @@ class MaxStorageClient:
     ) -> TableWriteSession:
         """Create (or reload via ``session_id``) a table write session.
 
+        Alternatively, pass ``descriptor`` to restore a batch-compatible
+        session locally from a :class:`~odps.maxstorage.SessionDescriptor`
+        exported elsewhere — no remote session is created or reloaded.  The
+        restored session is descriptor-only: it can open block writers, but
+        commit and abort stay with the coordinator session.
+
         Parameters
         ----------
-        table : str or Table
-            Table name or :class:`odps.models.Table`.
+        table : str or Table, optional
+            Table name or :class:`odps.models.Table`.  Required unless
+            ``descriptor`` is given.
+        descriptor : SessionDescriptor, optional
+            Restore from a descriptor instead of creating a new session;
+            supersedes ``table`` and every planning parameter below, and
+            cannot be combined with ``table`` or ``session_id``.
         session_id : str, optional
             Reload an existing session instead of creating a new one.
         partition_spec : str, optional
@@ -478,6 +529,9 @@ class MaxStorageClient:
         ...     results.append(writer.commit())
         >>> session.commit(block_results=results)
         """
+
+        if _verify_descriptor_args(table, descriptor, session_id):
+            return TableWriteSession.from_descriptor(self.stub, descriptor)
 
         table_id = self._resolve_table_id(table)
         return TableWriteSession(

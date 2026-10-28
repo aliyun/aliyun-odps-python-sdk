@@ -92,6 +92,29 @@ DATA_WITH_BODY_LEGACY = """<?xml version="1.0" encoding="utf-8"?>
 """
 
 
+class StringRefChild(serializers.XMLSerializableModel):
+    __slots__ = ("name",)
+
+    _root = "StringRefChild"
+
+    name = serializers.XMLNodeField("Name")
+
+
+class StringRefParent(serializers.XMLSerializableModel):
+    __slots__ = ("children",)
+
+    _root = "StringRefParent"
+
+    children = serializers.XMLNodesReferencesField(
+        "StringRefParent.Child", "Children", "Child"
+    )
+
+    class Child(serializers.XMLSerializableModel):
+        __slots__ = ("name",)
+
+        name = serializers.XMLNodeField("Name")
+
+
 class Example(serializers.XMLSerializableModel):
     __slots__ = (
         "name",
@@ -224,6 +247,34 @@ def test_serializers():
     assert example.jsn.tags == parsed_example.jsn.tags
     assert example.jsn.nest == parsed_example.jsn.nest
     assert list(example.jsn.nests) == list(parsed_example.jsn.nests)
+
+
+def test_string_model_reference():
+    parsed = StringRefParent.parse(
+        "<StringRefParent><Children>"
+        "<Child><Name>c1</Name></Child>"
+        "<Child><Name>c2</Name></Child>"
+        "</Children></StringRefParent>"
+    )
+
+    assert [c.name for c in parsed.children] == ["c1", "c2"]
+    assert all(isinstance(c, StringRefParent.Child) for c in parsed.children)
+
+
+def test_string_model_reference_from_frame_globals():
+    # no __module__ in a function frame, so the model is looked up in the
+    # globals of the calling frames
+    field = serializers.XMLNodesReferencesField("StringRefChild", "Children", "Child")
+
+    assert field._model is StringRefChild
+
+
+def test_string_model_reference_of_predefined_model():
+    from ..models.instance import Instance
+
+    field = Instance.Task.__fields["histories"]
+
+    assert field._model is Instance.Task
 
 
 def test_coded_json():

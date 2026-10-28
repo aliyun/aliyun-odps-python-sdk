@@ -1,5 +1,5 @@
+# --- includes ---
 recursive-include odps/static *.*
-prune odps/static/ui/node_modules
 global-include odps/**/*.yml
 include odps/mars_extension/oscar/deploy/logging.conf
 global-include *.pyx
@@ -7,7 +7,19 @@ global-include *.pxd
 include odps/src/crc32.c
 include odps/src/utils.h
 include misc/stdint.h
-global-exclude *_c.c*
 global-include LICENSE
 include pyproject.toml
 include README.rst
+
+# --- exclusions ---
+# These must stay at the end of the file: a later include directive (for
+# instance `global-include LICENSE`, which matches the LICENSE files shipped
+# inside node_modules) would add the pruned trees back.
+global-exclude *_c.c*
+# Webpack build outputs and npm dependencies never reach the sdist; the JS
+# bundles are built at package time from odps/static/ui/src. These directories
+# are also excluded from package discovery in pyproject.toml -- without that,
+# setuptools re-adds them as namespace-package files and prune loses.
+prune odps/static/ui/node_modules
+prune odps/static/ui/labextension
+prune odps/static/ui/nbextension

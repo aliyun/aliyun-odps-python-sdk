@@ -19,10 +19,11 @@ from datetime import datetime
 
 import mock
 import pytest
+import requests
 
 from ... import types
 from ...tests.core import tn
-from .. import TableSchema
+from .. import Table, TableSchema
 from ..storage_tier import StorageTier
 
 
@@ -86,6 +87,70 @@ def test_sub_partitions(odps):
     )
 
     odps.delete_table(test_table_name)
+
+
+def _make_response(text):
+    response = requests.Response()
+    response.status_code = 200
+    response._content = text.encode("utf-8")
+    return response
+
+
+def _make_partition_table():
+    table = Table(
+        name="test_table",
+        table_schema=TableSchema.from_lists(["id"], ["string"], ["pt"], ["string"]),
+        type=Table.Type.MANAGED_TABLE,
+    )
+    client = mock.Mock()
+    client.endpoint = "http://example.com"
+    table._client = client
+    return table, client
+
+
+def test_iterate_partitions_max_items_and_limit():
+    table, client = _make_partition_table()
+    client.get.side_effect = [
+        _make_response(
+            "<Partitions><Marker>m1</Marker>"
+            '<Partition><Column Name="pt" Value="1"/></Partition>'
+            "</Partitions>"
+        ),
+        _make_response(
+            "<Partitions><Marker></Marker>"
+            '<Partition><Column Name="pt" Value="2"/></Partition>'
+            "</Partitions>"
+        ),
+    ]
+
+    partitions = list(table.iterate_partitions(max_items=1, limit=2))
+
+    assert [str(p.partition_spec) for p in partitions] == ["pt='1'", "pt='2'"]
+    assert all(
+        call.kwargs["params"]["maxitems"] == "1" for call in client.get.call_args_list
+    )
+
+    with pytest.raises(ValueError):
+        list(table.iterate_partitions(max_items=0))
+    with pytest.raises(ValueError):
+        list(table.iterate_partitions(limit=0))
+
+
+def test_iterate_partitions_limit_stops_before_next_page():
+    table, client = _make_partition_table()
+    client.get.side_effect = [
+        _make_response(
+            "<Partitions><Marker>m1</Marker>"
+            '<Partition><Column Name="pt" Value="1"/></Partition>'
+            '<Partition><Column Name="pt" Value="2"/></Partition>'
+            "</Partitions>"
+        )
+    ]
+
+    partitions = list(table.iterate_partitions(limit=1))
+
+    assert [str(p.partition_spec) for p in partitions] == ["pt='1'"]
+    assert client.get.call_count == 1
 
 
 def test_partition(odps):

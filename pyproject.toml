@@ -31,8 +31,8 @@ dependencies = [
 
 [project.optional-dependencies]
 full = [
-    "jupyter>=1.0.0",
-    "ipython>=4.0.0",
+    "jupyterlab>=3.0",
+    "ipywidgets>=7.0",
     "numpy>=1.6.0",
     "pandas>=0.17.0",
     "matplotlib>=1.4",
@@ -73,7 +73,18 @@ requires = [
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-exclude = ["*.tests.*", "*.tests"]
+exclude = [
+    "*.tests.*",
+    "*.tests",
+    # odps/static has no __init__.py, so automatic (namespace) discovery treats
+    # every subdirectory as a package. Without these exclusions the webpack
+    # build outputs and npm dependencies are packaged into the wheel as module
+    # data, and MANIFEST.in's `prune` cannot remove them from the sdist.
+    # They are shipped as Jupyter data files instead -- see setup.py.
+    "odps.static.ui.labextension*",
+    "odps.static.ui.nbextension*",
+    "odps.static.ui.node_modules*",
+]
 
 [tool.coverage.run]
 branch = true

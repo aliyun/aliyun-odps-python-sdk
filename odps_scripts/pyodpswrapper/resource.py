@@ -57,12 +57,15 @@ def load_packages_in_subprocess(res_str):
     if code_idx is not None:
         res_args = res_args[:code_idx] + res_args[code_idx + 2 :]
 
-    main_module = __name__.rsplit(".", 1)[0] + ".__main__"
-    res_args = (
-        [sys.executable, "-m", main_module]
-        + res_args[1:]
-        + ["--code", "", "--load-resource", res_str]
-    )
+    # Re-enter the original script so the subprocess applies its argument loader.
+    entry = sys.argv[0]
+    if os.path.isfile(entry):
+        launcher = [sys.executable, os.path.abspath(entry)]
+    else:
+        main_module = __name__.rsplit(".", 1)[0] + ".__main__"
+        launcher = [sys.executable, "-m", main_module]
+
+    res_args = launcher + res_args[1:] + ["--code", "", "--load-resource", res_str]
     proc = subprocess.Popen(res_args, stdout=subprocess.PIPE)
     proc.wait()
     if proc.returncode != 0:

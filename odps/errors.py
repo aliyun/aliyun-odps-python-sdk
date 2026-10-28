@@ -84,43 +84,38 @@ def parse_response(resp, endpoint=None, tag=None):
         # the situation to caller to handle.
         logger.debug(utils.stringify_expt())
 
-    if resp.status_code == 404:
+    # The body could not be turned into a structured error (it was empty, not
+    # JSON, or JSON without the expected keys). The status and the request id
+    # are still known here, and when the peer answers with nothing but a
+    # status they are the whole story: keep them on the raised error instead
+    # of dropping them alongside the failed parse.
+    headers = getattr(resp, "headers", None)
+    status_code = resp.status_code
+    err_kwargs = dict(
+        request_id=headers.get("x-odps-request-id") if headers else None,
+        response_headers=headers,
+        endpoint=endpoint,
+        tag=tag,
+        status_code=status_code,
+    )
+
+    if status_code == 404:
         msg = "Not found error reported by server."
         if endpoint:
             msg += f" Endpoint {endpoint} might be malfunctioning."
-        return NoSuchObject(
-            msg, endpoint=endpoint, tag=tag, status_code=resp.status_code
-        )
-    elif resp.status_code == 401:
-        return Unauthorized(
-            "Unauthorized.", endpoint=endpoint, tag=tag, status_code=resp.status_code
-        )
-    else:
-        text = resp.content.decode()
-        if text:
-            if resp.status_code == 502 and _nginx_bad_gateway_message in text:
-                return BadGatewayError(
-                    text,
-                    code=str(resp.status_code),
-                    endpoint=endpoint,
-                    tag=tag,
-                    status_code=resp.status_code,
-                )
-            else:
-                return ODPSError(
-                    text,
-                    code=str(resp.status_code),
-                    endpoint=endpoint,
-                    tag=tag,
-                    status_code=resp.status_code,
-                )
-        else:
-            return ODPSError(
-                str(resp.status_code),
-                endpoint=endpoint,
-                tag=tag,
-                status_code=resp.status_code,
-            )
+        return NoSuchObject(msg, **err_kwargs)
+    if status_code == 401:
+        return Unauthorized("Unauthorized.", **err_kwargs)
+
+    err_kwargs["code"] = str(status_code)
+    # A gateway may answer with arbitrary bytes; decoding must fail as data
+    # (replacement characters), never as an exception.
+    text = resp.content.decode(errors="replace")
+    if not text:
+        text = "HTTP %d with an empty error response body" % status_code
+    elif status_code == 502 and _nginx_bad_gateway_message in text:
+        return BadGatewayError(text, **err_kwargs)
+    return ODPSError(text, **err_kwargs)
 
 
 def throw_if_parsable(resp, endpoint=None, tag=None):
@@ -297,6 +292,36 @@ class ODPSClientError(ODPSError):
 
 class ConnectTimeout(ODPSError, TimeoutError, RequestsConnectTimeout):
     pass
+
+
+class WriteTimeout(ODPSError, TimeoutError):
+    """Raised when a streaming upload stalls during a write.
+
+    The server-side outcome is unknown; the request was not replayed.
+    ``timeout_seconds`` is the *configured* write timeout, not the actual
+    elapsed time — due to urllib3's timeout model, the send phase on a
+    fresh connection is bounded by ``connect_timeout`` and on a reused
+    connection by the previous request's leftover read timeout. Only the
+    response-wait phase is directly bounded by ``write_timeout``.
+
+    Note: ``bytes_produced`` counts bytes accepted by ``RequestsIO.write()``
+    into the local buffer, not bytes transmitted on the socket or acknowledged
+    by the server. At raise time it may include buffered-but-never-transmitted
+    data. The name mirrors the Java SDK's ``bytesProduced`` for consistency.
+    """
+
+    def __init__(self, timeout_seconds=None, bytes_produced=None, message=None):
+        self.timeout_seconds = timeout_seconds
+        self.bytes_produced = bytes_produced
+        if message is None:
+            message = (
+                "REST request write stalled; configured write timeout was "
+                "{} seconds (bytesProduced={}). The server-side outcome is "
+                "unknown; the request was not replayed.".format(
+                    timeout_seconds, bytes_produced
+                )
+            )
+        super(WriteTimeout, self).__init__(message)
 
 
 class DataHealthManagerError(ODPSError):

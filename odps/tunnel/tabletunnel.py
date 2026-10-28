@@ -1162,8 +1162,6 @@ class TableStreamUploadSession(BaseTableTunnelSession):
         ``options.tunnel.stream_reload_throttle`` (default 30s): a call
         within the throttle window skips the server reload and returns
         the cached value, so the result may be up to that window stale.
-        This mirrors the Java SDK ``StreamUploadSession.getLastBatchId``
-        semantics (eventual consistency for monitoring accessors).
         """
         return self._readonly_reload().last_batch_id
 
@@ -1172,8 +1170,7 @@ class TableStreamUploadSession(BaseTableTunnelSession):
 
         Uses a non-force readonly reload, throttled by
         ``options.tunnel.stream_reload_throttle`` (default 30s); the
-        result may be up to that window stale. Mirrors the Java SDK
-        ``StreamUploadSession.getLastBatchCommitTime`` semantics.
+        result may be up to that window stale.
         """
         return self._readonly_reload().last_batch_commit_time
 

@@ -25,7 +25,6 @@ from ..df.backends.frame import ResultFrame
 from ..df.backends.odpssql.types import odps_schema_to_df_schema, odps_type_to_df_type
 from ..inter import enter, list_rooms, setup, teardown
 from ..models import TableSchema
-from ..ui.common import html_notify
 from ..ui.progress import (
     create_instance_group,
     fetch_instance_group,
@@ -99,13 +98,11 @@ else:
             args = line.strip().split()
             name, args = args[0], args[1:]
             setup(*args, room=name)
-            html_notify("Setup succeeded")
 
         @line_magic("teardown")
         def teardown(self, line):
             name = line.strip()
             teardown(name)
-            html_notify("Teardown succeeded")
 
         @line_magic("list_rooms")
         def list_rooms(self, line):
@@ -182,105 +179,116 @@ else:
 
             if sql:
                 progress_ui = init_progress_ui()
-                group_id = create_instance_group("SQL Query")
-                progress_ui.add_keys(group_id)
-
-                instance = self._odps.run_sql(sql, hints=hints)
-                if logger.getEffectiveLevel() <= logging.INFO:
-                    logger.info(
-                        "Instance ID: %s\n  Log view: %s",
-                        instance.id,
-                        instance.get_logview_address(),
-                    )
-                reload_instance_status(self._odps, group_id, instance.id)
-                progress_ui.status("Executing")
-
-                percent = 0
-                while not instance.is_terminated(retry=True):
-                    last_percent = percent
-
-                    reload_instance_status(self._odps, group_id, instance.id)
-                    inst_progress = fetch_instance_group(group_id).instances.get(
-                        instance.id
-                    )
-
-                    if inst_progress is not None and len(inst_progress.tasks) > 0:
-                        percent = sum(
-                            self._get_task_percent(task)
-                            for task in inst_progress.tasks.values()
-                        ) / len(inst_progress.tasks)
-                    else:
-                        percent = 0
-
-                    percent = min(1, max(percent, last_percent))
-
-                    progress_ui.update(percent)
-                    progress_ui.update_group()
-
-                    time.sleep(1)
-
-                instance.wait_for_success()
-                progress_ui.update(1)
-
+                # The finally covers the whole run, the polling/wait loop
+                # included: a keyboard interrupt there raises straight out of
+                # the cell and would otherwise leave the progress widget on
+                # screen.
                 try:
-                    with instance.open_reader() as reader:
-                        try:
-                            import pandas as pd
-
-                            try:
-                                from pandas.io.parsers import (
-                                    ParserError as CParserError,
-                                )
-                            except ImportError:
-                                pass
-                            try:
-                                from pandas.parser import CParserError  # noqa
-                            except ImportError:
-                                CParserError = ValueError  # noqa
-
-                            if not hasattr(reader, "raw"):
-                                res = ResultFrame(
-                                    [rec.values for rec in reader],
-                                    schema=odps_schema_to_df_schema(reader._schema),
-                                )
-                            else:
-                                try:
-                                    res = pd.read_csv(io.StringIO(reader.raw))
-                                    if len(res.values) > 0:
-                                        schema = DataFrame(res).schema
-                                    else:
-                                        cols = res.columns.tolist()
-                                        schema = odps_schema_to_df_schema(
-                                            TableSchema.from_lists(
-                                                cols, ["string" for _ in cols]
-                                            )
-                                        )
-                                    res = ResultFrame(res.values, schema=schema)
-                                except (ValueError, CParserError):
-                                    res = reader.raw
-                        except (ImportError, ValueError):
-                            if not hasattr(reader, "raw"):
-                                res = ResultFrame(
-                                    [rec.values for rec in reader],
-                                    schema=odps_schema_to_df_schema(reader._schema),
-                                )
-                            else:
-                                try:
-                                    columns = [
-                                        odps_types.Column(
-                                            name=col.name,
-                                            typo=odps_type_to_df_type(col.type),
-                                        )
-                                        for col in reader._columns
-                                    ]
-                                    res = ResultFrame(list(reader), columns=columns)
-                                except TypeError:
-                                    res = reader.raw
-
-                    html_notify("SQL execution succeeded")
-                    return res
+                    return self._run_sql(sql, hints, progress_ui)
                 finally:
                     progress_ui.close()
+
+        def _run_sql(self, sql, hints, progress_ui):
+            """Run *sql* and return the result read from its instance.
+
+            The caller creates and closes *progress_ui*.
+            """
+            group_id = create_instance_group("SQL Query")
+            progress_ui.add_keys(group_id)
+
+            instance = self._odps.run_sql(sql, hints=hints)
+            if logger.getEffectiveLevel() <= logging.INFO:
+                logger.info(
+                    "Instance ID: %s\n  Log view: %s",
+                    instance.id,
+                    instance.get_logview_address(),
+                )
+            reload_instance_status(self._odps, group_id, instance.id)
+            progress_ui.status("Executing")
+
+            percent = 0
+            while not instance.is_terminated(retry=True):
+                last_percent = percent
+
+                reload_instance_status(self._odps, group_id, instance.id)
+                inst_progress = fetch_instance_group(group_id).instances.get(
+                    instance.id
+                )
+
+                if inst_progress is not None and len(inst_progress.tasks) > 0:
+                    percent = sum(
+                        self._get_task_percent(task)
+                        for task in inst_progress.tasks.values()
+                    ) / len(inst_progress.tasks)
+                else:
+                    percent = 0
+
+                percent = min(1, max(percent, last_percent))
+
+                progress_ui.update(percent)
+                progress_ui.update_group()
+
+                time.sleep(1)
+
+            instance.wait_for_success()
+            progress_ui.update(1)
+
+            with instance.open_reader() as reader:
+                return self._read_sql_result(reader)
+
+        @staticmethod
+        def _read_sql_result(reader):
+            """Read a SQL result *reader* into a ResultFrame or raw text."""
+            try:
+                import pandas as pd
+
+                try:
+                    from pandas.io.parsers import ParserError as CParserError
+                except ImportError:
+                    pass
+                try:
+                    from pandas.parser import CParserError  # noqa
+                except ImportError:
+                    CParserError = ValueError  # noqa
+
+                if not hasattr(reader, "raw"):
+                    res = ResultFrame(
+                        [rec.values for rec in reader],
+                        schema=odps_schema_to_df_schema(reader._schema),
+                    )
+                else:
+                    try:
+                        res = pd.read_csv(io.StringIO(reader.raw))
+                        if len(res.values) > 0:
+                            schema = DataFrame(res).schema
+                        else:
+                            cols = res.columns.tolist()
+                            schema = odps_schema_to_df_schema(
+                                TableSchema.from_lists(cols, ["string" for _ in cols])
+                            )
+                        res = ResultFrame(res.values, schema=schema)
+                    except (ValueError, CParserError):
+                        res = reader.raw
+            except (ImportError, ValueError):
+                if not hasattr(reader, "raw"):
+                    res = ResultFrame(
+                        [rec.values for rec in reader],
+                        schema=odps_schema_to_df_schema(reader._schema),
+                    )
+                else:
+                    try:
+                        columns = [
+                            odps_types.Column(
+                                name=col.name,
+                                typo=odps_type_to_df_type(col.type),
+                            )
+                            for col in reader._columns
+                        ]
+                        res = ResultFrame(list(reader), columns=columns)
+                    except TypeError:
+                        res = reader.raw
+
+            return res
 
         @line_magic("persist")
         def persist(self, line):
@@ -329,7 +337,6 @@ else:
                     schema=schema_name,
                     notify=False,
                 )
-            html_notify("Persist succeeded")
 
     def load_ipython_extension(ipython):
         ipython.register_magics(ODPSSql)

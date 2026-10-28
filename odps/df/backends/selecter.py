@@ -14,18 +14,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import sys
+
 try:
     import pandas as pd
     has_pandas = True
 except (ImportError, ValueError):
     has_pandas = False
 
-try:
-    import sqlalchemy
-    has_sqlalchemy = True
-except ImportError:
-    has_sqlalchemy = False
-
+# Shared with odps.df.core so both `has_sqlalchemy` flags agree; no imports.
+from ..core import _sqlalchemy_installed
 from ...models import Table
 from ...models.ml import OfflineModel
 from ..expr.expressions import CollectionExpr
@@ -36,6 +34,16 @@ from .core import EngineTypes as Engines
 from .errors import NoBackendFound
 from .utils import fetch_data_source_size
 from ...config import options
+
+
+def __getattr__(name):
+    if name == "has_sqlalchemy":
+        return _sqlalchemy_installed()
+    raise AttributeError("module %r has no attribute %r" % (__name__, name))
+
+
+def __dir__():
+    return sorted(set(globals()) | {"has_sqlalchemy"})
 
 
 def available_engines(sources):
@@ -51,10 +59,12 @@ def available_engines(sources):
             engines.add(Engines.ALGO)
         elif has_pandas and isinstance(src, pd.DataFrame):
             engines.add(Engines.PANDAS)
-        elif has_sqlalchemy and isinstance(src, sqlalchemy.Table):
-            engines.add(Engines.SQLALCHEMY)
         else:
-            raise NoBackendFound('No backend found for data source: %s' % src)
+            _sa = sys.modules.get("sqlalchemy")
+            if _sa is not None and isinstance(src, _sa.Table):
+                engines.add(Engines.SQLALCHEMY)
+            else:
+                raise NoBackendFound('No backend found for data source: %s' % src)
 
     return engines
 
@@ -125,7 +135,11 @@ class EngineSelecter:
     def _choose_odps_backend(self, node_dag):
         node = node_dag.root
 
-        if not has_sqlalchemy or not options.seahawks_url:
+        if not options.seahawks_url:
+            return Engines.ODPS
+        try:
+            import sqlalchemy  # noqa: F401  the seahawks backend is built on it
+        except ImportError:
             return Engines.ODPS
 
         sizes = 0

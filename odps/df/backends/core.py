@@ -338,22 +338,11 @@ class ExecuteDAG(DAG):
             finally:
                 if close_and_notify or succeeded:
                     ui.close()
-
-                    if succeeded:
-                        ui.notify('DataFrame execution succeeded')
-                    else:
-                        ui.notify('DataFrame execution failed')
         else:
-            try:
-                fs = self._run_in_parallel(ui, n_parallel, wait=not async_, timeout=timeout,
-                                           progress_proportion=progress_proportion)
-                succeeded = True
-                return fs
-            finally:
-                if succeeded:
-                    ui.notify('DataFrame execution submitted')
-                else:
-                    ui.notify('DataFrame execution failed to summit')
+            fs = self._run_in_parallel(ui, n_parallel, wait=not async_, timeout=timeout,
+                                       progress_proportion=progress_proportion)
+            succeeded = True
+            return fs
 
     def _can_fallback(self):
         return hasattr(self, 'fallback') and self.fallback is not None
@@ -550,7 +539,14 @@ class Engine:
             res = self._execute_dag(dag, ui=ui, async_=async_, n_parallel=n_parallel,
                                     timeout=timeout, progress_proportion=progress_proportion)
         except KeyboardInterrupt:
+            # Stop the engine first: UI cleanup is best-effort and must never
+            # prevent the stop from happening.
             self.stop()
+            if ui is not None:
+                try:
+                    ui.close()
+                except Exception:
+                    pass
             sys.exit(1)
 
         if not batch:

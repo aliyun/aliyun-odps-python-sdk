@@ -1288,6 +1288,18 @@ class Table(XMLLazyLoad):
     def partitions(self):
         return Partitions(parent=self, client=self._client)
 
+    @property
+    def is_partitioned(self):
+        """
+        Whether this table is partitioned.
+
+        :return: True if the table has partition columns
+        :rtype: bool
+        """
+        if self.type == Table.Type.VIRTUAL_VIEW:
+            return False
+        return bool(self.table_schema.partitions)
+
     @utils.with_wait_argument
     def create_partition(
         self, partition_spec, if_not_exists=False, async_=False, hints=None, **inst_kw
@@ -1347,14 +1359,18 @@ class Table(XMLLazyLoad):
             return False
         return True
 
-    def iterate_partitions(self, spec=None, reverse=False):
+    def iterate_partitions(self, spec=None, reverse=False, max_items=None, limit=None):
         """
         Create an iterable object to iterate over partitions.
 
         :param spec: specification of the partition.
-        :param reverse: output partitions in reversed order
+        :param bool reverse: output partitions in reversed order.
+        :param int max_items: maximum number of partitions to fetch per request.
+        :param int limit: maximum number of partitions to return.
         """
-        return self.partitions.iterate_partitions(spec=spec, reverse=reverse)
+        return self.partitions.iterate_partitions(
+            spec=spec, reverse=reverse, max_items=max_items, limit=limit
+        )
 
     def get_partition(self, partition_spec):
         """
@@ -1724,6 +1740,32 @@ class Table(XMLLazyLoad):
             values=values,
             max_field_size=self._get_max_field_size(),
         )
+
+    @utils.with_wait_argument
+    def merge_small_files(self, hints=None, async_=False, **kw):
+        """
+        Merge small files in this table.
+
+        The caller's hints are not modified; explicit hints override the
+        default small-file merge settings.
+
+        :param hints: optional task settings
+        :param async_: run asynchronously if True
+        :return: instance
+        :rtype: :class:`odps.models.Instance`
+        """
+        from .tasks.merge import MergeTask
+
+        inst = MergeTask.run_merge_files(
+            self.parent,
+            self.full_table_name,
+            schema=self._get_schema_name(),
+            hints=hints,
+            **kw
+        )
+        if not async_:
+            inst.wait_for_success()
+        return inst
 
     def to_df(self):
         """

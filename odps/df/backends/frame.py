@@ -436,10 +436,12 @@ class ResultFrame(Iterator):
         # display HTML, so this check can be removed when support for IPython 2.x
         # is no longer needed.
 
-        if self._pandas and options.display.notebook_widget:
+        if self._pandas:
             from .. import DataFrame
             from ..ui import show_df_widget
 
+            # show_df_widget() decides whether widgets are shown based on
+            # display.notebook_widget and the current notebook backend.
             show_df_widget(DataFrame(self._values, schema=self.schema))
 
         if self._pandas:

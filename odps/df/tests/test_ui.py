@@ -89,7 +89,7 @@ def test_aggregate_graph(odps, setup):
     df_widget.df = setup.expr
 
     df_widget._handle_aggregate_graph(dict(groups=['isMale'], keys=['category'],
-                                           values={'scale': ['sum']}, target='test_case_target'), None)
+                                           values={'scale': ['sum']}, target='bar_chart_records'), None)
 
     sum_v = dict()
     cats, genders = set(), set()
@@ -101,10 +101,28 @@ def test_aggregate_graph(odps, setup):
         cats.add(_rv(r[1]))
         genders.add(_rv(r[4]))
 
-    agg_result = getattr(df_widget, 'test_case_target')
+    agg_result = df_widget.bar_chart_records
     assert set(v[0] for v in agg_result['keys']) == cats
     assert set(v[0] for v in agg_result['groups']) == genders
 
     for g, dr in zip(agg_result['groups'], agg_result['data']):
         for cat, s in zip(dr['category'], dr['scale__sum']):
             assert _rv(sum_v[(g[0], cat)]) == s
+
+
+@pytest.mark.skipif(DFViewMixin is None, reason="Need jupyter to run the test")
+@pandas_case
+def test_aggregate_graph_with_table_schema():
+    """A frame built with a storage TableSchema still supports chart requests."""
+    import pandas as pd
+
+    schema = TableSchema.from_lists(['a', 'b'], ['bigint', 'string'])
+    df = DataFrame(pd.DataFrame({'a': [1, 2], 'b': ['x', 'y']}), schema=schema)
+
+    df_widget = DFViewMixin()
+    df_widget.df = df
+    df_widget._handle_aggregate_graph(
+        dict(groups=[], keys=['b'], values={'a': ['count']},
+             target='bar_chart_records'), None)
+
+    assert df_widget.bar_chart_records['keys'] == [['x'], ['y']]

@@ -362,19 +362,34 @@ class SignServerAccount(BaseAccount):
 
     @property
     def session(self):
-        if not hasattr(type(self)._session_local, "_session"):
-            adapter_options = dict(
-                pool_connections=options.pool_connections,
-                pool_maxsize=options.pool_maxsize,
-                max_retries=options.retry_times,
-            )
-            session = requests.Session()
-            # mount adapters with retry times
-            session.mount("http://", requests.adapters.HTTPAdapter(**adapter_options))
-            session.mount("https://", requests.adapters.HTTPAdapter(**adapter_options))
+        session_local = type(self)._session_local
+        pid = os.getpid()
+        session = getattr(session_local, "_session", None)
+        if session is not None and getattr(session_local, "_session_pid", None) == pid:
+            return session
 
-            self._session_local._session = session
-        return self._session_local._session
+        if session is not None:
+            # Inherited from the parent process through a fork, see
+            # RestClient.session: the child must not reuse the parent's
+            # connections, closing them only drops the child's descriptors.
+            try:
+                session.close()
+            except Exception:
+                pass
+
+        adapter_options = dict(
+            pool_connections=options.pool_connections,
+            pool_maxsize=options.pool_maxsize,
+            max_retries=options.retry_times,
+        )
+        session = requests.Session()
+        # mount adapters with retry times
+        session.mount("http://", requests.adapters.HTTPAdapter(**adapter_options))
+        session.mount("https://", requests.adapters.HTTPAdapter(**adapter_options))
+
+        session_local._session = session
+        session_local._session_pid = pid
+        return session
 
     def sign_request(self, req, endpoint, region_name=None):
         url = req.url[len(endpoint) :]

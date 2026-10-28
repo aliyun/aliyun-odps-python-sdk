@@ -31,13 +31,19 @@ from typing import TYPE_CHECKING, Collection, List, Optional
 
 from ..errors import StorageClientError
 from ..io.compress import resolve_compress_option
-from ..models.enums import WriteMode
+from ..models.descriptor import (
+    SessionDescriptor,
+    write_arrow_units,
+    write_schema_to_wire,
+)
+from ..models.enums import SessionKind, WriteMode
 from ..models.requests import (
     BatchCompatibleCreateSessionRequest,
     BatchCompatibleDynamicPartitionOptions,
     CreateTableWriteSessionRequest,
     CreateWriteStreamRequest,
 )
+from ..models.responses import BatchCompatibleSessionResponse
 from ..options import AUTO_COMMIT_SESSION_ID, BatchCompatibleOptions, _supports_v3
 from .block_writer import BlockWriteResult, TableBlockWriter
 from .writer import TableArrowBlobUploadWriter, TableArrowWriter
@@ -99,6 +105,7 @@ class TableWriteSession:
         required_data_format: Optional["DataFormat"] = None,
         batch_compatible_options: Optional[BatchCompatibleOptions] = None,
         api_version: str = "2",
+        _batch_compatible_response: Optional["BatchCompatibleSessionResponse"] = None,
     ):
         self._stub = stub
         self._table_id = table_id
@@ -107,11 +114,18 @@ class TableWriteSession:
         self._route_token = None
         self._committed = False
         self._aborted = False
+        self._closed = False
 
         # Batch-compatible session state
         self._max_block_number = 0
         self._batch_compatible_schema = None
         self._enhance_write_check = False
+        self._last_session_status = None
+
+        # Descriptor-restored sessions may only open block writers; commit
+        # and abort stay with the coordinator that created the session.
+        self._descriptor_only = False
+        self._commit_started = False
 
         # Build the partition spec string
         spec = ""
@@ -130,14 +144,18 @@ class TableWriteSession:
             flags["enable_schema_evolution"] = "true"
 
         if write_mode == WriteMode.BATCH_COMPATIBLE:
-            self._init_batch_compatible(
-                stub,
-                table_id,
-                session_id,
-                spec,
-                overwrite,
-                batch_compatible_options or BatchCompatibleOptions.create_default(),
-            )
+            if _batch_compatible_response is not None:
+                # Locally restored from a session descriptor; no RPC is issued.
+                self._bind_batch_compatible(_batch_compatible_response)
+            else:
+                self._init_batch_compatible(
+                    stub,
+                    table_id,
+                    session_id,
+                    spec,
+                    overwrite,
+                    batch_compatible_options or BatchCompatibleOptions.create_default(),
+                )
         elif write_mode.is_streaming() and (
             session_id is None or session_id == AUTO_COMMIT_SESSION_ID
         ):
@@ -184,7 +202,10 @@ class TableWriteSession:
                 raise StorageClientError(
                     "Create batch-compatible session returned no session identifier"
                 )
+        self._bind_batch_compatible(resp)
 
+    def _bind_batch_compatible(self, resp):
+        """Adopt a batch-compatible session response as this session's state."""
         if resp is None:
             raise StorageClientError(
                 "Get batch-compatible session returned an empty response"
@@ -200,10 +221,103 @@ class TableWriteSession:
         self._max_block_number = resp.max_block_number
         self._batch_compatible_schema = resp.data_schema
         self._enhance_write_check = resp.enhance_write_check
+        self._last_session_status = resp.session_status
 
     @property
     def id(self) -> Optional[str]:
         return self._session_id
+
+    @property
+    def descriptor_only(self) -> bool:
+        """Whether this session was restored from a descriptor.
+
+        Descriptor-restored sessions support block data operations only;
+        global commit and abort stay with the coordinator session.
+        """
+        return self._descriptor_only
+
+    def to_descriptor(self) -> "SessionDescriptor":
+        """Export an immutable, credential-free description of this session.
+
+        Only ``BATCH_COMPATIBLE`` sessions support descriptors; other write
+        modes are rejected until their distinct recovery contracts exist.
+
+        A descriptor exported after a commit was attempted cannot reopen
+        writers on the restoring side, even when the last observed session
+        status is still ``NORMAL``.
+        """
+        if self._write_mode != WriteMode.BATCH_COMPATIBLE:
+            raise NotImplementedError(
+                "Session descriptors require WriteMode.BATCH_COMPATIBLE"
+            )
+        metadata = {
+            "SessionId": self._session_id,
+            "SessionStatus": self._descriptor_status(),
+            "DataSchema": write_schema_to_wire(self._batch_compatible_schema),
+            "MaxBlockNumber": self._max_block_number,
+            "EnhanceWriteCheck": self._enhance_write_check,
+            "CommitStarted": self._commit_started,
+        }
+        return SessionDescriptor.create(
+            SessionKind.BATCH_WRITE,
+            self._table_id,
+            metadata,
+            route_token=self._route_token,
+            arrow=write_arrow_units(),
+        )
+
+    @classmethod
+    def from_descriptor(
+        cls, stub: "StorageStub", descriptor: "SessionDescriptor"
+    ) -> "TableWriteSession":
+        """Restore a batch-compatible write session locally, without any RPC.
+
+        The restored session is *descriptor-only*: it can open block writers
+        (which reserve quota per attempt) but cannot commit or abort the
+        global session — those operations stay with the coordinator that
+        created it.  Closing the restored session never aborts the global
+        session.
+        """
+        if descriptor.kind != SessionKind.BATCH_WRITE:
+            raise ValueError("A batch-write session descriptor is required")
+        response = BatchCompatibleSessionResponse.from_dict(descriptor.metadata)
+        if not response.session_id:
+            raise StorageClientError(
+                "Batch-compatible session response did not contain SessionId"
+            )
+        if response.data_schema is None:
+            raise StorageClientError(
+                "Batch-compatible session response did not contain DataSchema"
+            )
+        response.route_token = descriptor.route_token
+
+        session = cls(
+            stub,
+            descriptor.table_identifier,
+            write_mode=WriteMode.BATCH_COMPATIBLE,
+            _batch_compatible_response=response,
+        )
+        session._descriptor_only = True
+        session._commit_started = bool(descriptor.metadata.get("CommitStarted"))
+        return session
+
+    def _descriptor_status(self):
+        """The session status to record in an exported descriptor."""
+        if self._committed:
+            return "COMMITTED"
+        if self._aborted:
+            return "ABORTED"
+        if self._closed:
+            return "UNKNOWN"
+        return self._last_session_status or "UNKNOWN"
+
+    def _reject_descriptor_only(self):
+        """Reject global session mutations on a descriptor-restored session."""
+        if self._descriptor_only:
+            raise StorageClientError(
+                "Descriptor-restored workers cannot commit or abort a session; "
+                "use the coordinator"
+            )
 
     @property
     def write_mode(self) -> WriteMode:
@@ -421,12 +535,24 @@ class TableWriteSession:
         :keyword compress_level: compression level.
         :raises NotImplementedError: if this session is not batch-compatible.
         :raises StorageClientError: if the service cannot reserve quota.
+
+        Descriptor-restored sessions reject new writers once a commit has
+        been attempted on the session or the last observed session status
+        is no longer ``NORMAL``.
         """
-        if self._committed or self._aborted:
+        if self._committed or self._aborted or self._closed:
             raise StorageClientError("Session is already closed")
         if self._write_mode != WriteMode.BATCH_COMPATIBLE:
             raise NotImplementedError(
                 "open_block_writer requires WriteMode.BATCH_COMPATIBLE"
+            )
+        if self._descriptor_only and (
+            self._commit_started
+            or (self._last_session_status or "").upper() != "NORMAL"
+        ):
+            raise StorageClientError(
+                "Descriptor cannot create writers after commit started or "
+                "outside the NORMAL session state"
             )
         if block_number < 0:
             raise ValueError("block_number must not be negative")
@@ -483,6 +609,7 @@ class TableWriteSession:
         stream_ids: Optional[List[str]] = None,
         stream_versions: Optional[List[int]] = None,
         block_results: Optional[Collection[BlockWriteResult]] = None,
+        wait_flying_writers_timeout_seconds: Optional[int] = None,
     ) -> None:
         """Commit the session to finalize all uploaded data.
 
@@ -490,12 +617,29 @@ class TableWriteSession:
         of :class:`BlockWriteResult` from successful block writers).  The
         ``stream_ids`` / ``stream_versions`` parameters are not used in
         batch-compatible mode.
+
+        ``wait_flying_writers_timeout_seconds`` (batch-compatible mode
+        only) bounds how long the server waits for in-flight writers
+        before finalizing the commit; valid range is 1..600 seconds.
+        ``None`` keeps the server default.
         """
-        if self._committed or self._aborted:
+        if self._committed or self._aborted or self._closed:
             raise StorageClientError("Session is already closed")
+        self._reject_descriptor_only()
+
+        if (
+            wait_flying_writers_timeout_seconds is not None
+            and self._write_mode != WriteMode.BATCH_COMPATIBLE
+        ):
+            raise ValueError(
+                "wait_flying_writers_timeout_seconds only applies to "
+                f"batch-compatible mode, got write mode: {self._write_mode}"
+            )
 
         if self._write_mode == WriteMode.BATCH_COMPATIBLE:
-            self._commit_batch_compatible(block_results)
+            self._commit_batch_compatible(
+                block_results, wait_flying_writers_timeout_seconds
+            )
             return
 
         if (
@@ -519,6 +663,7 @@ class TableWriteSession:
         """Abort the session to discard all uploaded data."""
         if self._aborted:
             return
+        self._reject_descriptor_only()
         if (
             self._write_mode.is_streaming()
             and self._session_id == AUTO_COMMIT_SESSION_ID
@@ -533,7 +678,9 @@ class TableWriteSession:
         )
         self._aborted = True
 
-    def _commit_batch_compatible(self, block_results):
+    def _commit_batch_compatible(
+        self, block_results, wait_flying_writers_timeout_seconds=None
+    ):
         """Validate and commit block results for batch-compatible mode."""
         if block_results is None:
             raise ValueError("block_results cannot be None; use an empty collection")
@@ -560,11 +707,16 @@ class TableWriteSession:
             committed_blocks.add(result.block_number)
             commit_messages.append(result.commit_message)
 
+        # Once a commit has been attempted its outcome may be unknown even
+        # if the call fails; record that before issuing the request.
+        self._commit_started = True
+
         response = self._stub.commit_batch_compatible_session(
             self._table_id,
             self._session_id,
             self._route_token,
             commit_messages,
+            wait_flying_writers_timeout_seconds=wait_flying_writers_timeout_seconds,
         )
         if response is None:
             raise StorageClientError(
@@ -581,9 +733,26 @@ class TableWriteSession:
         self._committed = True
 
     def close(self) -> None:
-        """Auto-aborts if not committed."""
+        """Auto-aborts if not committed.
+
+        Once a batch-compatible commit has been attempted, its outcome may
+        be unknown even if the call failed; closing then performs no remote
+        abort, and the coordinator must reconcile the session state
+        separately.  Descriptor-restored workers only close their local
+        handle: they never abort the global session.
+
+        Either way the handle is finalized: no writer or commit is accepted
+        afterwards, and an exported descriptor records the session as
+        ``ABORTED`` (abort confirmed) or ``UNKNOWN`` (outcome not observed).
+        """
+        if self._descriptor_only or self._commit_started:
+            self._closed = True
+            return
         if not self._committed and not self._aborted:
             try:
                 self.abort()
             except Exception:
                 logger.debug("Failed to abort session during close", exc_info=True)
+        # The handle is finished either way; a failed abort leaves the remote
+        # state unknown, so later calls must not reopen writers on it.
+        self._closed = True

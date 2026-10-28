@@ -113,3 +113,39 @@ def test_persist_execute(odps, setup):
     assert [c.lhs.name for c in df2.predicate.children()] == ['pt', 'ds']
     result2 = get_result(df2.execute())
     assert [r[:-2] for r in result2] == [d for d in data if d[2] < 2]
+
+
+def test_interrupt_closes_widget_without_notify(monkeypatch):
+    """An interrupted Delay.execute must close the progress UI even when
+    close_and_notify is False."""
+    from concurrent.futures import Future
+
+    from .. import delay as delay_mod
+    from ..backends import engine as engine_mod
+    from ..delay import Delay
+
+    class _FakeEngine:
+        def batch(self, *args, **kwargs):
+            return [Future()]  # never completes: the wait is interrupted
+
+    class _FakeUI:
+        def __init__(self):
+            self.closed = 0
+
+        def close(self):
+            self.closed += 1
+
+    def _interrupt(*args, **kwargs):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(engine_mod, "get_default_engine", lambda *a, **k: _FakeEngine())
+    monkeypatch.setattr(delay_mod, "wait", _interrupt)
+
+    delay = Delay()
+    delay.register_item("execute", object())
+    ui = _FakeUI()
+
+    with pytest.raises(KeyboardInterrupt):
+        delay.execute(ui=ui, close_and_notify=False)
+
+    assert ui.closed == 1

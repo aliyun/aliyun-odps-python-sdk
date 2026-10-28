@@ -38,6 +38,7 @@ from .io.compress import CompressionCodec
 from .models import (
     DataFormat,
     InstanceIdentifier,
+    SessionKind,
     SessionStatus,
     SplitMode,
     Status,
@@ -45,6 +46,7 @@ from .models import (
     TimestampUnit,
     WriteMode,
 )
+from .models.descriptor import SessionDescriptor
 from .options import (
     BatchCompatibleOptions,
     BlobWriteItem,
@@ -128,6 +130,8 @@ __all__ = (
         "CompressionCodec",
         "DataFormat",
         "InstanceIdentifier",
+        "SessionDescriptor",
+        "SessionKind",
         "SessionStatus",
         "SplitMode",
         "Status",

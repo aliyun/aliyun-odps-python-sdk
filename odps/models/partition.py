@@ -444,3 +444,20 @@ class Partition(XMLLazyLoad):
         )
         self._unload_if_async(async_)
         return inst
+
+    @utils.with_wait_argument
+    def merge_small_files(self, hints=None, async_=False, **kw):
+        """
+        Merge small files in this partition.
+
+        The caller's hints are not modified; explicit hints override the
+        default small-file merge settings.
+
+        :param hints: optional task settings
+        :param async_: run asynchronously if True
+        :return: instance
+        :rtype: :class:`odps.models.Instance`
+        """
+        return self.table.merge_small_files(
+            hints=hints, partition=self.partition_spec, async_=async_, **kw
+        )
