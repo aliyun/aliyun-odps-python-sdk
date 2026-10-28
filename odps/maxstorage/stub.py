@@ -33,6 +33,7 @@ Not gated (predate v3, work on both v2 and v3 servers):
 import json
 import logging
 
+from ..config import options as config_options
 from ..tunnel.retry import OptionsRetryPolicy, RetryContext, TunnelRetryHandler
 from .errors import StorageServiceError
 from .models.enums import WriteMode
@@ -497,7 +498,12 @@ class StorageStub:
         return response
 
     def commit_batch_compatible_session(
-        self, table_id, session_id, route_token, commit_messages
+        self,
+        table_id,
+        session_id,
+        route_token,
+        commit_messages,
+        wait_flying_writers_timeout_seconds=None,
     ):
         """Action=TableCommitWriteSession for batch-compatible mode."""
         url = self._url()
@@ -505,10 +511,30 @@ class StorageStub:
             table_id, "TableCommitWriteSession", session_id
         )
         headers = self._build_common_headers(route_token=route_token)
-        request = BatchCompatibleCommitRequest(commit_messages=commit_messages)
+        request = BatchCompatibleCommitRequest(
+            commit_messages=commit_messages,
+            wait_flying_writers_timeout_seconds=wait_flying_writers_timeout_seconds,
+        )
         body = json.dumps(request.to_dict())
+        execute_kwargs = {}
+        if wait_flying_writers_timeout_seconds is not None:
+            # The server may legitimately wait the whole requested window
+            # before finalizing, so the client read timeout must outlive it
+            # instead of falling back to ``options.read_timeout``.
+            execute_kwargs["timeout"] = (
+                config_options.connect_timeout,
+                max(
+                    config_options.read_timeout,
+                    wait_flying_writers_timeout_seconds + 30,
+                ),
+            )
         resp = self._execute(
-            self._rest.post, url, data=body, params=params, headers=headers
+            self._rest.post,
+            url,
+            data=body,
+            params=params,
+            headers=headers,
+            **execute_kwargs,
         )
         return self._parse_response(resp, BatchCompatibleSessionResponse)
 

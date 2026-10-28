@@ -48,7 +48,7 @@ from ...types import (
     TimestampNTZ,
     Tinyint,
     Varchar,
-    Variant,
+    Vector,
     validate_data_type,
 )
 
@@ -78,7 +78,7 @@ _TYPE_CODE_MAP = {
     20: Json(),
     21: TimestampNTZ(),  # alt code
     22: Blob(),
-    23: Variant(),
+    23: "vector",  # recursive builder — VECTOR in the Storage API ColumnType enum
 }
 
 
@@ -128,16 +128,23 @@ def parse_write_schema_type(type_info_json, path, nested_column_ids):
         length = _get_int(type_info_json, "SpecifiedLength", 0)
         return Varchar(length)
 
-    if entry == "array":
+    if entry in ("array", "vector"):
         sub_types = type_info_json.get("SubTypes") or []
         if len(sub_types) != 1:
-            raise ValueError("ARRAY type must have exactly one sub-type.")
+            raise ValueError(f"{entry.upper()} type must have exactly one sub-type.")
         elem = sub_types[0]
         elem_name = _get_str(elem, "MemberName", "element") or "element"
         elem_type = parse_write_schema_type(
             elem, f"{path}.{elem_name}", nested_column_ids
         )
-        return Array(elem_type)
+        if entry == "array":
+            return Array(elem_type)
+        dimension = _get_int(type_info_json, "VectorDimension", 0)
+        if dimension <= 0:
+            raise ValueError(
+                f"VECTOR type must have a positive VectorDimension, got: {dimension}"
+            )
+        return Vector(elem_type, dimension)
 
     if entry == "map":
         sub_types = type_info_json.get("SubTypes") or []

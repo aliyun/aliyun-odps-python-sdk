@@ -46,7 +46,16 @@ cdef class CDecoder:
         if self._record_network_time:
             ts = time.monotonic()
 
-        self._buffer = stream.read(_BUFFER_SIZE)
+        try:
+            self._buffer = stream.read(_BUFFER_SIZE)
+        except BaseException:
+            # Construction cannot complete, so no decoder will ever own the
+            # stream: release it right away as it may hold a live connection.
+            try:
+                stream.close()
+            except Exception:
+                pass
+            raise
 
         if self._record_network_time:
             self._network_wall_time_ns += <long long>(

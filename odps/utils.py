@@ -24,6 +24,7 @@ import glob
 import inspect
 import io
 import keyword
+import locale
 import logging
 import math
 import multiprocessing
@@ -46,8 +47,9 @@ from email.utils import formatdate, parsedate_tz
 from hashlib import md5
 from urllib.parse import urlparse
 
-from . import compat, options
+from . import compat
 from .compat import FixedOffset, parsedate_to_datetime, utc
+from .config import options
 
 try:
     import zoneinfo
@@ -210,6 +212,41 @@ def skip_na_call(func):
 def stringify_expt():
     lines = traceback.format_exception(*sys.exc_info())
     return "\n".join(lines)
+
+
+_initial_defencoding = None
+
+
+def detect_console_encoding():
+    """
+    Try to find the most capable encoding supported by the console.
+    slighly modified from the way IPython handles the same issue.
+    """
+    global _initial_defencoding
+
+    encoding = None
+    try:
+        encoding = sys.stdout.encoding or sys.stdin.encoding
+    except AttributeError:
+        pass
+
+    # try again for something better
+    if not encoding or "ascii" in encoding.lower():
+        try:
+            encoding = locale.getpreferredencoding()
+        except Exception:
+            pass
+
+    # when all else fails. this will usually be "ascii"
+    if not encoding or "ascii" in encoding.lower():
+        encoding = sys.getdefaultencoding()
+
+    # GH3360, save the reported defencoding at import time
+    # MPL backends may change it. Make available for debugging.
+    if not _initial_defencoding:
+        _initial_defencoding = sys.getdefaultencoding()
+
+    return encoding
 
 
 def str_to_printable(field_name, auto_quote=True):
@@ -637,7 +674,7 @@ def init_progress_bar(val=1, use_console=True):
 
 
 def init_progress_ui(val=1, lock=False, use_console=True, mock=False):
-    from .ui import ProgressGroupUI, html_notify
+    from .ui import ProgressGroupUI
 
     progress_group = None
     bar = None
@@ -702,10 +739,6 @@ def init_progress_ui(val=1, lock=False, use_console=True, mock=False):
         def update_group(self):
             if progress_group:
                 progress_group.update()
-
-        @ui_method
-        def notify(self, msg):
-            html_notify(msg)
 
         @ui_method
         def close(self):

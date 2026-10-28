@@ -39,6 +39,12 @@ Write Sessions
 .. autoclass:: odps.maxstorage.TableWriteSession
     :members:
 
+Session Descriptors
+-------------------
+
+.. autoclass:: odps.maxstorage.SessionDescriptor
+    :members:
+
 Writers
 -------
 
@@ -108,6 +114,9 @@ Schema and Options
     :members:
 
 .. autoclass:: odps.maxstorage.SessionStatus
+    :members:
+
+.. autoclass:: odps.maxstorage.SessionKind
     :members:
 
 .. autoclass:: odps.maxstorage.Status

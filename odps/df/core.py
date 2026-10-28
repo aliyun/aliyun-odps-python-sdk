@@ -14,15 +14,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import importlib.util
+import sys
+
 from ..models import Table
 from ..models.partition import Partition
 from ..types import CompositeDataType
 from .expr.utils import get_attrs
 from .expr.expressions import CollectionExpr
-from .types import validate_data_type
-from .backends.odpssql.types import odps_schema_to_df_schema
+from .types import DynamicSchema, validate_data_type
+from .backends.odpssql.types import odps_schema_to_df_schema, odps_type_to_df_type
 from .backends.pd.types import pd_to_df_schema, df_type_to_np_type, cast_composite_sequence
-from .backends.sqlalchemy.types import sqlalchemy_to_df_schema
 
 try:
     import pandas as pd
@@ -30,11 +32,110 @@ try:
 except (ImportError, ValueError):
     has_pandas = False
 
-try:
-    import sqlalchemy
-    has_sqlalchemy = True
-except ImportError:
-    has_sqlalchemy = False
+_sqlalchemy_installed_cache = None
+
+
+def _get_imported_sqlalchemy():
+    """Return the sqlalchemy module only if it has already been imported."""
+    # correctness: a sqlalchemy object implies its module was imported, so a
+    # None here means no isinstance() against sqlalchemy types can succeed.
+    return sys.modules.get("sqlalchemy")
+
+
+def _is_sqlalchemy_table(data):
+    sa = _get_imported_sqlalchemy()
+    return sa is not None and isinstance(data, sa.Table)
+
+
+def _sqlalchemy_installed():
+    """Whether sqlalchemy is findable, without importing it.
+
+    "Findable", not "importable": a broken install still reports True. The flag
+    is advisory - dispatch uses `sys.modules` via `_get_imported_sqlalchemy()`,
+    so patching `has_sqlalchemy` does not change behaviour.
+    """
+    global _sqlalchemy_installed_cache
+    if sys.modules.get("sqlalchemy") is not None:
+        return True
+    if _sqlalchemy_installed_cache:
+        return True
+    try:
+        installed = importlib.util.find_spec("sqlalchemy") is not None
+    except (ImportError, ValueError):
+        # Transient probe failure (e.g. sys.path being mutated); do not latch
+        # False, so the next call can still discover an installed package.
+        return False
+    if installed:
+        _sqlalchemy_installed_cache = True
+    return installed
+
+
+def __getattr__(name):
+    if name == "has_sqlalchemy":
+        # Advisory: findable is not importable, and dispatch uses `sys.modules`.
+        return _sqlalchemy_installed()
+    raise AttributeError("module %r has no attribute %r" % (__name__, name))
+
+
+def __dir__():
+    return sorted(set(globals()) | {"has_sqlalchemy"})
+
+
+def _df_type_of(col_type):
+    """Return the DataFrame type of a storage type, or the type itself."""
+    if hasattr(col_type, 'CLASS_NAME'):
+        return col_type
+    try:
+        return odps_type_to_df_type(col_type)
+    except KeyError:
+        # No DataFrame counterpart (exotic storage type); keep it so the frame
+        # can still be constructed.
+        return col_type
+
+
+def _convert_column(col):
+    """Return ``col`` with a DataFrame type, or ``col`` itself if it has one."""
+    df_type = _df_type_of(col.type)
+    if df_type is col.type:
+        return col
+
+    # Keyword arguments only: the model column classes
+    # (``TableSchema.TableColumn``/``TablePartition``) accept nothing else.
+    return type(col)(
+        name=col.name,
+        type=df_type,
+        comment=col.comment,
+        label=col.label,
+        nullable=col.nullable,
+        generate_expression=col._generate_expression,
+    )
+
+
+def _normalize_local_schema(schema):
+    """Convert storage types in a user-supplied schema into DataFrame types.
+
+    ``DataFrame(pd_df, schema=TableSchema.from_lists(...))`` accepts an
+    :class:`odps.models.TableSchema`, whose columns carry ``odps.types``
+    (storage) instances. Expressions need the ``odps.df.types`` counterparts:
+    those provide ``CLASS_NAME``, which field access builds its class from.
+
+    Only the types change: column classes, comments, labels, nullability, the
+    partition split and, for dynamic schemas, the default type are carried over.
+    """
+    columns = [_convert_column(col) for col in schema.simple_columns]
+    partitions = [_convert_column(part) for part in schema.partitions or []]
+
+    if all(
+        new.type is old.type
+        for new, old in zip(columns + partitions, schema.columns)
+    ):
+        # Nothing to convert; keep the caller's schema object as it is.
+        return schema
+
+    kwargs = {}
+    if isinstance(schema, DynamicSchema):
+        kwargs['default_type'] = schema.default_type
+    return type(schema)(columns=columns, partitions=partitions or None, **kwargs)
 
 
 class DataFrame(CollectionExpr):
@@ -96,9 +197,9 @@ class DataFrame(CollectionExpr):
             self._proxy = self.copy().filter_parts(data)
         elif has_pandas and isinstance(data, pd.DataFrame):
             if 'schema' in kwargs and kwargs['schema']:
-                schema = kwargs.pop('schema')
+                schema = _normalize_local_schema(kwargs.pop('schema'))
             elif '_schema' in kwargs:
-                schema = kwargs.pop('_schema')
+                schema = _normalize_local_schema(kwargs.pop('_schema'))
             else:
                 unknown_as_string = kwargs.pop('unknown_as_string', False)
                 as_type = kwargs.pop('as_type', None)
@@ -123,8 +224,9 @@ class DataFrame(CollectionExpr):
                 schema = pd_to_df_schema(data, as_type=as_type,
                                          unknown_as_string=unknown_as_string)
             super(DataFrame, self).__init__(_source_data=data, _schema=schema, **kwargs)
-        elif has_sqlalchemy and isinstance(data, sqlalchemy.Table):
+        elif _is_sqlalchemy_table(data):
             if '_schema' not in kwargs:
+                from .backends.sqlalchemy.types import sqlalchemy_to_df_schema
                 kwargs['_schema'] = sqlalchemy_to_df_schema(data.c)
             super(DataFrame, self).__init__(_source_data=data, **kwargs)
         else:

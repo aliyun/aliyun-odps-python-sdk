@@ -90,6 +90,7 @@ def _build_schema_and_record(pd):
 
 @pytest.mark.parametrize("hasher_mod, pd", params)
 def test_default_hasher(hasher_mod, pd):
+    assert hasher_mod.hash_value("default", "bigint", 145680) == 1063204611
     # Large bigint values that overflow 64-bit intermediates
     assert hasher_mod.hash_value("default", "bigint", -4149976519821344517) == 808790275
     assert hasher_mod.hash_value("default", "bigint", 6812388553834026379) == 319711033
@@ -97,6 +98,7 @@ def test_default_hasher(hasher_mod, pd):
     assert hasher_mod.hash_value("default", "float", 134.562) == -1512465477
     assert hasher_mod.hash_value("default", "double", 15672.56271) == 1254569207
     assert hasher_mod.hash_value("default", "boolean", True) == 388737479
+    assert hasher_mod.hash_value("default", "string", "hello".encode()) == -1259046373
     assert hasher_mod.hash_value("default", "string", "eragf".encode()) == 1281892457
     assert (
         hasher_mod.hash_value("default", "string", "abcdefghijklmnop".encode())
@@ -154,6 +156,7 @@ def test_default_hasher(hasher_mod, pd):
 
 @pytest.mark.parametrize("hasher_mod, pd", params)
 def test_legacy_hasher(hasher_mod, pd):
+    assert hasher_mod.hash_value("legacy", "bigint", 145680) == 145680
     # Large bigint values that overflow 32-bit in (val >> 32) ^ val
     assert hasher_mod.hash_value("legacy", "bigint", -4149976519821344517) == 2076054188
     assert hasher_mod.hash_value("legacy", "bigint", 6812388553834026379) == -1849908544

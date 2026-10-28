@@ -160,3 +160,53 @@ def test_skip_parse_merge_task():
         assert not odps.method_calls
     finally:
         options.sql.skip_parse_merge_task = False
+
+
+def test_table_merge_small_files_calls_run_merge_files():
+    """Table.merge_small_files delegates to MergeTask.run_merge_files with correct args."""
+    from ...table import Table
+
+    odps = mock.MagicMock()
+    table = Table(client=mock.MagicMock(), parent=odps)
+    table._name = "test_table"
+
+    with mock.patch.object(
+        Table, "full_table_name", new_callable=mock.PropertyMock
+    ) as mock_name, mock.patch.object(
+        Table, "_get_schema_name", return_value=None
+    ), mock.patch.object(
+        MergeTask, "run_merge_files"
+    ) as mock_run:
+        mock_name.return_value = "test_project.test_table"
+        mock_run.return_value = mock.MagicMock()
+        table.merge_small_files(hints={"custom": "val"}, async_=True)
+
+    assert mock_run.called
+    call_args, call_kwargs = mock_run.call_args
+    assert call_args[0] is odps  # parent (odps instance)
+    assert call_kwargs.get("hints") == {"custom": "val"}
+
+
+def test_partition_merge_small_files_calls_table():
+    """Partition.merge_small_files delegates to Table.merge_small_files with partition spec."""
+    from ...partition import Partition
+
+    partition = Partition.__new__(Partition)
+    partition._client = mock.MagicMock()
+    partition._parent = mock.MagicMock()
+
+    with mock.patch.object(
+        Partition, "table", new_callable=mock.PropertyMock
+    ) as mock_table, mock.patch.object(
+        Partition, "partition_spec", new_callable=mock.PropertyMock
+    ) as mock_spec:
+        mock_table.return_value = mock.MagicMock()
+        mock_spec.return_value = "pt=1"
+        mock_table.return_value.merge_small_files.return_value = mock.MagicMock()
+        partition.merge_small_files(hints={"custom": "val"}, async_=True)
+
+    mock_table.return_value.merge_small_files.assert_called_once()
+    call_args, call_kwargs = mock_table.return_value.merge_small_files.call_args
+    assert call_kwargs.get("hints") == {"custom": "val"}
+    assert call_kwargs.get("partition") == "pt=1"
+    assert call_kwargs.get("async_") is True

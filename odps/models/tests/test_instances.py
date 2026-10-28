@@ -1049,3 +1049,48 @@ def test_task_summary_finalized_header():
     resp.json.return_value = {"Instance": {}}
     summary = instance.get_task_summary("AnonymousSQLTask", with_finalized=True)
     assert summary is None
+
+
+def test_unknown_instance_status():
+    """Unknown instance status from server should not raise ValueError."""
+    # Status() returns UNKNOWN for unrecognized values via _missing_
+    assert Instance.Status("Running") == Instance.Status.RUNNING
+    assert Instance.Status("Terminated") == Instance.Status.TERMINATED
+    assert Instance.Status("SomeNewStatus") == Instance.Status.UNKNOWN
+
+    # _status field parse_callback handles unknown status without raising
+    xml = """<?xml version="1.0"?>
+    <Instance>
+      <Name>test_instance</Name>
+      <Status>SomeNewStatus</Status>
+    </Instance>"""
+
+    instance = Instance(client=mock.MagicMock())
+    instance.parse(instance._client, xml, obj=instance)
+    assert instance._status == Instance.Status.UNKNOWN
+
+
+def test_unknown_task_status():
+    """Unknown task status from server should not raise ValueError."""
+    # TaskStatus() returns UNKNOWN for unrecognized values via _missing_
+    assert Instance.Task.TaskStatus("SUCCESS") == Instance.Task.TaskStatus.SUCCESS
+    assert Instance.Task.TaskStatus("SomeNewStatus") == Instance.Task.TaskStatus.UNKNOWN
+
+    # Task status field parse_callback handles unknown status without raising
+    xml = """<?xml version="1.0"?>
+    <Instance>
+      <Name>test_instance</Name>
+      <Status>Terminated</Status>
+      <Tasks>
+        <Task Type="SQL">
+          <Name>task1</Name>
+          <Status>SomeNewStatus</Status>
+        </Task>
+      </Tasks>
+    </Instance>"""
+
+    instance = Instance(client=mock.MagicMock())
+    instance.parse(instance._client, xml, obj=instance)
+    statuses = {t.name: t for t in instance._tasks}
+    assert "task1" in statuses
+    assert statuses["task1"].status == Instance.Task.TaskStatus.UNKNOWN

@@ -12,9 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import faulthandler
+
 import pytest
 
 from odps.tests.core import drop_test_tables, get_config
+
+faulthandler.enable(all_threads=True)
 
 
 def _is_retryable(err, *_args):

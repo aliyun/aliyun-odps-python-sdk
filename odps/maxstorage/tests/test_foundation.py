@@ -19,12 +19,20 @@ from io import BytesIO
 
 import pytest
 
-from ...types import Array, Bigint, Blob
+from ...types import Array, Bigint, Blob, Double, Float, Vector
 from ..errors import StorageClientError, StorageServiceError
 from ..models import InstanceIdentifier, TableIdentifier
+from ..models.requests import (
+    BatchCompatibleCommitRequest,
+    CreateTableReadSessionRequest,
+)
+from ..models.responses import (
+    BatchCompatibleSessionResponse,
+    CreateTableReadSessionResponse,
+)
 from ..models.schema import ReadSchema, WriteSchema, _contains_blob, _has_nested_blob
 from ..models.types import parse_write_schema_type
-from ..options import BlobWriteItem
+from ..options import BlobWriteItem, IncrementalReadOptions, SplitOptions
 
 # ---------------------------------------------------------------------------
 # errors
@@ -96,6 +104,63 @@ def test_parse_write_schema_type_array():
 
     assert isinstance(dt, Array)
     assert isinstance(dt.value_type, Bigint)
+    assert nested == {"arr": 5, "arr.element": 6}
+
+
+@pytest.mark.parametrize(
+    "sub_type_code,element_type,dimension",
+    [
+        (14, Float, 128),
+        (1, Double, 256),
+    ],
+)
+def test_parse_write_schema_type_vector(sub_type_code, element_type, dimension):
+    """Wire code 23 maps to VECTOR with the given element type and dimension."""
+    type_info = {
+        "Type": 23,
+        "MemberName": "vec",
+        "ColumnId": 7,
+        "Nullable": True,
+        "SubTypes": [{"Type": sub_type_code, "ColumnId": 8, "Nullable": True}],
+        "VectorDimension": dimension,
+    }
+    nested = {}
+    dt = parse_write_schema_type(type_info, "vec", nested)
+
+    assert isinstance(dt, Vector)
+    assert isinstance(dt.element_type, element_type)
+    assert dt.dimension == dimension
+    assert nested == {"vec": 7, "vec.element": 8}
+
+
+@pytest.mark.parametrize(
+    "type_info,match",
+    [
+        # Missing VectorDimension -> defaults to 0 -> rejected.
+        (
+            {
+                "Type": 23,
+                "SubTypes": [{"Type": 14, "ColumnId": 8, "Nullable": True}],
+            },
+            "positive VectorDimension",
+        ),
+        # Wrong number of sub-types.
+        (
+            {
+                "Type": 23,
+                "SubTypes": [
+                    {"Type": 14, "ColumnId": 8, "Nullable": True},
+                    {"Type": 1, "ColumnId": 9, "Nullable": True},
+                ],
+                "VectorDimension": 128,
+            },
+            "exactly one sub-type",
+        ),
+    ],
+)
+def test_parse_write_schema_type_vector_invalid(type_info, match):
+    with pytest.raises(ValueError, match=match):
+        parse_write_schema_type(type_info, "vec", {})
 
 
 # ---------------------------------------------------------------------------
@@ -246,3 +311,153 @@ def test_blob_write_item_serialization():
     serialized = buf.getvalue()
     assert isinstance(serialized, (bytes, bytearray))
     assert len(serialized) > 0
+
+
+# ---------------------------------------------------------------------------
+# v2 client capability wire fields
+# ---------------------------------------------------------------------------
+
+
+_V2_OPT_IN_FIELDS = [
+    pytest.param(
+        SplitOptions(),
+        SplitOptions(bucket_sort=True),
+        "BucketSort",
+        True,
+        id="split-options-bucket-sort",
+    ),
+    pytest.param(
+        IncrementalReadOptions(),
+        IncrementalReadOptions(start_txn_id="txn-1"),
+        "StartTxnId",
+        "txn-1",
+        id="incremental-read-start-txn-id",
+    ),
+    pytest.param(
+        CreateTableReadSessionRequest(),
+        CreateTableReadSessionRequest(enable_estimate_stats=True),
+        "EnableEstimateStats",
+        True,
+        id="read-session-estimate-stats",
+    ),
+    pytest.param(
+        CreateTableReadSessionRequest(),
+        CreateTableReadSessionRequest(enable_extended_arrow_ipc=True),
+        "EnableExtendedArrowIPC",
+        True,
+        id="read-session-extended-arrow-ipc",
+    ),
+    pytest.param(
+        CreateTableReadSessionRequest(),
+        CreateTableReadSessionRequest(unique_map_key=True),
+        "UniqueMapKey",
+        True,
+        id="read-session-unique-map-key",
+    ),
+]
+
+
+@pytest.mark.parametrize("default,opted_in,wire_key,expected", _V2_OPT_IN_FIELDS)
+def test_v2_wire_field_is_opt_in(default, opted_in, wire_key, expected):
+    """New v2 fields stay off the wire until explicitly requested."""
+    assert wire_key not in default.to_dict()
+    assert opted_in.to_dict()[wire_key] == expected
+
+
+def test_incremental_read_options_wire_mapping():
+    assert IncrementalReadOptions(
+        version="Auto", from_=100, to=200, start_txn_id="txn-1"
+    ).to_dict() == {"Mode": "Auto", "From": 100, "To": 200, "StartTxnId": "txn-1"}
+
+
+def test_split_options_defaults_to_size_split_mode():
+    assert SplitOptions().to_dict()["SplitMode"] == "Size"
+
+
+def test_create_read_session_response_v2_fields():
+    resp = CreateTableReadSessionResponse.from_dict(
+        {
+            "SessionId": "s1",
+            "ExtendedArrowIPCEnabled": True,
+            "LatestTxnId": "txn-9",
+            "RecordCount": 123,
+        }
+    )
+    assert resp.extended_arrow_ipc_enabled is True
+    assert resp.latest_txn_id == "txn-9"
+    assert resp.record_count == 123
+
+    # Absent RecordCount is unknown (-1), not zero.
+    empty = CreateTableReadSessionResponse.from_dict({"SessionId": "s2"})
+    assert empty.record_count == -1
+    assert empty.extended_arrow_ipc_enabled is False
+    assert empty.latest_txn_id is None
+
+    # Default instance also reports -1.
+    assert CreateTableReadSessionResponse().record_count == -1
+
+
+def test_batch_compatible_session_response_v2_fields():
+    resp = BatchCompatibleSessionResponse.from_dict(
+        {
+            "SessionId": "w1",
+            "SupportedDataFormat": [
+                {"Type": "Arrow", "Version": "V5"},
+                {"Type": "DataBlock", "Version": "V1"},
+            ],
+            "RequiredOrdering": [
+                {
+                    "Name": "pk",
+                    "SortDirection": "ASCENDING",
+                    "NullOrdering": "NULLS_FIRST",
+                }
+            ],
+            "RequiredDistribution": {
+                "Type": "Hash",
+                "ClusterKeys": ["pk"],
+                "BucketsNumber": 16,
+            },
+        }
+    )
+    assert resp.session_id == "w1"
+    assert [fmt.type for fmt in resp.supported_data_format] == ["Arrow", "DataBlock"]
+    assert len(resp.required_ordering) == 1
+    assert resp.required_ordering[0].name == "pk"
+    assert resp.required_ordering[0].sort_direction == "ASCENDING"
+    assert resp.required_ordering[0].null_ordering == "NULLS_FIRST"
+    assert resp.required_distribution.type == "Hash"
+    assert resp.required_distribution.cluster_keys == ["pk"]
+    assert resp.required_distribution.buckets_number == 16
+
+    # Absent optional blocks default to empty / None.
+    empty = BatchCompatibleSessionResponse.from_dict({"SessionId": "w2"})
+    assert empty.supported_data_format == []
+    assert empty.required_ordering == []
+    assert empty.required_distribution is None
+
+
+# ---------------------------------------------------------------------------
+# batch-compatible commit request
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("timeout", [None, 1, 30, 300, 600])
+def test_batch_compatible_commit_request_wait_timeout_wire_field(timeout):
+    body = BatchCompatibleCommitRequest(
+        commit_messages=["m0"], wait_flying_writers_timeout_seconds=timeout
+    ).to_dict()
+
+    assert body["CommitMessages"] == ["m0"]
+    if timeout is None:
+        # Inert by default: existing wire bodies are unchanged.
+        assert "WaitFlyingWritersTimeoutSeconds" not in body
+    else:
+        assert body["WaitFlyingWritersTimeoutSeconds"] == timeout
+
+
+@pytest.mark.parametrize("timeout", [0, -1, 601, "30", 1.5, True])
+def test_batch_compatible_commit_request_wait_timeout_validation(timeout):
+    with pytest.raises(ValueError, match=r"1, 600"):
+        BatchCompatibleCommitRequest(
+            commit_messages=[], wait_flying_writers_timeout_seconds=timeout
+        )

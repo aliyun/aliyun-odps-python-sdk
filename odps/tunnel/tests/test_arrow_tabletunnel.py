@@ -53,6 +53,7 @@ from ...compat import Version
 from ...config import options
 from ...models import TableSchema
 from ...tests.core import get_test_unique_name, tn
+from ..io.reader import _PD_NA, ArrowRecordFieldConverter
 from ..io.types import cast_large_offset_array, odps_schema_to_arrow_schema
 from ..io.writer import BaseArrowWriter
 
@@ -549,6 +550,38 @@ def test_upload_and_download_vector(odps, tunnel):
 
 
 # ---------------------------------------------------------------------------
+# ArrowRecordFieldConverter Vector type support
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "element_type,dimension,dtype_name,values",
+    [
+        (odps_types.float_, 3, "float32", [1.0, 2.0, 3.0]),
+        (odps_types.double, 4, "float64", [1.0, 2.0, 3.0, 4.0]),
+        (odps_types.float_, 3, "float32", None),
+        (odps_types.float_, 3, None, [1.0, 2.0]),  # dimension mismatch
+    ],
+)
+def test_vector_converter(element_type, dimension, dtype_name, values):
+    converter = ArrowRecordFieldConverter(odps_types.Vector(element_type, dimension))
+
+    if values is None:
+        assert converter(None) is None
+        if _PD_NA is not None:
+            assert converter(_PD_NA) is None
+    elif dtype_name is None:
+        with pytest.raises(ValueError, match="Vector dimension mismatch"):
+            converter(values)
+    else:
+        result = converter(values)
+        if np is not None:
+            assert isinstance(result, np.ndarray)
+            assert result.dtype == np.dtype(dtype_name)
+        assert list(result) == values
+
+
+# ---------------------------------------------------------------------------
 # large_string / large_binary offset-overflow handling
 # ---------------------------------------------------------------------------
 
@@ -723,3 +756,68 @@ def test_writer_large_string(force_split, values):
     assert table.column("s").type == pa.string()
     assert table.column("s").to_pylist() == values
     assert table.column("id").to_pylist() == list(range(len(values)))
+
+
+def test_arrow_writer_rejects_out_of_range_timestamp():
+    """BaseArrowWriter should reject timestamps outside MaxCompute storage range."""
+    schema = TableSchema.from_lists(
+        ["id", "ts"], [odps_types.bigint, odps_types.datetime]
+    )
+    writer = _CapturingWriter(schema)
+
+    # MaxCompute max is year 9999; use raw millis beyond that
+    # 253402300800000 ms = 9999-12-31 00:00:00 UTC (within range)
+    # 253402300801000 ms = just beyond max (should fail)
+    batch = pa.RecordBatch.from_arrays(
+        [
+            pa.array([1, 2]),
+            pa.array(
+                [1609459200000, 253403000000000],
+                type=pa.timestamp("ms"),
+            ),
+        ],
+        names=["id", "ts"],
+    )
+    with pytest.raises(ValueError, match="outside MaxCompute storage range"):
+        writer.write(batch)
+
+
+def test_arrow_writer_rejects_out_of_range_date():
+    """BaseArrowWriter should reject dates outside MaxCompute storage range."""
+    schema = TableSchema.from_lists(["id", "dt"], [odps_types.bigint, odps_types.date])
+    writer = _CapturingWriter(schema)
+
+    # MIN_DAYS = -719529; use a value below that
+    batch = pa.RecordBatch.from_arrays(
+        [
+            pa.array([1, 2]),
+            pa.array([18262, -800000], type=pa.date32()),
+        ],
+        names=["id", "dt"],
+    )
+    with pytest.raises(ValueError, match="outside MaxCompute storage range"):
+        writer.write(batch)
+
+
+def test_arrow_writer_accepts_valid_temporal_values():
+    """BaseArrowWriter should accept temporal values within MaxCompute storage range."""
+    schema = TableSchema.from_lists(
+        ["id", "ts", "dt"],
+        [odps_types.bigint, odps_types.datetime, odps_types.date],
+    )
+    writer = _CapturingWriter(schema)
+
+    batch = pa.RecordBatch.from_arrays(
+        [
+            pa.array([1]),
+            pa.array(
+                [datetime.datetime(2020, 6, 15, 12, 0, 0)], type=pa.timestamp("ms")
+            ),
+            pa.array([datetime.date(2020, 6, 15)], type=pa.date32()),
+        ],
+        names=["id", "ts", "dt"],
+    )
+    # Should not raise
+    writer.write(batch)
+    batches = _read_batches(writer, schema)
+    assert len(batches) >= 1

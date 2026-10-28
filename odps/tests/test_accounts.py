@@ -32,7 +32,7 @@ import mock
 import pytest
 import requests
 
-from .. import ODPS, errors, options, utils
+from .. import ODPS, accounts, errors, options, utils
 from ..accounts import (
     BearerTokenAccount,
     CloudAccount,
@@ -98,6 +98,26 @@ def test_sign_server_account(odps):
         t.drop(async_=True)
     finally:
         server.stop()
+
+
+def _os_reporting_pid(pid):
+    return mock.Mock(getpid=mock.Mock(return_value=pid))
+
+
+def test_sign_server_session_rebuilt_after_fork():
+    """The sign server keeps its connection pool process-local as well."""
+    account = SignServerAccount("id", ("localhost", 1234))
+
+    with mock.patch.object(accounts, "os", _os_reporting_pid(1111)):
+        parent_session = account.session
+        assert account.session is parent_session
+
+    with mock.patch.object(parent_session, "close", wraps=parent_session.close):
+        with mock.patch.object(accounts, "os", _os_reporting_pid(2222)):
+            child_session = account.session
+
+        assert parent_session.close.call_count == 1
+    assert child_session is not parent_session
 
 
 def test_tokenized_sign_server_account(odps):
@@ -436,8 +456,8 @@ def _build_canonical(account, url, headers, method="GET"):
 @pytest.mark.parametrize(
     "url,headers,resource_line,extra_assertions",
     [
-        # Duplicate query keys collapse to the last value, matching the Java SDK
-        # (which stores params in a Map). Previously pyodps raised AssertionError.
+        # Duplicate query keys collapse to the last value.
+        # Previously pyodps raised AssertionError.
         pytest.param(
             "/projects/p?k=1&k=2",
             {"Date": "Wed, 04 Aug 2026 06:00:00 GMT"},
@@ -445,8 +465,7 @@ def _build_canonical(account, url, headers, method="GET"):
             {},
             id="dedup-query-keys",
         ),
-        # A parameter with an empty value renders as a bare key ("?empty"),
-        # matching the Java SDK's buildCanonicalizedResource.
+        # A parameter with an empty value renders as a bare key ("?empty")
         pytest.param(
             "/projects/p?empty=",
             {"Date": "Wed, 04 Aug 2026 06:00:00 GMT"},
@@ -455,7 +474,7 @@ def _build_canonical(account, url, headers, method="GET"):
             id="empty-param-value",
         ),
         # Only headers starting with "x-odps-" are signed; a bare "x-odps" prefix
-        # (no trailing dash) must be ignored, matching the Java SDK.
+        # (no trailing dash) must be ignored.
         pytest.param(
             "/projects/p",
             {

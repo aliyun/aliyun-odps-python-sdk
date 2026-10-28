@@ -23,7 +23,11 @@ yields :class:`odps.models.Record` (row-oriented API).
 """
 from typing import TYPE_CHECKING, Optional
 
-from ..io.arrow_reader import ArrowStreamReader, AsyncArrowStreamReader
+from ..io.arrow_reader import (
+    ArrowStreamReader,
+    AsyncArrowStreamReader,
+    ExtendedArrowStreamReader,
+)
 from .record_reader import ArrowRecordReader
 
 if TYPE_CHECKING:
@@ -63,6 +67,11 @@ class ArrowReader:
     async_queue_size : int, optional
         Maximum number of batches buffered by the async reader (default 2).
         Larger values smooth latency spikes at the cost of memory.
+    extended : bool, optional
+        When ``True``, the response stream uses the negotiated extended
+        Arrow IPC format: tagged substreams with metrics frames separated
+        from table rows.  Metrics collected from the stream are exposed
+        via :attr:`metrics_metadata`.  Default ``False``.
 
     Example
     -------
@@ -84,17 +93,22 @@ class ArrowReader:
         count: int = 0,
         async_read: bool = False,
         async_queue_size: int = 2,
+        extended: bool = False,
     ):
-        if async_read:
-            self._stream_reader = AsyncArrowStreamReader(
-                raw_response,
-                compress_option=compress_option,
-                queue_size=async_queue_size,
-            )
-        else:
-            self._stream_reader = ArrowStreamReader(
+        if extended:
+            sync_reader = ExtendedArrowStreamReader(
                 raw_response, compress_option=compress_option
             )
+        else:
+            sync_reader = ArrowStreamReader(
+                raw_response, compress_option=compress_option
+            )
+        if async_read:
+            self._stream_reader = AsyncArrowStreamReader(
+                sync_reader, queue_size=async_queue_size
+            )
+        else:
+            self._stream_reader = sync_reader
         self._schema = schema
         self._compress_option = compress_option
         self._request_id = request_id
@@ -107,6 +121,15 @@ class ArrowReader:
     def arrow_schema(self) -> "pa.Schema":
         """The :class:`pyarrow.Schema` of the underlying IPC stream."""
         return self._stream_reader.arrow_schema
+
+    @property
+    def metrics_metadata(self) -> Optional[dict]:
+        """Metrics metadata collected from extended-IPC metrics substreams.
+
+        ``None`` for ordinary (non-extended) readers; a ``dict`` of merged
+        metric key/value pairs for extended readers.
+        """
+        return self._stream_reader.metrics_metadata
 
     @property
     def table_schema(self) -> Optional["StorageSchema"]:
@@ -127,7 +150,11 @@ class ArrowReader:
 
     @property
     def count(self) -> int:
-        """Total number of rows available to this reader (set at open time)."""
+        """Total number of rows available to this reader (set at open time).
+
+        ``-1`` when that number is unknown (the session did not report a
+        record count and the split carries no row range).
+        """
         return self._count
 
     # -- batch iteration ---------------------------------------------------

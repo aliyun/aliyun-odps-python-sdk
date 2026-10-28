@@ -176,6 +176,31 @@ def test_stub_batch_compatible_retries(status_code, fail_n, invoke):
     assert calls["n"] == fail_n + 1
 
 
+@pytest.mark.parametrize("wait", [None, 30, 600])
+def test_stub_commit_timeout_outlives_wait_window(wait):
+    """The commit read timeout must cover the server-side wait window.
+
+    Otherwise a wait longer than ``options.read_timeout`` raises a client
+    ReadTimeout, which the retry policy re-sends while the server is still
+    legitimately waiting.
+    """
+    stub, rest = _make_stub()
+    rest.post = mock.MagicMock(
+        return_value=_make_ok_resp(b'{"SessionId":"s1","Status":"COMMITTED"}')
+    )
+    stub.commit_batch_compatible_session(
+        _make_tid(), "s1", None, [], wait_flying_writers_timeout_seconds=wait
+    )
+    kwargs = rest.post.call_args[1]
+    if wait is None:
+        assert "timeout" not in kwargs
+    else:
+        assert kwargs["timeout"] == (
+            options.connect_timeout,
+            max(options.read_timeout, wait + 30),
+        )
+
+
 # ---------------------------------------------------------------------------
 # RetryContext and header injection
 # ---------------------------------------------------------------------------

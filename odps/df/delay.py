@@ -86,16 +86,29 @@ class Delay:
                 relay_future(bf, idx, uf)
 
         if not async_:
+            succeeded = False
+            interrupted = False
             try:
                 wait(_futures, timeout)
                 for uf in _futures:
                     uf.result()
-                ui.notify('DataFrame execution succeeded')
+                succeeded = True
+            except KeyboardInterrupt:
+                interrupted = True
+                raise
             except Exception:
-                ui.notify('DataFrame execution failed')
                 raise
             finally:
                 self._running = False
+                # Best-effort cleanup: honor close_and_notify like Engine.execute,
+                # but always close on a keyboard interrupt so the widget is not
+                # left on screen. Never let a failing close() mask the original
+                # execution error.
+                if close_and_notify or succeeded or interrupted:
+                    try:
+                        ui.close()
+                    except Exception:
+                        pass
         else:
             delay_future = Future()
             delay_future.set_running_or_notify_cancel()

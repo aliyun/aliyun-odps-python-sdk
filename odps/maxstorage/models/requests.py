@@ -54,6 +54,9 @@ class CreateTableReadSessionRequest:
     split_max_file_num: int = 0
     incremental_read: bool = False
     incremental_read_options: Optional[IncrementalReadOptions] = None
+    enable_estimate_stats: bool = False
+    enable_extended_arrow_ipc: bool = False
+    unique_map_key: bool = False
 
     def to_dict(self):
         arrow_opts = _arrow_options_dict(self.arrow_options)
@@ -71,6 +74,12 @@ class CreateTableReadSessionRequest:
         }
         if self.incremental_read_options is not None:
             d["IncrementalReadOptions"] = self.incremental_read_options.to_dict()
+        if self.enable_estimate_stats:
+            d["EnableEstimateStats"] = True
+        if self.enable_extended_arrow_ipc:
+            d["EnableExtendedArrowIPC"] = True
+        if self.unique_map_key:
+            d["UniqueMapKey"] = True
         return d
 
 
@@ -285,9 +294,35 @@ class BatchCompatibleCreateSessionRequest:
 
 @dataclass
 class BatchCompatibleCommitRequest:
-    """Commit body used by the batch-compatible block protocol."""
+    """Commit body used by the batch-compatible block protocol.
+
+    ``wait_flying_writers_timeout_seconds`` bounds how long the server
+    waits for in-flight writers before finalizing the commit; valid range
+    is 1..600 seconds.  It is omitted from the wire body when unset so
+    existing requests stay unchanged.
+    """
 
     commit_messages: List[str] = field(default_factory=list)
+    wait_flying_writers_timeout_seconds: Optional[int] = None
+
+    def __post_init__(self):
+        timeout = self.wait_flying_writers_timeout_seconds
+        if timeout is None:
+            return
+        if (
+            isinstance(timeout, bool)
+            or not isinstance(timeout, int)
+            or not (1 <= timeout <= 600)
+        ):
+            raise ValueError(
+                "wait_flying_writers_timeout_seconds must be an integer in "
+                f"[1, 600], got: {timeout!r}"
+            )
 
     def to_dict(self):
-        return {"CommitMessages": self.commit_messages}
+        d = {"CommitMessages": self.commit_messages}
+        if self.wait_flying_writers_timeout_seconds is not None:
+            d[
+                "WaitFlyingWritersTimeoutSeconds"
+            ] = self.wait_flying_writers_timeout_seconds
+        return d

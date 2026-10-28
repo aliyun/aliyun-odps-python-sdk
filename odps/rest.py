@@ -259,10 +259,23 @@ class RestClient:
 
     @property
     def session(self):
-        try:
-            session_cache = type(self)._session_local.session_cache
-        except AttributeError:
-            session_cache = type(self)._session_local.session_cache = dict()
+        session_local = type(self)._session_local
+        pid = os.getpid()
+        if getattr(session_local, "session_pid", None) != pid:
+            # A fork hands the child a copy of the parent's connection pool.
+            # Reusing an inherited connection makes both processes interleave
+            # requests on the same socket, which the server rejects as a
+            # corrupted body. Closing the sessions only drops the child's
+            # copies of the descriptors, the parent keeps working, and a fresh
+            # pool is built for this process when the endpoint is used again.
+            for session in getattr(session_local, "session_cache", {}).values():
+                try:
+                    session.close()
+                except Exception:
+                    pass
+            session_local.session_cache = dict()
+            session_local.session_pid = pid
+        session_cache = session_local.session_cache
         try:
             return session_cache[self._endpoint]
         except KeyError:

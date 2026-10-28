@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 1999-2024 Alibaba Group Holding Ltd.
+# Copyright 1999-2026 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,69 +13,38 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
-
 MAX_SCRIPT_LOAD_SEC = 5
 SCRIPT_LOAD_CHECK_INTERVAL = 0.01
 
-COMMON_JS = "common"
-CSS_REGISTER_JS = """
-require(['pyodps'], function(p) { p.register_css('##CSS_STR##'); });
-""".strip()
+
+def build_trait(trait_cls, default_value=None, **metadata):
+    """Build a trait with metadata.
+
+    `trait_cls` comes from the caller, so this helper works whenever the caller
+    managed to import traitlets - it does not depend on the widget state below.
+    Keeping it unconditional matters because this module is imported before an
+    IPython front end exists, while callers may be (re)imported afterwards.
+    """
+    if default_value:
+        return trait_cls(default_value).tag(**metadata)
+    else:
+        return trait_cls().tag(**metadata)
 
 
 try:
-    from ..console import (
+    from ..console import (  # noqa: F401  (in_ipython_frontend re-exported)
+        get_ipython_major_version,
+        get_widgets,
         in_ipython_frontend,
-        ipython_major_version,
-        is_widgets_available,
-        widgets,
     )
 
-    if any(v is None for v in (widgets, ipython_major_version, in_ipython_frontend)):
+    widgets = get_widgets()
+    ipython_major_version = get_ipython_major_version()
+    if widgets is None or ipython_major_version is None:
         raise ImportError
 
-    if ipython_major_version < 4:
-        from IPython.utils.traitlets import List, Unicode
-
-        traitlets_version = (3, 0)
-    else:
-        from traitlets import Unicode, List  # noqa: F401
-        from traitlets import version_info as traitlets_version
-    from IPython.display import display
+    from traitlets import List, Unicode  # noqa: F401
 except Exception:
     InstancesProgress = None
-    build_trait = None
-    in_ipython_frontend = None
 else:
-    _script_content = None
-
     last_ipython_msg_id = None
-
-    def build_trait(trait_cls, default_value=None, **metadata):
-        if tuple(traitlets_version[:2]) < (4, 1):  # old-fashioned call
-            if default_value:
-                return trait_cls(default_value, **metadata)
-            else:
-                return trait_cls(**metadata)
-        else:
-            if default_value:
-                return trait_cls(default_value).tag(**metadata)
-            else:
-                return trait_cls().tag(**metadata)
-
-    class HTMLNotifier(widgets.DOMWidget):
-        _view_name = build_trait(Unicode, "HTMLNotifier", sync=True)
-        _view_module = build_trait(Unicode, "pyodps/html-notify", sync=True)
-        msg = build_trait(Unicode, "msg", sync=True)
-
-        def notify(self, msg):
-            self.msg = json.dumps(dict(body=msg))
-
-
-def html_notify(msg):
-    if in_ipython_frontend and in_ipython_frontend():
-        notifier = HTMLNotifier()
-        if is_widgets_available():
-            display(notifier)
-        notifier.notify(msg)

@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import types
 from collections import namedtuple
 
 import pytest
@@ -53,6 +54,54 @@ def test_load_extension():
 
     assert issubclass(magics_store[0], Magics)
     assert fake_shell.user_ns["options"] is options
+
+
+def test_execute_sql_interrupt_closes_progress_widget(monkeypatch):
+    """A keyboard-interrupted %sql cell must close the progress widget."""
+    from .. import magics
+
+    class _FakeUI:
+        closed = 0
+
+        def add_keys(self, *args):
+            pass
+
+        def status(self, *args):
+            pass
+
+        def update(self, *args):
+            pass
+
+        def update_group(self, *args):
+            pass
+
+        def close(self):
+            type(self).closed += 1
+
+    class _InterruptedInstance:
+        id = "interrupted"
+
+        def is_terminated(self, retry=True):
+            raise KeyboardInterrupt
+
+        def get_logview_address(self):
+            return ""
+
+    FakeShell = namedtuple("FakeShell", "user_ns")
+    magic_class = ODPSSql(FakeShell(user_ns={}))
+    magic_class._odps = types.SimpleNamespace(
+        run_sql=lambda sql, hints=None: _InterruptedInstance()
+    )
+
+    ui = _FakeUI()
+    monkeypatch.setattr(magics, "init_progress_ui", lambda *a, **k: ui)
+    monkeypatch.setattr(magics, "create_instance_group", lambda name: "group")
+    monkeypatch.setattr(magics, "reload_instance_status", lambda *a, **k: None)
+
+    with pytest.raises(KeyboardInterrupt):
+        magic_class.execute("select 1")
+
+    assert ui.closed == 1
 
 
 def test_execute_sql(odps):

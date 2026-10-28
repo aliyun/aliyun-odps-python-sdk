@@ -68,7 +68,7 @@ def _split_at_depth(s, delimiter, max_splits=None):
     yield s[start:]
 
 
-_COMPOSITE_TYPES = (types.Array, types.Map, types.Struct)
+_COMPOSITE_TYPES = (types.Array, types.Map, types.Struct, types.Vector)
 
 
 def _is_composite_type(data_type):
@@ -98,8 +98,32 @@ def parse_complex_value(value_str, data_type, keep_strings=False):
         return _parse_map(value_str, data_type, keep_strings=keep_strings)
     elif isinstance(data_type, types.Struct):
         return _parse_struct(value_str, data_type, keep_strings=keep_strings)
+    elif isinstance(data_type, types.Vector):
+        return _parse_vector(value_str, data_type, keep_strings=keep_strings)
     else:
         raise ValueError(f"Unsupported complex type: {data_type}")
+
+
+def _parse_vector(value_str, data_type, keep_strings=False):
+    if not (value_str.startswith("[") and value_str.endswith("]")):
+        raise ValueError(f"Vector format error: {value_str}")
+    inner = value_str[1:-1].strip()
+    if not inner:
+        raise ValueError("Vector must contain at least one element")
+
+    element_type = data_type.element_type
+    items = []
+    for part in _split_at_depth(inner, ","):
+        part = part.strip()
+        if part == CsvRecordReader.NULL_TOKEN:
+            raise ValueError("Vector element must not be null")
+        items.append(_cast_primitive(part, element_type, keep_strings))
+
+    # Reject wrong dimensions as well as NaN / Infinity elements, which
+    # Vector values must never contain.
+    data_type.validate_value(items)
+
+    return types._vector_to_numpy(element_type, items)
 
 
 def _cast_primitive(part, data_type, keep_strings):
@@ -415,7 +439,6 @@ class CsvRecordReader(AbstractRecordReader):
     UNSUPPORTED_TYPES = (
         types.Binary,
         types.Blob,
-        types.Vector,
     )
 
     def __init__(self, schema, stream, **kwargs):
@@ -518,7 +541,7 @@ class CsvRecordReader(AbstractRecordReader):
             return utils.str_to_bool
         elif cls._contains_unsupported_type(col_type):
             return None
-        elif isinstance(col_type, (types.Array, types.Map, types.Struct)):
+        elif _is_composite_type(col_type):
             return lambda v: parse_complex_value(v, col_type, keep_strings=False)
         return lambda v: types.validate_value(v, col_type)
 
@@ -541,7 +564,7 @@ class CsvRecordReader(AbstractRecordReader):
             if value == "false":
                 return False
             return value
-        if col and isinstance(col.type, (types.Array, types.Map, types.Struct)):
+        if col and _is_composite_type(col.type):
             return parse_complex_value(value, col.type, keep_strings=True)
         return value
 

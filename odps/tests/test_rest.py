@@ -29,8 +29,13 @@ def _make_client(**kwargs):
     return rest.RestClient(account, **kwargs)
 
 
-def _fake_response(ok=True, status_code=200):
-    return mock.MagicMock(ok=ok, status_code=status_code, headers={}, content=b"")
+def _fake_response(ok=True, status_code=200, headers=None):
+    return mock.MagicMock(
+        ok=ok,
+        status_code=status_code,
+        headers=headers if headers is not None else {},
+        content=b"",
+    )
 
 
 def _capture_request(client, url=_URL, method="GET", **kwargs):
@@ -139,13 +144,22 @@ def test_request_connect_timeout_wrapped():
             client._request(_URL, "GET")
 
 
-def test_request_error_response_raises():
+@pytest.mark.parametrize(
+    "status_code, headers",
+    [(500, {}), (407, {"x-odps-request-id": "REQ_ID"})],
+    ids=["bare-status", "request-id-header"],
+)
+def test_request_error_response_raises(status_code, headers):
+    """A non-2xx answer with no parsable body (e.g. a proxy's bare 407) must
+    surface an error carrying the status and the request id header."""
     client = _make_client()
-    with mock.patch.object(
-        client.session, "send", return_value=_fake_response(ok=False, status_code=500)
-    ):
-        with pytest.raises(errors.ODPSError):
+    response = _fake_response(ok=False, status_code=status_code, headers=headers)
+    with mock.patch.object(client.session, "send", return_value=response):
+        with pytest.raises(errors.ODPSError) as ex_info:
             client._request(_URL, "GET")
+    assert ex_info.value.status_code == status_code
+    assert ex_info.value.request_id == headers.get("x-odps-request-id")
+    assert "HTTP %d" % status_code in ex_info.value.args[0]
 
 
 @pytest.mark.parametrize(
@@ -183,6 +197,28 @@ def test_retry_enabled(retry_enabled, expect_gt1):
         with pytest.raises(errors.ODPSError):
             client._request_with_retry(_URL, "GET")
     assert (calls["n"] > 1) is expect_gt1
+
+
+def _os_reporting_pid(pid):
+    return mock.Mock(getpid=mock.Mock(return_value=pid))
+
+
+def test_session_rebuilt_after_fork(monkeypatch):
+    """A forked child inherits the parent's connection pool but must not
+    reuse its connections, so the cache is dropped on a pid change."""
+    client = _make_client()
+
+    monkeypatch.setattr(rest, "os", _os_reporting_pid(1111))
+    parent_session = client.session
+    assert client.session is parent_session  # reused within one process
+
+    with mock.patch.object(parent_session, "close", wraps=parent_session.close):
+        monkeypatch.setattr(rest, "os", _os_reporting_pid(2222))
+        child_session = client.session
+
+        # the inherited session is released instead of being reused
+        assert parent_session.close.call_count == 1
+    assert child_session is not parent_session
 
 
 def test_with_retry_enabled_clones_config_and_flips_flag():

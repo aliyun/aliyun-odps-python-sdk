@@ -486,3 +486,74 @@ PyODPS 还提供把 pandas DataFrame 上传到 ODPS 表的命令:
     %persist df pyodps_pandas_df
 
 这里的第0个参数\ ``df``\ 是前面的变量名，\ ``pyodps_pandas_df``\ 是ODPS表名。
+
+Jupyter 增强
+============
+
+PyODPS 针对 Jupyter 下的探索性数据分析进行了增强，包括结果探索功能以及进度展示功能。
+
+.. note::
+
+    使用这些功能需要安装 ``ipywidgets`` 7.0 或以上版本，并正确安装和启用 PyODPS 提供的 Jupyter 前端扩展
+    （安装包中同时提供了 JupyterLab 3.0+ 与经典 Jupyter 6.0+ 的扩展）。选项 ``display.notebook_widget`` 默认为
+    ``None``，表示自动判断：除 DSW 与 VSCode 内置的 Jupyter 外，交互式组件默认开启。将其显式设置为 ``False``
+    可关闭交互式组件，设置为 ``True`` 则强制开启：
+
+    .. code:: python
+
+        from odps import options
+
+        options.display.notebook_widget = False
+
+结果探索
+--------
+PyODPS 为 DataFrame 结果提供了交互式的数据探索功能。当执行结果为 DataFrame 时，PyODPS 会将其转换为 pandas
+DataFrame，并以交互式组件的形式展示。组件顶端为模式选择区，除数据表外，还可以选择柱状图、饼图、折线图和散点图。
+
+在数据表模式下，结果以分页表格的形式展示，每页至多显示 10 行，可通过底部的翻页按钮在数据中导航，如下图：
+
+.. image:: _static/dfview-data-grid.png
+
+在绘图模式下，单击右上角的配置按钮（齿轮图标）可以修改图表设置：
+
+- 分组：按列的取值将数据拆分为多个系列，仅柱状图、折线图和散点图支持；
+- 键：作为 X 轴类目（饼图中为扇区）的列，柱状图和饼图支持选择多个键，折线图和散点图仅支持一个键，且可选择
+  ``(Row ID)`` 表示以行号作为 X 轴；
+- 值：作为度量的列。柱状图和饼图会对值列做聚合，可在字段下方选择聚合函数（支持 count、nunique、min、max、
+  sum、mean、median、var、std），其中 sum、mean、median、var、std 仅对数值列有意义，用于其他类型的列时会
+  自动回退为 count；折线图和散点图直接使用所选列的值，不做聚合。
+
+下图为使用默认字段选择（即前三个字段）绘制的散点图：
+
+.. image:: _static/dfview-scatter.png
+
+在配置面板中将 category 设置为分组列，X 轴选择为 petal_length，Y 轴选择为 petal_width，即可得到按鸢尾花品种
+分组的 petal_length - petal_width 散点图；可见在 petal_length - petal_width 维度下，数据对 category 有较好的
+区分度：
+
+.. image:: _static/dfview-scatter-opts.png
+
+对于柱状图和饼图，值字段的聚合函数可在配置面板中修改。下图为将饼图的键设置为 category，值字段设置为 petal_length
+并将聚合函数选择为 sum 的结果：
+
+.. image:: _static/dfview-pie-aggsel.png
+
+修改配置后单击 Refresh 即可重新计算并绘制图表。请求尚未返回时，图表区域显示 Loading...；当前显示的数据来自旧配置
+时，则显示 Updating...。
+
+.. note::
+
+    **注意**\ ：使用此功能需要安装 Pandas，并保证 ipywidgets 被正确安装。
+
+进度展示
+--------
+
+大型作业执行通常需要较长的时间，因而 PyODPS 提供了进度展示功能。当 DataFrame 作业或通过 ``%sql`` 编写的 SQL
+语句在 Jupyter 中执行作业时，会显示当前正在执行的作业组链接（例如 ``Executing: summary``）及总体进度，如下图：
+
+.. image:: _static/progress_example.png
+
+单击作业组链接即可打开对话框，查看该组中每个 Instance 的状态、各 Task 的 Stage 执行进度以及 Logview 链接。
+对话框底部给出了 Stage 进度条三种颜色对应的状态，如下图：
+
+.. image:: _static/task_details_dialog.png

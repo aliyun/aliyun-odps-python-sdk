@@ -91,6 +91,11 @@ MaxStorage 的核心概念包括：
    print(f"总记录数: {read_session.record_count}")
    print(f"过期时间: {read_session.expiration_time}")
 
+.. note::
+
+   ``read_session.record_count`` 取自服务端返回的 ``RecordCount``。若服务端未返回该字段，
+   该属性为 ``-1``，表示总行数未知，而不是 0。
+
 创建读会话时可以指定需要读取的列、分区和分片选项：
 
 .. code-block:: python
@@ -170,6 +175,37 @@ MaxStorage 的核心概念包括：
        print(record[0], record[1])
    print(rr.count)           # 已读取的记录数
 
+扩展 Arrow IPC（Extended Arrow IPC）
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+服务端可能为读会话协商**扩展 Arrow IPC** 流格式：响应流由若干带标签的子流
+（substream）拼接而成，标签 ``1`` 为数据子流（其中的批次才是表数据行），标签 ``2``
+为指标（metrics）子流。可通过
+:attr:`~odps.maxstorage.TableReadSession.extended_arrow_ipc_enabled` 判断当前会话是否
+启用了该格式：
+
+.. code-block:: python
+
+   read_session = client.create_table_read_session("your_table")
+   print(read_session.extended_arrow_ipc_enabled)
+
+会话启用该格式时，:meth:`~odps.maxstorage.TableReadSession.open_arrow_reader` 会自动
+切换到扩展读取器，调用方无需额外参数：
+
+- 迭代与 ``read()`` 只返回数据子流中的批次，指标子流不会作为数据行出现。
+- 指标子流携带的 schema metadata 会合并到
+  :attr:`~odps.maxstorage.ArrowReader.metrics_metadata`；普通（非扩展）读取器该属性为 ``None``。
+- 多个指标子流中的耗时指标（``server_processing_duration_us``、``rate_limit_duration_us``）
+  会累加，其余键保留最后一次观测到的值。指标在整个分片消费完毕后才是完整的。
+
+.. code-block:: python
+
+   reader = read_session.open_arrow_reader(read_session.splits[0])
+   for batch in reader:
+       process(batch)
+   print(reader.metrics_metadata)   # 例如 {"server_processing_duration_us": "120"}
+   reader.close()
+
 并行读取数据
 ~~~~~~~~~~~~
 
@@ -216,6 +252,20 @@ MaxStorage 的分片机制天然支持并行读取。每个分片可以独立读
        incremental_read_enabled=True,
        incremental_read_options=incr_opts,
    )
+
+``IncrementalReadOptions.start_txn_id`` 用于请求精确一次（exactly-once）的增量读取：
+服务端从给定事务 ID 之后开始返回数据。读会话的 ``latest_txn_id`` 属性返回服务端
+报告的最新事务 ID（``LatestTxnId``，缺省为 ``None``），可作为下次续读的 ``start_txn_id``：
+
+.. code-block:: python
+
+   incr_opts = IncrementalReadOptions(version="Auto", start_txn_id="txn-1")
+   read_session = client.create_table_read_session(
+       "your_table",
+       incremental_read_enabled=True,
+       incremental_read_options=incr_opts,
+   )
+   print(read_session.latest_txn_id)   # 服务端最新事务 ID，可用于续读
 
 压缩读取
 ~~~~~~~~
@@ -487,6 +537,25 @@ BLOB 表）。
 
    write_session.commit(block_results=results)
 
+提交时可通过 ``commit`` 的 ``wait_flying_writers_timeout_seconds`` 参数指定服务端
+等待在途（in-flight）Writer 的超时时间（1..600 秒的整数）。若提交时仍有其他
+Writer 在写入，服务端会在该时间窗口内等待其完成后才最终确定提交结果；不设置该
+参数时使用服务端默认行为，请求内容保持不变。该参数仅在兼容模式下生效，传入其他
+写入模式会抛出 ``ValueError``：
+
+.. code-block:: python
+
+   write_session.commit(
+       block_results=results,
+       wait_flying_writers_timeout_seconds=120,
+   )
+
+.. note::
+
+   设置该参数后，SDK 会自动将本次提交请求的客户端读超时提升为
+   ``max(options.read_timeout, wait_flying_writers_timeout_seconds + 30)``，
+   确保客户端不会在服务端仍处于合法等待窗口内时提前超时并重发提交请求。
+
 .. note::
 
    - ``block_number`` 和 ``attempt_number`` 均从 0 开始。重试同一份 Block 数据时保持
@@ -507,6 +576,10 @@ BLOB 表）。
 
 MaxStorage 的会话 ID 是服务端分配的全局标识，可以在进程间传递。这使得
 "一个进程创建会话、多个进程并行读写" 的架构成为可能。
+
+除了通过 ``session_id`` 让工作进程重载会话，还可以把会话导出为会话描述符（见
+:ref:`maxstorage-session-descriptor`），随任务分发后在本地恢复，全过程不需要创建或
+重载会话的请求。
 
 跨进程读取
 ^^^^^^^^^^
@@ -596,6 +669,129 @@ MaxStorage 的会话 ID 是服务端分配的全局标识，可以在进程间�
    - 若工作进程异常退出，主进程可调用 ``write_session.abort()`` 丢弃所有已上传数据。
    - 写会话的 ``session_id`` 重载时会自动获取最新的 ``route_token``，确保请求路由
      到正确的服务端节点。
+
+.. _maxstorage-session-descriptor:
+
+会话描述符（SessionDescriptor）
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+会话描述符是会话状态的一份不可变 JSON 描述，由
+:class:`~odps.maxstorage.SessionDescriptor` 表示。主进程用
+:meth:`~odps.maxstorage.TableReadSession.to_descriptor` 或
+:meth:`~odps.maxstorage.TableWriteSession.to_descriptor` 导出，经任意应用通道
+（队列、文件、对象存储等）传给工作进程；工作进程用
+:meth:`~odps.maxstorage.SessionDescriptor.from_json` 解析后，通过
+``create_table_read_session(descriptor=...)`` 或
+``create_table_write_session(descriptor=...)`` 在本地绑定会话。恢复过程不会创建或
+重载远端会话：描述符就是 schema、分片计划、路由 token 等会话状态的唯一来源，工作
+进程仍使用自己的客户端与凭据。
+
+描述符的 ``kind`` 是 :class:`~odps.maxstorage.SessionKind` 枚举：``BATCH_READ``、
+``INCREMENTAL_READ`` 和 ``BATCH_WRITE``，在 JSON 中分别为 ``batch-read``、
+``incremental-read`` 和 ``batch-write``。``SessionDescriptor.create`` 同时接受枚举成员
+与对应的字符串值。
+
+描述符本身不含认证信息（密钥、签名），但包含会话 ID 与路由 token，应按任务内部数据
+对待，不要写入日志或对外公开。``from_json()`` 会校验 ``version``、``provider``、
+``kind``、表标识以及各分片模式的必填字段，并丢弃未知字段，因此服务端新增字段不会
+破坏旧版本 SDK 的解析。
+
+导出与恢复读会话
+""""""""""""""""
+
+主进程导出描述符并随任务下发；工作进程恢复会话时在本地重建分片计划，不发起任何
+会话请求：
+
+.. code-block:: python
+
+   # ---- 主进程：导出描述符 ----
+   from odps.maxstorage import MaxStorageClient
+
+   client = MaxStorageClient(odps)
+   read_session = client.create_table_read_session("your_table")
+
+   descriptor_json = read_session.to_descriptor().to_json()   # 随任务下发
+
+.. code-block:: python
+
+   # ---- 工作进程：本地恢复会话，读取分片 ----
+   from odps.maxstorage import MaxStorageClient, SessionDescriptor
+
+   client = MaxStorageClient(odps)
+   descriptor = SessionDescriptor.from_json(descriptor_json)
+
+   # 不会创建或重载会话，分片列表由描述符中的分片计划在本地重建
+   read_session = client.create_table_read_session(descriptor=descriptor)
+
+   for split in read_session.splits:
+       reader = read_session.open_arrow_reader(split)
+       while True:
+           batch = reader.read()
+           if batch is None:
+               break
+           process(batch)
+       reader.close()
+
+.. note::
+
+   - ``ROW_OFFSET`` 分片模式下描述符会记录 ``rowsPerSplit``；导入时若缺少该值且
+     记录数非零，``from_descriptor`` 会抛出 ``ValueError``。
+   - 增量读会话导出的描述符保留创建请求中的增量读取选项（服务端可能不回显），
+     恢复后仍是相同的增量读取范围。
+
+导出与恢复写会话
+""""""""""""""""
+
+只有兼容模式（``WriteMode.BATCH_COMPATIBLE``）的写会话支持描述符。主进程导出后把
+Block 写入交给工作进程，最终仍由主进程提交会话：
+
+.. code-block:: python
+
+   # ---- 主进程：导出描述符 ----
+   from odps.maxstorage import MaxStorageClient, WriteMode
+
+   client = MaxStorageClient(odps)
+   write_session = client.create_table_write_session(
+       "your_table",
+       write_mode=WriteMode.BATCH_COMPATIBLE,
+   )
+   descriptor_json = write_session.to_descriptor().to_json()   # 随任务下发
+
+.. code-block:: python
+
+   # ---- 工作进程：本地恢复会话，写入并提交 Block ----
+   from odps.maxstorage import MaxStorageClient, SessionDescriptor
+
+   client = MaxStorageClient(odps)
+   descriptor = SessionDescriptor.from_json(descriptor_json)
+   write_session = client.create_table_write_session(descriptor=descriptor)
+
+   writer = write_session.open_block_writer(my_block, 0)
+   batch = pa.RecordBatch.from_arrays(
+       [pa.array([1, 2, 3], type=pa.int64())],
+       schema=writer.schema,
+   )
+   writer.write_batch(batch)
+   result = writer.commit()     # BlockWriteResult，回传给主进程
+   write_session.close()        # 只关闭本地句柄，不会终止全局会话
+
+.. code-block:: python
+
+   # ---- 主进程：汇总所有 Block 结果后提交会话 ----
+   write_session.commit(block_results=results)
+
+.. note::
+
+   - 其他写入模式调用 ``to_descriptor()`` 会抛出 ``NotImplementedError``。
+   - 恢复出的写会话只具备 Block 写入权限（``descriptor_only`` 为 ``True``）：可以
+     打开 Block Writer，但调用 ``commit()`` 或 ``abort()`` 会抛出
+     ``StorageClientError``；会话的提交与终止始终由主进程负责。
+   - 若会话已发起过提交，或最近一次观测到的会话状态不再是 ``NORMAL``，恢复出的会话
+     会拒绝打开新的 Block Writer。
+   - 会话提交成功时描述符状态为 ``COMMITTED``；会话已确认终止（``abort()`` 成功）
+     时为 ``ABORTED``；句柄已关闭但结果未知时为 ``UNKNOWN``。
+   - ``descriptor`` 不能与 ``table`` 或 ``session_id`` 同时传入，否则会抛出
+     ``ValueError``。
 
 Exactly-Once 模式
 ~~~~~~~~~~~~~~~~~

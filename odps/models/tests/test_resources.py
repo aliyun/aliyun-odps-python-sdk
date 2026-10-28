@@ -392,6 +392,90 @@ def test_stream_file_resource_seek_errors():
     assert wf.tell() == 5
 
 
+def _unnamed_stream(data):
+    # Length-undeterminable stream (no .name, no seekable buffer) -> None.
+    buf = io.BytesIO(data)
+    stream = mock.Mock(spec=["read"])
+    stream.read.side_effect = buf.read
+    return stream
+
+
+def _pipe_fd_stream(data):
+    # Non-seekable pipe; .name is an int fd that must NOT route to direct path.
+    r, w = os.pipe()
+    os.write(w, data)
+    os.close(w)
+    return os.fdopen(r, "rb")
+
+
+def _fd_regular_file(data):
+    # Regular file with int-fd .name; must fstat to real size -> direct path.
+    path = tempfile.mktemp()
+    with open(path, "wb") as f:
+        f.write(data)
+    fdo = os.fdopen(os.open(path, os.O_RDONLY), "rb")
+    os.unlink(path)  # fd stays valid after unlink
+    return fdo
+
+
+def _make_unit_resource(**kw):
+    parent = mock.Mock(_parent=None)
+    parent.resource.return_value = "/fake/collection"
+    parent._get_schema_name.return_value = None
+    return FileResource(client=mock.Mock(), parent=parent, name="unit_test_res", **kw)
+
+
+# chunk_size, content, expected_payload, uses_stream. The boundary cases cover
+# the single-request path (content at/below the chunk size, empty, plain str)
+# and the chunked path (above-threshold buffer, raw bytes, unknown-length
+# stream), asserted against the same create() entry point.
+BOUNDARY_CASES = [
+    pytest.param(
+        16, io.BytesIO(b"small content"), b"small content", False, id="buffer"
+    ),
+    pytest.param(16, io.BytesIO(b"x" * 16), b"x" * 16, False, id="at-chunk-size"),
+    pytest.param(16, io.BytesIO(b""), b"", False, id="empty"),
+    pytest.param(16, "hello", b"hello", False, id="string"),
+    pytest.param(15, io.BytesIO(b"x" * 16), None, True, id="buffer-above-threshold"),
+    pytest.param(15, b"y" * 16, None, True, id="raw-bytes-above-threshold"),
+    pytest.param(
+        64 << 20, _unnamed_stream(b"hello world"), None, True, id="unknown-length"
+    ),
+    pytest.param(64 << 20, _pipe_fd_stream(b"hello world"), None, True, id="pipe-fd"),
+    pytest.param(
+        16, _fd_regular_file(b"fd regular"), b"fd regular", False, id="fd-regular"
+    ),
+]
+
+
+@pytest.mark.parametrize("overwrite", [False, True])
+@pytest.mark.parametrize("chunk_size,content,expected,uses_stream", BOUNDARY_CASES)
+def test_upload_boundary(overwrite, chunk_size, content, expected, uses_stream):
+    # Content at or below the chunk size goes out in one request without the
+    # merge flag; content above the chunk size, raw bytes, and streams whose
+    # size cannot be determined upfront flow through the chunked path instead
+    # of failing the size comparison.
+    options.upload_resource_in_chunks = True
+    options.resource_chunk_size = chunk_size
+
+    res = _make_unit_resource()
+    with mock.patch.object(FileResource, "open") as mock_open, mock.patch.object(
+        FileResource, "reload"
+    ):
+        res.create(file_obj=content, overwrite=overwrite)
+
+    if uses_stream:
+        assert mock_open.called
+        assert res._client.put.call_count == 0
+    else:
+        sent = res._client.put if overwrite else res._client.post
+        assert sent.call_count == 1
+        assert (res._client.post if overwrite else res._client.put).call_count == 0
+        assert sent.call_args[0][1] == expected
+        assert "rOpMerge" not in sent.call_args[1].get("params", {})
+        assert res.size == len(expected)
+
+
 def test_file_resource(odps):
     resource_name = tn("pyodps_t_tmp_file_resource")
 

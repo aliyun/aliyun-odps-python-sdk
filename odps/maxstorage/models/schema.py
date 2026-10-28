@@ -228,6 +228,9 @@ def _parse_column_list(raw):
             nullable=bool(nullable),
             column_id=column_id,
         )
+        # Preserve the exact wire type string (casing, struct member names)
+        # so descriptor exports can re-emit it without lossy re-derivation.
+        col.wire_type = type_str
         columns.append(col)
     return columns
 

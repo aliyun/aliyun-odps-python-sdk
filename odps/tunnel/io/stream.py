@@ -16,6 +16,7 @@
 
 import enum
 import io
+import socket
 import sys
 import threading
 import time
@@ -29,6 +30,11 @@ try:
 except ImportError:
     from requests import ReadTimeout as ReadTimeoutError
 
+try:
+    from requests.exceptions import ConnectionError as RequestsConnectionError
+except ImportError:
+    RequestsConnectionError = ConnectionError
+
 MICRO_SEC_PER_SEC = 1000000
 
 # used for test case to force thread io
@@ -41,6 +47,30 @@ def cast_memoryview(v):
     if not isinstance(v, memoryview):
         v = memoryview(v)
     return v.cast("B")
+
+
+def _is_timeout_connection_error(exc):
+    """Check if a ConnectionError represents a stalled socket write.
+
+    urllib3 surfaces a stalled send as ConnectionError wrapping a
+    socket.timeout / TimeoutError in args, __cause__, or __context__.
+    Other OSErrors (DNS gaierror, BrokenPipe, SSLError, etc.) are
+    connection failures, not write stalls, and propagate unchanged.
+    """
+    timeout_types = (socket.timeout, TimeoutError)
+
+    # Check args (requests wraps as ConnectionError(msg, inner_exc))
+    for arg in exc.args:
+        if isinstance(arg, timeout_types):
+            return True
+
+    # Check __cause__ / __context__ chain
+    cause = exc.__cause__ or exc.__context__
+    while cause is not None:
+        if isinstance(cause, timeout_types):
+            return True
+        cause = cause.__cause__ or cause.__context__
+    return False
 
 
 class RequestsIO:
@@ -60,13 +90,39 @@ class RequestsIO:
         else:
             return object.__new__(cls)
 
-    def __init__(self, post_call, chunk_size=None, record_io_time=False):
+    def __init__(
+        self, post_call, chunk_size=None, record_io_time=False, write_timeout=None
+    ):
         self._buf = io.BytesIO()
         self._resp = None
         self._async_err = None
         self._chunk_size = chunk_size or self.CHUNK_SIZE
 
-        self._post_call = post_call
+        self._bytes_produced = 0
+
+        if write_timeout is not None:
+            original_post_call = post_call
+
+            def wrapped_post_call(data_gen):
+                try:
+                    return original_post_call(data_gen)
+                except RequestsConnectionError as exc:
+                    # A stalled socket write surfaces as ConnectionError
+                    # wrapping socket.timeout. Convert those to WriteTimeout;
+                    # let connect-phase timeouts and other errors propagate.
+                    if not isinstance(exc, errors.ConnectTimeout) and (
+                        _is_timeout_connection_error(exc)
+                    ):
+                        raise errors.WriteTimeout(
+                            timeout_seconds=write_timeout,
+                            bytes_produced=self._bytes_produced,
+                        )
+                    raise
+
+            self._post_call = wrapped_post_call
+        else:
+            self._post_call = post_call
+
         self._wait_obj = None
         self._record_io_time = record_io_time
         self._io_time_ms = 0
@@ -130,6 +186,7 @@ class RequestsIO:
 
     def write(self, data):
         self._buf.write(data)
+        self._bytes_produced += len(data)
         if self._buf.tell() >= self._chunk_size:
             chunk = self._buf.getvalue()
             self._buf = io.BytesIO()
@@ -160,9 +217,14 @@ class RequestsIO:
 
 
 class ThreadRequestsIO(RequestsIO):
-    def __init__(self, post_call, chunk_size=None, record_io_time=False):
+    def __init__(
+        self, post_call, chunk_size=None, record_io_time=False, write_timeout=None
+    ):
         super(ThreadRequestsIO, self).__init__(
-            post_call, chunk_size, record_io_time=record_io_time
+            post_call,
+            chunk_size,
+            record_io_time=record_io_time,
+            write_timeout=write_timeout,
         )
         self._last_data = None
         self._sem_put = threading.Semaphore(1)
@@ -208,9 +270,14 @@ try:
     from greenlet import greenlet
 
     class GreenletRequestsIO(RequestsIO):
-        def __init__(self, post_call, chunk_size=None, record_io_time=False):
+        def __init__(
+            self, post_call, chunk_size=None, record_io_time=False, write_timeout=None
+        ):
             super(GreenletRequestsIO, self).__init__(
-                post_call, chunk_size, record_io_time=record_io_time
+                post_call,
+                chunk_size,
+                record_io_time=record_io_time,
+                write_timeout=write_timeout,
             )
             self._cur_greenlet = greenlet.getcurrent()
             self._writer_greenlet = greenlet(self._async_func)
@@ -336,7 +403,18 @@ def get_decompress_stream(resp, compress_option=None, requests=True):
 
     if not requests:
         stream_cls = stream_cls.get_raw_input_stream_class()
-    return stream_cls(resp)
+    try:
+        return stream_cls(resp)
+    except BaseException:
+        # The decompressor takes ownership of an already live response; if its
+        # construction fails nobody else can release it.
+        try:
+            close = getattr(resp, "close", None)
+            if close is not None:
+                close()
+        except Exception:
+            pass
+        raise
 
 
 class CompressOutputStream:

@@ -939,6 +939,16 @@ class BaseArrowWriter:
 
         assert isinstance(arrow_data, (pa.RecordBatch, pa.Table))
 
+        # Validate temporal values on the input data before timezone
+        # localization; legacy pandas (datetime64[ns]) cannot represent
+        # years outside ~1677-2262 and would raise during conversion,
+        # masking the clearer out-of-range error.
+        if isinstance(arrow_data, pa.RecordBatch):
+            self._validate_temporal_values(arrow_data)
+        elif isinstance(arrow_data, pa.Table):
+            for batch in arrow_data.to_batches():
+                self._validate_temporal_values(batch)
+
         if arrow_data.schema != self._arrow_schema or any(
             isinstance(tp, pa.TimestampType) or _is_timestamp_struct_type(tp)
             for tp in arrow_data.schema.types
@@ -1011,6 +1021,111 @@ class BaseArrowWriter:
                 chunk_data = data[written_bytes : written_bytes + length]
                 self._write_chunk(chunk_data)
                 written_bytes += length
+
+    # MaxCompute temporal storage range in milliseconds.
+    # MIN: year 0001-01-01 00:00:00 UTC, MAX: year 9999-12-31 23:59:59 UTC
+    _MIN_TEMPORAL_MILLIS = -62167305600000
+    _MAX_TEMPORAL_MILLIS = 253402387200000
+
+    def _validate_temporal_values(self, batch):
+        """Validate Arrow temporal values before writing to prevent
+        server-side rejection of out-of-range dates/timestamps.
+
+        Checks pa.Date32Type and pa.TimestampType columns against
+        MaxCompute's storage range. Null values are skipped.
+        """
+        if pac is None:
+            return
+        for i in range(batch.num_columns):
+            field = batch.schema.field(i)
+            typ = field.type
+
+            if pa.types.is_date32(typ):
+                self._validate_date_column(batch.column(i), field.name)
+            elif pa.types.is_timestamp(typ):
+                self._validate_timestamp_column(batch.column(i), field.name, typ)
+
+    @classmethod
+    def _min_max_valid(cls, raw):
+        """Return (min, max) of non-null values, or (None, None) when
+        all values are null.
+
+        Uses pac.min_max when available (pyarrow >= 7.0). Falls back to
+        pac.filter + numpy for older versions where min_max is absent.
+        """
+        if hasattr(pac, "min_max"):
+            result = pac.min_max(raw).as_py()
+            return result["min"], result["max"]
+        # Fallback for pyarrow < 7.0 (e.g. 1.0, 2.0): pac.min_max does
+        # not exist. Use pac.filter (available since 1.0) to drop nulls,
+        # then compute min/max via numpy.
+        mask = raw.is_valid()
+        filtered = pac.filter(raw, mask)
+        if len(filtered) == 0:
+            return None, None
+        if np is not None:
+            arr = filtered.to_numpy(zero_copy_only=False)
+            return int(arr.min()), int(arr.max())
+        values = filtered.to_pylist()
+        return min(values), max(values)
+
+    @classmethod
+    def _validate_date_column(cls, col, name):
+        # pa.date32 stores days since epoch (int32). Convert to millis.
+        millis_per_day = 86400000
+        min_days = cls._MIN_TEMPORAL_MILLIS // millis_per_day
+        max_days = cls._MAX_TEMPORAL_MILLIS // millis_per_day
+        arrays = col.chunks if hasattr(col, "chunks") else [col]
+        for chunk in arrays:
+            if len(chunk) == 0:
+                continue
+            raw = chunk.cast(pa.int32())
+            min_val, max_val = cls._min_max_valid(raw)
+            if min_val is None:
+                continue  # all nulls
+            if min_val < min_days or max_val > max_days:
+                raise ValueError(
+                    f"Temporal value outside MaxCompute storage range "
+                    f"in column {name}: date range [{min_val}, {max_val}] "
+                    f"days, allowed [{min_days}, {max_days}] days"
+                )
+
+    @classmethod
+    def _validate_timestamp_column(cls, col, name, typ):
+        unit = typ.unit
+        # Convert to milliseconds for range check
+        if unit == "s":
+            scale = 1000
+        elif unit == "ms":
+            scale = 1
+        elif unit == "us":
+            scale = 1 / 1000
+        elif unit == "ns":
+            scale = 1 / 1000000
+        else:
+            return
+
+        arrays = col.chunks if hasattr(col, "chunks") else [col]
+        for chunk in arrays:
+            if len(chunk) == 0:
+                continue
+            # Cast to int64 to get raw values
+            raw = chunk.cast(pa.int64())
+            min_val, max_val = cls._min_max_valid(raw)
+            if min_val is None:
+                continue  # all nulls
+            min_millis = min_val * scale
+            max_millis = max_val * scale
+            if (
+                min_millis < cls._MIN_TEMPORAL_MILLIS
+                or max_millis > cls._MAX_TEMPORAL_MILLIS
+            ):
+                raise ValueError(
+                    f"Temporal value outside MaxCompute storage range "
+                    f"in column {name}: timestamp range [{min_millis}, "
+                    f"{max_millis}] ms, allowed "
+                    f"[{cls._MIN_TEMPORAL_MILLIS}, {cls._MAX_TEMPORAL_MILLIS}] ms"
+                )
 
     def _write_finish_tags(self):
         checksum = self._crccrc.getvalue()

@@ -16,6 +16,7 @@
 
 from .enums import (
     DataFormat,
+    SessionKind,
     SessionStats,
     SessionStatus,
     SplitMode,
@@ -59,6 +60,7 @@ from .schema import Column, ReadSchema, StorageSchema, WriteSchema
 
 __all__ = [
     "DataFormat",
+    "SessionKind",
     "SessionStats",
     "SessionStatus",
     "SplitMode",

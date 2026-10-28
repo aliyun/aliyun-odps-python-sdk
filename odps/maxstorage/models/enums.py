@@ -86,6 +86,33 @@ class SessionStatus(enum.Enum):
         return cls(value.upper())
 
 
+class SessionKind(enum.Enum):
+    """What a session descriptor describes.
+
+    Members ``BATCH_READ`` / ``INCREMENTAL_READ`` / ``BATCH_WRITE``; their
+    JSON values are ``"batch-read"`` / ``"incremental-read"`` /
+    ``"batch-write"``.
+    """
+
+    BATCH_READ = "batch-read"
+    INCREMENTAL_READ = "incremental-read"
+    BATCH_WRITE = "batch-write"
+
+    @classmethod
+    def from_string(cls, value):
+        """Parse a descriptor kind, accepting a member or its string value.
+
+        Unknown values raise ``ValueError``: the kind is part of the
+        descriptor contract, so it must not fall back silently.
+        """
+        if isinstance(value, cls):
+            return value
+        try:
+            return cls(value)
+        except ValueError:
+            raise ValueError("Unsupported session descriptor kind: %r" % (value,))
+
+
 class SplitMode(enum.Enum):
     """Data-splitting strategy for read sessions.
 

@@ -505,7 +505,14 @@ PyODPS提供了 :ref:`DataFrame框架 <df>` ，支持更方便地方式来查询
 基本操作
 ~~~~~~~~~~~
 
-判断表是否为分区表：
+自 PyODPS 0.13.3 开始，可通过 ``Table.is_partitioned`` 属性判断表是否为分区表：
+
+.. code:: python
+
+   >>> if table.is_partitioned:
+   >>>     print('Table %s is partitioned.' % table.name)
+
+对于低于 0.13.3 的版本，可通过 ``table.table_schema.partitions`` 判断：
 
 .. code:: python
 
@@ -576,6 +583,14 @@ PyODPS提供了 :ref:`DataFrame框架 <df>` ，支持更方便地方式来查询
 .. code:: python
 
    >>> for partition in table.iterate_partitions(spec='pt=test'):
+   >>>     print(partition.name)
+
+可以通过 ``max_items`` 控制单次请求获取的分区数量，通过 ``limit`` 限制最多返回的分区数量。\
+``limit`` 达到后迭代即停止，不再发起后续请求。
+
+.. code:: python
+
+   >>> for partition in table.iterate_partitions(max_items=100, limit=10):
    >>>     print(partition.name)
 
 自 PyODPS 0.11.3 开始，支持为 ``iterate_partitions`` 指定简单的逻辑表达式及通过逗号连接，\

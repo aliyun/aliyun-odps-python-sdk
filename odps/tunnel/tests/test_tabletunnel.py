@@ -24,6 +24,7 @@ import time
 import warnings
 from collections import OrderedDict
 from datetime import date, datetime
+from io import BytesIO
 from multiprocessing.pool import ThreadPool
 
 try:
@@ -45,7 +46,12 @@ import requests
 
 from ... import options, types
 from ...compat import Monthdelta, Version
-from ...errors import DatetimeOverflowError, StreamTruncatedException, throw_if_parsable
+from ...errors import (
+    ChecksumError,
+    DatetimeOverflowError,
+    StreamTruncatedException,
+    throw_if_parsable,
+)
 from ...models import Record, TableSchema
 from ...rest import RestClient
 from ...tests.core import (
@@ -1866,7 +1872,7 @@ def test_stream_upload_with_retry(odps, setup):
 
         def patched_get(*args, **kwargs):
             # Spy on reload params: uploadid and schema_version must be set,
-            # and read-only flag must not appear (matches Java SDK contract).
+            # and read-only flag must not appear.
             get_params.append(dict(kwargs.get("params", {})))
             resp = original_get(*args, **kwargs)
             # Override the slots in the response so reload refreshes the
@@ -1904,7 +1910,7 @@ def test_stream_upload_with_retry(odps, setup):
         assert "x-odps-tunnel-version" in put_headers[1]
 
         # Reload must be called with uploadid and schema_version, and must
-        # not carry a read-only flag (mirrors the Java SDK contract).
+        # not carry a read-only flag.
         reload_params = get_params[0]
         assert reload_params.get("uploadid") == upload_ss.id
         if upload_ss.schema_version is not None:
@@ -1917,8 +1923,6 @@ def test_stream_upload_with_retry(odps, setup):
 @py_and_c_deco
 def test_stream_truncation_detection():
     """Detect truncated tunnel streams when require_stream_footer is enabled."""
-    from io import BytesIO
-
     from ..io.reader import TunnelRecordReader
     from ..io.writer import BaseRecordWriter
 
@@ -1974,8 +1978,6 @@ def test_stream_truncation_detection():
 @py_and_c_deco
 def test_stream_truncation_complete_stream_ok():
     """A complete stream with footer should not raise StreamTruncatedException."""
-    from io import BytesIO
-
     from ..io.reader import TunnelRecordReader
     from ..io.writer import BaseRecordWriter
 
@@ -2004,3 +2006,246 @@ def test_stream_truncation_complete_stream_ok():
         assert records[1] == ["world"]
     finally:
         options.tunnel.require_stream_footer = raw_flag
+
+
+class _MidBatchFailureError(Exception):
+    """Raised by a stream that dies halfway through a row batch."""
+
+
+class _ExplodingStream(object):
+    """A byte stream that dies once reads reach ``fail_at`` bytes, mimicking
+    a connection that dies mid-batch; ``close_error`` makes every close raise.
+    ``fail_at=None`` never dies."""
+
+    def __init__(self, data, fail_at=None, close_error=None):
+        self._buf = BytesIO(data)
+        self._fail_at = fail_at
+        self._pos = 0
+        self._close_error = close_error
+        self.closed = False
+        self.close_count = 0
+
+    def read(self, size=-1):
+        if self._fail_at is not None and self._pos >= self._fail_at:
+            raise _MidBatchFailureError("connection died halfway through the batch")
+        chunk = self._buf.read(size)
+        self._pos += len(chunk)
+        return chunk
+
+    def close(self):
+        self.close_count += 1
+        self.closed = True
+        if self._close_error is not None:
+            raise self._close_error
+
+
+def _make_batched_stream_bytes():
+    from ..io.writer import BaseRecordWriter
+
+    schema = TableSchema.from_lists(["col"], ["string"])
+    buf = BytesIO()
+    writer = BaseRecordWriter(schema, buf)
+    writer.write(Record(schema=schema, values=["hello"]))
+    writer.write(Record(schema=schema, values=["world"]))
+    writer.flush()
+    return schema, buf.getvalue()
+
+
+def _make_exploding_creator(created, data, close_error=None, reopen_fail_at=None):
+    """Build a stream creator recording created streams in ``created``: the
+    first stream serves the whole batch then dies, reopened ones die at
+    ``reopen_fail_at`` bytes (default: end of the batch)."""
+
+    def stream_creator(cursor, row_number=None, raw_size=None):
+        fail_at = len(data) if reopen_fail_at is None or cursor == 0 else reopen_fail_at
+        stream = _ExplodingStream(data, fail_at, close_error)
+        created.append(stream)
+        return stream
+
+    return stream_creator
+
+
+@py_and_c_deco
+@pytest.mark.parametrize(
+    "reopen_fail_at,close_error,retry_times,n_created,close_raises",
+    [
+        pytest.param(None, None, 0, 1, False, id="mid-batch-failure"),
+        pytest.param(0, None, 1, 2, False, id="failed-reopen"),
+        pytest.param(
+            None, RuntimeError("close failed"), 0, 1, True, id="close-failure-retried"
+        ),
+    ],
+)
+def test_buffered_reader_releases_streams_of_failed_batches(
+    reopen_fail_at, close_error, retry_times, n_created, close_raises, monkeypatch
+):
+    from ..io.reader import BufferedRecordReader
+
+    schema, batch_bytes = _make_batched_stream_bytes()
+    created = []
+    stream_creator = _make_exploding_creator(
+        created, batch_bytes, close_error, reopen_fail_at
+    )
+
+    monkeypatch.setattr(options, "retry_times", retry_times)
+    monkeypatch.setattr(options, "retry_delay", 0)
+
+    reader = BufferedRecordReader(schema, stream_creator)
+    # the batch error must win over any failure raised while releasing
+    # the stream of the already failed batch
+    with pytest.raises(_MidBatchFailureError):
+        reader.read()
+    assert len(created) == n_created
+    assert all(stream.closed for stream in created)
+    if close_raises:
+        # the failed release is retried when the reader itself is closed
+        with pytest.raises(RuntimeError):
+            reader.close()
+        assert created[0].close_count == 2
+    else:
+        reader.close()
+
+
+@py_and_c_deco
+def test_buffered_reader_closes_stream_on_success_path():
+    from ..io.reader import BufferedRecordReader
+
+    schema, batch_bytes = _make_batched_stream_bytes()
+
+    created = []
+
+    def stream_creator(cursor, row_number=None, raw_size=None):
+        if cursor > 0:
+            return None
+        stream = _ExplodingStream(batch_bytes)
+        created.append(stream)
+        return stream
+
+    reader = BufferedRecordReader(schema, stream_creator)
+    records = [rec.values for rec in reader]
+    assert records == [["hello"], ["world"]]
+    assert len(created) == 1
+    assert created[0].closed
+    # closed once at the end of the batch, then again when _reopen_reader
+    # drops the stale decoder while detecting EOF
+    assert created[0].close_count == 2
+    reader.close()
+    assert created[0].close_count == 2
+
+
+def _make_metrics_batch_bytes(metrics_json):
+    """Records followed by a footer that parses a server metrics string and
+    then fails the record checksum, so the batch dies with metrics pending."""
+    from ..pb import wire_format
+    from ..pb.encoder import Encoder
+    from ..wireconstants import ProtoWireConstants
+
+    schema, record_bytes = _make_batched_stream_bytes()
+
+    encoder = Encoder()
+    encoder.append_tag(
+        ProtoWireConstants.TUNNEL_META_COUNT, wire_format.WIRETYPE_VARINT
+    )
+    encoder.append_sint64(2)
+    # the metrics string is introduced by a length-delimited non-checksum tag
+    encoder.append_tag(
+        ProtoWireConstants.TUNNEL_END_METRICS, wire_format.WIRETYPE_LENGTH_DELIMITED
+    )
+    encoder.append_string(metrics_json)
+    encoder.append_tag(
+        ProtoWireConstants.TUNNEL_END_METRICS, wire_format.WIRETYPE_VARINT
+    )
+    encoder.append_uint32(0)  # deliberately mismatched checksum
+    # trailing padding so the decoders' lookahead never reads past the
+    # corrupt footer before it raises
+    return schema, record_bytes + encoder.tostring() + b"\x00" * 32
+
+
+@py_and_c_deco
+@pytest.mark.parametrize(
+    "metrics_json,resumed_raises",
+    [
+        pytest.param(
+            b'{"PanguIOCost": 1.0, "ServerIOCost": 1.0, "ServerTotalCost": 2.0}',
+            ChecksumError,
+            id="valid-metrics",
+        ),
+        pytest.param(b'{"unexpected": 1}', None, id="bad-metrics"),
+    ],
+)
+def test_buffered_reader_releases_stream_of_failed_batch_metrics(
+    monkeypatch, metrics_json, resumed_raises
+):
+    from ..io.reader import BufferedRecordReader
+
+    schema, batch_bytes = _make_metrics_batch_bytes(metrics_json)
+    created = []
+    stream_creator = _make_exploding_creator(created, batch_bytes)
+
+    monkeypatch.setattr(options, "retry_times", 0)
+    monkeypatch.setattr(options, "retry_delay", 0)
+    monkeypatch.setattr(options.tunnel, "enable_client_metrics", True)
+
+    reader = BufferedRecordReader(schema, stream_creator)
+    # the batch dies after its server metrics string was parsed but before the
+    # checksum that settles it
+    with pytest.raises(ChecksumError):
+        reader.read()
+    # the release must not depend on the pending metrics, and the byte count of
+    # the failed attempt survives in both the python and cython builds
+    assert all(stream.closed for stream in created)
+    assert reader.n_bytes > 0
+    if resumed_raises is not None:
+        # the retained decoder settles the metrics and surfaces the tunnel error
+        # instead of an AttributeError from a released decoder
+        with pytest.raises(resumed_raises):
+            reader.read()
+
+
+class _RaisingCloseStream(object):
+    """A byte stream whose close() always raises ``close_error``."""
+
+    def __init__(self, close_error):
+        self._close_error = close_error
+
+    def read(self, size=-1):
+        return b""
+
+    def close(self):
+        raise self._close_error
+
+    def readable(self):
+        return True
+
+
+@pyarrow_case
+@pytest.mark.parametrize(
+    "close_error,surfaced,attempts",
+    [
+        pytest.param(ValueError("close failed"), IOError, 3, id="normal-error"),
+        pytest.param(
+            KeyboardInterrupt(), KeyboardInterrupt, 1, id="keyboard-interrupt"
+        ),
+    ],
+)
+def test_arrow_reopen_release_failure(close_error, surfaced, attempts):
+    from ...utils import call_with_retry
+    from ..io.reader import TunnelArrowReader
+
+    schema = TableSchema.from_lists(["col"], ["string"])
+    reader = TunnelArrowReader(schema, lambda pos: _RaisingCloseStream(close_error))
+
+    seen = []
+
+    def read_batch():
+        seen.append(1)
+        raise IOError("tunnel failure")
+
+    # _reopen_reader is the reset_func of the arrow read loop: an ordinary
+    # failure to release costs only the cleanup so the retries continue, while a
+    # BaseException such as KeyboardInterrupt is never swallowed
+    with pytest.raises(surfaced):
+        call_with_retry(
+            read_batch, reset_func=reader._reopen_reader, retry_times=2, delay=0
+        )
+    assert len(seen) == attempts

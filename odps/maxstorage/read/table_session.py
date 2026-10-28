@@ -35,8 +35,14 @@ from ...tunnel.io.types import odps_schema_to_arrow_schema
 from ...types import OdpsSchema
 from ..errors import StorageClientError
 from ..io.compress import CompressionCodec, resolve_compress_option
-from ..models.enums import SessionStatus, SplitMode
+from ..models.descriptor import (
+    SessionDescriptor,
+    incremental_options_to_wire,
+    read_schema_to_wire,
+)
+from ..models.enums import SessionKind, SessionStatus, SplitMode
 from ..models.requests import CreateTableReadStreamRequest
+from ..models.responses import CreateTableReadSessionResponse
 from ..models.schema import ReadSchema
 from .reader import ArrowReader
 
@@ -142,19 +148,131 @@ class TableReadSession:
         request: "CreateTableReadSessionRequest",
         session_id: Optional[str] = None,
         session_ready_timeout: Optional[int] = None,
+        *,
+        _response: Optional["CreateTableReadSessionResponse"] = None,
+        _rows_per_split: int = 0,
     ):
         self._stub = stub
         self._table_id = table_id
         self._request = request
+        self._incremental_read = (
+            bool(getattr(request, "incremental_read", False))
+            if request is not None
+            else False
+        )
 
-        if session_id is not None:
+        if _response is not None:
+            # Locally restored from a session descriptor; no RPC is issued.
+            response = _response
+        elif session_id is not None:
             response = stub.get_table_read_session(table_id, session_id, refresh=False)
         else:
             response = stub.create_table_read_session(table_id, request)
             response = self._poll_until_ready(table_id, response, session_ready_timeout)
 
         self._response = response
+        self._rows_per_split = _rows_per_split or self._resolve_rows_per_split()
         self._splits = self._materialize_splits()
+
+    @classmethod
+    def from_descriptor(
+        cls, stub: "StorageStub", descriptor: "SessionDescriptor"
+    ) -> "TableReadSession":
+        """Restore a read session locally from a descriptor, without any RPC.
+
+        The descriptor is authoritative for schema, filters, incremental
+        options, and split planning; no remote session is created or
+        reloaded, and the supplied ``stub`` is only used for subsequent
+        reader calls.
+        """
+        if descriptor.kind not in (
+            SessionKind.BATCH_READ,
+            SessionKind.INCREMENTAL_READ,
+        ):
+            raise ValueError("A read session descriptor is required")
+
+        response = CreateTableReadSessionResponse.from_dict(descriptor.metadata)
+        response.route_token = descriptor.route_token
+        rows_per_split = descriptor.rows_per_split
+        if (
+            SplitMode.from_string(response.split_mode) == SplitMode.ROW_OFFSET
+            and (response.record_count or 0) > 0
+            and rows_per_split <= 0
+        ):
+            raise ValueError("ROW_OFFSET descriptor requires positive rowsPerSplit")
+
+        session = cls(
+            stub,
+            descriptor.table_identifier,
+            None,
+            _response=response,
+            _rows_per_split=rows_per_split,
+        )
+        session._incremental_read = descriptor.kind == SessionKind.INCREMENTAL_READ
+        return session
+
+    def to_descriptor(self) -> "SessionDescriptor":
+        """Export an immutable, credential-free description of this session.
+
+        The returned descriptor snapshots the current session state; later
+        mutations of this session do not affect it.
+        """
+        resp = self._response
+        # The server may omit the incremental options it accepted; preserve
+        # the request's so an incremental plan survives the round trip.
+        options = resp.incremental_read_options
+        if not options and self._request is not None:
+            options = getattr(self._request, "incremental_read_options", None)
+        metadata = {
+            "SessionId": resp.session_id,
+            "SessionStatus": resp.session_status,
+            "DataSchema": read_schema_to_wire(resp.data_schema),
+            "SupportedDataFormat": [
+                fmt.to_dict() for fmt in (resp.supported_data_format or [])
+            ],
+            "SplitMode": resp.split_mode,
+            "SplitsCount": resp.splits_count,
+            "RecordCount": resp.record_count,
+            "SplitBucketId": resp.split_bucket_id,
+            "SessionStats": (
+                None
+                if resp.session_stats is None
+                else {
+                    "EstimatedSize": resp.session_stats.estimated_size,
+                    "EstimatedRowCount": resp.session_stats.estimated_row_count,
+                }
+            ),
+            "EnableLargeString": resp.enable_large_string,
+            "LatestVersion": resp.latest_version,
+            "ExpirationTime": resp.expiration_time,
+            "IncrementalReadOptions": incremental_options_to_wire(options),
+        }
+        kind = (
+            SessionKind.INCREMENTAL_READ
+            if self._incremental_read or metadata["IncrementalReadOptions"]
+            else SessionKind.BATCH_READ
+        )
+        return SessionDescriptor.create(
+            kind,
+            self._table_id,
+            metadata,
+            route_token=resp.route_token,
+            rows_per_split=self._descriptor_rows_per_split(),
+        )
+
+    def _descriptor_rows_per_split(self):
+        """The row-offset chunk size to record, or ``None`` when unused.
+
+        The request may have defaulted the chunk size, so fall back to the
+        materialized splits to keep the plan reproducible.
+        """
+        if SplitMode.from_string(self._response.split_mode) != SplitMode.ROW_OFFSET:
+            return None
+        if self._rows_per_split:
+            return self._rows_per_split
+        if self._splits:
+            return self._splits[0].length
+        return None
 
     # -- session lifecycle -------------------------------------------------
 
@@ -223,20 +341,31 @@ class TableReadSession:
             "Split mode %s is not supported by TableReadSession" % split_mode
         )
 
-    @property
-    def _split_number(self):
+    def _resolve_rows_per_split(self):
         """Resolve the row-offset chunk size from the creation request.
 
-        The split number lives on the request's ``SplitOptions.split_number``;
-        the session response itself does not echo it back.  Falls back to
-        ``record_count`` (single split) when the request is unavailable
-        (e.g. a session reloaded by id).
+        Returns ``0`` unless the session uses ``ROW_OFFSET`` splits and the
+        request carries an explicit split number.
         """
+        if SplitMode.from_string(self._response.split_mode) != SplitMode.ROW_OFFSET:
+            return 0
         request = self._request
-        if request is not None and getattr(request, "split_options", None):
-            return request.split_options.split_number or 1
-        # Reloaded-by-id path: no request available.  Degenerate to a
-        # single split covering the whole record range.
+        options = (
+            getattr(request, "split_options", None) if request is not None else None
+        )
+        return options.split_number if options and options.split_number else 0
+
+    @property
+    def _split_number(self):
+        """Resolve the row-offset chunk size used to materialize splits.
+
+        Prefers the descriptor/request ``rowsPerSplit``; a request that only
+        asked the server to plan splits exposes no chunk size, and a session
+        reloaded by id carries no request at all — both degenerate to a
+        single split covering the whole record range.
+        """
+        if self._rows_per_split:
+            return self._rows_per_split
         return self._response.record_count or 1
 
     # -- public properties -------------------------------------------------
@@ -272,8 +401,13 @@ class TableReadSession:
 
     @property
     def record_count(self) -> int:
-        """Total row count in this session (from ``RecordCount``)."""
-        return self._response.record_count or 0
+        """Total row count in this session (from ``RecordCount``).
+
+        ``-1`` when the server does not report a record count — an absent
+        count is unknown, not zero.
+        """
+        count = self._response.record_count
+        return -1 if count is None else count
 
     @property
     def session_stats(self) -> Optional["SessionStats"]:
@@ -299,6 +433,16 @@ class TableReadSession:
     def enable_large_string(self) -> bool:
         """Whether the server uses Arrow large-string columns."""
         return self._response.enable_large_string
+
+    @property
+    def extended_arrow_ipc_enabled(self) -> bool:
+        """Whether the session negotiated the extended Arrow IPC format."""
+        return self._response.extended_arrow_ipc_enabled
+
+    @property
+    def latest_txn_id(self) -> Optional[str]:
+        """Latest transaction id (from ``LatestTxnId``, used by incremental reads)."""
+        return self._response.latest_txn_id
 
     # -- reader -----------------------------------------------------------
 
@@ -386,6 +530,7 @@ class TableReadSession:
             count=getattr(split, "length", self.record_count),
             async_read=async_read,
             async_queue_size=async_queue_size,
+            extended=self.extended_arrow_ipc_enabled,
         )
 
     # -- lifecycle --------------------------------------------------------

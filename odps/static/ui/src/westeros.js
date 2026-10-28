@@ -1,512 +1,97 @@
-(function (root, factory) {
-    if (typeof define === 'function' && define.amd) {
-        // AMD. Register as an anonymous module.
-        define(['exports', 'echarts.min'], factory);
-    } else if (typeof exports === 'object' && typeof exports.nodeName !== 'string') {
-        // CommonJS
-        factory(exports, require('echarts.min'));
-    } else {
-        // Browser globals
-        factory({}, root.echarts);
-    }
-}(this, function (exports, echarts) {
-    var log = function (msg) {
-        if (typeof console !== 'undefined') {
-            console && console.error && console.error(msg);
-        }
-    };
-    if (!echarts) {
-        log('ECharts is not Loaded');
-        return;
-    }
-    echarts.registerTheme('westeros', {
-        "color": [
-            "#516b91",
-            "#59c4e6",
-            "#edafda",
-            "#93b7e3",
-            "#a5e7f0",
-            "#cbb0e3"
-        ],
-        "backgroundColor": "rgba(0,0,0,0)",
-        "textStyle": {},
-        "title": {
-            "textStyle": {
-                "color": "#516b91"
-            },
-            "subtextStyle": {
-                "color": "#93b7e3"
-            }
-        },
-        "line": {
-            "itemStyle": {
-                "normal": {
-                    "borderWidth": "2"
-                }
-            },
-            "lineStyle": {
-                "normal": {
-                    "width": "2"
-                }
-            },
-            "symbolSize": "6",
-            "symbol": "emptyCircle",
-            "smooth": true
-        },
-        "radar": {
-            "itemStyle": {
-                "normal": {
-                    "borderWidth": "2"
-                }
-            },
-            "lineStyle": {
-                "normal": {
-                    "width": "2"
-                }
-            },
-            "symbolSize": "6",
-            "symbol": "emptyCircle",
-            "smooth": true
-        },
-        "bar": {
-            "itemStyle": {
-                "normal": {
-                    "barBorderWidth": 0,
-                    "barBorderColor": "#ccc"
-                },
-                "emphasis": {
-                    "barBorderWidth": 0,
-                    "barBorderColor": "#ccc"
-                }
-            }
-        },
-        "pie": {
-            "itemStyle": {
-                "normal": {
-                    "borderWidth": 0,
-                    "borderColor": "#ccc"
-                },
-                "emphasis": {
-                    "borderWidth": 0,
-                    "borderColor": "#ccc"
-                }
-            }
-        },
-        "scatter": {
-            "itemStyle": {
-                "normal": {
-                    "borderWidth": 0,
-                    "borderColor": "#ccc"
-                },
-                "emphasis": {
-                    "borderWidth": 0,
-                    "borderColor": "#ccc"
-                }
-            }
-        },
-        "boxplot": {
-            "itemStyle": {
-                "normal": {
-                    "borderWidth": 0,
-                    "borderColor": "#ccc"
-                },
-                "emphasis": {
-                    "borderWidth": 0,
-                    "borderColor": "#ccc"
-                }
-            }
-        },
-        "parallel": {
-            "itemStyle": {
-                "normal": {
-                    "borderWidth": 0,
-                    "borderColor": "#ccc"
-                },
-                "emphasis": {
-                    "borderWidth": 0,
-                    "borderColor": "#ccc"
-                }
-            }
-        },
-        "sankey": {
-            "itemStyle": {
-                "normal": {
-                    "borderWidth": 0,
-                    "borderColor": "#ccc"
-                },
-                "emphasis": {
-                    "borderWidth": 0,
-                    "borderColor": "#ccc"
-                }
-            }
-        },
-        "funnel": {
-            "itemStyle": {
-                "normal": {
-                    "borderWidth": 0,
-                    "borderColor": "#ccc"
-                },
-                "emphasis": {
-                    "borderWidth": 0,
-                    "borderColor": "#ccc"
-                }
-            }
-        },
-        "gauge": {
-            "itemStyle": {
-                "normal": {
-                    "borderWidth": 0,
-                    "borderColor": "#ccc"
-                },
-                "emphasis": {
-                    "borderWidth": 0,
-                    "borderColor": "#ccc"
-                }
-            }
-        },
-        "candlestick": {
-            "itemStyle": {
-                "normal": {
-                    "color": "#edafda",
-                    "color0": "transparent",
-                    "borderColor": "#d680bc",
-                    "borderColor0": "#8fd3e8",
-                    "borderWidth": "2"
-                }
-            }
-        },
-        "graph": {
-            "itemStyle": {
-                "normal": {
-                    "borderWidth": 0,
-                    "borderColor": "#ccc"
-                }
-            },
-            "lineStyle": {
-                "normal": {
-                    "width": 1,
-                    "color": "#aaaaaa"
-                }
-            },
-            "symbolSize": "6",
-            "symbol": "emptyCircle",
-            "smooth": true,
-            "color": [
-                "#516b91",
-                "#59c4e6",
-                "#edafda",
-                "#93b7e3",
-                "#a5e7f0",
-                "#cbb0e3"
-            ],
-            "label": {
-                "normal": {
-                    "textStyle": {
-                        "color": "#eeeeee"
-                    }
-                }
-            }
-        },
-        "map": {
-            "itemStyle": {
-                "normal": {
-                    "areaColor": "#f3f3f3",
-                    "borderColor": "#516b91",
-                    "borderWidth": 0.5
-                },
-                "emphasis": {
-                    "areaColor": "rgba(165,231,240,1)",
-                    "borderColor": "#516b91",
-                    "borderWidth": 1
-                }
-            },
-            "label": {
-                "normal": {
-                    "textStyle": {
-                        "color": "#000000"
-                    }
-                },
-                "emphasis": {
-                    "textStyle": {
-                        "color": "rgb(81,107,145)"
-                    }
-                }
-            }
-        },
-        "geo": {
-            "itemStyle": {
-                "normal": {
-                    "areaColor": "#f3f3f3",
-                    "borderColor": "#516b91",
-                    "borderWidth": 0.5
-                },
-                "emphasis": {
-                    "areaColor": "rgba(165,231,240,1)",
-                    "borderColor": "#516b91",
-                    "borderWidth": 1
-                }
-            },
-            "label": {
-                "normal": {
-                    "textStyle": {
-                        "color": "#000000"
-                    }
-                },
-                "emphasis": {
-                    "textStyle": {
-                        "color": "rgb(81,107,145)"
-                    }
-                }
-            }
-        },
-        "categoryAxis": {
-            "axisLine": {
-                "show": true,
-                "lineStyle": {
-                    "color": "#cccccc"
-                }
-            },
-            "axisTick": {
-                "show": false,
-                "lineStyle": {
-                    "color": "#333"
-                }
-            },
-            "axisLabel": {
-                "show": true,
-                "textStyle": {
-                    "color": "#999999"
-                }
-            },
-            "splitLine": {
-                "show": true,
-                "lineStyle": {
-                    "color": [
-                        "#eeeeee"
-                    ]
-                }
-            },
-            "splitArea": {
-                "show": false,
-                "areaStyle": {
-                    "color": [
-                        "rgba(250,250,250,0.05)",
-                        "rgba(200,200,200,0.02)"
-                    ]
-                }
-            }
-        },
-        "valueAxis": {
-            "axisLine": {
-                "show": true,
-                "lineStyle": {
-                    "color": "#cccccc"
-                }
-            },
-            "axisTick": {
-                "show": false,
-                "lineStyle": {
-                    "color": "#333"
-                }
-            },
-            "axisLabel": {
-                "show": true,
-                "textStyle": {
-                    "color": "#999999"
-                }
-            },
-            "splitLine": {
-                "show": true,
-                "lineStyle": {
-                    "color": [
-                        "#eeeeee"
-                    ]
-                }
-            },
-            "splitArea": {
-                "show": false,
-                "areaStyle": {
-                    "color": [
-                        "rgba(250,250,250,0.05)",
-                        "rgba(200,200,200,0.02)"
-                    ]
-                }
-            }
-        },
-        "logAxis": {
-            "axisLine": {
-                "show": true,
-                "lineStyle": {
-                    "color": "#cccccc"
-                }
-            },
-            "axisTick": {
-                "show": false,
-                "lineStyle": {
-                    "color": "#333"
-                }
-            },
-            "axisLabel": {
-                "show": true,
-                "textStyle": {
-                    "color": "#999999"
-                }
-            },
-            "splitLine": {
-                "show": true,
-                "lineStyle": {
-                    "color": [
-                        "#eeeeee"
-                    ]
-                }
-            },
-            "splitArea": {
-                "show": false,
-                "areaStyle": {
-                    "color": [
-                        "rgba(250,250,250,0.05)",
-                        "rgba(200,200,200,0.02)"
-                    ]
-                }
-            }
-        },
-        "timeAxis": {
-            "axisLine": {
-                "show": true,
-                "lineStyle": {
-                    "color": "#cccccc"
-                }
-            },
-            "axisTick": {
-                "show": false,
-                "lineStyle": {
-                    "color": "#333"
-                }
-            },
-            "axisLabel": {
-                "show": true,
-                "textStyle": {
-                    "color": "#999999"
-                }
-            },
-            "splitLine": {
-                "show": true,
-                "lineStyle": {
-                    "color": [
-                        "#eeeeee"
-                    ]
-                }
-            },
-            "splitArea": {
-                "show": false,
-                "areaStyle": {
-                    "color": [
-                        "rgba(250,250,250,0.05)",
-                        "rgba(200,200,200,0.02)"
-                    ]
-                }
-            }
-        },
-        "toolbox": {
-            "iconStyle": {
-                "normal": {
-                    "borderColor": "#999999"
-                },
-                "emphasis": {
-                    "borderColor": "#666666"
-                }
-            }
-        },
-        "legend": {
-            "textStyle": {
-                "color": "#999999"
-            }
-        },
-        "tooltip": {
-            "axisPointer": {
-                "lineStyle": {
-                    "color": "#cccccc",
-                    "width": 1
-                },
-                "crossStyle": {
-                    "color": "#cccccc",
-                    "width": 1
-                }
-            }
-        },
-        "timeline": {
-            "lineStyle": {
-                "color": "#8fd3e8",
-                "width": 1
-            },
-            "itemStyle": {
-                "normal": {
-                    "color": "#8fd3e8",
-                    "borderWidth": 1
-                },
-                "emphasis": {
-                    "color": "#8fd3e8"
-                }
-            },
-            "controlStyle": {
-                "normal": {
-                    "color": "#8fd3e8",
-                    "borderColor": "#8fd3e8",
-                    "borderWidth": 0.5
-                },
-                "emphasis": {
-                    "color": "#8fd3e8",
-                    "borderColor": "#8fd3e8",
-                    "borderWidth": 0.5
-                }
-            },
-            "checkpointStyle": {
-                "color": "#8fd3e8",
-                "borderColor": "rgba(138,124,168,0.37)"
-            },
-            "label": {
-                "normal": {
-                    "textStyle": {
-                        "color": "#8fd3e8"
-                    }
-                },
-                "emphasis": {
-                    "textStyle": {
-                        "color": "#8fd3e8"
-                    }
-                }
-            }
-        },
-        "visualMap": {
-            "color": [
-                "#516b91",
-                "#59c4e6",
-                "#a5e7f0"
-            ]
-        },
-        "dataZoom": {
-            "backgroundColor": "rgba(0,0,0,0)",
-            "dataBackgroundColor": "rgba(255,255,255,0.3)",
-            "fillerColor": "rgba(167,183,204,0.4)",
-            "handleColor": "#a7b7cc",
-            "handleSize": "100%",
-            "textStyle": {
-                "color": "#333333"
-            }
-        },
-        "markPoint": {
-            "label": {
-                "normal": {
-                    "textStyle": {
-                        "color": "#eeeeee"
-                    }
-                },
-                "emphasis": {
-                    "textStyle": {
-                        "color": "#eeeeee"
-                    }
-                }
-            }
-        }
-    });
-}));
+/*
+ * Copyright 1999-2026 Alibaba Group Holding Ltd.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+/*
+ * Westeros ECharts Theme (ES Module)
+ * Registers the "westeros" theme with echarts.
+ * Converted from AMD module to ES module.
+ */
+
+import * as echarts from "echarts";
+
+if (!echarts) {
+  console.error("ECharts is not loaded");
+} else {
+  echarts.registerTheme("westeros", {
+    color: [
+      "#516b91",
+      "#59c4e6",
+      "#edafda",
+      "#93b7e3",
+      "#a5e7f0",
+      "#cbb0e3",
+    ],
+    backgroundColor: "#ffffff",
+    textStyle: {
+      fontFamily: "sans-serif",
+    },
+    title: {
+      textStyle: { color: "#516b91", fontWeight: "normal" },
+      subtextStyle: { color: "#93b7e3" },
+    },
+    legend: {
+      textStyle: { color: "#516b91" },
+    },
+    xAxis: {
+      axisLine: { lineStyle: { color: "#516b91" } },
+      axisTick: { lineStyle: { color: "#516b91" } },
+      axisLabel: { color: "#516b91" },
+      splitLine: { lineStyle: { color: "#e3e6ef" } },
+    },
+    yAxis: {
+      axisLine: { lineStyle: { color: "#516b91" } },
+      axisTick: { lineStyle: { color: "#516b91" } },
+      axisLabel: { color: "#516b91" },
+      splitLine: { lineStyle: { color: "#e3e6ef" } },
+    },
+    tooltip: {
+      // Dark enough for white text (8.8:1) and outlined, so the box and its
+      // text stay readable when it floats over a bar of the same hue.
+      backgroundColor: "#3c4b66",
+      borderColor: "#ffffff",
+      textStyle: { color: "#ffffff" },
+      axisPointer: { lineStyle: { color: "#93b7e3" } },
+    },
+    categoryAxis: {
+      axisLine: { lineStyle: { color: "#516b91" } },
+      axisTick: { lineStyle: { color: "#516b91" } },
+      axisLabel: { color: "#516b91" },
+      splitLine: { lineStyle: { color: "#e3e6ef" } },
+    },
+    valueAxis: {
+      axisLine: { lineStyle: { color: "#516b91" } },
+      axisTick: { lineStyle: { color: "#516b91" } },
+      axisLabel: { color: "#516b91" },
+      splitLine: { lineStyle: { color: "#e3e6ef" } },
+    },
+    line: {
+      smooth: true,
+      itemStyle: { normal: { borderWidth: 2 } },
+      lineStyle: { normal: { width: 2 } },
+    },
+    bar: {
+      itemStyle: { normal: { barBorderWidth: 0, barBorderColor: "#ccc" } },
+    },
+    pie: {
+      itemStyle: { normal: { borderWidth: 2, borderColor: "#fff" } },
+    },
+    radar: {
+      symbol: "emptyCircle",
+      symbolSize: 4,
+    },
+  });
+}
+
+export default echarts;

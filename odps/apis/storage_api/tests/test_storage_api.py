@@ -25,6 +25,8 @@ try:
 except ImportError:
     pa = None
 
+from ....core import ODPS
+from ....models import Table
 from ..storage_api import SessionRequest, StorageApiClient
 
 if pa is not None:
@@ -90,6 +92,16 @@ def test_commit_write_session_rejects_invalid_wait_timeout(timeout):
         )
 
     client._tunnel_rest.post.assert_not_called()
+
+
+@pytest.mark.parametrize("write_timeout", [0, -1, -100])
+def test_storage_api_client_rejects_non_positive_write_timeout(write_timeout):
+    """Non-positive write_timeout is rejected at construction."""
+    odps = mock.Mock(spec=ODPS)
+    table = mock.Mock(spec=Table)
+
+    with pytest.raises(ValueError):
+        StorageApiClient(odps, table, write_timeout=write_timeout)
 
 
 def test_storage_api(storage_api_client):

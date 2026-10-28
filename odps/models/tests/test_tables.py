@@ -64,6 +64,36 @@ def test_schema_pickle():
     assert schema == pickle.loads(pickle.dumps(schema))
 
 
+def test_is_partitioned():
+    partitioned = Table(
+        name="partitioned",
+        table_schema=TableSchema.from_lists(["id"], ["string"], ["pt"], ["string"]),
+        type=Table.Type.MANAGED_TABLE,
+    )
+    assert partitioned.is_partitioned is True
+
+    unpartitioned = Table(
+        name="unpartitioned",
+        table_schema=TableSchema.from_lists(["id"], ["string"]),
+        type=Table.Type.MANAGED_TABLE,
+    )
+    assert unpartitioned.is_partitioned is False
+
+    view = Table(
+        name="view",
+        table_schema=TableSchema.from_lists(["id"], ["string"], ["pt"], ["string"]),
+        type=Table.Type.VIRTUAL_VIEW,
+    )
+    assert view.is_partitioned is False
+
+    materialized_view = Table(
+        name="materialized_view",
+        table_schema=TableSchema.from_lists(["id"], ["string"], ["pt"], ["string"]),
+        type=Table.Type.MATERIALIZED_VIEW,
+    )
+    assert materialized_view.is_partitioned is True
+
+
 def test_table_exists(odps):
     non_exists_table = "a_non_exists_table"
     assert odps.exist_table(non_exists_table) is False

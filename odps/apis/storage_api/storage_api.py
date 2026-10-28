@@ -438,8 +438,10 @@ class StreamReader(IOBase):
 class StreamWriter(IOBase):
     """Stream writer."""
 
-    def __init__(self, upload):
-        self._req_io = RequestsIO(upload, chunk_size=options.chunk_size)
+    def __init__(self, upload, write_timeout=None):
+        self._req_io = RequestsIO(
+            upload, chunk_size=options.chunk_size, write_timeout=write_timeout
+        )
         self._req_io.start()
         self._res = None
         self._stopped = False
@@ -636,7 +638,26 @@ class StorageApiClient:
         rest_endpoint: str = None,
         quota_name: str = None,
         tags: Union[None, str, List[str]] = None,
+        write_timeout: int = None,
     ):
+        """Initialize the storage API client.
+
+        Args:
+            odps: ODPS entry point.
+            table: Target table.
+            rest_endpoint: Tunnel REST endpoint override.
+            quota_name: Tunnel quota.
+            tags: Request tags.
+            write_timeout: Opt-in write timeout in seconds for streaming
+                uploads. Falls back to ``options.write_timeout``. When set,
+                upload POSTs use ``timeout=(connect_timeout, write_timeout)``.
+                Due to urllib3's timeout model, the send phase on a fresh
+                connection is bounded by ``connect_timeout`` and on a reused
+                connection by the previous request's leftover read timeout;
+                only the response-wait phase is directly bounded by
+                ``write_timeout``. A stalled send surfaces as
+                :class:`~odps.errors.WriteTimeout`.
+        """
         if not isinstance(odps, ODPS) or not isinstance(table, Table):
             raise ValueError("Please input odps configuration")
 
@@ -645,6 +666,11 @@ class StorageApiClient:
         self._quota_name = quota_name
         self._rest_endpoint = rest_endpoint
         self._tunnel_rest = None
+        self._write_timeout = (
+            write_timeout if write_timeout is not None else options.write_timeout
+        )
+        if self._write_timeout is not None and self._write_timeout <= 0:
+            raise ValueError("write_timeout must be a positive integer or None")
 
         self._tags = tags or options.tunnel.tags
         if isinstance(self._tags, str):
@@ -892,9 +918,15 @@ class StorageApiClient:
             params["data_format_version"] = str(request.data_format.version)
 
         def upload(data):
-            return self.tunnel_rest.post(url, data=data, params=params, headers=headers)
+            post_kwargs = dict(params=params, headers=headers)
+            if self._write_timeout is not None:
+                post_kwargs["timeout"] = (
+                    options.connect_timeout,
+                    self._write_timeout,
+                )
+            return self.tunnel_rest.post(url, data=data, **post_kwargs)
 
-        return StreamWriter(upload)
+        return StreamWriter(upload, write_timeout=self._write_timeout)
 
     def commit_write_session(
         self,

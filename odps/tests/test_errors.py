@@ -14,15 +14,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
+import time
 from collections import namedtuple
+from datetime import datetime
 
+import pytest
+
+from ..compat import utc
 from ..errors import (
     BadGatewayError,
     InternalServerError,
     InvalidArgument,
+    NoSuchObject,
     ODPSError,
     RequestTimeTooSkewed,
     ScriptError,
+    Unauthorized,
     parse_instance_error,
     parse_response,
 )
@@ -124,11 +132,6 @@ def test_instance_error():
 
 
 def test_parse_request_time_skew():
-    import time
-    from datetime import datetime
-
-    from ..compat import utc
-
     def get_timestamp(dt):
         if dt.tzinfo:
             delta = dt.astimezone(utc) - datetime(1970, 1, 1, tzinfo=utc)
@@ -177,8 +180,6 @@ def test_json_parse_response_with_composite_code():
     """Server may return a composite Code like 'ODPS-0420411: Invalid argument - '
     instead of a bare class name.  The parser should extract the ODPS prefix
     and resolve it via _CODE_MAPPING."""
-    import json
-
     body = json.dumps(
         {
             "Code": "ODPS-0420411: Invalid argument - ",
@@ -199,8 +200,6 @@ def test_json_parse_response_with_composite_code():
 
 def test_json_parse_response_with_unknown_composite_code():
     """An unknown ODPS code prefix should fall back to ODPSError."""
-    import json
-
     body = json.dumps(
         {
             "Code": "ODPS-0999999: Unknown error - ",
@@ -213,3 +212,83 @@ def test_json_parse_response_with_unknown_composite_code():
     assert isinstance(exc, ODPSError)
     assert exc.code == "ODPS-0999999: Unknown error - "
     assert exc.args[0] == "ODPS-0999999: Unknown error - Something went wrong"
+
+
+# ---------------------------------------------------------------------------
+# Unparseable non-2xx bodies: status and request id must survive
+# ---------------------------------------------------------------------------
+
+_REQUEST_HEADERS = {"x-odps-request-id": "REQ_ID"}
+
+_GATEWAY_HTML = (
+    "<html><head><title>503 Service Unavailable</title></head>"
+    "<body>No server is available</body></html>"
+)
+
+_NGINX_GATEWAY_HTML = (
+    "<html><body>Sorry, the page you are looking for is currently "
+    "unavailable. Please try again later.</body></html>"
+)
+
+
+@pytest.mark.parametrize(
+    "content, status_code, expected_cls, expected_code, expected_message",
+    [
+        (b"", 401, Unauthorized, None, "Unauthorized."),
+        (b"", 404, NoSuchObject, None, "Not found error reported by server."),
+        (b"", 407, ODPSError, "407", "HTTP 407 with an empty error response body"),
+        (b"null", 500, ODPSError, "500", "null"),
+        (_GATEWAY_HTML.encode(), 503, ODPSError, "503", _GATEWAY_HTML),
+        (
+            _NGINX_GATEWAY_HTML.encode(),
+            502,
+            BadGatewayError,
+            "502",
+            _NGINX_GATEWAY_HTML,
+        ),
+        (b'{"reason": "throttled"}', 429, ODPSError, "429", '{"reason": "throttled"}'),
+        (
+            b"\xff\xfe\x00\x01garbage",
+            500,
+            ODPSError,
+            "500",
+            "\ufffd\ufffd\x00\x01garbage",
+        ),
+    ],
+    ids=[
+        "401",
+        "404",
+        "empty-body",
+        "json-null",
+        "gateway-html",
+        "nginx-502",
+        "json-without-message",
+        "binary-body",
+    ],
+)
+def test_unparseable_body_preserves_status_and_request_id(
+    content, status_code, expected_cls, expected_code, expected_message
+):
+    """A non-2xx body that cannot be turned into a structured error (empty, not
+    JSON, JSON without the expected keys, or arbitrary bytes) must still yield an
+    error carrying the status code, the request id header and the best available
+    message: the body itself, or a sentence describing the bare status."""
+    exc = parse_response(
+        _PseudoResponse(
+            content, content.decode(errors="replace"), _REQUEST_HEADERS, status_code
+        )
+    )
+    assert type(exc) is expected_cls
+    assert exc.status_code == status_code
+    assert exc.request_id == "REQ_ID"
+    assert exc.response_headers == _REQUEST_HEADERS
+    assert exc.code == expected_code
+    assert exc.args[0] == expected_message
+
+
+def test_unparseable_body_without_request_id_header():
+    exc = parse_response(_PseudoResponse(b"", "", {}, 503))
+    assert isinstance(exc, ODPSError)
+    assert exc.status_code == 503
+    assert exc.request_id is None
+    assert "empty error response body" in exc.args[0]

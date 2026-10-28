@@ -17,6 +17,7 @@
 import enum
 import io
 import os
+import stat
 from collections import namedtuple
 
 from .. import errors, serializers, types, utils
@@ -248,17 +249,24 @@ class FileResource(Resource):
         if isinstance(file_obj, str):
             file_obj = file_obj.encode("utf-8")
 
+        # Validate the resource name before any upload work: every content
+        # shape (single-request, chunked, unknown-size stream) must fail fast
+        # so invalid input cannot mint temp part resources or trigger merges.
+        if self.name is None or len(self.name.strip()) == 0:
+            raise errors.ODPSError("File Resource Name should not empty.")
+
+        # Content known to fit a single chunk goes out in one request; streams
+        # of unknown size (pipes, sockets, custom file objects) take the
+        # chunked path, so uploading need not wait for the whole content.
+        file_size = self._get_file_size(file_obj)
         if (
             options.upload_resource_in_chunks
             and not is_merge_resource
             and not is_part_resource
-            and self._get_file_size(file_obj) > options.resource_chunk_size
+            and (file_size is None or file_size > options.resource_chunk_size)
         ):
             self._upload_with_stream(file_obj, overwrite)
             return self
-
-        if self.name is None or len(self.name.strip()) == 0:
-            raise errors.ODPSError("File Resource Name should not empty.")
 
         method = self._client.post if not overwrite else self._client.put
         url = self.parent.resource() if not overwrite else self.resource()
@@ -320,18 +328,53 @@ class FileResource(Resource):
             return size
         elif hasattr(file_obj, "name"):
             fn = file_obj.name
-            if fn and os.path.exists(fn):
-                return os.path.getsize(fn)
-        return None
+            if not fn:
+                return None
+            # Stat the backing path or fd; only regular files have a real
+            # size. int .name is an fd (TemporaryFile, fdopen(os.open)) ->
+            # fstat; str/bytes/PathLike .name is a path -> stat. Pipes,
+            # sockets, FIFOs and devices are non-regular and fall through to
+            # None so they use the chunked streaming path instead of seeking.
+            if isinstance(fn, int):
+                stat_fn = os.fstat
+            elif isinstance(fn, (str, bytes, os.PathLike)):
+                stat_fn = os.stat
+            else:
+                return None
+            try:
+                st = stat_fn(fn)
+            except OSError:
+                return None
+            return st.st_size if stat.S_ISREG(st.st_mode) else None
 
     def _upload_with_stream(self, file_obj, overwrite=True):
+        if isinstance(file_obj, bytes):
+            file_obj = io.BytesIO(file_obj)
         chunk_size = options.resource_chunk_size
-        with self.open("wb", stream=True, overwrite=overwrite) as res_file:
+        # Internal atomic upload: a source-read or close/merge failure must
+        # not overwrite the destination with truncated content or leak
+        # flushed temp parts. The public open() context manager is unaffected
+        # and keeps its normal close-and-commit behavior.
+        res_file = self.open("wb", stream=True, overwrite=overwrite)
+        try:
             while True:
                 buf = file_obj.read(chunk_size)
                 if not buf:
                     break
                 res_file.write(buf)
+            res_file.close()
+        except BaseException:
+            # Source failure or close() failure (flush/merge): detach the
+            # writer, best-effort delete flushed temp parts, re-raise.
+            fp = res_file._fp
+            res_file._fp = None
+            abort = getattr(fp, "abort", None)
+            if callable(abort):
+                try:
+                    abort()
+                except Exception:
+                    pass
+            raise
 
     def _is_create(self):
         if self._loaded:
